@@ -787,11 +787,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             institution_id: instId || carInvoice.institution_id || 'SYSTEM',
                             amount: amt,
                             payment_method: 'KCB IPN',
-                            transaction_reference: transactionID || mpesaReceiptNumber || transaction.id,
+                            transaction_reference: transactionID || transaction.id,
                             payment_date: new Date().toISOString().split('T')[0],
                             receipt_number: `REC-${Date.now().toString().slice(-6)}`,
                             received_by: 'KCB IPN Integration',
-                            notes: `Payment received via KCB IPN. Ref: ${transactionID || mpesaReceiptNumber || transaction.id}`,
+                            notes: `Payment received via KCB IPN. Ref: ${transactionID || transaction.id}`,
                             created_at: new Date().toISOString()
                         });
 
