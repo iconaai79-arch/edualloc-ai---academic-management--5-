@@ -517,18 +517,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Acknowledge receipt to KCB strictly following the expected KCBIPNResponse schema
+        // Acknowledge receipt to KCB strictly following the expected schema
         return res.status(200).json({
-            header: {
-                messageID,
-                originatorConversationID,
-                statusCode: "0",
-                statusMessage: "Success"
-            },
-            responsePayload: {
-                transactionInfo: {
-                    transactionId: mpesaReceiptNumber || businessKey || `TXN_${Date.now()}`
-                }
-            }
+            transactionID: mpesaReceiptNumber || businessKey || `TXN_${Date.now()}`,
+            statusCode: 0,
+            statusMessage: "Notification received"
         });
 
     } catch (err: any) {

@@ -873,35 +873,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Acknowledge receipt to KCB — use standard KCB IPN response format
         return res.status(200).json({
-            header: {
-                messageID,
-                originatorConversationID,
-                statusCode: "0",
-                statusMessage: "Success"
-            },
-            responsePayload: {
-                transactionInfo: {
-                    transactionId: transactionID
-                }
-            },
-            debug: {
-                receivedPayload: {
-                    transactionReference,
-                    requestId,
-                    channelCode,
-                    timestamp,
-                    transactionAmount,
-                    currency,
-                    customerReference,
-                    customerName,
-                    customerMobileNumber,
-                    balance,
-                    narration,
-                    creditAccountIdentifier,
-                    organizationShortCode,
-                    tillNumber
-                }
-            }
+            transactionID: transactionID || "123456789",
+            statusCode: 0,
+            statusMessage: "Notification received"
         });
 
     } catch (err: any) {
