@@ -25,6 +25,7 @@ import { BeakerIcon } from './icons/BeakerIcon';
 import { HomeIcon } from './icons/HomeIcon';
 import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { TruckIcon } from './icons/TruckIcon';
 
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateId, generateUserId } from '../utils/idGenerator';
@@ -228,7 +229,8 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
         { role: 'lecturer', label: 'Teacher/Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
-        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
+        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' },
+        { role: 'coop_admin', label: 'Cooperative Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' }
     ];
 
     const handleRequestWithdrawal = async (e: React.FormEvent) => {
