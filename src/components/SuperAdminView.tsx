@@ -6167,7 +6167,6 @@ Please change it after login.`;
                         </div>
                     </div>
                 </div>
-                </div>
             )}
 
             {/* ── Coop Configuration Modal ── */}
