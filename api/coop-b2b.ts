@@ -416,12 +416,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         // Log transaction integration
-        await supabase.from('integration_logs').insert({
-            provider: 'coop_b2b',
-            payload: body,
-            status: 'received',
-            created_at: new Date().toISOString()
-        }).catch(err => console.warn('[Coop B2B] Log failed:', err));
+        try {
+            await supabase.from('integration_logs').insert({
+                provider: 'coop_b2b',
+                payload: body,
+                status: 'received',
+                created_at: new Date().toISOString()
+            });
+        } catch (err) {
+            console.warn('[Coop B2B] Log failed:', err);
+        }
 
         // Route between Account Validation & Payment Advice
         const isValidation = bodyRequest.TotalAmount === undefined || parseFloat(String(bodyRequest.TotalAmount)) === 0;
