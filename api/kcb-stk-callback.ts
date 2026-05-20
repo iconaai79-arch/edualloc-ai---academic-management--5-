@@ -455,7 +455,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     }
                                 }
                             }
-                        }
 
                             // Mark transaction as reconciled (setting reconciled: true in metadata)
                             await supabase.from('mpesa_transactions').update({
