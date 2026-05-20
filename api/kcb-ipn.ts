@@ -428,7 +428,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Query:', JSON.stringify(req.query));
     console.log('Body:', JSON.stringify(body));
 
+    const routingKeys = new Set(['institutionId']);
+    const queryPayloadKeys = req.query ? Object.keys(req.query).filter(k => !routingKeys.has(k)) : [];
+    const bodyPayloadKeys = body ? Object.keys(body) : [];
+    const hasQueryFields = queryPayloadKeys.length > 0;
+    const hasBodyFields = bodyPayloadKeys.length > 0;
 
+    if (!hasQueryFields && !hasBodyFields) {
+        return res.status(200).json({
+            sampleRequest: {
+                transactionReference: "FT00026252",
+                requestId: "c7d702cb-6b5f-4fa6-8b57-436d0f789017",
+                channelCode: "202",
+                timestamp: "2021111103005",
+                transactionAmount: "100.00",
+                currency: "KES",
+                customerReference: "INV-0001",
+                customerName: "John Doe",
+                customerMobileNumber: "25471111111",
+                balance: "100000.00",
+                narration: "Payment for goods",
+                creditAccountIdentifier: "JD001",
+                organizationShortCode: "777777",
+                tillNumber: "150150"
+            },
+            sampleResponse: {
+                transactionID: "123456789",
+                statusCode: 0,
+                statusMessage: "Notification received"
+            }
+        });
+    }
 
     const supabase = getSupabase();
 
