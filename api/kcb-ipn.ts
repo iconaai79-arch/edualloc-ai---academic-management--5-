@@ -1,6 +1,14 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
+// Disable Vercel's built-in body parser so we can read raw stream manually.
+// This is required for webhook endpoints where the body may not be parsed correctly.
+export const config = {
+    api: {
+        bodyParser: false,
+    },
+};
+
 // Self-contained Supabase service client factory to avoid external lib crashes
 const getSupabase = () => {
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
