@@ -548,16 +548,18 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const isBusiness = institutionType === 'Business';
     const roleToUse = props.activeRole || props.currentUser?.role;
 
-    const isEdu = useMemo(() => {
-        return isEduInstitution(props.currentInstitution);
-    }, [props.currentInstitution]);
-
     const isDS = useMemo(() => {
         const cat = props.currentInstitution?.category?.toLowerCase() || '';
         const type = institutionType?.toLowerCase() || '';
         const hasModule = props.currentInstitution?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
-        return cat.includes('driving school') || type.includes('driving school') || hasModule;
+        return cat.includes('driving school') || type.includes('driving school') || !!hasModule;
     }, [props.currentInstitution, institutionType]);
+
+    const isEdu = useMemo(() => {
+        // Driving Schools are independent – they must never enter the education console flow
+        if (isDS) return false;
+        return isEduInstitution(props.currentInstitution);
+    }, [props.currentInstitution, isDS]);
 
     const isLaw = useMemo(() => {
         return props.currentInstitution?.category === 'Law Firm' || institutionType === 'Law Firm';
@@ -978,7 +980,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
             {(!isEdu || !isSchool || activeScope !== 'console_hub') && (
                 <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 items-center">
-                    {(isEdu || isSchool) && activeScope !== 'console_hub' && (
+                    {(isEdu || isSchool) && !isDS && activeScope !== 'console_hub' && (
                         <button
                             onClick={() => {
                                 setActiveScope('console_hub');
@@ -1033,7 +1035,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{isRetailAgency ? 'Initializing Communications Hub...' : 'Synchronizing Perspective Hub...'}</p>
                     </div>
                 }>
-                {((isEdu || isSchool) && activeScope === 'console_hub') ? (
+                {((isEdu || isSchool) && !isDS && activeScope === 'console_hub') ? (
                     <div className="py-12 animate-fade-in-up">
                         {/* Hub Header */}
                         <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
