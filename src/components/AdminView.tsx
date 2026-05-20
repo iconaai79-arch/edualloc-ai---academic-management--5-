@@ -1569,7 +1569,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     currentInstitution={props.currentInstitution}
                                     onMoveTimetableEntry={props.onMoveTimetableEntry}
                                     onLogAction={props.onLogAction}
-                                    preSelectedViewMode={timetablePreselectedViewMode}
+                                    preSelectedViewMode={timetablePreselectedViewMode ?? undefined}
                                     preSelectedLecturerId={timetablePreselectedLecturerId}
                                     preSelectedCourseId={timetablePreselectedCourseId}
                                     onClearPreSelected={() => {
