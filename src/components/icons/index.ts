@@ -124,3 +124,4 @@ export * from './PhotoIcon';
 export * from './VideoCameraIcon';
 export * from './DevicePhoneMobileIcon';
 export * from './KcbIcon';
+export * from './CoopIcon';

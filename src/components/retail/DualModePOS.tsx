@@ -83,7 +83,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     const fetchStudents = async () => {
         try {
             const data = await apiService.fetchModuleRecords<User>('users', institutionId);
-            const filtered = (data || []).filter(u => u.role === 'student' || (u.roles && u.roles.includes('student')));
+            const filtered = (data || []).filter(u => u.role === 'student' || (Array.isArray(u.roles) && u.roles.includes('student')));
             setStudents(filtered);
         } catch (err) {
             console.error("Fetch students error:", err);

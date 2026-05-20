@@ -465,10 +465,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (stdInv) {
                     invoice = stdInv;
                     accountName = stdInv.student_name || stdInv.client_name || 'Student';
+                } else {
+                    // Try matching with property management invoices
+                    const { data: pmInv } = await supabase
+                        .from('pm_invoices')
+                        .select('*')
+                        .eq('invoice_number', refCode)
+                        .maybeSingle();
+                    if (pmInv) {
+                        invoice = pmInv;
+                        // Find tenant details
+                        const { data: pmTenant } = await supabase
+                            .from('pm_tenants')
+                            .select('name')
+                            .eq('id', pmInv.tenant_id)
+                            .maybeSingle();
+                        accountName = pmTenant?.name || 'Tenant';
+                    }
                 }
             }
 
-            // 3. Fallback: Search by registration number or client name in invoices
+            // 3. Fallback: Search by registration number, client name, or property tenant name
             if (!invoice) {
                 const { data: stdInvByReg } = await supabase
                     .from('invoices')
@@ -488,6 +505,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (carInvByReg && carInvByReg.length > 0) {
                         invoice = carInvByReg[0];
                         accountName = invoice.client_name || 'Client';
+                    } else {
+                        const { data: pmTenantsMatched } = await supabase
+                            .from('pm_tenants')
+                            .select('*')
+                            .eq('name', refCode)
+                            .limit(1);
+                        if (pmTenantsMatched && pmTenantsMatched.length > 0) {
+                            const { data: pmInvByTenant } = await supabase
+                                .from('pm_invoices')
+                                .select('*')
+                                .eq('tenant_id', pmTenantsMatched[0].id)
+                                .limit(1);
+                            if (pmInvByTenant && pmInvByTenant.length > 0) {
+                                invoice = pmInvByTenant[0];
+                                accountName = pmTenantsMatched[0].name;
+                            }
+                        }
                     }
                 }
             }
@@ -529,7 +563,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 response: {
                     TransactionReferenceCode: refCode,
                     TransactionDate: bodyRequest.TransactionDate || new Date().toISOString(),
-                    TotalAmount: invoice ? (invoice.balance_amount || 0.0) : 0.0,
+                    TotalAmount: invoice ? (invoice.balance_amount !== undefined ? invoice.balance_amount : (invoice.amount || 0.0)) : 0.0,
                     Currency: 'KES',
                     AdditionalInfo: accountName || institution?.name || 'Authorized Client',
                     AccountNumber: refCode,
@@ -577,6 +611,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             let invoice: any = null;
             let isCarInvoice = false;
+            let isPmInvoice = false;
             let institution: any = null;
 
             // Find target invoice
@@ -597,6 +632,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     .maybeSingle();
                 if (stdInv) {
                     invoice = stdInv;
+                } else {
+                    const { data: pmInv } = await supabase
+                        .from('pm_invoices')
+                        .select('*')
+                        .eq('invoice_number', targetAccount)
+                        .maybeSingle();
+                    if (pmInv) {
+                        invoice = pmInv;
+                        isPmInvoice = true;
+                    }
                 }
             }
 
@@ -675,6 +720,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         receipt_number: `REC-${Date.now().toString().slice(-6)}`,
                         received_by: 'Coop Bank B2B API',
                         notes: `Coop Bank B2B payment received. Ref: ${bankTxnId}`
+                    });
+                } else if (isPmInvoice) {
+                    await supabase
+                        .from('pm_invoices')
+                        .update({
+                            status: 'Paid',
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', invoice.id);
+
+                    // Insert payment in pm_payments
+                    // Find active lease to check commission
+                    const { data: lease } = await supabase
+                        .from('pm_leases')
+                        .select('*')
+                        .eq('id', invoice.lease_id)
+                        .maybeSingle();
+
+                    let commissionAmount = 0;
+                    if (lease) {
+                        const { data: unit } = await supabase
+                            .from('pm_units')
+                            .select('*')
+                            .eq('id', lease.unit_id)
+                            .maybeSingle();
+                        if (unit) {
+                            const { data: property } = await supabase
+                                .from('pm_properties')
+                                .select('*')
+                                .eq('id', unit.property_id)
+                                .maybeSingle();
+                            if (property && property.commission_rate && parseFloat(String(property.commission_rate)) > 0) {
+                                commissionAmount = (amount * parseFloat(String(property.commission_rate))) / 100;
+                            }
+                        }
+                    }
+
+                    await supabase.from('pm_payments').insert({
+                        id: `pay_coop_${Date.now()}`,
+                        lease_id: invoice.lease_id,
+                        amount,
+                        payment_date: new Date().toISOString().split('T')[0],
+                        payment_method: 'Coop Bank B2B',
+                        payment_type: 'Rent',
+                        status: 'Completed',
+                        commission_amount: commissionAmount,
+                        institution_id: targetInstId,
+                        created_at: new Date().toISOString()
                     });
                 } else {
                     const paidAmount = parseFloat(String(invoice.paid_amount || 0)) + amount;

@@ -85,7 +85,7 @@ export function RetailUserDirectory({
         const targetRoles = role === 'teacher' ? ['teacher', 'lecturer'] : ['student'];
         let filtered = users.filter(u => 
             targetRoles.includes(u.role) || 
-            (u.roles && u.roles.some(r => targetRoles.includes(r)))
+            (Array.isArray(u.roles) && u.roles.some(r => targetRoles.includes(r)))
         );
 
         if (selectedCourseId !== 'all' && role === 'student') {

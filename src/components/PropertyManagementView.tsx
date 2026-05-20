@@ -34,6 +34,7 @@ import { MapPinIcon } from './icons/MapPinIcon';
 import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { KcbIcon } from './icons/KcbIcon';
+import { CoopIcon } from './icons/CoopIcon';
 import { BanknotesIcon } from './icons/BanknotesIcon';
 import { PencilIcon } from './icons/PencilIcon';
 import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
@@ -133,6 +134,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [showBankModal, setShowBankModal] = useState(false);
     const [selectedTenantForBankAction, setSelectedTenantForBankAction] = useState<PMTenant | null>(null);
+    const [showCoopModal, setShowCoopModal] = useState(false);
+    const [selectedTenantForCoopAction, setSelectedTenantForCoopAction] = useState<PMTenant | null>(null);
     const [newListingImages, setNewListingImages] = useState<string[]>([]);
     const [selectedLeaseForPreview, setSelectedLeaseForPreview] = useState<PMLease | null>(null);
     const [editingProperty, setEditingProperty] = useState<PMProperty | null>(null);
@@ -806,7 +809,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <td className="p-6 text-sm font-bold text-slate-500">{tenant.idNumber || '---'}</td>
                                     <td className="p-6 text-xs text-slate-400 font-bold">{new Date(tenant.createdAt).toLocaleDateString()}</td>
                                     <td className="p-6 text-right space-x-2">
-                                        <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="Bank Integration"><KcbIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="KCB Integration"><KcbIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => { setSelectedTenantForCoopAction(tenant); setShowCoopModal(true); }} className="p-3 bg-teal-50 dark:bg-teal-900/30 text-teal-600 rounded-xl hover:scale-105 transition-all" title="Coop B2B Integration"><CoopIcon className="w-4 h-4" /></button>
                                         <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors"><EyeIcon className="w-4 h-4" /></button>
                                     </td>
                                 </tr>
@@ -826,6 +830,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl"><KcbIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => { setSelectedTenantForCoopAction(tenant); setShowCoopModal(true); }} className="p-3 bg-teal-50 dark:bg-teal-900/30 text-teal-600 rounded-2xl" title="Coop B2B Integration"><CoopIcon className="w-5 h-5" /></button>
                                     <button className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-400"><EyeIcon className="w-5 h-5" /></button>
                                 </div>
                             </div>
@@ -960,6 +965,243 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 )}
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const CoopBankB2bModal = () => {
+        if (!selectedTenantForCoopAction) return null;
+        
+        const tenantInvoices = invoices.filter(inv => inv.tenantId === selectedTenantForCoopAction.id);
+        const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(tenantInvoices[0]?.id || '');
+        const [simulatedAmount, setSimulatedAmount] = useState<string>('');
+        const [processing, setProcessing] = useState(false);
+        const [apiResponse, setApiResponse] = useState<any>(null);
+        const [activeTab, setActiveTab] = useState<'validate' | 'pay'>('validate');
+
+        const selectedInvoice = tenantInvoices.find(inv => inv.id === selectedInvoiceId);
+
+        // Pre-fill amount when invoice changes
+        useEffect(() => {
+            if (selectedInvoice) {
+                setSimulatedAmount(selectedInvoice.amount.toString());
+            }
+        }, [selectedInvoiceId, selectedInvoice]);
+
+        const handleValidate = async () => {
+            if (!selectedInvoice) {
+                alert("Please select or create an invoice first.");
+                return;
+            }
+            setProcessing(true);
+            setApiResponse(null);
+            try {
+                const response = await fetch('/api/coop-b2b', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        header: {
+                            connectionID: 'coop_b2b_agent',
+                            connectionPassword: 'Password123',
+                            messageID: `VAL_${Date.now()}`
+                        },
+                        request: {
+                            TransactionReferenceCode: selectedInvoice.invoiceNumber,
+                            InstitutionCode: currentInstitution.code || '210001918',
+                            TotalAmount: 0
+                        }
+                    })
+                });
+                const res = await response.json();
+                setApiResponse(res);
+                if (res?.header?.statusCode === '200') {
+                    alert("Account Validation Test Succeeded: " + res?.header?.statusDescription);
+                } else {
+                    alert("Account Validation Test Failed: " + (res?.header?.statusDescription || "Unknown error"));
+                }
+            } catch (e: any) {
+                alert(e.message || "Failed to query validation endpoint");
+            }
+            setProcessing(false);
+        };
+
+        const handleSimulatePayment = async () => {
+            if (!selectedInvoice) {
+                alert("Please select or create an invoice first.");
+                return;
+            }
+            if (!simulatedAmount || isNaN(Number(simulatedAmount)) || Number(simulatedAmount) <= 0) {
+                alert("Please enter a valid payment amount");
+                return;
+            }
+            setProcessing(true);
+            setApiResponse(null);
+            try {
+                const response = await fetch('/api/coop-b2b', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        header: {
+                            connectionID: 'coop_b2b_agent',
+                            connectionPassword: 'Password123',
+                            messageID: `ADV_${Date.now()}`
+                        },
+                        request: {
+                            TransactionReferenceCode: `COOPB2B_${Date.now().toString().slice(-6)}`,
+                            AccountNumber: selectedInvoice.invoiceNumber,
+                            PaymentAmount: parseFloat(simulatedAmount),
+                            InstitutionCode: currentInstitution.code || '210001918',
+                            AccountName: selectedTenantForCoopAction.name,
+                            TransactionDate: new Date().toISOString()
+                        }
+                    })
+                });
+                const res = await response.json();
+                setApiResponse(res);
+                if (res?.header?.statusCode === '200') {
+                    alert("Coop B2B Payment simulated and reconciled successfully!");
+                    loadData();
+                } else {
+                    alert("Payment Simulation Failed: " + (res?.header?.statusDescription || "Unknown error"));
+                }
+            } catch (e: any) {
+                alert(e.message || "Failed to send payment advice simulated call");
+            }
+            setProcessing(false);
+        };
+
+        return (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                    {/* Header */}
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-teal-50/50 dark:bg-teal-900/10">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-teal-600/10 rounded-2xl text-teal-600">
+                                <CoopIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase italic tracking-tight">Co-op Bank B2B Integration</h3>
+                                <p className="text-[10px] text-teal-600 font-bold uppercase tracking-widest">{selectedTenantForCoopAction.name}</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowCoopModal(false)} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-full transition-colors text-slate-400">
+                            <XIcon className="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-8 space-y-6">
+                        {/* Tabs */}
+                        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl">
+                            <button
+                                onClick={() => { setActiveTab('validate'); setApiResponse(null); }}
+                                className={`flex-1 py-3 text-center rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'validate'
+                                    ? 'bg-white dark:bg-slate-800 text-teal-600 shadow-sm'
+                                    : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                            >
+                                Account Validation
+                            </button>
+                            <button
+                                onClick={() => { setActiveTab('pay'); setApiResponse(null); }}
+                                className={`flex-1 py-3 text-center rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'pay'
+                                    ? 'bg-white dark:bg-slate-800 text-teal-600 shadow-sm'
+                                    : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                            >
+                                Payment Advice Simulation
+                            </button>
+                        </div>
+
+                        {/* Invoice Selection */}
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Select Tenant Invoice</label>
+                            {tenantInvoices.length > 0 ? (
+                                <select
+                                    value={selectedInvoiceId}
+                                    onChange={(e) => setSelectedInvoiceId(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none text-slate-900 dark:text-white"
+                                >
+                                    {tenantInvoices.map(inv => (
+                                        <option key={inv.id} value={inv.id}>
+                                            {inv.invoiceNumber} - {inv.description} (KES {inv.amount}) [{inv.status}]
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <div className="p-4 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 rounded-2xl text-xs font-bold border border-amber-200/30">
+                                    No invoices found for this tenant. Please generate an invoice in the "Invoices" tab to test Coop B2B integration.
+                                </div>
+                            )}
+                        </div>
+
+                        {activeTab === 'validate' ? (
+                            <div className="space-y-4">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-3xl text-left border border-slate-100 dark:border-slate-700/50">
+                                    <div className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest italic mb-1">Verify Tenant Reference</div>
+                                    <p className="text-[11px] text-slate-500 font-bold uppercase">This triggers a customer account validation request to ensure Co-op Bank can check client legitimacy prior to receiving payment advice.</p>
+                                </div>
+
+                                <button
+                                    onClick={handleValidate}
+                                    disabled={processing || !selectedInvoice}
+                                    className="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-2xl p-4 font-black uppercase tracking-widest italic shadow-lg shadow-teal-600/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                                >
+                                    {processing ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    ) : (
+                                        <>
+                                            <CheckCircleIcon className="w-5 h-5" />
+                                            Run Account Validation Test
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="space-y-3">
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Simulated Payment Amount (KES)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Amount to pay"
+                                        value={simulatedAmount}
+                                        onChange={(e) => setSimulatedAmount(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-teal-500 rounded-2xl p-4 text-xl font-black italic outline-none transition-all text-slate-900 dark:text-white"
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={handleSimulatePayment}
+                                    disabled={processing || !selectedInvoice}
+                                    className="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-2xl p-4 font-black uppercase tracking-widest italic shadow-lg shadow-teal-600/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                                >
+                                    {processing ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    ) : (
+                                        <>
+                                            <BanknotesIcon className="w-5 h-5" />
+                                            Simulate Payment Advice
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* API Response Display */}
+                        {apiResponse && (
+                            <div className="space-y-2 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Callback API Response</label>
+                                <div className="bg-slate-950 p-4 rounded-2xl max-h-48 overflow-y-auto border border-slate-800 text-[11px] font-mono text-emerald-400">
+                                    <pre>{JSON.stringify(apiResponse, null, 2)}</pre>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -3011,6 +3253,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             </Modal>
 
             {showBankModal && <BankActionModal />}
+            {showCoopModal && <CoopBankB2bModal />}
             
             {showPdfPreview && (
                 <PdfPreviewModal 

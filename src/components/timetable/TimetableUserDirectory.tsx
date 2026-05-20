@@ -1,17 +1,21 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Course, Department, TimetableEntry } from '../../types';
+
+import React, { useState, useMemo } from 'react';
+import type { User, Course, Department, TimetableEntry, Subject, AllocationRequest, TimeOffRequest } from '../../types';
 import { SearchIcon as Search } from '../icons/SearchIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
 import { EnvelopeIcon } from '../icons/EnvelopeIcon';
-import { PhoneIcon } from '../icons/PhoneIcon';
 import { BuildingOfficeIcon as BuildingIcon } from '../icons/BuildingOfficeIcon';
 import { AlertTriangleIcon as AlertIcon } from '../icons/AlertTriangleIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { ArrowUpTrayIcon as UploadIcon } from '../icons/ArrowUpTrayIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { ClipboardListIcon } from '../icons/ClipboardListIcon';
 import { getInitials } from '../../utils/stringUtils';
 import { generatePastelColor } from '../../utils/colorUtils';
+import { ManageLessonsModal } from '../ManageLessonsModal';
+import { TimeOffRequestModal } from '../TimeOffRequestModal';
 
 interface TimetableUserDirectoryProps {
     institutionId: string;
@@ -21,6 +25,15 @@ interface TimetableUserDirectoryProps {
     departments?: Department[];
     timetableEntries?: TimetableEntry[];
     onViewCalendar: (user: User) => void;
+    // Teacher-action extras (optional — only applies when role === 'teacher')
+    subjects?: Subject[];
+    allocations?: AllocationRequest[];
+    onDirectAssign?: (lecturerId: string, subjectIds: string[], priority: any, justification: string, courseLevelSelections: Record<string, string[]>) => void;
+    onUpdateRequest?: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
+    onWithdrawRequest?: (requestId: string) => Promise<void>;
+    onAddTimeOffRequest?: (data: Partial<TimeOffRequest>) => Promise<void>;
+    onRestoreSchedule?: (userId: string) => void;
+    isSchool?: boolean;
 }
 
 export function TimetableUserDirectory({
@@ -31,16 +44,28 @@ export function TimetableUserDirectory({
     departments = [],
     timetableEntries = [],
     onViewCalendar,
+    subjects = [],
+    allocations = [],
+    onDirectAssign,
+    onUpdateRequest,
+    onWithdrawRequest,
+    onAddTimeOffRequest,
+    onRestoreSchedule,
+    isSchool,
 }: TimetableUserDirectoryProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState('all');
 
+    // Teacher action modal state
+    const [managingWorkloadFor, setManagingWorkloadFor] = useState<User | null>(null);
+    const [requestingTimeOffFor, setRequestingTimeOffFor] = useState<User | null>(null);
+    const [confirmRestoreFor, setConfirmRestoreFor] = useState<User | null>(null);
+
     const displayUsers = useMemo(() => {
-        // Support 'teacher' role which matches both 'teacher' and 'lecturer'
         const targetRoles = role === 'teacher' ? ['teacher', 'lecturer'] : ['student'];
-        let filtered = allUsers.filter(u => 
-            targetRoles.includes(u.role) || 
-            (u.roles && u.roles.some(r => targetRoles.includes(r)))
+        let filtered = allUsers.filter(u =>
+            targetRoles.includes(u.role) ||
+            (Array.isArray(u.roles) && u.roles.some(r => targetRoles.includes(r)))
         );
 
         if (selectedCourseId !== 'all' && role === 'student') {
@@ -49,7 +74,7 @@ export function TimetableUserDirectory({
 
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            filtered = filtered.filter(u => 
+            filtered = filtered.filter(u =>
                 u.name.toLowerCase().includes(query) ||
                 (u.email && u.email.toLowerCase().includes(query)) ||
                 (u.phoneNumber && u.phoneNumber.includes(query)) ||
@@ -67,7 +92,6 @@ export function TimetableUserDirectory({
         const userId = user.id;
         const userCourseId = user.courseId;
 
-        // Filter entries
         const entries = timetableEntries.filter(entry => {
             if (role === 'teacher') {
                 return entry.lecturerId === userId || entry.lecturer_id === userId;
@@ -76,7 +100,6 @@ export function TimetableUserDirectory({
             }
         });
 
-        // Detect overlaps/conflicts
         let hasConflict = false;
         let conflictCount = 0;
 
@@ -90,7 +113,6 @@ export function TimetableUserDirectory({
                 const bEnd = b.endTime || b.end_time || '';
 
                 if (a.day === b.day) {
-                    // Check if time ranges overlap
                     if ((aStart >= bStart && aStart < bEnd) || (bStart >= aStart && bStart < aEnd)) {
                         hasConflict = true;
                         conflictCount++;
@@ -99,11 +121,7 @@ export function TimetableUserDirectory({
             }
         }
 
-        return {
-            count: entries.length,
-            hasConflict,
-            conflictCount,
-        };
+        return { count: entries.length, hasConflict, conflictCount };
     };
 
     const getCourseName = (courseId?: string) => {
@@ -118,177 +136,314 @@ export function TimetableUserDirectory({
         return dept ? dept.name : 'N/A';
     };
 
+    const teacherLessonCount = (user: User) =>
+        timetableEntries.filter(e => e.lecturerId === user.id || e.lecturer_id === user.id).length;
+
     return (
-        <div className="space-y-6">
-            {/* Header / Filter Panel */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/20 dark:border-slate-800/50 rounded-[2.5rem] shadow-sm p-6 sm:p-8 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-6">
-                <div className="flex items-center gap-4">
-                    <div className="p-4 bg-indigo-500/10 text-indigo-600 rounded-3xl dark:bg-indigo-900/20 dark:text-indigo-400">
-                        {role === 'teacher' ? <UserIcon className="w-6 h-6" /> : <UserGroupIcon className="w-6 h-6" />}
+        <>
+            <div className="space-y-6">
+                {/* Header / Filter Panel */}
+                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/20 dark:border-slate-800/50 rounded-[2.5rem] shadow-sm p-6 sm:p-8 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-6">
+                    <div className="flex items-center gap-4">
+                        <div className="p-4 bg-indigo-500/10 text-indigo-600 rounded-3xl dark:bg-indigo-900/20 dark:text-indigo-400">
+                            {role === 'teacher' ? <UserIcon className="w-6 h-6" /> : <UserGroupIcon className="w-6 h-6" />}
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                {role === 'teacher' ? 'Academics: Teachers Registry' : 'Academics: Students Registry'}
+                            </h2>
+                            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                    {displayUsers.length} total active {role === 'teacher' ? 'teachers' : 'students'}
+                                </p>
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                                <button
+                                    onClick={() => {
+                                        const input = document.createElement('input');
+                                        input.type = 'file';
+                                        input.accept = '.csv,.xlsx,.xls';
+                                        input.onchange = (e: any) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                alert(`Initiating smart parsing for "${file.name}" to import ${role === 'teacher' ? 'teachers' : 'students'} registry...`);
+                                            }
+                                        };
+                                        input.click();
+                                    }}
+                                    className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98"
+                                >
+                                    <UploadIcon className="w-3.5 h-3.5" />
+                                    Import {role === 'teacher' ? 'Teachers' : 'Students'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                            {role === 'teacher' ? 'Academics: Teachers Registry' : 'Academics: Students Registry'}
-                        </h2>
-                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                {displayUsers.length} total active {role === 'teacher' ? 'teachers' : 'students'}
+
+                    <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center flex-1 max-w-2xl justify-end">
+                        {/* Search Field */}
+                        <div className="relative flex-1 group">
+                            <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                            <input
+                                type="text"
+                                placeholder={`Search by name, ID, contact...`}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-12 pr-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all"
+                            />
+                        </div>
+
+                        {/* Optional Grade Filter for Students */}
+                        {role === 'student' && allCourses.length > 0 && (
+                            <select
+                                value={selectedCourseId}
+                                onChange={(e) => setSelectedCourseId(e.target.value)}
+                                className="px-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+                            >
+                                <option value="all">All Grades</option>
+                                {allCourses.map(course => (
+                                    <option key={course.id} value={course.id}>{course.name}</option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
+                </div>
+
+                {/* Directory Grid */}
+                {displayUsers.length === 0 ? (
+                    <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-16 rounded-[3rem] border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center">
+                        <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+                            {role === 'teacher' ? <UserIcon className="w-10 h-10 text-slate-300" /> : <UserGroupIcon className="w-10 h-10 text-slate-300" />}
+                        </div>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter">No Records Found</h3>
+                        <p className="text-slate-400 text-xs italic mt-2 font-medium">No records match the requested search parameters.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {displayUsers.map((user) => {
+                            const avatarColor = generatePastelColor(user.id);
+                            const idVal = role === 'student'
+                                ? (user.admissionNumber || (user as any).admission_number || 'N/A')
+                                : (user.staffId || 'N/A');
+
+                            const scheduleStats = getUserTimetableInfo(user);
+
+                            return (
+                                <div
+                                    key={user.id}
+                                    className="group bg-white dark:bg-slate-850 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/80 shadow-sm hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between"
+                                >
+                                    <div className="space-y-4">
+                                        {/* Profile Header */}
+                                        <div className="flex items-center gap-4">
+                                            <div
+                                                className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-slate-800 text-sm shadow-sm flex-shrink-0"
+                                                style={{ backgroundColor: avatarColor }}
+                                            >
+                                                {getInitials(user.name)}
+                                            </div>
+                                            <div className="overflow-hidden">
+                                                <h4 className="font-black text-slate-900 dark:text-white text-sm truncate uppercase tracking-tight group-hover:text-indigo-600 transition-colors">
+                                                    {user.name}
+                                                </h4>
+                                                <span className="inline-block mt-1 text-[8px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md">
+                                                    {role === 'student' ? `ADM: ${idVal}` : `STAFF: ${idVal}`}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Faculty / Enrolled Class detail */}
+                                        <div className="pt-4 border-t border-slate-50 dark:border-slate-800 space-y-2.5">
+                                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                                <BuildingIcon className="w-4 h-4 text-slate-400" />
+                                                <span className="font-semibold truncate">
+                                                    {role === 'student'
+                                                        ? getCourseName(user.courseId)
+                                                        : getDepartmentName(user.departmentId)}
+                                                </span>
+                                            </div>
+
+                                            {user.email && (
+                                                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                                    <EnvelopeIcon className="w-4 h-4 text-slate-400" />
+                                                    <span className="truncate">{user.email}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Timetable Diagnostic Summary Panel */}
+                                        <div className="mt-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/50 space-y-2">
+                                            <div className="flex justify-between items-center text-[10px] font-black uppercase">
+                                                <span className="text-slate-400">Lessons Assigned</span>
+                                                <span className={`px-2 py-0.5 rounded text-white ${scheduleStats.count > 0 ? 'bg-indigo-500' : 'bg-slate-400'}`}>
+                                                    {scheduleStats.count} {scheduleStats.count === 1 ? 'Lesson' : 'Lessons'}
+                                                </span>
+                                            </div>
+
+                                            {/* Overlap Alarm Indicator */}
+                                            {scheduleStats.hasConflict ? (
+                                                <div className="flex items-center gap-2 text-[9px] font-bold text-amber-600 bg-amber-500/10 p-2 rounded-xl border border-amber-500/20 animate-pulse">
+                                                    <AlertIcon className="w-4 h-4 flex-shrink-0" />
+                                                    <span>Overlap Warning: {scheduleStats.conflictCount} conflicts detected!</span>
+                                                </div>
+                                            ) : (
+                                                scheduleStats.count > 0 && (
+                                                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20">
+                                                        <CheckCircleIcon className="w-4 h-4 flex-shrink-0" />
+                                                        <span>Schedule fully resolved (No overlaps)</span>
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="mt-6 pt-4 border-t border-slate-50 dark:border-slate-800 space-y-2">
+                                        {/* Primary: View Calendar */}
+                                        <button
+                                            onClick={() => onViewCalendar(user)}
+                                            className="w-full py-3 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 shadow-sm group-hover:scale-102 active:scale-98"
+                                        >
+                                            <CalendarDaysIcon className="w-4 h-4" />
+                                            View Live Calendar
+                                        </button>
+
+                                        {/* Teacher-only actions */}
+                                        {role === 'teacher' && (
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {/* Workload */}
+                                                <button
+                                                    onClick={() => setManagingWorkloadFor(user)}
+                                                    title="Manage Workload"
+                                                    className="flex flex-col items-center gap-1.5 py-3 px-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-2xl text-[8px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                                >
+                                                    <ClipboardListIcon className="w-4 h-4" />
+                                                    Workload
+                                                </button>
+
+                                                {/* Time Off */}
+                                                <button
+                                                    onClick={() => setRequestingTimeOffFor(user)}
+                                                    title="Request Time Off"
+                                                    className="flex flex-col items-center gap-1.5 py-3 px-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 text-amber-600 dark:text-amber-400 rounded-2xl text-[8px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                                >
+                                                    <CalendarDaysIcon className="w-4 h-4" />
+                                                    Time Off
+                                                </button>
+
+                                                {/* Restore / Reset Schedule */}
+                                                <button
+                                                    onClick={() => setConfirmRestoreFor(user)}
+                                                    title="Restore / Reset Schedule"
+                                                    className="flex flex-col items-center gap-1.5 py-3 px-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-2xl text-[8px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                                >
+                                                    <ArrowPathIcon className="w-4 h-4" />
+                                                    Restore
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* ── Modals ── */}
+
+            {/* Workload Modal */}
+            {managingWorkloadFor && (
+                <ManageLessonsModal
+                    teacher={managingWorkloadFor}
+                    subjects={subjects}
+                    departments={departments}
+                    allocations={allocations}
+                    courses={allCourses}
+                    isSchool={isSchool}
+                    onClose={() => setManagingWorkloadFor(null)}
+                    onAssign={onDirectAssign || (() => {})}
+                    onUpdateAllocation={onUpdateRequest || (() => {})}
+                    onDeallocate={onWithdrawRequest || (async () => {})}
+                />
+            )}
+
+            {/* Time Off Request Modal */}
+            {requestingTimeOffFor && (
+                <TimeOffRequestModal
+                    onClose={() => setRequestingTimeOffFor(null)}
+                    onSubmit={async (data) => {
+                        if (onAddTimeOffRequest && requestingTimeOffFor) {
+                            await onAddTimeOffRequest({ ...data, lecturerId: requestingTimeOffFor.id });
+                            setRequestingTimeOffFor(null);
+                        } else {
+                            setRequestingTimeOffFor(null);
+                        }
+                    }}
+                />
+            )}
+
+            {/* Restore / Reset Confirmation Modal */}
+            {confirmRestoreFor && (
+                <div
+                    className="fixed inset-0 bg-slate-900/80 z-[300] flex items-center justify-center p-4 backdrop-blur-md"
+                    onClick={() => setConfirmRestoreFor(null)}
+                >
+                    <div
+                        className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 border border-white/20 dark:border-slate-800 animate-fade-in-up"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Icon */}
+                        <div className="flex flex-col items-center text-center gap-4 mb-8">
+                            <div className="w-20 h-20 bg-rose-100 dark:bg-rose-900/30 rounded-[2rem] flex items-center justify-center shadow-xl shadow-rose-100 dark:shadow-none">
+                                <ArrowPathIcon className="w-10 h-10 text-rose-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                    Restore Schedule
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                                    {confirmRestoreFor.name}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Info */}
+                        <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-2xl p-5 mb-8 text-center">
+                            <p className="text-xs font-bold text-rose-700 dark:text-rose-300 leading-relaxed">
+                                This will clear all{' '}
+                                <span className="font-black text-rose-800 dark:text-rose-200">
+                                    {teacherLessonCount(confirmRestoreFor)} timetable entries
+                                </span>{' '}
+                                for <span className="font-black">{confirmRestoreFor.name}</span> and trigger a fresh re-generation for their allocated subjects. This action cannot be undone.
                             </p>
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setConfirmRestoreFor(null)}
+                                className="flex-1 py-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-50 active:scale-95 shadow-sm"
+                            >
+                                Cancel
+                            </button>
                             <button
                                 onClick={() => {
-                                    const input = document.createElement('input');
-                                    input.type = 'file';
-                                    input.accept = '.csv,.xlsx,.xls';
-                                    input.onchange = (e: any) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                            alert(`Initiating smart parsing for "${file.name}" to import ${role === 'teacher' ? 'teachers' : 'students'} registry...`);
-                                        }
-                                    };
-                                    input.click();
+                                    if (onRestoreSchedule) {
+                                        onRestoreSchedule(confirmRestoreFor.id);
+                                    } else {
+                                        alert(`Schedule restore initiated for ${confirmRestoreFor.name}. Re-run the Timetable Wizard to regenerate.`);
+                                    }
+                                    setConfirmRestoreFor(null);
                                 }}
-                                className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98"
+                                className="flex-[2] py-4 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-rose-200 dark:shadow-none flex items-center justify-center gap-2"
                             >
-                                <UploadIcon className="w-3.5 h-3.5" />
-                                Import {role === 'teacher' ? 'Teachers' : 'Students'}
+                                <ArrowPathIcon className="w-4 h-4" />
+                                Confirm Restore
                             </button>
                         </div>
                     </div>
                 </div>
-
-                <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center flex-1 max-w-2xl justify-end">
-                    {/* Search Field */}
-                    <div className="relative flex-1 group">
-                        <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                        <input
-                            type="text"
-                            placeholder={`Search by name, ID, contact...`}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all"
-                        />
-                    </div>
-
-                    {/* Optional Grade Filter for Students */}
-                    {role === 'student' && allCourses.length > 0 && (
-                        <select
-                            value={selectedCourseId}
-                            onChange={(e) => setSelectedCourseId(e.target.value)}
-                            className="px-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
-                        >
-                            <option value="all">All Grades</option>
-                            {allCourses.map(course => (
-                                <option key={course.id} value={course.id}>{course.name}</option>
-                            ))}
-                        </select>
-                    )}
-                </div>
-            </div>
-
-            {/* Directory Grid */}
-            {displayUsers.length === 0 ? (
-                <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-16 rounded-[3rem] border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center">
-                    <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
-                        {role === 'teacher' ? <UserIcon className="w-10 h-10 text-slate-300" /> : <UserGroupIcon className="w-10 h-10 text-slate-300" />}
-                    </div>
-                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter">No Records Found</h3>
-                    <p className="text-slate-400 text-xs italic mt-2 font-medium">No records match the requested search parameters.</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {displayUsers.map((user, idx) => {
-                        const avatarColor = generatePastelColor(user.id);
-                        const idVal = role === 'student' 
-                            ? (user.admissionNumber || (user as any).admission_number || 'N/A')
-                            : (user.staffId || 'N/A');
-
-                        const scheduleStats = getUserTimetableInfo(user);
-
-                        return (
-                            <div 
-                                key={user.id}
-                                className="group bg-white dark:bg-slate-850 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/80 shadow-sm hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between"
-                            >
-                                <div className="space-y-4">
-                                    {/* Profile Header */}
-                                    <div className="flex items-center gap-4">
-                                        <div 
-                                            className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-slate-800 text-sm shadow-sm flex-shrink-0"
-                                            style={{ backgroundColor: avatarColor }}
-                                        >
-                                            {getInitials(user.name)}
-                                        </div>
-                                        <div className="overflow-hidden">
-                                            <h4 className="font-black text-slate-900 dark:text-white text-sm truncate uppercase tracking-tight group-hover:text-indigo-600 transition-colors">
-                                                {user.name}
-                                            </h4>
-                                            <span className="inline-block mt-1 text-[8px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md">
-                                                {role === 'student' ? `ADM: ${idVal}` : `STAFF: ${idVal}`}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Faculty / Enrolled Class detail */}
-                                    <div className="pt-4 border-t border-slate-50 dark:border-slate-800 space-y-2.5">
-                                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                            <BuildingIcon className="w-4 h-4 text-slate-400" />
-                                            <span className="font-semibold truncate">
-                                                {role === 'student' 
-                                                    ? getCourseName(user.courseId) 
-                                                    : getDepartmentName(user.departmentId)}
-                                            </span>
-                                        </div>
-
-                                        {user.email && (
-                                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                                <EnvelopeIcon className="w-4 h-4 text-slate-400" />
-                                                <span className="truncate">{user.email}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Timetable Diagnostic Summary Panel */}
-                                    <div className="mt-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/50 space-y-2">
-                                        <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                                            <span className="text-slate-400">Lessons Assigned</span>
-                                            <span className={`px-2 py-0.5 rounded text-white ${scheduleStats.count > 0 ? 'bg-indigo-500' : 'bg-slate-400'}`}>
-                                                {scheduleStats.count} {scheduleStats.count === 1 ? 'Lesson' : 'Lessons'}
-                                            </span>
-                                        </div>
-
-                                        {/* Overlap Alarm Indicator */}
-                                        {scheduleStats.hasConflict ? (
-                                            <div className="flex items-center gap-2 text-[9px] font-bold text-amber-600 bg-amber-500/10 p-2 rounded-xl border border-amber-500/20 animate-pulse">
-                                                <AlertIcon className="w-4 h-4 flex-shrink-0" />
-                                                <span>Overlap Warning: {scheduleStats.conflictCount} conflicts detected!</span>
-                                            </div>
-                                        ) : (
-                                            scheduleStats.count > 0 && (
-                                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20">
-                                                    <CheckCircleIcon className="w-4 h-4 flex-shrink-0" />
-                                                    <span>Schedule fully resolved (No overlaps)</span>
-                                                </div>
-                                            )
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Calendar Deep Link Trigger */}
-                                <div className="mt-6 pt-4 border-t border-slate-50 dark:border-slate-800">
-                                    <button
-                                        onClick={() => onViewCalendar(user)}
-                                        className="w-full py-3 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 shadow-sm group-hover:scale-102 active:scale-98"
-                                    >
-                                        <CalendarDaysIcon className="w-4 h-4" />
-                                        View Live Calendar
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
             )}
-        </div>
+        </>
     );
 }

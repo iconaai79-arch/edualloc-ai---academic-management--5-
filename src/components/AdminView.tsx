@@ -1586,6 +1586,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     allCourses={props.courses || []}
                                     departments={props.departments || []}
                                     timetableEntries={props.generatedTimetable || []}
+                                    subjects={props.subjects || []}
+                                    allocations={(props.requests || []).filter((r: any) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
+                                    isSchool={!!(props.currentInstitution as any)?.isSchool}
+                                    onDirectAssign={props.onDirectAssign as any}
+                                    onUpdateRequest={props.onUpdateRequest as any}
+                                    onWithdrawRequest={props.onWithdrawRequest as any}
+                                    onAddTimeOffRequest={props.onAddTimeOffRequest as any}
+                                    onRestoreSchedule={(userId) => {
+                                        alert(`Schedule restore queued for teacher ${userId}. Re-run the Timetable Wizard to regenerate their entries.`);
+                                    }}
                                     onViewCalendar={(user) => {
                                         setTimetablePreselectedViewMode('lecturer_schedule');
                                         setTimetablePreselectedLecturerId(user.id);

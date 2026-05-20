@@ -2969,7 +2969,7 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.text(`ID/Reg: ${member.staffId || 'N/A'}`, margin, tableStartY);
 
     // Guard for member.role - Fixed positioning to avoid overlap with Name
-    const roleText = (member.roles && member.roles.length > 0)
+    const roleText = (Array.isArray(member.roles) && member.roles.length > 0)
         ? member.roles.map(r => formatRoleDisplayName(r as Role, institution)).join(', ').toUpperCase()
         : (member.role ? formatRoleDisplayName(member.role, institution).toUpperCase() : 'N/A');
     doc.text(`Role: ${roleText}`, margin, tableStartY + 5);
