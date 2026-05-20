@@ -284,28 +284,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    // Standard Safaricom/Production format
-                    shortCode: shortCode,
-                    password: password,
-                    timestamp: timestamp,
-                    amount: amount,
-                    phoneNumber: phoneNumber.replace(/[^\d]/g, ''),
-                    accountReference: accountReference || 'Payment',
-                    transactionDesc: transactionDesc || 'Payment',
-                    callBackURL: `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
-
-                    // Buni UAT Sandbox format compatibility
-                    invoiceNumber: accountReference || `INV_${Date.now()}`,
-                    sharedShortCode: true,
-                    orgShortCode: shortCode || '522533',
-                    orgPassKey: passkey,
-                    callbackUrl: `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
-                    transactionDescription: transactionDesc || 'Payment',
-
-                    // New flat KCB format compatibility fields
                     transactionReference: transactionReference || accountReference || `TXN_${Date.now()}`,
                     requestId: requestId || `req_${Date.now()}`,
                     channelCode: channelCode || '202',
+                    timestamp: timestamp,
                     transactionAmount: String(amount),
                     currency: currency || 'KES',
                     customerReference: accountReference || 'Payment',
@@ -314,7 +296,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     balance: balance || '0.00',
                     narration: transactionDesc || 'Payment',
                     "creditAccountIdenti;ier": creditAccountIdentifier || shortCode,
-                    creditAccountIdentifier: creditAccountIdentifier || shortCode,
                     organizationShortCode: shortCode || '522533',
                     tillNumber: tillNumber || ''
                 })
