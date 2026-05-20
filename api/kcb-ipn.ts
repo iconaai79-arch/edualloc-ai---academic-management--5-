@@ -428,20 +428,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Query:', JSON.stringify(req.query));
     console.log('Body:', JSON.stringify(body));
 
-    // Count meaningful payload fields (exclude routing params like institutionId)
-    const routingKeys = new Set(['institutionId']);
-    const queryPayloadKeys = req.query ? Object.keys(req.query).filter(k => !routingKeys.has(k)) : [];
-    const bodyPayloadKeys = body ? Object.keys(body) : [];
-    const hasQueryFields = queryPayloadKeys.length > 0;
-    const hasBodyFields = bodyPayloadKeys.length > 0;
 
-    if (!hasQueryFields && !hasBodyFields) {
-        return res.status(400).json({
-            statusCode: 1,
-            statusMessage: 'Missing or empty request payload',
-            hint: 'Send a JSON body with at least transactionReference and transactionAmount fields.'
-        });
-    }
 
     const supabase = getSupabase();
 

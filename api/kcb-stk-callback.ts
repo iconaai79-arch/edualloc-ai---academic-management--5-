@@ -106,12 +106,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body = {};
     }
 
-    const hasQueryFields = req.query && Object.keys(req.query).length > 0;
-    const hasBodyFields = body && Object.keys(body).length > 0;
-
-    if (!hasQueryFields && !hasBodyFields) {
-        return res.status(400).json({ message: 'Missing or empty request payload' });
-    }
 
     const supabase = getSupabase();
 
