@@ -40,6 +40,9 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
     const [recipientType, setRecipientType] = useState<'person' | 'department'>('person');
     const [memberSearch, setMemberSearch] = useState('');
     const [itemSearch, setItemSearch] = useState('');
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [hasSigned, setHasSigned] = useState(false);
+    const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
     
     const [newIssuance, setNewIssuance] = useState({
         userId: '',

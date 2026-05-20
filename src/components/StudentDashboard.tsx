@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, TimetableEntry, Subject, Room, Course, CourseLevel, TimetableSettings, LetterheadConfig, LessonRating, UserTask, Institution, StudentAttendance } from '../types';
+import type { User, TimetableEntry, Subject, Room, Course, CourseLevel, TimetableSettings, LetterheadConfig, LessonRating, UserTask, Institution, StudentAttendance, Book } from '../types';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
 import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
 import { BellIcon } from './icons/BellIcon';

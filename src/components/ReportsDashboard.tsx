@@ -30,6 +30,7 @@ import { RoomDistanceReport } from './RoomDistanceReport';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { EyeIcon } from './icons/EyeIcon';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { AttendanceAnalytics } from './AttendanceAnalytics';
 import { isEduInstitution } from '../utils/roleUtils';
 import { timeToMinutes, minutesToTime } from '../utils/timeUtils';
@@ -1351,7 +1352,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 currentInstitution={currentInstitution}
                                 isAutoMarket={true}
                                 onAddTransaction={props.onAddTransaction}
-                                onRefreshData={props.onRefreshData}
                                 departments={departments}
                                 subjects={subjects}
                                 courses={courses}
