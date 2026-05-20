@@ -343,9 +343,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({
                 success: false,
-                message: stkPushData.ResponseDescription || 'KCB Gateway rejected the STK Push request.',
+                message: stkPushData.ResponseDescription || stkPushData.header?.statusDescription || 'KCB Gateway rejected the STK Push request.',
                 details: stkPushData,
-                rawResponse: stkPushData
+                rawResponse: stkPushData,
+                sentToKcb: {
+                    url: finalStkUrl,
+                    customerMobileNumber: phoneNumber,
+                    transactionAmount: String(amount),
+                    customerReference: accountReference || 'Payment',
+                    organizationShortCode: shortCode,
+                    hint: phoneNumber.startsWith('254') && phoneNumber.length === 12
+                        ? 'Phone format looks correct (254XXXXXXXXX). Check if this is a valid Safaricom number and KCB credentials are active.'
+                        : `Phone number "${phoneNumber}" may be in wrong format. Expected: 254XXXXXXXXX (12 digits starting with 254)`
+                }
             });
 
         } catch (e: any) {
