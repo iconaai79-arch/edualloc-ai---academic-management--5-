@@ -165,7 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return '';
         };
 
-        const creditAccountIdentifier = getParam('creditAccountIdenti;ier') || getParam('creditAccountIdentifier');
+        const creditAccountIdentifier = getParam('creditAccountIdentifier') || getParam('creditAccountIdenti;ier');
         const organizationShortCode = getParam('organizationShortCode');
         const tillNumber = getParam('tillNumber');
         const transactionReference = getParam('transactionReference');
@@ -187,7 +187,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const stkPushUrl = (kcbConfig.stkPushUrl || '').trim();
         const shortCode = (kcbConfig.shortCode || organizationShortCode || '').trim();
         const passkey = (kcbConfig.passkey || '').trim();
-        const phoneNumber = customerMobileNumber || body.phoneNumber || '';
+        const rawPhone = customerMobileNumber || body.phoneNumber || '';
+        // Normalize phone to KCB-required international format: 2547XXXXXXXX
+        const normalizePhone = (p: string): string => {
+            let n = p.replace(/[^\d]/g, '');
+            if (n.startsWith('2540')) n = '254' + n.substring(4); // fix 2540X -> 254X
+            else if (n.startsWith('0')) n = '254' + n.substring(1);  // 07X -> 2547X
+            else if (n.length === 9) n = '254' + n;                   // 7XXXXXXXX -> 2547XXXXXXXX
+            return n;
+        };
+        const phoneNumber = normalizePhone(rawPhone);
         const amount = parseFloat(transactionAmount || body.amount || '1');
         const accountReference = customerReference || transactionReference || body.accountReference || '';
         const transactionDesc = narration || body.transactionDesc || '';
@@ -292,10 +301,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currency: currency || 'KES',
                     customerReference: accountReference || 'Payment',
                     customerName: customerName || 'Valued Customer',
-                    customerMobileNumber: phoneNumber.replace(/[^\d]/g, ''),
+                    customerMobileNumber: phoneNumber, // already normalized to 2547XXXXXXXX
                     balance: balance || '0.00',
                     narration: transactionDesc || 'Payment',
-                    "creditAccountIdenti;ier": creditAccountIdentifier || shortCode,
+                    creditAccountIdentifier: creditAccountIdentifier || shortCode,
                     organizationShortCode: shortCode || '522533',
                     tillNumber: tillNumber || ''
                 })
