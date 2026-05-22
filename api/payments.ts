@@ -179,15 +179,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const customerMobileNumber = getParam('customerMobileNumber');
         const balance = getParam('balance');
         const narration = getParam('narration');
+        const tenantId = getParam('tenantId');
 
-        const kcbConfig = body.config || {};
+        const supabase = getSupabase();
+        if (!supabase) return res.status(503).json({ error: 'Database context missing' });
+
+        let resolvedPhone = customerMobileNumber || body.phoneNumber || '';
+        let resolvedName = customerName || 'Valued Customer';
+        let resolvedInstitutionId = creditAccountIdentifier || body.institutionId || 'SYSTEM';
+
+        if (tenantId) {
+            const { data: tenantData } = await supabase
+                .from('pm_tenants')
+                .select('*')
+                .eq('id', tenantId)
+                .maybeSingle();
+            
+            if (tenantData) {
+                resolvedPhone = tenantData.phone_number;
+                resolvedName = tenantData.name;
+                resolvedInstitutionId = tenantData.institution_id;
+            }
+        }
+
+        // Load kcb_config dynamically from database
+        let kcbConfig: Record<string, any> = {};
+        if (resolvedInstitutionId && resolvedInstitutionId !== 'SYSTEM' && resolvedInstitutionId !== 'GLOBAL') {
+            const { data: instData } = await supabase
+                .from('institutions')
+                .select('kcb_config')
+                .eq('id', resolvedInstitutionId)
+                .maybeSingle();
+            if (instData?.kcb_config) {
+                kcbConfig = instData.kcb_config;
+            }
+        }
+
+        // Fallback to body.config for backward compatibility
+        if (Object.keys(kcbConfig).length === 0 && (body.config || body.kcbConfig)) {
+            kcbConfig = body.config || body.kcbConfig || {};
+        }
+
         const appKey = (kcbConfig.appKey || '').trim();
         const appSecret = (kcbConfig.appSecret || '').trim();
         const baseUrl = (kcbConfig.baseUrl || '').trim();
         const stkPushUrl = (kcbConfig.stkPushUrl || '').trim();
         const shortCode = (kcbConfig.shortCode || organizationShortCode || '').trim();
         const passkey = (kcbConfig.passkey || '').trim();
-        const rawPhone = customerMobileNumber || body.phoneNumber || '';
+        const rawPhone = resolvedPhone;
+
         // Normalize phone to KCB-required international format: 2547XXXXXXXX
         const normalizePhone = (p: string): string => {
             let n = p.replace(/[^\d]/g, '');
@@ -200,7 +240,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const amount = parseFloat(transactionAmount || body.amount || '1');
         const accountReference = customerReference || transactionReference || body.accountReference || '';
         const transactionDesc = narration || body.transactionDesc || '';
-        const institutionId = creditAccountIdentifier || body.institutionId || 'SYSTEM';
+        const institutionId = resolvedInstitutionId;
 
         const environment = (kcbConfig.environment || 'sandbox').trim();
         const isKcbDemo = !appKey || !appSecret || 
@@ -211,27 +251,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (isKcbDemo) {
             console.log('[KCB STK] Mock Mode Active.');
-            const supabase = getSupabase();
-            if (supabase) {
-                await supabase.from('integration_logs').insert({
-                    provider: 'kcb_stk_push_initiate',
-                    payload: {
-                        phoneNumber,
-                        amount,
-                        accountReference,
-                        shortCode,
-                        institutionId,
-                        mode: 'mock_sandbox'
-                    },
-                    status: 'success',
-                    created_at: new Date().toISOString()
-                });
-            }
+            const checkoutRequestId = `KCB_CO_Mock_${Date.now()}`;
+            
+            await supabase.from('integration_logs').insert({
+                provider: 'kcb_stk_push_initiate',
+                payload: {
+                    phoneNumber,
+                    amount,
+                    accountReference,
+                    shortCode,
+                    institutionId,
+                    mode: 'mock_sandbox',
+                    checkoutRequestId
+                },
+                status: 'success',
+                created_at: new Date().toISOString()
+            });
+
+            // Insert pending transaction record
+            const txnMetadata = {
+                type: body.paymentType || 'Rent',
+                tenantId: tenantId || '',
+                payerPhoneNumber: phoneNumber,
+                payerName: resolvedName,
+                reconciled: false
+            };
+
+            await supabase.from('mpesa_transactions').insert({
+                id: `txn_${Date.now()}`,
+                transaction_id: checkoutRequestId,
+                checkout_request_id: checkoutRequestId,
+                institution_id: institutionId,
+                amount: amount,
+                phone_number: phoneNumber,
+                status: 'pending',
+                provider: 'kcb',
+                customer_name: resolvedName,
+                customer_mobile_number: phoneNumber,
+                narration: transactionDesc || body.paymentType || 'Rent Payment',
+                metadata: txnMetadata
+            });
 
             return res.status(200).json({
                 success: true,
                 ResponseCode: '0',
-                CheckoutRequestID: `KCB_CO_Mock_${Date.now()}`,
+                CheckoutRequestID: checkoutRequestId,
                 message: 'KCB STK Push simulated successfully. Please verify payment.'
             });
         }
@@ -300,7 +364,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     sharedShortCode: kcbConfig.sharedShortCode !== undefined ? kcbConfig.sharedShortCode : true,
                     orgShortCode: shortCode || '522533',
                     orgPassKey: passkey || '',
-                    callbackUrl: kcbConfig.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/mpesa-callback`,
+                    callbackUrl: kcbConfig.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
                     transactionDescription: transactionDesc || 'Payment',
 
                     // Original/Other KCB Format parameters (for backward compatibility)
@@ -328,21 +392,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const responseCode = stkPushData.ResponseCode || stkPushData.responseCode || '0';
                 const message = stkPushData.ResponseDescription || stkPushData.responseDescription || stkPushData.customerMessage || stkPushData.CustomerMessage || 'KCB STK Push initiated successfully.';
 
-                const supabase = getSupabase();
-                if (supabase) {
-                    await supabase.from('integration_logs').insert({
-                        provider: 'kcb_stk_push_initiate',
-                        payload: {
-                            shortCode,
-                            amount,
-                            phoneNumber,
-                            checkoutRequestId: checkoutRequestId,
-                            status: 'initiated'
-                        },
-                        status: 'success',
-                        created_at: new Date().toISOString()
-                    });
-                }
+                await supabase.from('integration_logs').insert({
+                    provider: 'kcb_stk_push_initiate',
+                    payload: {
+                        shortCode,
+                        amount,
+                        phoneNumber,
+                        checkoutRequestId: checkoutRequestId,
+                        status: 'initiated'
+                    },
+                    status: 'success',
+                    created_at: new Date().toISOString()
+                });
+
+                // Insert pending transaction record
+                const txnMetadata = {
+                    type: body.paymentType || 'Rent',
+                    tenantId: tenantId || '',
+                    payerPhoneNumber: phoneNumber,
+                    payerName: resolvedName,
+                    reconciled: false
+                };
+
+                await supabase.from('mpesa_transactions').insert({
+                    id: `txn_${Date.now()}`,
+                    transaction_id: checkoutRequestId,
+                    checkout_request_id: checkoutRequestId,
+                    institution_id: institutionId,
+                    amount: amount,
+                    phone_number: phoneNumber,
+                    status: 'pending',
+                    provider: 'kcb',
+                    customer_name: resolvedName,
+                    customer_mobile_number: phoneNumber,
+                    narration: transactionDesc || body.paymentType || 'Rent Payment',
+                    metadata: txnMetadata
+                });
 
                 return res.status(200).json({
                     success: true,
@@ -373,26 +458,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (e: any) {
             console.error('[KCB STK Initiate] Exception:', e);
             
-            const supabase = getSupabase();
-            if (supabase) {
-                await supabase.from('integration_logs').insert({
-                    provider: 'kcb_stk_push_initiate',
-                    payload: {
-                        phoneNumber,
-                        amount,
-                        shortCode,
-                        error: e.message,
-                        fallback: 'sandbox_bypass'
-                    },
-                    status: 'success',
-                    created_at: new Date().toISOString()
-                });
-            }
+            await supabase.from('integration_logs').insert({
+                provider: 'kcb_stk_push_initiate',
+                payload: {
+                    phoneNumber,
+                    amount,
+                    shortCode,
+                    error: e.message,
+                    fallback: 'sandbox_bypass'
+                },
+                status: 'success',
+                created_at: new Date().toISOString()
+            });
+
+            // Insert pending transaction record
+            const checkoutRequestId = `KCB_CO_Mock_Fallback_${Date.now()}`;
+            const txnMetadata = {
+                type: body.paymentType || 'Rent',
+                tenantId: tenantId || '',
+                payerPhoneNumber: phoneNumber,
+                payerName: resolvedName,
+                reconciled: false
+            };
+
+            await supabase.from('mpesa_transactions').insert({
+                id: `txn_${Date.now()}`,
+                transaction_id: checkoutRequestId,
+                checkout_request_id: checkoutRequestId,
+                institution_id: institutionId,
+                amount: amount,
+                phone_number: phoneNumber,
+                status: 'pending',
+                provider: 'kcb',
+                customer_name: resolvedName,
+                customer_mobile_number: phoneNumber,
+                narration: transactionDesc || body.paymentType || 'Rent Payment',
+                metadata: txnMetadata
+            });
 
             return res.status(200).json({
                 success: true,
                 ResponseCode: '0',
-                CheckoutRequestID: `KCB_CO_Mock_Fallback_${Date.now()}`,
+                CheckoutRequestID: checkoutRequestId,
                 message: 'KCB STK Push simulated successfully (Network offline/fallback mode).'
             });
         }

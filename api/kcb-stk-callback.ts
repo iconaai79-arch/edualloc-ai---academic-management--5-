@@ -222,6 +222,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log(`[KCB STK Callback] ResultCode: ${resultCode}`);
         console.log(`[KCB STK Callback] M-Pesa Receipt: ${mpesaReceiptNumber || '(not provided)'}`);
 
+        // --- Caller Authentication Check for Production Setups ---
+        let resolvedInstitutionId = 'SYSTEM';
+        let kcbConfig: any = {};
+        let isProduction = false;
+
+        if (checkoutRequestId) {
+            const isMockCheckout = String(checkoutRequestId).toLowerCase().includes('mock') || 
+                                   String(checkoutRequestId).toLowerCase().includes('test');
+            
+            if (!isMockCheckout) {
+                const { data: transactionRecord } = await supabase
+                    .from('mpesa_transactions')
+                    .select('institution_id')
+                    .eq('checkout_request_id', checkoutRequestId)
+                    .maybeSingle();
+
+                if (transactionRecord?.institution_id) {
+                    resolvedInstitutionId = transactionRecord.institution_id;
+                    const { data: instData } = await supabase
+                        .from('institutions')
+                        .select('kcb_config')
+                        .eq('id', resolvedInstitutionId)
+                        .maybeSingle();
+                    if (instData?.kcb_config) {
+                        kcbConfig = instData.kcb_config;
+                    }
+                }
+
+                const appKey = (kcbConfig.appKey || '').trim();
+                const appSecret = (kcbConfig.appSecret || '').trim();
+                
+                if (appKey && appSecret && 
+                    !appKey.toLowerCase().includes('test') && !appKey.toLowerCase().includes('demo') &&
+                    !appSecret.toLowerCase().includes('test') && !appSecret.toLowerCase().includes('demo')) {
+                    isProduction = true;
+                }
+
+                if (isProduction) {
+                    const authHeader = req.headers.authorization || '';
+                    const expectedAuthHeader = `Basic ${Buffer.from(`${appKey}:${appSecret}`).toString('base64')}`;
+                    if (authHeader !== expectedAuthHeader) {
+                        console.warn(`[KCB STK Callback] Unauthorized webhook call. Header did not match expected.`);
+                        await supabase.from('integration_logs').insert({
+                            provider: 'kcb_stk_callback',
+                            payload: {
+                                error: 'Unauthorized webhook call (Basic Auth failed)',
+                                receivedHeader: authHeader ? '***' : '(none)',
+                                checkoutRequestId
+                            },
+                            status: 'failed',
+                            created_at: new Date().toISOString()
+                        });
+                        return res.status(401).json({ error: 'Unauthorized' });
+                    }
+                }
+            }
+        }
+
         // Update the matching transaction if we have enough context
         if (checkoutRequestId) {
             const isSuccess = resultCode === '0' || resultCode === 'SUCCESS' || resultCode === '';

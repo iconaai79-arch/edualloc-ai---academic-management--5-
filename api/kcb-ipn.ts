@@ -519,6 +519,90 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             transaction = data;
         }
 
+        // --- Caller Authentication Check for Production Setups ---
+        let resolvedInstitutionId = (req.query?.institutionId || req.query?.institution_id || '') as string;
+        let kcbConfig: any = {};
+        let isProduction = false;
+
+        if (transaction?.institution_id) {
+            resolvedInstitutionId = transaction.institution_id;
+        }
+
+        if (!resolvedInstitutionId && creditAccountIdentifier) {
+            const { data: instData } = await supabase
+                .from('institutions')
+                .select('id, kcb_config')
+                .or(`id.eq.${creditAccountIdentifier},code.eq.${creditAccountIdentifier}`)
+                .maybeSingle();
+            if (instData) {
+                resolvedInstitutionId = instData.id;
+                kcbConfig = instData.kcb_config || {};
+            }
+        }
+
+        if (!resolvedInstitutionId && (customerReference || businessKey)) {
+            const directKey = customerReference || businessKey || '';
+            const { data: instData } = await supabase
+                .from('institutions')
+                .select('id, kcb_config')
+                .or(`id.eq.${directKey},code.eq.${directKey}`)
+                .maybeSingle();
+            if (instData) {
+                resolvedInstitutionId = instData.id;
+                kcbConfig = instData.kcb_config || {};
+            }
+        }
+
+        if (!resolvedInstitutionId && organizationShortCode) {
+            const { data: instList } = await supabase
+                .from('institutions')
+                .select('id, kcb_config')
+                .eq('kcb_config->>shortCode', organizationShortCode);
+            if (instList && instList.length > 0) {
+                resolvedInstitutionId = instList[0].id;
+                kcbConfig = instList[0].kcb_config || {};
+            }
+        }
+
+        if (resolvedInstitutionId && Object.keys(kcbConfig).length === 0) {
+            const { data: instData } = await supabase
+                .from('institutions')
+                .select('kcb_config')
+                .eq('id', resolvedInstitutionId)
+                .maybeSingle();
+            if (instData?.kcb_config) {
+                kcbConfig = instData.kcb_config;
+            }
+        }
+
+        const appKey = (kcbConfig.appKey || '').trim();
+        const appSecret = (kcbConfig.appSecret || '').trim();
+        
+        if (appKey && appSecret && 
+            !appKey.toLowerCase().includes('test') && !appKey.toLowerCase().includes('demo') &&
+            !appSecret.toLowerCase().includes('test') && !appSecret.toLowerCase().includes('demo')) {
+            isProduction = true;
+        }
+
+        if (isProduction) {
+            const authHeader = req.headers.authorization || '';
+            const expectedAuthHeader = `Basic ${Buffer.from(`${appKey}:${appSecret}`).toString('base64')}`;
+            if (authHeader !== expectedAuthHeader) {
+                console.warn(`[KCB IPN] Unauthorized webhook call. Header did not match expected.`);
+                await supabase.from('integration_logs').insert({
+                    provider: 'kcb_ipn',
+                    payload: {
+                        error: 'Unauthorized webhook call (Basic Auth failed)',
+                        receivedHeader: authHeader ? '***' : '(none)',
+                        transactionReference
+                    },
+                    status: 'failed',
+                    created_at: new Date().toISOString()
+                });
+                return res.status(401).json({ error: 'Unauthorized' });
+            }
+        }
+
         // 2. If no transaction, check if customerReference or businessKey corresponds to invoice or institution (C2B Paybill fallback)
         let inst: any = null;
         let invoice: any = null;
