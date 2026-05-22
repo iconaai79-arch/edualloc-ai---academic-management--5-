@@ -474,14 +474,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const [isSecurityAlertModalOpen, setIsSecurityAlertModalOpen] = useState(false);
     const [isAddListingModalOpen, setIsAddListingModalOpen] = useState(false);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<CarListing | null>(null);
-    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials' | 'bank_feeds' | 'showroom_settings'>('dashboard');
+    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials' | 'bank_feeds' | 'showroom_settings' | 'customers'>('dashboard');
     const [isAddCarInvoiceModalOpen, setIsAddCarInvoiceModalOpen] = useState(false);
     const [isAddCarPaymentModalOpen, setIsAddCarPaymentModalOpen] = useState(false);
     const [isAddCarLeadModalOpen, setIsAddCarLeadModalOpen] = useState(false);
     const [isCarReceiptModalOpen, setIsCarReceiptModalOpen] = useState(false);
-    const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<CarInvoice | null>(null);
     const [selectedInvoiceForReceipt, setSelectedInvoiceForReceipt] = useState<CarInvoice | null>(null);
     const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<CarPayment | null>(null);
+    const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<CarInvoice | null>(null);
+    const [selectedInvoiceForEdit, setSelectedInvoiceForEdit] = useState<CarInvoice | null>(null);
+    const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState<CarPayment | null>(null);
     const [pdfPreviewData, setPdfPreviewData] = useState<{ uri: string; title: string } | null>(null);
 
     const handlePreviewCarInvoice = async (invoice: CarInvoice) => {
@@ -2438,6 +2440,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit">
                             <button onClick={() => setAutoSubTab('dashboard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'dashboard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Dashboard Hub</button>
                             <button onClick={() => setAutoSubTab('inventory')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Vehicle Inventory</button>
+                            <button onClick={() => setAutoSubTab('customers')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'customers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Customers</button>
                             <button onClick={() => setAutoSubTab('financials')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Sales & Invoices</button>
                             <button onClick={() => setAutoSubTab('bank_feeds')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'bank_feeds' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Bank Feeds</button>
                             <button onClick={() => setAutoSubTab('showroom_settings')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'showroom_settings' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Configuration</button>
@@ -2453,17 +2456,26 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     users={props.users || []}
                                     institution={props.currentInstitution!}
                                     onAction={(tab, sub) => {
-                                        if (tab === 'inventory') setAutoSubTab('inventory');
+                                        if (tab === 'auto_marketplace' && sub) setAutoSubTab(sub as any);
+                                        else if (tab === 'inventory') setAutoSubTab('inventory');
                                         else if (tab === 'financials') setAutoSubTab('financials');
                                         else if (tab === 'bank_feeds') setAutoSubTab('bank_feeds');
+                                        else if (tab === 'customers') setAutoSubTab('customers');
                                         else setActiveTab(tab as any);
                                     }}
                                     onAddListing={() => {
                                         setSelectedListingForEdit(null);
                                         setIsAddListingModalOpen(true);
                                     }}
-                                    onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
-                                    onAddPayment={() => setIsAddCarPaymentModalOpen(true)}
+                                    onAddInvoice={() => {
+                                        setSelectedInvoiceForEdit(null);
+                                        setIsAddCarInvoiceModalOpen(true);
+                                    }}
+                                    onAddPayment={() => {
+                                        setSelectedInvoiceForPayment(null);
+                                        setSelectedPaymentForEdit(null);
+                                        setIsAddCarPaymentModalOpen(true);
+                                    }}
                                     onAddLead={() => setIsAddCarLeadModalOpen(true)}
                                     onSwitchPerspective={() => {
                                         const slug = props.currentInstitution?.slug || props.currentInstitution?.id;
@@ -2494,14 +2506,25 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         window.open(`/?view=showroom&showroom=${slug}`, '_blank');
                                     }}
                                 />
+                            ) : autoSubTab === 'customers' ? (
+                                <UserManager 
+                                    {...props as any}
+                                    showOnly="customer"
+                                    currentInstitution={props.currentInstitution}
+                                    currentUser={props.currentUser!}
+                                />
                             ) : autoSubTab === 'financials' ? (
                                 <CarSalesLedger 
                                     invoices={props.carInvoices || []}
                                     payments={props.carPayments || []}
                                     listings={props.carListings || []}
-                                    onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
+                                    onAddInvoice={() => {
+                                        setSelectedInvoiceForEdit(null);
+                                        setIsAddCarInvoiceModalOpen(true);
+                                    }}
                                     onAddPayment={(invoice) => {
                                         setSelectedInvoiceForPayment(invoice || null);
+                                        setSelectedPaymentForEdit(null);
                                         setIsAddCarPaymentModalOpen(true);
                                     }}
                                     onPrintInvoice={handlePreviewCarInvoice}
@@ -2510,6 +2533,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         if (inv) handlePreviewCarReceipt(pay, inv);
                                     }}
                                     onPrintAgreement={handlePreviewCarAgreement}
+                                    onEditInvoice={(invoice) => {
+                                        setSelectedInvoiceForEdit(invoice);
+                                        setIsAddCarInvoiceModalOpen(true);
+                                    }}
+                                    onEditPayment={(payment) => {
+                                        setSelectedPaymentForEdit(payment);
+                                        const inv = props.carInvoices?.find(i => i.id === payment.invoiceId) || null;
+                                        setSelectedInvoiceForPayment(inv);
+                                        setIsAddCarPaymentModalOpen(true);
+                                    }}
                                 />
                             ) : autoSubTab === 'bank_feeds' ? (
                                 <BankFeedsManager
@@ -2705,10 +2738,17 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 <React.Suspense fallback={null}>
                     <CreateCarInvoiceModal 
                         isOpen={isAddCarInvoiceModalOpen}
-                        onClose={() => setIsAddCarInvoiceModalOpen(false)}
-                        onSave={props.onAddCarInvoice!}
+                        onClose={() => {
+                            setIsAddCarInvoiceModalOpen(false);
+                            setSelectedInvoiceForEdit(null);
+                        }}
+                        onSave={async (data) => {
+                            await props.onAddCarInvoice!(data);
+                            setSelectedInvoiceForEdit(null);
+                        }}
                         listings={props.carListings || []}
                         currentUser={props.currentUser!}
+                        invoice={selectedInvoiceForEdit}
                     />
                 </React.Suspense>
             )}
@@ -2720,11 +2760,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         onClose={() => {
                             setIsAddCarPaymentModalOpen(false);
                             setSelectedInvoiceForPayment(null);
+                            setSelectedPaymentForEdit(null);
                         }}
-                        onSave={props.onAddCarPayment!}
+                        onSave={async (data) => {
+                            await props.onAddCarPayment!(data);
+                            setSelectedPaymentForEdit(null);
+                        }}
                         invoice={selectedInvoiceForPayment}
                         invoices={props.carInvoices || []}
                         currentUser={props.currentUser!}
+                        payment={selectedPaymentForEdit}
                     />
                 </React.Suspense>
             )}

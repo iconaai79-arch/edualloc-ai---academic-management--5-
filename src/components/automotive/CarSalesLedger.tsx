@@ -17,7 +17,8 @@ import {
     Link,
     Smartphone,
     Sparkles,
-    Copy
+    Copy,
+    Edit
 } from 'lucide-react';
 
 interface CarSalesLedgerProps {
@@ -29,6 +30,8 @@ interface CarSalesLedgerProps {
     onPrintInvoice: (invoice: CarInvoice) => void;
     onPrintReceipt: (payment: CarPayment) => void;
     onPrintAgreement?: (invoice: CarInvoice) => void;
+    onEditInvoice?: (invoice: CarInvoice) => void;
+    onEditPayment?: (payment: CarPayment) => void;
 }
 
 export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
@@ -39,7 +42,9 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
     onAddPayment,
     onPrintInvoice,
     onPrintReceipt,
-    onPrintAgreement
+    onPrintAgreement,
+    onEditInvoice,
+    onEditPayment
 }) => {
     const [activeTab, setActiveTab] = useState<'invoices' | 'payments'>('invoices');
     const [searchQuery, setSearchQuery] = useState('');
@@ -195,6 +200,15 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                             </td>
                                             <td className="px-8 py-6 text-right">
                                                 <div className="flex justify-end gap-2">
+                                                    {onEditInvoice && (
+                                                        <button 
+                                                            onClick={() => onEditInvoice(inv)}
+                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
+                                                            title="Edit Invoice"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                     <button 
                                                         onClick={() => onPrintInvoice(inv)}
                                                         className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
@@ -279,13 +293,24 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                             </span>
                                         </td>
                                         <td className="px-8 py-6 text-right">
-                                            <button 
-                                                onClick={() => onPrintReceipt(pay)}
-                                                className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
-                                                title="Print Receipt"
-                                            >
-                                                <Printer className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex justify-end gap-2">
+                                                {onEditPayment && (
+                                                    <button 
+                                                        onClick={() => onEditPayment(pay)}
+                                                        className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
+                                                        title="Edit Payment"
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    onClick={() => onPrintReceipt(pay)}
+                                                    className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
+                                                    title="Print Receipt"
+                                                >
+                                                    <Printer className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

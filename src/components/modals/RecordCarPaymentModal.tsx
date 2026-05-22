@@ -15,15 +15,17 @@ interface RecordCarPaymentModalProps {
     invoice: CarInvoice | null;
     invoices?: CarInvoice[];
     currentUser: User;
+    payment?: CarPayment | null;
 }
 
-export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ isOpen, onClose, onSave, invoice, invoices, currentUser }) => {
+export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ isOpen, onClose, onSave, invoice, invoices, currentUser, payment }) => {
     const [selectedInvoice, setSelectedInvoice] = useState<CarInvoice | null>(invoice);
     const [formData, setFormData] = useState<Partial<CarPayment>>({
         amount: invoice ? Math.min(100000, invoice.balanceAmount) : 0,
         paymentMethod: 'MPESA',
         transactionReference: '',
-        notes: ''
+        notes: '',
+        paymentDate: new Date().toISOString().split('T')[0]
     });
 
     const [isSaving, setIsSaving] = useState(false);
@@ -33,23 +35,42 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
     const [stkError, setStkError] = useState<string | null>(null);
 
     React.useEffect(() => {
-        setSelectedInvoice(invoice);
-        if (invoice) {
-            setFormData(prev => ({
-                ...prev,
-                amount: Math.min(100000, invoice.balanceAmount)
-            }));
-            setStkPhone(invoice.clientPhone || '');
+        if (payment) {
+            const inv = invoices?.find(i => i.id === payment.invoiceId) || invoice || null;
+            setSelectedInvoice(inv);
+            setFormData({
+                id: payment.id,
+                invoiceId: payment.invoiceId,
+                amount: payment.amount,
+                paymentMethod: payment.paymentMethod,
+                transactionReference: payment.transactionReference || '',
+                notes: payment.notes || '',
+                paymentDate: payment.paymentDate ? payment.paymentDate.split('T')[0] : new Date().toISOString().split('T')[0]
+            });
+            setStkPhone(inv?.clientPhone || '');
         } else {
-            setFormData(prev => ({
-                amount: 0,
-                paymentMethod: 'MPESA',
-                transactionReference: '',
-                notes: ''
-            }));
-            setStkPhone('');
+            setSelectedInvoice(invoice);
+            if (invoice) {
+                setFormData({
+                    amount: Math.min(100000, invoice.balanceAmount),
+                    paymentMethod: 'MPESA',
+                    transactionReference: '',
+                    notes: '',
+                    paymentDate: new Date().toISOString().split('T')[0]
+                });
+                setStkPhone(invoice.clientPhone || '');
+            } else {
+                setFormData({
+                    amount: 0,
+                    paymentMethod: 'MPESA',
+                    transactionReference: '',
+                    notes: '',
+                    paymentDate: new Date().toISOString().split('T')[0]
+                });
+                setStkPhone('');
+            }
         }
-    }, [invoice]);
+    }, [invoice, payment, isOpen, invoices]);
 
     if (!isOpen) return null;
 
@@ -183,12 +204,16 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
         }
     };
 
+    const maxAmount = selectedInvoice 
+        ? (payment ? (selectedInvoice.balanceAmount + (payment.amount || 0)) : selectedInvoice.balanceAmount) 
+        : 0;
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-lg overflow-hidden shadow-2xl animate-scale-in border border-slate-100 dark:border-slate-700">
-                <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-scale-in border border-slate-100 dark:border-slate-700">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0">
                     <div>
-                        <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Record <span className="text-emerald-600">Payment</span></h2>
+                        <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">{payment ? 'Edit' : 'Record'} <span className="text-emerald-600">Payment</span></h2>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Vehicle Installment Tracking</p>
                     </div>
                     <button onClick={onClose} className="p-3 hover:bg-white dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400 hover:text-slate-600 shadow-sm border border-transparent hover:border-slate-100">
@@ -196,7 +221,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     </button>
                 </div>
 
-                <div className="p-8 bg-emerald-50/30 dark:bg-emerald-900/10 border-b border-emerald-50 dark:border-emerald-900/20">
+                <div className="p-8 bg-emerald-50/30 dark:bg-emerald-900/10 border-b border-emerald-50 dark:border-emerald-900/20 flex-shrink-0">
                     <div className="flex justify-between items-end">
                         <div>
                             <p className="text-[8px] font-black uppercase text-emerald-600 tracking-[0.2em] mb-1">Current Balance</p>
@@ -209,9 +234,9 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto flex-grow custom-scrollbar">
                     {/* Invoice Selection Dropdown */}
-                    {!invoice && (
+                    {!invoice && !payment && (
                         <div className="space-y-4">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Invoice to Pay</label>
                             <select 
@@ -237,15 +262,15 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                                     <input 
                                         required
                                         type="number"
-                                        max={selectedInvoice.balanceAmount}
-                                        value={formData.amount}
-                                        onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+                                        max={maxAmount}
+                                        value={formData.amount || ''}
+                                        onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
                                         className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-lg font-black focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
                                     />
                                 </div>
-                                {formData.amount && formData.amount > selectedInvoice.balanceAmount && (
+                                {formData.amount && formData.amount > maxAmount ? (
                                     <p className="text-[9px] font-bold text-red-500 uppercase tracking-tight ml-2">Amount exceeds remaining balance!</p>
-                                )}
+                                ) : null}
                             </div>
 
                             <div className="space-y-4">
@@ -266,7 +291,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                                 </div>
                             </div>
 
-                            {formData.paymentMethod === 'MPESA' && (
+                            {formData.paymentMethod === 'MPESA' && !payment && (
                                 <div className="p-5 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-3xl border border-emerald-100 dark:border-emerald-900/30 space-y-4">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 block ml-2">M-Pesa STK Push Prompt</label>
                                     <div className="flex gap-3">
@@ -315,6 +340,17 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                             </div>
 
                             <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Date</label>
+                                <input 
+                                    required
+                                    type="date"
+                                    value={formData.paymentDate}
+                                    onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
+                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
+                                />
+                            </div>
+
+                            <div className="space-y-4">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Notes</label>
                                 <textarea 
                                     rows={2}
@@ -332,7 +368,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     )}
                 </form>
 
-                <div className="p-8 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-50 dark:border-slate-700 flex gap-4">
+                <div className="p-8 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-50 dark:border-slate-700 flex gap-4 flex-shrink-0">
                     <button 
                         type="button"
                         onClick={onClose}
@@ -342,10 +378,10 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     </button>
                     <button 
                         onClick={handleSubmit}
-                        disabled={isSaving || !selectedInvoice || !formData.amount || !formData.transactionReference || (formData.amount > selectedInvoice.balanceAmount)}
+                        disabled={isSaving || !selectedInvoice || !formData.amount || !formData.transactionReference || (formData.amount > maxAmount)}
                         className="flex-[2] py-5 bg-emerald-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {isSaving ? 'Processing...' : 'Confirm Payment'}
+                        {isSaving ? 'Processing...' : payment ? 'Save Changes' : 'Confirm Payment'}
                     </button>
                 </div>
             </div>

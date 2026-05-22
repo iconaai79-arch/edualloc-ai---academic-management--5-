@@ -208,6 +208,17 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
 
 
                             <button 
+                                onClick={() => onAction('auto_marketplace', 'customers')}
+                                className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 hover:border-indigo-400 transition-all group text-left"
+                            >
+                                <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
+                                    <Users className="w-6 h-6" />
+                                </div>
+                                <span className="font-black text-xs uppercase tracking-tight text-slate-900 dark:text-white">Customer Management</span>
+                                <p className="text-[9px] text-slate-400 uppercase mt-1">View & manage showroom clients</p>
+                            </button>
+
+                            <button 
                                 onClick={() => onAction('users')}
                                 className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 hover:border-indigo-400 transition-all group text-left"
                             >

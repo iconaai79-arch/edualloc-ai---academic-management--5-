@@ -12,9 +12,10 @@ interface CreateCarInvoiceModalProps {
     onSave: (data: Partial<CarInvoice>) => Promise<void>;
     listings: CarListing[];
     currentUser: User;
+    invoice?: CarInvoice | null;
 }
 
-export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ isOpen, onClose, onSave, listings, currentUser }) => {
+export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ isOpen, onClose, onSave, listings, currentUser, invoice }) => {
     const [formData, setFormData] = useState<Partial<CarInvoice>>({
         listingId: '',
         clientName: '',
@@ -27,6 +28,37 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
     });
 
     const [isSaving, setIsSaving] = useState(false);
+
+    React.useEffect(() => {
+        if (invoice) {
+            setFormData({
+                id: invoice.id,
+                listingId: invoice.listingId,
+                clientName: invoice.clientName,
+                clientEmail: invoice.clientEmail || '',
+                clientPhone: invoice.clientPhone || '',
+                totalAmount: invoice.totalAmount,
+                registrationNumber: invoice.registrationNumber || '',
+                dueDate: invoice.dueDate ? invoice.dueDate.split('T')[0] : '',
+                notes: invoice.notes || '',
+                isInstallment: invoice.isInstallment || false,
+                installmentFrequency: invoice.installmentFrequency || 'monthly',
+                totalInstallments: invoice.totalInstallments || 1,
+                startDate: invoice.startDate ? invoice.startDate.split('T')[0] : ''
+            });
+        } else {
+            setFormData({
+                listingId: '',
+                clientName: '',
+                clientEmail: '',
+                clientPhone: '',
+                totalAmount: 0,
+                registrationNumber: '',
+                dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                notes: ''
+            });
+        }
+    }, [invoice, isOpen]);
 
     if (!isOpen) return null;
 
@@ -47,10 +79,10 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-scale-in border border-slate-100 dark:border-slate-700">
-                <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-scale-in border border-slate-100 dark:border-slate-700">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0">
                     <div>
-                        <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Generate <span className="text-indigo-600">Sales Invoice</span></h2>
+                        <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">{invoice ? 'Edit' : 'Generate'} <span className="text-indigo-600">Sales Invoice</span></h2>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Automated Automotive Billing Engine</p>
                     </div>
                     <button onClick={onClose} className="p-3 hover:bg-white dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400 hover:text-slate-600 shadow-sm border border-transparent hover:border-slate-100">
@@ -58,7 +90,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <form onSubmit={handleSubmit} className="p-8 space-y-8 overflow-y-auto flex-grow custom-scrollbar">
                     {/* Vehicle Selection */}
                     <div className="space-y-4">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Vehicle from Inventory</label>
@@ -81,7 +113,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                 className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
                             >
                                 <option value="">Choose a vehicle...</option>
-                                {listings.filter(l => l.status === 'active').map(l => (
+                                {listings.filter(l => l.status === 'active' || l.id === formData.listingId).map(l => (
                                     <option key={l.id} value={l.id}>{l.year} {l.make} {l.model} - KES {l.price.toLocaleString()}</option>
                                 ))}
                             </select>
@@ -251,7 +283,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                     </div>
                 </form>
 
-                <div className="p-8 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-50 dark:border-slate-700 flex gap-4">
+                <div className="p-8 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-50 dark:border-slate-700 flex gap-4 flex-shrink-0">
                     <button 
                         type="button"
                         onClick={onClose}
@@ -264,7 +296,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                         disabled={isSaving || !formData.listingId || !formData.clientName}
                         className="flex-[2] py-5 bg-indigo-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-200 dark:shadow-none hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {isSaving ? 'Generating...' : 'Confirm & Issue Invoice'}
+                        {isSaving ? 'Saving...' : invoice ? 'Save Changes' : 'Confirm & Issue Invoice'}
                     </button>
                 </div>
             </div>

@@ -82,7 +82,6 @@ import { GlobeAltIcon } from './icons/GlobeAltIcon';
 import { CrossIcon } from './icons/CrossIcon';
 import { MegaphoneIcon } from './icons/MegaphoneIcon';
 import { PalmTreeIcon as Palmtree } from './icons/PalmTreeIcon';
-import { KcbIcon } from './icons/KcbIcon';
 import { ZapIcon } from './icons/ZapIcon';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
@@ -118,6 +117,10 @@ import { SchoolRegistryManager } from './superadmin/SchoolRegistryManager';
 import { PoliticalMetadataManager } from './superadmin/PoliticalMetadataManager';
 import { MedicalRegistryManager } from './superadmin/MedicalRegistryManager';
 import { AddCarListingModal } from './modals/AddCarListingModal';
+import { CreateCarInvoiceModal } from './modals/CreateCarInvoiceModal';
+import { RecordCarPaymentModal } from './modals/RecordCarPaymentModal';
+import { PdfPreviewModal } from './PdfPreviewModal';
+import * as pdfService from '../services/pdfService';
 const DisciplineManager = React.lazy(() => import('./Academics/DisciplineManager').then(m => ({ default: m.DisciplineManager })));
 const ExamInsights = React.lazy(() => import('./Academics/ExamInsights').then(m => ({ default: m.ExamInsights })));
 const AcademicReportsHub = React.lazy(() => import('./Academics/AcademicReportsHub').then(m => ({ default: m.AcademicReportsHub })));
@@ -584,7 +587,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
-    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials' | 'bank_feeds'>(() => {
+    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'customers' | 'financials' | 'bank_feeds'>(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('sub') === 'financials' || params.get('tab') === 'sales') return 'financials';
         return 'dashboard';
@@ -718,6 +721,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isShowcaseItemModalOpen, setIsShowcaseItemModalOpen] = useState(false);
     const [isAddListingModalOpen, setIsAddListingModalOpen] = useState(false);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<CarListing | null>(null);
+    const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<CarInvoice | null>(null);
+    const [selectedInvoiceForEdit, setSelectedInvoiceForEdit] = useState<CarInvoice | null>(null);
+    const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState<CarPayment | null>(null);
+    const [isAddCarInvoiceModalOpen, setIsAddCarInvoiceModalOpen] = useState(false);
+    const [isAddCarPaymentModalOpen, setIsAddCarPaymentModalOpen] = useState(false);
+    const [pdfPreviewData, setPdfPreviewData] = useState<{ uri: string; title: string } | null>(null);
 
     const [isUploadingShowcaseImage, setIsUploadingShowcaseImage] = useState(false);
 
@@ -1173,6 +1182,60 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             ...localCompanyInfo,
             showcaseConfig: { ...localCompanyInfo.showcaseConfig, items: updatedItems } as any
         });
+    };
+
+    const handlePreviewCarInvoice = async (invoice: CarInvoice) => {
+        const listing = carListings?.find(l => l.id === invoice.listingId);
+        if (!listing) return;
+        
+        try {
+            const uri = await pdfService.generateCarInvoicePdfDataUri(
+                invoice,
+                listing,
+                currentInstitution || institutions[0] || { id: 'superadmin', name: 'EduAI Hub' } as any,
+                companyDetails,
+                (currentInstitution?.logoUrl || logoUrl || null) as string | null
+            );
+            setPdfPreviewData({ uri, title: `Invoice ${invoice.invoiceNumber}` });
+        } catch (error) {
+            console.error("Failed to generate PDF:", error);
+            alert("Failed to generate PDF. Please try again.");
+        }
+    };
+
+    const handlePreviewCarReceipt = async (payment: CarPayment, invoice: CarInvoice) => {
+        try {
+            const uri = await pdfService.generateCarReceiptPdfDataUri(
+                payment,
+                invoice,
+                currentInstitution || institutions[0] || { id: 'superadmin', name: 'EduAI Hub' } as any,
+                companyDetails,
+                (currentInstitution?.logoUrl || logoUrl || null) as string | null
+            );
+            setPdfPreviewData({ uri, title: `Receipt ${payment.receiptNumber}` });
+        } catch (error) {
+            console.error("Failed to generate PDF:", error);
+            alert("Failed to generate PDF. Please try again.");
+        }
+    };
+
+    const handlePreviewCarAgreement = async (invoice: CarInvoice) => {
+        const listing = carListings?.find(l => l.id === invoice.listingId);
+        if (!listing) return;
+        
+        try {
+            const uri = await pdfService.generateCarSaleAgreementPdfDataUri(
+                invoice,
+                listing,
+                currentInstitution || institutions[0] || { id: 'superadmin', name: 'EduAI Hub' } as any,
+                companyDetails,
+                (currentInstitution?.logoUrl || logoUrl || null) as string | null
+            );
+            setPdfPreviewData({ uri, title: `Agreement ${invoice.invoiceNumber}` });
+        } catch (error) {
+            console.error("Failed to generate PDF:", error);
+            alert("Failed to generate PDF. Please try again.");
+        }
     };
 
     const handleTestEmail = async () => {
@@ -3469,6 +3532,7 @@ Please change it after login.`;
                         <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-700">
                             <button onClick={() => setAutoSubTab('dashboard')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'dashboard' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Operations Hub</button>
                             <button onClick={() => setAutoSubTab('inventory')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Inventory Preview</button>
+                            <button onClick={() => setAutoSubTab('customers')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'customers' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Customers</button>
                             <button onClick={() => setAutoSubTab('financials')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Invoices</button>
                             <button onClick={() => setAutoSubTab('bank_feeds')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'bank_feeds' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Transactions</button>
                         </div>
@@ -3488,17 +3552,50 @@ Please change it after login.`;
                                             if (tab === 'inventory') setAutoSubTab('inventory');
                                             else if (tab === 'financials') setAutoSubTab('financials');
                                             else if (tab === 'auto_marketplace') setAutoSubTab(sub as any || 'dashboard');
+                                            else if (tab === 'customers') setAutoSubTab('customers');
                                         }}
                                         onAddListing={() => {
                                             setSelectedListingForEdit(null);
                                             setIsAddListingModalOpen(true);
                                         }}
-                                        onAddInvoice={() => props.onAddCarInvoice?.({})}
-                                        onAddPayment={() => props.onAddCarPayment?.({})}
+                                        onAddInvoice={() => {
+                                            setSelectedInvoiceForEdit(null);
+                                            setIsAddCarInvoiceModalOpen(true);
+                                        }}
+                                        onAddPayment={() => {
+                                            setSelectedInvoiceForPayment(null);
+                                            setSelectedPaymentForEdit(null);
+                                            setIsAddCarPaymentModalOpen(true);
+                                        }}
                                         onAddLead={() => {}}
                                         onSwitchPerspective={() => {}}
                                     />
                                 </Suspense>
+                            )}
+
+                            {autoSubTab === 'customers' && (
+                                <UserManager
+                                    {...props as any}
+                                    showOnly="customer"
+                                    currentInstitution={currentInstitution || institutions[0]}
+                                    smsConfig={smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }}
+                                    users={users || []}
+                                    departments={departments || []}
+                                    courses={courses || []}
+                                    subjects={subjects || []}
+                                    currentUser={currentUser}
+                                    onImportUsers={onImportUsers}
+                                    onImportStudents={onImportStudents}
+                                    onDeleteUser={props.onDeleteUser}
+                                    onEditUser={props.onEditUser}
+                                    onWithdrawRequest={async () => { }}
+                                    letterheadConfig={localCompanyInfo.letterheadConfig}
+                                    logoUrl={localCompanyInfo.logoUrl}
+                                    footerImageUrl={localCompanyInfo.footerImageUrl}
+                                    onSendSms={props.onSendSms}
+                                    onAddParent={props.onAddParent}
+                                    onDeleteParent={props.onDeleteParent}
+                                />
                             )}
 
                             {autoSubTab === 'financials' && (
@@ -3507,10 +3604,31 @@ Please change it after login.`;
                                         invoices={props.carInvoices || []}
                                         payments={props.carPayments || []}
                                         listings={carListings || []}
-                                        onAddInvoice={() => props.onAddCarInvoice?.({})}
-                                        onAddPayment={() => props.onAddCarPayment?.({})}
-                                        onPrintInvoice={() => {}}
-                                        onPrintReceipt={() => {}}
+                                        onAddInvoice={() => {
+                                            setSelectedInvoiceForEdit(null);
+                                            setIsAddCarInvoiceModalOpen(true);
+                                        }}
+                                        onAddPayment={(invoice) => {
+                                            setSelectedInvoiceForPayment(invoice || null);
+                                            setSelectedPaymentForEdit(null);
+                                            setIsAddCarPaymentModalOpen(true);
+                                        }}
+                                        onPrintInvoice={handlePreviewCarInvoice}
+                                        onPrintReceipt={(pay) => {
+                                            const inv = props.carInvoices?.find(i => i.id === pay.invoiceId);
+                                            if (inv) handlePreviewCarReceipt(pay, inv);
+                                        }}
+                                        onPrintAgreement={handlePreviewCarAgreement}
+                                        onEditInvoice={(invoice) => {
+                                            setSelectedInvoiceForEdit(invoice);
+                                            setIsAddCarInvoiceModalOpen(true);
+                                        }}
+                                        onEditPayment={(payment) => {
+                                            setSelectedPaymentForEdit(payment);
+                                            const inv = props.carInvoices?.find(i => i.id === payment.invoiceId) || null;
+                                            setSelectedInvoiceForPayment(inv);
+                                            setIsAddCarPaymentModalOpen(true);
+                                        }}
                                     />
                                 </Suspense>
                             )}
@@ -6887,6 +7005,49 @@ Please change it after login.`;
                         setIsAddListingModalOpen(false);
                         setSelectedListingForEdit(null);
                     }}
+                />
+            )}
+            {isAddCarInvoiceModalOpen && (
+                <CreateCarInvoiceModal 
+                    isOpen={isAddCarInvoiceModalOpen}
+                    onClose={() => {
+                        setIsAddCarInvoiceModalOpen(false);
+                        setSelectedInvoiceForEdit(null);
+                    }}
+                    onSave={async (data) => {
+                        if (props.onAddCarInvoice) await props.onAddCarInvoice(data);
+                        setIsAddCarInvoiceModalOpen(false);
+                        setSelectedInvoiceForEdit(null);
+                    }}
+                    listings={carListings || []}
+                    currentUser={currentUser}
+                    invoice={selectedInvoiceForEdit}
+                />
+            )}
+            {isAddCarPaymentModalOpen && (
+                <RecordCarPaymentModal 
+                    isOpen={isAddCarPaymentModalOpen}
+                    onClose={() => {
+                        setIsAddCarPaymentModalOpen(false);
+                        setSelectedInvoiceForPayment(null);
+                        setSelectedPaymentForEdit(null);
+                    }}
+                    onSave={async (data) => {
+                        if (props.onAddCarPayment) await props.onAddCarPayment(data);
+                        setIsAddCarPaymentModalOpen(false);
+                        setSelectedPaymentForEdit(null);
+                    }}
+                    invoice={selectedInvoiceForPayment}
+                    invoices={props.carInvoices || []}
+                    currentUser={currentUser}
+                    payment={selectedPaymentForEdit}
+                />
+            )}
+            {pdfPreviewData && (
+                <PdfPreviewModal
+                    url={pdfPreviewData.uri}
+                    filename={pdfPreviewData.title}
+                    onClose={() => setPdfPreviewData(null)}
                 />
             )}
         </div>

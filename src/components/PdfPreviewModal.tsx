@@ -113,8 +113,13 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, 
                         >
                             <DocumentArrowDownIcon className="w-4 h-4" /> Save Local
                         </button>
-                        <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                        <button 
+                            onClick={onClose} 
+                            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors flex items-center gap-1"
+                            title="Close Preview"
+                        >
                             <XIcon className="w-6 h-6" />
+                            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline mr-1">Close</span>
                         </button>
                     </div>
                 </div>

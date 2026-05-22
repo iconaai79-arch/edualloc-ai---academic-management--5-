@@ -3785,7 +3785,7 @@ export const App: React.FC = () => {
             const invoiceNumber = data.invoiceNumber || `INV-CAR-${Date.now().toString().slice(-6)}`;
             await apiService.saveCarInvoice({ 
                 ...data, 
-                id: `inv_${Date.now()}`, 
+                id: data.id || `inv_${Date.now()}`, 
                 invoiceNumber,
                 paidAmount: paid,
                 balanceAmount: balance,
@@ -3798,7 +3798,7 @@ export const App: React.FC = () => {
             const receiptNumber = data.receiptNumber || `REC-CAR-${Date.now().toString().slice(-6)}`;
             await apiService.saveCarPayment({ 
                 ...data, 
-                id: `pay_${Date.now()}`, 
+                id: data.id || `pay_${Date.now()}`, 
                 receiptNumber,
                 institutionId: instId || '' 
             });
