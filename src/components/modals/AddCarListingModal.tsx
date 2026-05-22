@@ -134,7 +134,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                 </div>
 
                 {/* Body */}
-                <div className="p-8 overflow-y-auto space-y-10 no-scrollbar flex-grow">
+                <div className="p-8 overflow-y-auto space-y-10 custom-scrollbar flex-grow">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         {/* Left Side: Images */}
                         <div className="space-y-8">

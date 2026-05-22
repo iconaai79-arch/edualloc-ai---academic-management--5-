@@ -3791,6 +3791,15 @@ export const App: React.FC = () => {
                 balanceAmount: balance,
                 institutionId: instId || '' 
             });
+            if (data.listingId) {
+                try {
+                    await apiService.updateModuleRecord('car_sales_listings', data.listingId, {
+                        status: 'sold'
+                    });
+                } catch (err) {
+                    console.error("Failed to automatically mark car as sold:", err);
+                }
+            }
             await loadData();
         },
         onAddCarPayment: async (data: Partial<CarPayment>) => {
