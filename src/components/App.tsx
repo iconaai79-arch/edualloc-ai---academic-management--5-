@@ -1031,7 +1031,7 @@ export const App: React.FC = () => {
                         apiService.fetchCarAppraisals(effectiveInstIdFinal).catch(() => []),
                         apiService.fetchCarInvoices(effectiveInstIdFinal).catch(() => []),
                         apiService.fetchCarPayments(undefined, effectiveInstIdFinal).catch(() => []),
-                        apiService.fetchModuleRecords<BankTransaction>('car_bank_transactions', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<BankTransaction>('bank_transactions', effectiveInstIdFinal).catch(() => []),
                     ]) : Promise.resolve([]),
                     // System Batch
                     Promise.all([
@@ -3782,7 +3782,66 @@ export const App: React.FC = () => {
             const total = Number(data.totalAmount) || 0;
             const paid = Number(data.paidAmount) || 0;
             const balance = total - paid;
-            const invoiceNumber = data.invoiceNumber || `INV-CAR-${Date.now().toString().slice(-6)}`;
+            
+            // Generate invoice sequence number based on settings
+            let invoiceNumber = data.invoiceNumber;
+            if (!invoiceNumber) {
+                let prefix = 'INV-CAR-';
+                let startingNumber = 1001;
+                let format = '{PREFIX}{NUMBER}';
+                try {
+                    const instIdFinal = instId || '';
+                    const records = await apiService.fetchModuleRecords<any>('showroom_settings', instIdFinal);
+                    if (records && records.length > 0) {
+                        const dbSettings = records[0];
+                        prefix = dbSettings.invoice_prefix ?? dbSettings.invoicePrefix ?? 'INV-CAR-';
+                        startingNumber = dbSettings.invoice_starting_number ?? dbSettings.invoiceStartingNumber ?? 1001;
+                        format = dbSettings.invoice_format ?? dbSettings.invoiceFormat ?? '{PREFIX}{NUMBER}';
+                    } else {
+                        const localStr = localStorage.getItem(`showroom_settings_${instIdFinal}`);
+                        if (localStr) {
+                            const localSettings = JSON.parse(localStr);
+                            prefix = localSettings.invoicePrefix || 'INV-CAR-';
+                            startingNumber = localSettings.invoiceStartingNumber || 1001;
+                            format = localSettings.invoiceFormat || '{PREFIX}{NUMBER}';
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Failed to fetch showroom settings for sequence generation:", err);
+                    const instIdFinal = instId || '';
+                    const localStr = localStorage.getItem(`showroom_settings_${instIdFinal}`);
+                    if (localStr) {
+                        try {
+                            const localSettings = JSON.parse(localStr);
+                            prefix = localSettings.invoicePrefix || 'INV-CAR-';
+                            startingNumber = localSettings.invoiceStartingNumber || 1001;
+                            format = localSettings.invoiceFormat || '{PREFIX}{NUMBER}';
+                        } catch (e) {}
+                    }
+                }
+
+                // Scan existing car invoices for the highest number suffix
+                const instInvoices = carInvoices.filter(inv => inv.institutionId === instId);
+                let maxNumber = startingNumber - 1;
+                const escapedPrefix = prefix.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                const regex = new RegExp(`^${escapedPrefix}[-/]?(\\d+)$`);
+                instInvoices.forEach(inv => {
+                    if (inv.invoiceNumber) {
+                        const match = inv.invoiceNumber.match(regex);
+                        if (match) {
+                            const num = parseInt(match[1], 10);
+                            if (num > maxNumber) {
+                                maxNumber = num;
+                            }
+                        }
+                    }
+                });
+                const nextNumber = maxNumber + 1;
+                invoiceNumber = format
+                    .replace('{PREFIX}', prefix)
+                    .replace('{NUMBER}', nextNumber.toString());
+            }
+
             await apiService.saveCarInvoice({ 
                 ...data, 
                 id: data.id || `inv_${Date.now()}`, 
@@ -3804,7 +3863,65 @@ export const App: React.FC = () => {
         },
         onAddCarPayment: async (data: Partial<CarPayment>) => {
             const instId = activeInstitution?.id || currentUser?.institutionId;
-            const receiptNumber = data.receiptNumber || `REC-CAR-${Date.now().toString().slice(-6)}`;
+            
+            let receiptNumber = data.receiptNumber;
+            if (!receiptNumber) {
+                let prefix = 'REC-CAR-';
+                let startingNumber = 1001;
+                let format = '{PREFIX}{NUMBER}';
+                try {
+                    const instIdFinal = instId || '';
+                    const records = await apiService.fetchModuleRecords<any>('showroom_settings', instIdFinal);
+                    if (records && records.length > 0) {
+                        const dbSettings = records[0];
+                        prefix = dbSettings.receipt_prefix ?? dbSettings.receiptPrefix ?? 'REC-CAR-';
+                        startingNumber = dbSettings.receipt_starting_number ?? dbSettings.receiptStartingNumber ?? 1001;
+                        format = dbSettings.receipt_format ?? dbSettings.receiptFormat ?? '{PREFIX}{NUMBER}';
+                    } else {
+                        const localStr = localStorage.getItem(`showroom_settings_${instIdFinal}`);
+                        if (localStr) {
+                            const localSettings = JSON.parse(localStr);
+                            prefix = localSettings.receiptPrefix || 'REC-CAR-';
+                            startingNumber = localSettings.receiptStartingNumber || 1001;
+                            format = localSettings.receiptFormat || '{PREFIX}{NUMBER}';
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Failed to fetch showroom settings for receipt sequence generation:", err);
+                    const instIdFinal = instId || '';
+                    const localStr = localStorage.getItem(`showroom_settings_${instIdFinal}`);
+                    if (localStr) {
+                        try {
+                            const localSettings = JSON.parse(localStr);
+                            prefix = localSettings.receiptPrefix || 'REC-CAR-';
+                            startingNumber = localSettings.receiptStartingNumber || 1001;
+                            format = localSettings.receiptFormat || '{PREFIX}{NUMBER}';
+                        } catch (e) {}
+                    }
+                }
+
+                // Scan existing car payments for the highest number suffix
+                const instPayments = carPayments.filter(pay => pay.institutionId === instId);
+                let maxNumber = startingNumber - 1;
+                const escapedPrefix = prefix.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                const regex = new RegExp(`^${escapedPrefix}[-/]?(\\d+)$`);
+                instPayments.forEach(pay => {
+                    if (pay.receiptNumber) {
+                        const match = pay.receiptNumber.match(regex);
+                        if (match) {
+                            const num = parseInt(match[1], 10);
+                            if (num > maxNumber) {
+                                maxNumber = num;
+                            }
+                        }
+                    }
+                });
+                const nextNumber = maxNumber + 1;
+                receiptNumber = format
+                    .replace('{PREFIX}', prefix)
+                    .replace('{NUMBER}', nextNumber.toString());
+            }
+
             await apiService.saveCarPayment({ 
                 ...data, 
                 id: data.id || `pay_${Date.now()}`, 

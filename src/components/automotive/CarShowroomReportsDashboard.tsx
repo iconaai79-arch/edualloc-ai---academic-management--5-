@@ -75,8 +75,8 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
             try {
                 const [listingsData, invoicesData, paymentsData, bookingsData, institutions] = await Promise.all([
                     apiService.fetchModuleRecords<CarListing>('car_listings', institutionId),
-                    apiService.fetchModuleRecords<CarInvoice>('car_invoices', institutionId),
-                    apiService.fetchModuleRecords<CarPayment>('car_payments', institutionId),
+                    apiService.fetchModuleRecords<CarInvoice>('car_sales_invoices', institutionId),
+                    apiService.fetchModuleRecords<CarPayment>('car_sales_payments', institutionId),
                     apiService.fetchModuleRecords<TestDriveBooking>('car_test_drive_bookings', institutionId),
                     apiService.fetchInstitutions(institutionId)
                 ]);

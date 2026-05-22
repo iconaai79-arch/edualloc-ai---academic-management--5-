@@ -63,8 +63,8 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
             try {
                 const [allSales, allCarInvoices, allCarPayments] = await Promise.all([
                     apiService.fetchModuleRecords<RetailSale>('retail_sales', currentUser.institutionId),
-                    isAutoSales ? apiService.fetchModuleRecords<CarInvoice>('car_invoices', currentUser.institutionId) : Promise.resolve([]),
-                    isAutoSales ? apiService.fetchModuleRecords<CarPayment>('car_payments', currentUser.institutionId) : Promise.resolve([])
+                    isAutoSales ? apiService.fetchModuleRecords<CarInvoice>('car_sales_invoices', currentUser.institutionId) : Promise.resolve([]),
+                    isAutoSales ? apiService.fetchModuleRecords<CarPayment>('car_sales_payments', currentUser.institutionId) : Promise.resolve([])
                 ]);
 
                 const customerSales = allSales.filter(s =>

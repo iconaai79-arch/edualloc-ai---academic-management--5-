@@ -1746,7 +1746,7 @@ CREATE TABLE IF NOT EXISTS car_appraisals (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS car_invoices (
+CREATE TABLE IF NOT EXISTS car_sales_invoices (
     id TEXT PRIMARY KEY,
     listing_id TEXT NOT NULL REFERENCES car_listings(id) ON DELETE CASCADE,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
@@ -1768,9 +1768,9 @@ CREATE TABLE IF NOT EXISTS car_invoices (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS car_payments (
+CREATE TABLE IF NOT EXISTS car_sales_payments (
     id TEXT PRIMARY KEY,
-    invoice_id TEXT NOT NULL REFERENCES car_invoices(id) ON DELETE CASCADE,
+    invoice_id TEXT NOT NULL REFERENCES car_sales_invoices(id) ON DELETE CASCADE,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     amount DECIMAL(15, 2) NOT NULL,
     payment_method TEXT NOT NULL,
@@ -1779,6 +1779,19 @@ CREATE TABLE IF NOT EXISTS car_payments (
     receipt_number TEXT NOT NULL,
     status TEXT DEFAULT 'completed',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS showroom_settings (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    invoice_reminders JSONB DEFAULT '{"enabled": false, "before_due_days": 3, "after_due_days": 1, "template": ""}'::jsonb,
+    invoice_prefix TEXT DEFAULT 'INV-CAR-',
+    invoice_starting_number INTEGER DEFAULT 1001,
+    invoice_format TEXT DEFAULT '{PREFIX}{NUMBER}',
+    receipt_prefix TEXT DEFAULT 'REC-CAR-',
+    receipt_starting_number INTEGER DEFAULT 1001,
+    receipt_format TEXT DEFAULT '{PREFIX}{NUMBER}',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 16. FAMILY HERITAGE MODULE
@@ -1912,7 +1925,7 @@ BEGIN
         'his_eye_prescriptions', 'his_medication_logs', 'his_financial_records',
         'his_broadcasts', 'institution_module_states',
         'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_settings', 'ds_fee_structures', 'ds_invoices', 'ds_payments', 'ds_license_categories', 'ds_votes',
-        'car_listings', 'car_test_drive_bookings', 'car_appraisals', 'car_invoices', 'car_payments',
+        'car_listings', 'car_test_drive_bookings', 'car_appraisals', 'car_sales_invoices', 'car_sales_payments', 'showroom_settings',
         'heritage_members', 'heritage_stories', 'heritage_galleries', 'heritage_announcements'
     ]) LOOP
         IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN

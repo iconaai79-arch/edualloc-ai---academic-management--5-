@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Bell, MessageSquare, Sparkles, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Bell, MessageSquare, Sparkles, CheckCircle2, AlertCircle, RefreshCw, ChevronDown, Hash, Sliders } from 'lucide-react';
 import { apiService } from '../../services/apiService';
 
 interface ShowroomConfigManagerProps {
@@ -15,6 +15,12 @@ export interface ShowroomSettings {
         afterDueDays: number;
         template: string;
     };
+    invoicePrefix?: string;
+    invoiceStartingNumber?: number;
+    invoiceFormat?: string;
+    receiptPrefix?: string;
+    receiptStartingNumber?: number;
+    receiptFormat?: string;
     updatedAt: string;
 }
 
@@ -49,6 +55,12 @@ export const ShowroomConfigManager: React.FC<ShowroomConfigManagerProps> = ({ in
                             afterDueDays: 1,
                             template: 'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for vehicle {registration_number} (invoice {invoice_number}) is due on {due_date}. Please clear it to avoid service disruption.'
                         },
+                        invoicePrefix: dbSettings.invoice_prefix ?? dbSettings.invoicePrefix ?? 'INV-CAR-',
+                        invoiceStartingNumber: dbSettings.invoice_starting_number ?? dbSettings.invoiceStartingNumber ?? 1001,
+                        invoiceFormat: dbSettings.invoice_format ?? dbSettings.invoiceFormat ?? '{PREFIX}{NUMBER}',
+                        receiptPrefix: dbSettings.receipt_prefix ?? dbSettings.receiptPrefix ?? 'REC-CAR-',
+                        receiptStartingNumber: dbSettings.receipt_starting_number ?? dbSettings.receiptStartingNumber ?? 1001,
+                        receiptFormat: dbSettings.receipt_format ?? dbSettings.receiptFormat ?? '{PREFIX}{NUMBER}',
                         updatedAt: dbSettings.updatedAt || dbSettings.updated_at || new Date().toISOString()
                     });
                 } else {
@@ -81,6 +93,12 @@ export const ShowroomConfigManager: React.FC<ShowroomConfigManagerProps> = ({ in
                     afterDueDays: 1,
                     template: 'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for vehicle {registration_number} (invoice {invoice_number}) is due on {due_date}. Please clear it to avoid service disruption.'
                 },
+                invoicePrefix: 'INV-CAR-',
+                invoiceStartingNumber: 1001,
+                invoiceFormat: '{PREFIX}{NUMBER}',
+                receiptPrefix: 'REC-CAR-',
+                receiptStartingNumber: 1001,
+                receiptFormat: '{PREFIX}{NUMBER}',
                 updatedAt: new Date().toISOString()
             });
         };
@@ -99,6 +117,12 @@ export const ShowroomConfigManager: React.FC<ShowroomConfigManagerProps> = ({ in
                 id: settings.id,
                 institution_id: settings.institutionId,
                 invoice_reminders: settings.invoiceReminders,
+                invoice_prefix: settings.invoicePrefix || 'INV-CAR-',
+                invoice_starting_number: settings.invoiceStartingNumber || 1001,
+                invoice_format: settings.invoiceFormat || '{PREFIX}{NUMBER}',
+                receipt_prefix: settings.receiptPrefix || 'REC-CAR-',
+                receipt_starting_number: settings.receiptStartingNumber || 1001,
+                receipt_format: settings.receiptFormat || '{PREFIX}{NUMBER}',
                 updated_at: new Date().toISOString()
             });
             
@@ -124,6 +148,21 @@ export const ShowroomConfigManager: React.FC<ShowroomConfigManagerProps> = ({ in
     }
 
     if (!settings) return <div className="p-8 text-center text-rose-500">Failed to initialize settings.</div>;
+
+    const previewPrefix = settings.invoicePrefix || 'INV-CAR-';
+    const previewStartingNumber = settings.invoiceStartingNumber || 1001;
+    const previewFormat = settings.invoiceFormat || '{PREFIX}{NUMBER}';
+    const previewInvoiceCode = previewFormat
+        .replace('{PREFIX}', previewPrefix)
+        .replace('{NUMBER}', previewStartingNumber.toString());
+
+    const previewReceiptPrefix = settings.receiptPrefix || 'REC-CAR-';
+    const previewReceiptStartingNumber = settings.receiptStartingNumber || 1001;
+    const previewReceiptFormat = settings.receiptFormat || '{PREFIX}{NUMBER}';
+    const previewReceiptCode = previewReceiptFormat
+        .replace('{PREFIX}', previewReceiptPrefix)
+        .replace('{NUMBER}', previewReceiptStartingNumber.toString());
+
 
     return (
         <div className="space-y-8 animate-fade-in-up">
@@ -246,6 +285,156 @@ export const ShowroomConfigManager: React.FC<ShowroomConfigManagerProps> = ({ in
                                 <span className="px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-indigo-600">{"{registration_number}"}</span>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-4">
+                        <Sliders className="w-5 h-5 text-indigo-600" />
+                        <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 dark:text-white">Invoice Sequence & Format</h3>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Invoice Prefix</label>
+                            <input
+                                type="text"
+                                value={settings.invoicePrefix || ''}
+                                onChange={e => setSettings({
+                                    ...settings,
+                                    invoicePrefix: e.target.value
+                                })}
+                                className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="e.g. INV-CAR-"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Starting Number</label>
+                                <input
+                                    type="number"
+                                    value={settings.invoiceStartingNumber || 1001}
+                                    onChange={e => setSettings({
+                                        ...settings,
+                                        invoiceStartingNumber: Math.max(1, parseInt(e.target.value) || 1)
+                                    })}
+                                    className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    min="1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Format Template</label>
+                                <div className="relative">
+                                    <select
+                                        value={settings.invoiceFormat || '{PREFIX}{NUMBER}'}
+                                        onChange={e => setSettings({ ...settings, invoiceFormat: e.target.value })}
+                                        className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none outline-none pr-10"
+                                    >
+                                        <option value="{PREFIX}{NUMBER}">Prefix and Number (INV-CAR-1001)</option>
+                                        <option value="{PREFIX}-{NUMBER}">Prefix-Number (INV-CAR--1001)</option>
+                                        <option value="{PREFIX}/{NUMBER}">Prefix/Number (INV-CAR-/1001)</option>
+                                    </select>
+                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-500">
+                                        <ChevronDown className="w-4 h-4" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-4">
+                        <Hash className="w-5 h-5 text-indigo-600" />
+                        <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 dark:text-white">Next Invoice Number Preview</h3>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-900/40 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-4">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calculated Invoice Code</span>
+                        <div className="font-mono text-2xl font-black tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-6 py-4 rounded-2xl border border-dashed border-indigo-200 dark:border-indigo-800/60 w-full text-center select-all">
+                            {previewInvoiceCode}
+                        </div>
+                        <p className="text-[10px] text-slate-400 text-center font-bold uppercase leading-relaxed max-w-[280px]">
+                            The sequence increments automatically for each new vehicle invoice under this institution.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-4">
+                        <Sliders className="w-5 h-5 text-indigo-600" />
+                        <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 dark:text-white">Receipt Sequence & Format</h3>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Receipt Prefix</label>
+                            <input
+                                type="text"
+                                value={settings.receiptPrefix || ''}
+                                onChange={e => setSettings({
+                                    ...settings,
+                                    receiptPrefix: e.target.value
+                                })}
+                                className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="e.g. REC-CAR-"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Starting Number</label>
+                                <input
+                                    type="number"
+                                    value={settings.receiptStartingNumber || 1001}
+                                    onChange={e => setSettings({
+                                        ...settings,
+                                        receiptStartingNumber: Math.max(1, parseInt(e.target.value) || 1)
+                                    })}
+                                    className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    min="1"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Format Template</label>
+                                <div className="relative">
+                                    <select
+                                        value={settings.receiptFormat || '{PREFIX}{NUMBER}'}
+                                        onChange={e => setSettings({ ...settings, receiptFormat: e.target.value })}
+                                        className="w-full h-12 px-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none outline-none pr-10"
+                                    >
+                                        <option value="{PREFIX}{NUMBER}">Prefix and Number (REC-CAR-1001)</option>
+                                        <option value="{PREFIX}-{NUMBER}">Prefix-Number (REC-CAR--1001)</option>
+                                        <option value="{PREFIX}/{NUMBER}">Prefix/Number (REC-CAR-/1001)</option>
+                                    </select>
+                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-500">
+                                        <ChevronDown className="w-4 h-4" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-4">
+                        <Hash className="w-5 h-5 text-indigo-600" />
+                        <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 dark:text-white">Next Receipt Number Preview</h3>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-900/40 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-4">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calculated Receipt Code</span>
+                        <div className="font-mono text-2xl font-black tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-6 py-4 rounded-2xl border border-dashed border-indigo-200 dark:border-indigo-800/60 w-full text-center select-all">
+                            {previewReceiptCode}
+                        </div>
+                        <p className="text-[10px] text-slate-400 text-center font-bold uppercase leading-relaxed max-w-[280px]">
+                            The sequence increments automatically for each new vehicle payment receipt under this institution.
+                        </p>
                     </div>
                 </div>
             </div>
