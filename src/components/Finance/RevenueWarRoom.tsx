@@ -22,13 +22,13 @@ interface RevenueWarRoomProps {
 }
 
 export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
-    invoices,
-    receipts,
-    expenses,
-    goals,
-    students,
+    invoices = [],
+    receipts = [],
+    expenses = [],
+    goals = [],
+    students = [],
     institution,
-    transactions,
+    transactions = [],
     receiptLimit,
     setReceiptLimit,
     transactionLimit,

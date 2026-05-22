@@ -14,10 +14,10 @@ interface AutomatedBillingProps {
 }
 
 export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
-    feeStructures,
-    students,
-    academicYears,
-    semesters,
+    feeStructures = [],
+    students = [],
+    academicYears = [],
+    semesters = [],
     institution,
     onGenerateInvoices
 }) => {

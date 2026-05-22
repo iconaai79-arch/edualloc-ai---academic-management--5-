@@ -149,7 +149,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm min-h-full">
                                 <h3 className="text-xl font-black text-slate-900 tracking-tight mb-6">Expenditure Log</h3>
                                 <div className="space-y-4">
-                                    {props.expenses.map((exp, i) => (
+                                    {(props.expenses || []).map((exp, i) => (
                                         <div key={i} className="flex justify-between items-center p-6 bg-slate-50/50 rounded-3xl border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-100/50 transition-all group">
                                             <div className="flex gap-4 items-center">
                                                 <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">

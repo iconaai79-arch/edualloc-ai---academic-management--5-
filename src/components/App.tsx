@@ -3871,7 +3871,7 @@ export const App: React.FC = () => {
         expenses,
         goals: financialGoals,
         feeStructures,
-        students: users.filter(u => u.role === 'student'),
+        students: (users || []).filter(u => u.role === 'student'),
         academicYears,
         semesters,
         receiptLimit,
@@ -4582,6 +4582,12 @@ export const App: React.FC = () => {
                                             currentInstitution={activeInstitution!}
                                             invoices={invoices}
                                             receipts={receipts}
+                                            expenses={expenses}
+                                            goals={financialGoals}
+                                            feeStructures={feeStructures}
+                                            students={(users || []).filter(u => u.role === 'student')}
+                                            academicYears={academicYears}
+                                            semesters={semesters}
                                             transactions={transactions}
                                             onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                             onGenerateReceipt={onGenerateReceipt}
