@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CarInvoice, CarPayment, CarListing } from '../../types';
 import { 
     CreditCard, 
@@ -20,6 +20,7 @@ import {
     Copy,
     Edit
 } from 'lucide-react';
+import { apiService } from '../../services/apiService';
 
 interface CarSalesLedgerProps {
     invoices: CarInvoice[];
@@ -32,6 +33,7 @@ interface CarSalesLedgerProps {
     onPrintAgreement?: (invoice: CarInvoice) => void;
     onEditInvoice?: (invoice: CarInvoice) => void;
     onEditPayment?: (payment: CarPayment) => void;
+    institutionId?: string;
 }
 
 export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
@@ -44,7 +46,8 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
     onPrintReceipt,
     onPrintAgreement,
     onEditInvoice,
-    onEditPayment
+    onEditPayment,
+    institutionId
 }) => {
     const [activeTab, setActiveTab] = useState<'invoices' | 'payments'>('invoices');
     const [searchQuery, setSearchQuery] = useState('');
@@ -55,6 +58,41 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
     const [stkLoading, setStkLoading] = useState(false);
     const [stkStatus, setStkStatus] = useState<'idle' | 'pending' | 'success' | 'failed'>('idle');
     const [stkMessage, setStkMessage] = useState('');
+
+    // Bulk Invoice Reminders State
+    const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+    const [settings, setSettings] = useState<any>(null);
+    const [showBulkRemindersModal, setShowBulkRemindersModal] = useState(false);
+    const [bulkRemindersProgress, setBulkRemindersProgress] = useState(0);
+    const [bulkRemindersStatus, setBulkRemindersStatus] = useState<'idle' | 'sending' | 'completed' | 'failed'>('idle');
+    const [bulkRemindersLogs, setBulkRemindersLogs] = useState<string[]>([]);
+    const [bulkRemindersMessages, setBulkRemindersMessages] = useState<Record<string, string>>({});
+    const [bulkRemindersPhones, setBulkRemindersPhones] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            const instId = institutionId || invoices[0]?.institutionId;
+            if (!instId) return;
+            try {
+                const records = await apiService.fetchModuleRecords<any>('showroom_settings', instId);
+                if (records && records.length > 0) {
+                    setSettings(records[0]);
+                }
+            } catch (err) {
+                console.error("Failed to load showroom settings for bulk reminders:", err);
+            }
+        };
+        fetchSettings();
+    }, [institutionId, invoices]);
+
+    const replacePlaceholders = (template: string, invoice: CarInvoice, listing?: CarListing) => {
+        return template
+            .replace(/{client_name}/g, invoice.clientName || '')
+            .replace(/{amount_due}/g, (invoice.balanceAmount ?? (invoice.totalAmount - invoice.paidAmount)).toLocaleString())
+            .replace(/{registration_number}/g, invoice.registrationNumber || listing?.registrationNumber || 'N/A')
+            .replace(/{invoice_number}/g, invoice.invoiceNumber || '')
+            .replace(/{due_date}/g, invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'N/A');
+    };
 
     const filteredInvoices = invoices.filter(inv => 
         inv.clientName.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -72,6 +110,114 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
         const outstanding = totalSales - totalCollected;
         return { totalSales, totalCollected, outstanding };
     }, [invoices, payments]);
+
+    const outstandingInvoices = useMemo(() => {
+        return filteredInvoices.filter(inv => inv.status !== 'fully_paid' && inv.status !== 'cancelled');
+    }, [filteredInvoices]);
+
+    const isAllSelected = useMemo(() => {
+        if (outstandingInvoices.length === 0) return false;
+        return outstandingInvoices.every(inv => selectedInvoiceIds.includes(inv.id));
+    }, [outstandingInvoices, selectedInvoiceIds]);
+
+    const handleSelectAll = () => {
+        if (isAllSelected) {
+            const idsToRemove = outstandingInvoices.map(inv => inv.id);
+            setSelectedInvoiceIds(prev => prev.filter(id => !idsToRemove.includes(id)));
+        } else {
+            const idsToAdd = outstandingInvoices.map(inv => inv.id).filter(id => !selectedInvoiceIds.includes(id));
+            setSelectedInvoiceIds(prev => [...prev, ...idsToAdd]);
+        }
+    };
+
+    const handleSelectRow = (id: string) => {
+        setSelectedInvoiceIds(prev => 
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
+    const handleOpenBulkReminders = () => {
+        const selectedInvs = invoices.filter(inv => selectedInvoiceIds.includes(inv.id));
+        const rawReminders = settings?.invoiceReminders || settings?.invoice_reminders;
+        const template = rawReminders?.template || 
+            'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for vehicle {registration_number} (invoice {invoice_number}) is due on {due_date}. Please clear it to avoid service disruption.';
+        
+        const msgs: Record<string, string> = {};
+        const phones: Record<string, string> = {};
+        
+        selectedInvs.forEach(inv => {
+            const listing = listings.find(l => l.id === inv.listingId);
+            msgs[inv.id] = replacePlaceholders(template, inv, listing);
+            phones[inv.id] = inv.clientPhone || '';
+        });
+        
+        setBulkRemindersMessages(msgs);
+        setBulkRemindersPhones(phones);
+        setBulkRemindersStatus('idle');
+        setBulkRemindersProgress(0);
+        setBulkRemindersLogs([]);
+        setShowBulkRemindersModal(true);
+    };
+
+    const handleSendBulkReminders = async () => {
+        const selectedInvs = invoices.filter(inv => selectedInvoiceIds.includes(inv.id));
+        if (selectedInvs.length === 0) return;
+
+        setBulkRemindersStatus('sending');
+        setBulkRemindersProgress(0);
+        setBulkRemindersLogs([]);
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < selectedInvs.length; i++) {
+            const inv = selectedInvs[i];
+            const msg = bulkRemindersMessages[inv.id];
+            const phone = bulkRemindersPhones[inv.id];
+            const clientName = inv.clientName;
+
+            const logPrefix = `[${i + 1}/${selectedInvs.length}] ${clientName}`;
+            setBulkRemindersLogs(prev => [...prev, `${logPrefix}: Initializing SMS...`]);
+
+            if (!phone || phone.trim().length < 9) {
+                setBulkRemindersLogs(prev => [...prev, `❌ ${logPrefix}: Failed - Invalid/Empty phone number.`]);
+                failCount++;
+                setBulkRemindersProgress(Math.round(((i + 1) / selectedInvs.length) * 100));
+                continue;
+            }
+
+            try {
+                const res = await apiService.sendSms(
+                    phone.trim(), 
+                    msg, 
+                    undefined, 
+                    1, 
+                    inv.institutionId
+                );
+                if (res && (res.success || res.status === 'success' || res.ResponseCode === '0')) {
+                    setBulkRemindersLogs(prev => [...prev, `✅ ${logPrefix}: Sent successfully!`]);
+                    successCount++;
+                } else {
+                    const errMsg = res?.message || "Rejected by gateway";
+                    setBulkRemindersLogs(prev => [...prev, `❌ ${logPrefix}: Failed - ${errMsg}`]);
+                    failCount++;
+                }
+            } catch (err: any) {
+                setBulkRemindersLogs(prev => [...prev, `❌ ${logPrefix}: Connection error - ${err.message || err}`]);
+                failCount++;
+            }
+
+            setBulkRemindersProgress(Math.round(((i + 1) / selectedInvs.length) * 100));
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+
+        setBulkRemindersStatus('completed');
+        setBulkRemindersLogs(prev => [
+            ...prev,
+            `--- Summary: Sent ${successCount} successfully, ${failCount} failed. ---`
+        ]);
+        setSelectedInvoiceIds([]);
+    };
 
     return (
         <div className="space-y-8 animate-fade-in">
@@ -139,6 +285,14 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                     </div>
 
                     <div className="flex gap-3">
+                        {activeTab === 'invoices' && selectedInvoiceIds.length > 0 && (
+                            <button 
+                                onClick={handleOpenBulkReminders}
+                                className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-amber-100 hover:bg-amber-700 transition-all active:scale-95 animate-fade-in"
+                            >
+                                <Send className="w-4 h-4" /> Bulk Reminder ({selectedInvoiceIds.length})
+                            </button>
+                        )}
                         <button 
                             onClick={onAddInvoice}
                             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
@@ -158,6 +312,17 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50 dark:bg-slate-900/50">
+                                {activeTab === 'invoices' && (
+                                    <th className="pl-8 py-6 w-12">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isAllSelected}
+                                            onChange={handleSelectAll}
+                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-white dark:bg-slate-900 cursor-pointer"
+                                            disabled={outstandingInvoices.length === 0}
+                                        />
+                                    </th>
+                                )}
                                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Details</th>
                                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vehicle / Reference</th>
                                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Financials</th>
@@ -171,6 +336,17 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                     const listing = listings.find(l => l.id === inv.listingId);
                                     return (
                                         <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
+                                            {activeTab === 'invoices' && (
+                                                <td className="pl-8 py-6">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedInvoiceIds.includes(inv.id)}
+                                                        onChange={() => handleSelectRow(inv.id)}
+                                                        disabled={inv.status === 'fully_paid' || inv.status === 'cancelled'}
+                                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-white dark:bg-slate-900 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                                    />
+                                                </td>
+                                            )}
                                             <td className="px-8 py-6">
                                                 <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{inv.clientName}</p>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Invoice #{inv.invoiceNumber}</p>
@@ -466,6 +642,138 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                     {stkLoading ? "Processing..." : "Send Prompt"}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Bulk Reminders Modal */}
+            {showBulkRemindersModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-[3rem] p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative flex flex-col max-h-[90vh] animate-scale-up">
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2 flex items-center gap-2">
+                            <Send className="w-6 h-6 text-amber-500 animate-pulse" /> Bulk Invoice Reminders
+                        </h3>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-6">
+                            Review, customize, and dispatch outstanding payment alerts to {selectedInvoiceIds.length} client(s).
+                        </p>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 overflow-hidden flex-grow mb-6">
+                            {/* Left panel: List of invoices and message editors */}
+                            <div className="lg:col-span-7 flex flex-col overflow-y-auto space-y-4 pr-2 max-h-[50vh] lg:max-h-none">
+                                {invoices
+                                    .filter(inv => selectedInvoiceIds.includes(inv.id))
+                                    .map(inv => (
+                                        <div key={inv.id} className="p-6 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase">{inv.clientName}</h4>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Invoice #{inv.invoiceNumber}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="px-3 py-1 bg-amber-50 dark:bg-slate-850 text-amber-600 rounded-full text-[9px] font-black uppercase tracking-widest">
+                                                        KES {(inv.balanceAmount ?? (inv.totalAmount - inv.paidAmount)).toLocaleString()} Due
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Phone Number</label>
+                                                    <input 
+                                                        type="text"
+                                                        value={bulkRemindersPhones[inv.id] || ''}
+                                                        onChange={(e) => setBulkRemindersPhones(prev => ({ ...prev, [inv.id]: e.target.value }))}
+                                                        className="w-full h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-800 dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-8">
+                                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Message Body</label>
+                                                    <textarea 
+                                                        rows={3}
+                                                        value={bulkRemindersMessages[inv.id] || ''}
+                                                        onChange={(e) => setBulkRemindersMessages(prev => ({ ...prev, [inv.id]: e.target.value }))}
+                                                        className="w-full p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-800 dark:text-white resize-none"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-end">
+                                                <button
+                                                    onClick={() => setSelectedInvoiceIds(prev => prev.filter(id => id !== inv.id))}
+                                                    className="text-[9px] font-black text-rose-500 uppercase tracking-widest hover:text-rose-600 transition-colors"
+                                                >
+                                                    Exclude from Batch
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                {selectedInvoiceIds.length === 0 && (
+                                    <div className="py-12 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 rounded-3xl">
+                                        <XCircle className="w-12 h-12 text-slate-300 mb-2" />
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">No invoices selected</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right panel: Execution state and Logs */}
+                            <div className="lg:col-span-5 flex flex-col space-y-6">
+                                <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Batch Actions</h4>
+                                    
+                                    {bulkRemindersStatus === 'sending' && (
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                <span>Sending Progress</span>
+                                                <span className="text-indigo-600">{bulkRemindersProgress}%</span>
+                                            </div>
+                                            <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                                                <div 
+                                                    className="bg-indigo-600 h-full rounded-full transition-all duration-300"
+                                                    style={{ width: `${bulkRemindersProgress}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Action description */}
+                                    <p className="text-xs text-slate-500 leading-relaxed font-bold">
+                                        {bulkRemindersStatus === 'idle' && "Clicking 'Send' will trigger real-time SMS reminders to the phone numbers configured on the left."}
+                                        {bulkRemindersStatus === 'sending' && "Reminders are being dispatched. Please do not close this window."}
+                                        {bulkRemindersStatus === 'completed' && "Completed processing the reminder batch."}
+                                    </p>
+
+                                    {/* Console Logs */}
+                                    <div className="flex flex-col h-48 bg-slate-950 rounded-2xl p-4 font-mono text-[9px] text-emerald-400 overflow-y-auto space-y-1.5 border border-slate-900">
+                                        {bulkRemindersLogs.length === 0 && (
+                                            <span className="text-slate-500 italic">No logs. Waiting to send...</span>
+                                        )}
+                                        {bulkRemindersLogs.map((log, idx) => (
+                                            <span key={idx}>{log}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer Actions */}
+                        <div className="flex justify-end gap-4 pt-4 border-t border-slate-50 dark:border-slate-700">
+                            <button
+                                onClick={() => setShowBulkRemindersModal(false)}
+                                className="px-6 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+                                disabled={bulkRemindersStatus === 'sending'}
+                            >
+                                {bulkRemindersStatus === 'completed' ? 'Close' : 'Cancel'}
+                            </button>
+                            {bulkRemindersStatus !== 'completed' && (
+                                <button
+                                    onClick={handleSendBulkReminders}
+                                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                                    disabled={bulkRemindersStatus === 'sending' || selectedInvoiceIds.length === 0}
+                                >
+                                    {bulkRemindersStatus === 'sending' ? 'Sending...' : 'Send Bulk Reminders'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

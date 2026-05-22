@@ -65,7 +65,7 @@ const setupPdfHeader = (doc: any, headerImg: HTMLImageElement | null) => {
     return startY + 10;
 };
 
-const setupPdfFooter = (doc: any, footerImg: HTMLImageElement | null) => {
+const setupPdfFooter = (doc: any, footerImg: HTMLImageElement | null, footerText?: string) => {
     const pageCount = doc.internal.getNumberOfPages();
     if (pageCount === 0) return;
 
@@ -92,7 +92,7 @@ const setupPdfFooter = (doc: any, footerImg: HTMLImageElement | null) => {
             doc.addImage(footerImg, 'PNG', xPos, yPos, finalWidth, finalHeight);
         }
 
-        const copyrightText = "EduAi Automation - Secure Document";
+        const copyrightText = footerText || "EduAi Automation - Secure Document";
         doc.setFontSize(8);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(150, 150, 150);
@@ -108,10 +108,37 @@ const createPdfWithLetterhead = (
     title: string,
     companyDetails: CompanyDetails,
     institution: Institution,
-    logoImg: HTMLImageElement | null
+    logoImg: HTMLImageElement | null,
+    headerImg: HTMLImageElement | null = null
 ) => {
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
+
+    if (headerImg) {
+        const imgWidth = pageWidth - (margin * 2);
+        const imgHeight = (headerImg.height * imgWidth) / headerImg.width;
+        const maxHeight = 40;
+        let finalHeight = imgHeight;
+        let finalWidth = imgWidth;
+        if (imgHeight > maxHeight) {
+            finalHeight = maxHeight;
+            finalWidth = (headerImg.width * finalHeight) / headerImg.height;
+        }
+        const xPos = (pageWidth - finalWidth) / 2;
+        doc.addImage(headerImg, 'JPEG', xPos, 15, finalWidth, finalHeight);
+
+        const lineY = 15 + finalHeight + 5;
+        doc.setDrawColor(180, 180, 180);
+        doc.line(margin, lineY, pageWidth - margin, lineY);
+
+        // Draw Document Title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(0, 0, 0);
+        doc.text(title, margin, lineY + 15);
+
+        return lineY + 25;
+    }
 
     // Draw Logo
     if (logoImg) {
@@ -279,20 +306,26 @@ export const generateCarInvoicePdfDataUri = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
+
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
-    const tableStartY = createPdfWithLetterhead(doc, 'SALES INVOICE', companyDetails, institution, logoImg);
+
+    const tableStartY = createPdfWithLetterhead(doc, 'SALES INVOICE', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
     // Invoice Details
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text('INVOICE #:', pageWidth - margin - 40, margin + 55);
-    doc.text('ISSUE DATE:', pageWidth - margin - 40, margin + 60);
+    doc.text('INVOICE #:', pageWidth - margin - 40, tableStartY - 25);
+    doc.text('ISSUE DATE:', pageWidth - margin - 40, tableStartY - 20);
 
     doc.setFont('helvetica', 'normal');
-    doc.text(invoice.invoiceNumber, pageWidth - margin, margin + 55, { align: 'right' });
-    doc.text(new Date(invoice.createdAt || Date.now()).toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
+    doc.text(invoice.invoiceNumber, pageWidth - margin, tableStartY - 25, { align: 'right' });
+    doc.text(new Date(invoice.createdAt || Date.now()).toLocaleDateString(), pageWidth - margin, tableStartY - 20, { align: 'right' });
 
     const head = [['#', 'VEHICLE DESCRIPTION', 'REGISTRATION', 'TOTAL PRICE (KES)']];
     const body = [
@@ -326,6 +359,8 @@ export const generateCarInvoicePdfDataUri = async (
         }
     });
 
+    setupPdfFooter(doc, footerImg, footerText);
+
     return doc.output('datauristring');
 };
 
@@ -339,19 +374,25 @@ export const generateCarReceiptPdfDataUri = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
+
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
-    const tableStartY = createPdfWithLetterhead(doc, 'SALES RECEIPT', companyDetails, institution, logoImg);
+
+    const tableStartY = createPdfWithLetterhead(doc, 'SALES RECEIPT', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text('RECEIPT #:', pageWidth - margin - 40, margin + 55);
-    doc.text('PAYMENT DATE:', pageWidth - margin - 40, margin + 60);
+    doc.text('RECEIPT #:', pageWidth - margin - 40, tableStartY - 25);
+    doc.text('PAYMENT DATE:', pageWidth - margin - 40, tableStartY - 20);
 
     doc.setFont('helvetica', 'normal');
-    doc.text(payment.receiptNumber, pageWidth - margin, margin + 55, { align: 'right' });
-    doc.text(new Date(payment.paymentDate).toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
+    doc.text(payment.receiptNumber, pageWidth - margin, tableStartY - 25, { align: 'right' });
+    doc.text(new Date(payment.paymentDate).toLocaleDateString(), pageWidth - margin, tableStartY - 20, { align: 'right' });
 
     const body = [
         ['Client Name', invoice.clientName],
@@ -376,6 +417,8 @@ export const generateCarReceiptPdfDataUri = async (
     doc.text('AMOUNT PAID:', margin, finalY + 20);
     doc.text(`KES ${payment.amount.toLocaleString()}`, pageWidth - margin, finalY + 20, { align: 'right' });
 
+    setupPdfFooter(doc, footerImg, footerText);
+
     return doc.output('datauristring');
 };
 
@@ -389,8 +432,14 @@ export const generateCarSaleAgreementPdfDataUri = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
+
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
-    const tableStartY = createPdfWithLetterhead(doc, 'VEHICLE SALE & INSTALLMENT AGREEMENT', companyDetails, institution, logoImg);
+
+    const tableStartY = createPdfWithLetterhead(doc, 'VEHICLE SALE & INSTALLMENT AGREEMENT', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -448,6 +497,8 @@ export const generateCarSaleAgreementPdfDataUri = async (
     doc.text('BUYER SIGNATURE: _______________________', margin, tableStartY + 195);
     doc.text('DATE: _______________________', margin, tableStartY + 210);
 
+    setupPdfFooter(doc, footerImg, footerText);
+
     return doc.output('datauristring');
 };
 
@@ -462,8 +513,14 @@ export const generateCarClientStatementPdfDataUri = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
+
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
-    const tableStartY = createPdfWithLetterhead(doc, 'CLIENT STATEMENT OF ACCOUNT', companyDetails, institution, logoImg);
+
+    const tableStartY = createPdfWithLetterhead(doc, 'CLIENT STATEMENT OF ACCOUNT', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -514,8 +571,10 @@ export const generateCarClientStatementPdfDataUri = async (
     const finalY = (doc as any).lastAutoTable.finalY;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('OUTSTANDING BALANCE:', pageWidth - margin - 50, finalY + 15);
+    doc.text('OUTSTANDING BALANCE:', margin, finalY + 15);
     doc.text(`KES ${runningBalance.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+
+    setupPdfFooter(doc, footerImg, footerText);
 
     return doc.output('datauristring');
 };
@@ -529,8 +588,14 @@ export const generateCarShowroomInventoryPdf = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
+
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
-    const tableStartY = createPdfWithLetterhead(doc, 'SHOWROOM INVENTORY LEDGER', companyDetails, institution, logoImg);
+
+    const tableStartY = createPdfWithLetterhead(doc, 'SHOWROOM INVENTORY LEDGER', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -568,8 +633,10 @@ export const generateCarShowroomInventoryPdf = async (
     const finalY = (doc as any).lastAutoTable.finalY;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL SHOWROOM VALUE:', pageWidth - margin - 60, finalY + 15);
+    doc.text('TOTAL SHOWROOM VALUE:', margin, finalY + 15);
     doc.text(`KES ${totalValue.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+
+    setupPdfFooter(doc, footerImg, footerText);
 
     return doc.output('datauristring');
 };
@@ -584,8 +651,14 @@ export const generateCarSalesSummaryPdf = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
+
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
-    const tableStartY = createPdfWithLetterhead(doc, 'SHOWROOM SALES & REVENUE SUMMARY', companyDetails, institution, logoImg);
+
+    const tableStartY = createPdfWithLetterhead(doc, 'SHOWROOM SALES & REVENUE SUMMARY', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -648,6 +721,8 @@ export const generateCarSalesSummaryPdf = async (
         headStyles: { fillColor: [79, 70, 229] },
         styles: { fontSize: 8 },
     });
+
+    setupPdfFooter(doc, footerImg, footerText);
 
     return doc.output('datauristring');
 };
