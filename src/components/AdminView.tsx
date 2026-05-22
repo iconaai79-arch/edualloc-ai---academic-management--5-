@@ -1061,8 +1061,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
                         {/* Interactive Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto px-4">
-                            
-                            {/* Card 1: Academic Scheduling & Timetable */}
+                                                        {/* Card 1: Academic Scheduling & Timetable */}
                             {(() => {
                                 const isActive = isModuleActive('academics') || isModuleActive('timetable');
                                 return (
@@ -1078,7 +1077,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
                                         {!isActive && (
-                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
                                                 <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                                 Locked
                                             </div>
@@ -1093,6 +1092,22 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
                                                     Configure institutional grades, manage classroom allocations, master lesson schedules, and configure teaching constraints.
                                                 </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('academics');
+                                                                await onActivateModuleTrial('timetable');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate academic trials:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-indigo-600 hover:bg-indigo-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1115,7 +1130,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-emerald-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
                                         {!isActive && (
-                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
                                                 <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                                 Locked
                                             </div>
@@ -1130,6 +1145,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
                                                     Track and issue classroom textbooks, uniform supplies, stationery packages, and oversee institutional procurement requisitions.
                                                 </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('school_store');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate store trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-emerald-500 hover:bg-emerald-600 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1152,7 +1182,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-violet-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
                                         {!isActive && (
-                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
                                                 <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                                 Locked
                                             </div>
@@ -1167,6 +1197,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
                                                     Oversee dormitory blocks, assign bunk beds, monitor student check-ins, and authorize leave-out gate passes.
                                                 </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('boarding');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate boarding trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-violet-600 hover:bg-violet-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1189,7 +1234,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-amber-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
                                         {!isActive && (
-                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
                                                 <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                                 Locked
                                             </div>
@@ -1204,6 +1249,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
                                                     Register school buses, manage zone fare matrices, coordinate staff transport shuttles, and driver schedules.
                                                 </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('transport');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate transport trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-amber-500 hover:bg-amber-600 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1225,7 +1285,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-purple-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
                                         {!isActive && (
-                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
                                                 <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                                 Locked
                                             </div>
@@ -1240,6 +1300,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
                                                     Track textbook borrowing registries, manage library fine logs, update catalog categories, and catalog new acquisitions.
                                                 </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('library');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate library trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-purple-600 hover:bg-purple-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1276,6 +1351,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
                                                     Log school visitors, check staff/student gate check-in activity registries, and coordinate campus guard rotations.
                                                 </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('transport');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate transport (security) trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-red-600 hover:bg-red-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1298,7 +1388,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-sky-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
                                         {!isActive && (
-                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
                                                 <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                                 Locked
                                             </div>
@@ -1313,6 +1403,72 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
                                                     Manage student learners, driving instructors, lesson schedules, fleet vehicles, and collect driving school fees.
                                                 </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('driving_school');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate driving school trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-sky-500 hover:bg-sky-600 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 8: Finance & Fees */}
+                            {(() => {
+                                const isActive = isModuleActive('finance');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The Finance & Fees module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            props.onSwitchPerspective?.('finance');
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-emerald-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-emerald-600 text-white rounded-2xl w-fit shadow-lg shadow-emerald-150 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Finance & Fees</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Generate student invoices, process fee collections/receipting, manage mobile payments, and track general transaction ledgers.
+                                                </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('finance');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate finance trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-emerald-600 hover:bg-emerald-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

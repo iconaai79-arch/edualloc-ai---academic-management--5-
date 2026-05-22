@@ -620,6 +620,7 @@ export const App: React.FC = () => {
                 'student': 'Student Portal',
                 'parent': 'Parent Portal',
                 'finance_officer': 'Finance Office',
+                'finance': 'Finance Office',
                 'hr_officer': 'HR Office',
                 'academics_officer': 'Academic Office',
                 'reseller': 'Reseller Portal',
@@ -3528,14 +3529,7 @@ export const App: React.FC = () => {
     const handleActivateModuleTrial = useCallback(async (moduleId: string) => {
         if (!activeInstitution) return;
         try {
-            const newState: Omit<InstitutionModuleState, 'id'> = {
-                moduleId,
-                institutionId: activeInstitution.id,
-                status: 'trial',
-                activatedAt: new Date().toISOString(),
-                trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-            };
-            await apiService.saveModuleRecord('institution_module_states', { ...newState, id: `ims_${moduleId}_${activeInstitution.id}` });
+            await apiService.activateModuleTrial(moduleId, activeInstitution.id);
             await loadData();
         } catch (e) {
             console.error(`Failed to activate trial for module ${moduleId}:`, e);
@@ -4575,7 +4569,7 @@ export const App: React.FC = () => {
                                             } as any}
                                         />
                                     </ModuleAccessGuard>
-                                ) : activeRole === 'finance_officer' ? (
+                                ) : (activeRole === 'finance_officer' || activeRole === 'finance') ? (
                                     <ModuleAccessGuard
                                         moduleId="finance"
                                         moduleName="Finance & Fees"
@@ -5354,14 +5348,7 @@ export const App: React.FC = () => {
                     onActivateModules={async (moduleIds: string[]) => {
                         for (const moduleId of moduleIds) {
                             try {
-                                const newState: Omit<InstitutionModuleState, 'id'> = {
-                                    moduleId,
-                                    institutionId: activeInstitution.id,
-                                    status: 'trial',
-                                    activatedAt: new Date().toISOString(),
-                                    trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-                                };
-                                await apiService.saveModuleRecord('institution_module_states', { ...newState, id: `ims_${moduleId}_${activeInstitution.id}` });
+                                await apiService.activateModuleTrial(moduleId, activeInstitution.id);
                             } catch (e) {
                                 console.error(`[Onboarding] Failed to activate module ${moduleId}:`, e);
                             }
