@@ -520,6 +520,138 @@ export const generateCarClientStatementPdfDataUri = async (
     return doc.output('datauristring');
 };
 
+export const generateCarShowroomInventoryPdf = async (
+    listings: CarListing[],
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'SHOWROOM INVENTORY LEDGER', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`TOTAL VEHICLES: ${listings.length}`, margin, tableStartY + 10);
+    doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - margin, tableStartY + 10, { align: 'right' });
+
+    const head = [['MAKE & MODEL', 'YEAR', 'REGISTRATION', 'MILEAGE', 'FUEL / TRANS', 'PRICE (KES)', 'STATUS']];
+    const body: any[] = [];
+    let totalValue = 0;
+
+    listings.forEach(listing => {
+        totalValue += listing.price || 0;
+        body.push([
+            `${listing.make} ${listing.model}`,
+            listing.year.toString(),
+            listing.registrationNumber || 'N/A',
+            `${(listing.mileage || 0).toLocaleString()} KM`,
+            `${listing.fuelType} / ${listing.transmission}`,
+            (listing.price || 0).toLocaleString(),
+            (listing.status || 'active').toUpperCase()
+        ]);
+    });
+
+    (doc as any).autoTable({
+        head: head,
+        body: body,
+        startY: tableStartY + 20,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 8 },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL SHOWROOM VALUE:', pageWidth - margin - 60, finalY + 15);
+    doc.text(`KES ${totalValue.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+
+export const generateCarSalesSummaryPdf = async (
+    invoices: CarInvoice[],
+    payments: CarPayment[],
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'SHOWROOM SALES & REVENUE SUMMARY', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    let totalInvoiced = 0;
+    let totalReceived = 0;
+    let totalOutstanding = 0;
+
+    invoices.forEach(inv => {
+        if (inv.status !== 'cancelled') {
+            totalInvoiced += inv.totalAmount || 0;
+            totalReceived += inv.paidAmount || 0;
+            totalOutstanding += inv.balanceAmount || 0;
+        }
+    });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`TOTAL INVOICES: ${invoices.length}`, margin, tableStartY + 10);
+    doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - margin, tableStartY + 10, { align: 'right' });
+
+    // Summary boxes layout
+    doc.setFillColor(248, 250, 252); // light slate background
+    doc.rect(margin, tableStartY + 15, pageWidth - (margin * 2), 22, 'F');
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('TOTAL INVOICED SALES', margin + 10, tableStartY + 23);
+    doc.text('TOTAL PAYMENTS RECEIVED', pageWidth / 2, tableStartY + 23, { align: 'center' });
+    doc.text('TOTAL OUTSTANDING BALANCE', pageWidth - margin - 10, tableStartY + 23, { align: 'right' });
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`KES ${totalInvoiced.toLocaleString()}`, margin + 10, tableStartY + 31);
+    doc.text(`KES ${totalReceived.toLocaleString()}`, pageWidth / 2, tableStartY + 31, { align: 'center' });
+    doc.text(`KES ${totalOutstanding.toLocaleString()}`, pageWidth - margin - 10, tableStartY + 31, { align: 'right' });
+
+    const head = [['DATE', 'INVOICE #', 'CLIENT NAME', 'VEHICLE REG', 'TOTAL (KES)', 'PAID (KES)', 'BALANCE (KES)', 'STATUS']];
+    const body: any[] = [];
+
+    invoices.forEach(inv => {
+        body.push([
+            inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : 'N/A',
+            inv.invoiceNumber,
+            inv.clientName,
+            inv.registrationNumber || 'N/A',
+            (inv.totalAmount || 0).toLocaleString(),
+            (inv.paidAmount || 0).toLocaleString(),
+            (inv.balanceAmount || 0).toLocaleString(),
+            (inv.status || 'pending').toUpperCase().replace('_', ' ')
+        ]);
+    });
+
+    (doc as any).autoTable({
+        head: head,
+        body: body,
+        startY: tableStartY + 45,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 8 },
+    });
+
+    return doc.output('datauristring');
+};
+
 export const downloadInvoicePdf = async (invoice: Invoice, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null) => {
     const dataUri = await generateInvoicePdfDataUri(invoice, institution, companyDetails, logoUrl);
     const link = document.createElement('a');

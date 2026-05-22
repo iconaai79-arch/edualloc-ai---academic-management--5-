@@ -116,6 +116,7 @@ import { PdfPreviewModal } from './PdfPreviewModal';
 import * as pdfService from '../services/pdfService';
 import { apiService } from '../services/apiService';
 const RetailReportsDashboard = lazy(() => import('./retail/RetailReportsDashboard').then(m => ({ default: m.RetailReportsDashboard })));
+const CarShowroomReportsDashboard = lazy(() => import('./automotive/CarShowroomReportsDashboard').then(m => ({ default: m.CarShowroomReportsDashboard })));
 const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
 const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
 import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution } from '../utils/roleUtils';
@@ -462,7 +463,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign'>('dashboard');
-    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics'>('console_hub');
+    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds'>('console_hub');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
@@ -553,6 +554,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const isDS = useMemo(() => {
         const cat = props.currentInstitution?.category?.toLowerCase() || '';
         const type = institutionType?.toLowerCase() || '';
+        if (isEduInstitution(props.currentInstitution)) return false; // Not a pure DS
         const hasModule = props.currentInstitution?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
         return cat.includes('driving school') || type.includes('driving school') || !!hasModule;
     }, [props.currentInstitution, institutionType]);
@@ -880,7 +882,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
             if (tab.id === 'church') return isChurch;
             if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
-            if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || isDS || institutionType?.toLowerCase().includes('driving school');
+            if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || isDS || institutionType?.toLowerCase().includes('driving school') || activeScope === 'ds';
             if (tab.id === 'community') return isCommunity || roleToUse === 'community_admin';
             if (tab.id === 'alumni') return (isAlumni || roleToUse === 'alumni_admin') && !isDS;
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
@@ -2385,7 +2387,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     />
                 )}
 
-                {(activeTab === 'driving_school' || activeTab === 'dashboard' || activeTab.startsWith('ds_')) && isDS && (
+                {(activeTab === 'driving_school' || activeTab === 'dashboard' || activeTab.startsWith('ds_')) && (isDS || activeScope === 'ds') && (
                     <DrivingSchoolManager
                         currentUser={props.currentUser!}
                         currentInstitution={props.currentInstitution!}
@@ -2587,6 +2589,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         ) : isDS ? (
                             <DSAnalyticsView 
                                 institution={props.currentInstitution!}
+                            />
+                        ) : isAutoMarket ? (
+                            <CarShowroomReportsDashboard
+                                institutionId={props.currentInstitution?.id || ''}
+                                users={props.users || []}
+                                companyDetails={props.companyDetails}
                             />
                         ) : (
                             <ReportsDashboard

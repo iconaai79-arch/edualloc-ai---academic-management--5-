@@ -63,6 +63,23 @@ export const initSupabaseClient = (url?: string, key?: string) => {
 
 initSupabaseClient();
 
+const PROTECTED_KEYS = new Set([
+    'coopConfig', 'coopSettings', 'coop_settings',
+    'mpesaConfig', 'mpesa_config',
+    'smsConfig', 'sms_config',
+    'emailConfig', 'email_config',
+    'googleDriveConfig', 'google_drive_config',
+    'ftpConfig', 'ftp_config',
+    'letterheadConfig', 'letterhead_config',
+    'subscriptionConfig', 'subscription_config',
+    'chatAssistantConfig', 'chat_assistant_config',
+    'portalSettings', 'portal_settings',
+    'themeConfig', 'theme_config',
+    'customTheme', 'custom_theme',
+    'metadata',
+    'cpanelSettings', 'cpanel_settings'
+]);
+
 function toSnakeCase(obj: any): any {
     if (obj === null || obj === undefined || typeof obj !== 'object' || obj instanceof Date) return obj;
     if (Array.isArray(obj)) return obj.map((item: any) => toSnakeCase(item));
@@ -71,7 +88,11 @@ function toSnakeCase(obj: any): any {
         if (key === 'isImpersonated') return; // Skip internal session-only flags
         let val = obj[key];
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        newObj[snakeKey] = toSnakeCase(val);
+        if (PROTECTED_KEYS.has(key) || PROTECTED_KEYS.has(snakeKey)) {
+            newObj[snakeKey] = val;
+        } else {
+            newObj[snakeKey] = toSnakeCase(val);
+        }
     });
     return newObj;
 }
@@ -82,7 +103,11 @@ function toCamelCase(obj: any): any {
     const newObj: any = {};
     Object.keys(obj).forEach(key => {
         const camelKey = key.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
-        newObj[camelKey] = toCamelCase(obj[key]);
+        if (PROTECTED_KEYS.has(key) || PROTECTED_KEYS.has(camelKey)) {
+            newObj[camelKey] = obj[key];
+        } else {
+            newObj[camelKey] = toCamelCase(obj[key]);
+        }
     });
     return newObj;
 }
@@ -531,7 +556,22 @@ export const apiService = {
                 );
             }
 
-            return toCamelCase(records) || [];
+            const result = toCamelCase(records) || [];
+            if (module === 'institutions' && Array.isArray(result)) {
+                result.forEach((inst: any) => {
+                    const settings = inst.coopSettings || inst.coop_settings;
+                    if (settings) {
+                        inst.coopConfig = {
+                            serviceName: settings.serviceName || '',
+                            connectionID: settings.connectionID || '',
+                            connectionPassword: settings.connectionPassword || '',
+                            institutionCode: settings.institutionCode || '',
+                        };
+                        inst.coopSettings = settings;
+                    }
+                });
+            }
+            return result;
         }
 
         try {
@@ -584,6 +624,20 @@ export const apiService = {
 
             const data = await response.json();
             const result = toCamelCase(data);
+            if (module === 'institutions' && Array.isArray(result)) {
+                result.forEach((inst: any) => {
+                    const settings = inst.coopSettings || inst.coop_settings;
+                    if (settings) {
+                        inst.coopConfig = {
+                            serviceName: settings.serviceName || '',
+                            connectionID: settings.connectionID || '',
+                            connectionPassword: settings.connectionPassword || '',
+                            institutionCode: settings.institutionCode || '',
+                        };
+                        inst.coopSettings = settings;
+                    }
+                });
+            }
             return Array.isArray(result) ? result : [];
         } catch (e) {
             console.error(`Fetch Exception [${module}]:`, e);
@@ -1052,9 +1106,14 @@ export const apiService = {
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return apiService.fetchModuleRecords('institutions', institutionId); },
 
     async saveInstitution(inst: Institution): Promise<void> { 
-        const { countyId, moduleStates, ...rest } = inst as any;
+        const { countyId, moduleStates, coopConfig, coopSettings, ...rest } = inst as any;
+        const coop_settings = {
+            ...(coopSettings || {}),
+            ...(coopConfig || {})
+        };
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
+            coop_settings,
             county_id: countyId
         }); 
     },

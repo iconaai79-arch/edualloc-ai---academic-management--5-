@@ -14,7 +14,8 @@ import {
     Coins,
     Calendar,
     Gauge,
-    Rotate3d
+    Rotate3d,
+    ChevronDown
 } from 'lucide-react';
 import { CarListing, Institution } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -252,29 +253,35 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
                                         <Fuel className="w-3.5 h-3.5" /> Fuel Type
                                     </label>
-                                    <select 
-                                        value={formData.fuelType} 
-                                        onChange={e => setFormData({ ...formData, fuelType: e.target.value as any })} 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
-                                    >
-                                        <option value="Petrol">Petrol</option>
-                                        <option value="Diesel">Diesel</option>
-                                        <option value="Electric">Electric</option>
-                                        <option value="Hybrid">Hybrid</option>
-                                    </select>
+                                    <div className="relative">
+                                        <select 
+                                            value={formData.fuelType} 
+                                            onChange={e => setFormData({ ...formData, fuelType: e.target.value as any })} 
+                                            className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 pr-10 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none appearance-none"
+                                        >
+                                            <option value="Petrol">Petrol</option>
+                                            <option value="Diesel">Diesel</option>
+                                            <option value="Electric">Electric</option>
+                                            <option value="Hybrid">Hybrid</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500 w-4 h-4" />
+                                    </div>
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
                                         <Settings2 className="w-3.5 h-3.5" /> Transmission
                                     </label>
-                                    <select 
-                                        value={formData.transmission} 
-                                        onChange={e => setFormData({ ...formData, transmission: e.target.value as any })} 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
-                                    >
-                                        <option value="Automatic">Automatic</option>
-                                        <option value="Manual">Manual</option>
-                                    </select>
+                                    <div className="relative">
+                                        <select 
+                                            value={formData.transmission} 
+                                            onChange={e => setFormData({ ...formData, transmission: e.target.value as any })} 
+                                            className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 pr-10 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none appearance-none"
+                                        >
+                                            <option value="Automatic">Automatic</option>
+                                            <option value="Manual">Manual</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500 w-4 h-4" />
+                                    </div>
                                 </div>
                             </div>
 
@@ -374,16 +381,19 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
                                     <BadgeCheck className="w-3.5 h-3.5 text-emerald-500" /> Platform Status
                                 </label>
-                                <select 
-                                    value={formData.status} 
-                                    onChange={e => setFormData({ ...formData, status: e.target.value as any })} 
-                                    className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
-                                >
-                                    <option value="draft">Review Pending</option>
-                                    <option value="active">Live (Verified)</option>
-                                    <option value="sold">Marked as Sold</option>
-                                    <option value="archived">Hidden (Archive)</option>
-                                </select>
+                                <div className="relative">
+                                    <select 
+                                        value={formData.status} 
+                                        onChange={e => setFormData({ ...formData, status: e.target.value as any })} 
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 pr-10 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none appearance-none"
+                                    >
+                                        <option value="draft">Review Pending</option>
+                                        <option value="active">Live (Verified)</option>
+                                        <option value="sold">Marked as Sold</option>
+                                        <option value="archived">Hidden (Archive)</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500 w-4 h-4" />
+                                </div>
                             </div>
                         </div>
                     </div>
