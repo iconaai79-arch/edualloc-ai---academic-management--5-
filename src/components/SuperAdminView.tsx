@@ -4780,7 +4780,7 @@ Please change it after login.`;
                                                     </div>
                                                 </div>
 
-                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
                                                     <div className="space-y-4">
                                                         <div className="flex items-center gap-4 mb-4">
                                                             <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl">
@@ -4791,14 +4791,36 @@ Please change it after login.`;
                                                                 <p className="text-[10px] font-bold text-slate-400">REST integration endpoints</p>
                                                             </div>
                                                         </div>
-                                                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                            Co-operative Bank B2B Standard API handles both **Customer Validation** and **Payment Advice** notifications over a single endpoint. Point the bank gateway callbacks to the URL below.
+                                                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed mb-2">
+                                                            Configure the Co-operative Bank B2B Gateway callbacks. Point the respective bank API endpoints to the URLs below.
                                                         </p>
+                                                        
+                                                        {/* Account Validation Endpoint */}
                                                         <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Validation & Advice Endpoint</p>
-                                                            <code className="text-xs font-mono text-emerald-600 dark:text-emerald-400 break-all">
-                                                                {typeof window !== 'undefined' ? `${window.location.origin}/api/coop-b2b` : 'https://yourdomain.com/api/coop-b2b'}
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Account Validation Endpoint</p>
+                                                            <code className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 break-all">
+                                                                {typeof window !== 'undefined' ? `${window.location.origin}/api/coop-b2b/validation` : 'https://yourdomain.com/api/coop-b2b/validation'}
                                                             </code>
+                                                        </div>
+
+                                                        {/* Payment Advice Endpoint */}
+                                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Payment Advice Endpoint</p>
+                                                            <code className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 break-all">
+                                                                {typeof window !== 'undefined' ? `${window.location.origin}/api/coop-b2b/payment-advice` : 'https://yourdomain.com/api/coop-b2b/payment-advice'}
+                                                            </code>
+                                                        </div>
+
+                                                        {/* Credentials Validation Endpoint */}
+                                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Credentials Validation Endpoint</p>
+                                                            <code className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 break-all block mb-2">
+                                                                {typeof window !== 'undefined' ? `${window.location.origin}/api/coop-b2b/validate-credentials` : 'https://yourdomain.com/api/coop-b2b/validate-credentials'}
+                                                            </code>
+                                                            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-700 text-[10px] font-bold text-slate-500">
+                                                                <span className="bg-slate-100 dark:bg-slate-850 px-2 py-1 rounded">Username: <strong className="text-slate-800 dark:text-slate-200">{localCoopConfig.connectionID || 'Not Set'}</strong></span>
+                                                                <span className="bg-slate-100 dark:bg-slate-850 px-2 py-1 rounded">Password: <strong className="text-slate-800 dark:text-slate-200">{localCoopConfig.connectionPassword || 'Not Set'}</strong></span>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -6235,6 +6257,46 @@ Please change it after login.`;
                                         className="form-input text-teal-600 font-mono text-lg font-black"
                                         placeholder="e.g. 210001918"
                                     />
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
+                                        <span className="w-5 h-5 text-emerald-600 font-black text-center block text-xs">ℹ</span>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-widest">Co-op Gateway Specs</h4>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Tenant endpoints</p>
+                                    </div>
+                                </div>
+                                
+                                {/* Account Validation Endpoint */}
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Account Validation Endpoint</p>
+                                    <code className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 break-all">
+                                        {typeof window !== 'undefined' ? `${window.location.origin}/api/coop-b2b/validation` : 'https://yourdomain.com/api/coop-b2b/validation'}
+                                    </code>
+                                </div>
+
+                                {/* Payment Advice Endpoint */}
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Payment Advice Endpoint</p>
+                                    <code className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 break-all">
+                                        {typeof window !== 'undefined' ? `${window.location.origin}/api/coop-b2b/payment-advice` : 'https://yourdomain.com/api/coop-b2b/payment-advice'}
+                                    </code>
+                                </div>
+
+                                {/* Credentials Validation Endpoint */}
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Credentials Validation Endpoint</p>
+                                    <code className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 break-all block mb-2">
+                                        {typeof window !== 'undefined' ? `${window.location.origin}/api/coop-b2b/validate-credentials` : 'https://yourdomain.com/api/coop-b2b/validate-credentials'}
+                                    </code>
+                                    <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-700 text-[9px] font-bold text-slate-500">
+                                        <span className="bg-slate-100 dark:bg-slate-850 px-2 py-1 rounded">Username: <strong className="text-slate-800 dark:text-slate-200">{tenantCoopConfig.connectionID || 'Not Set'}</strong></span>
+                                        <span className="bg-slate-100 dark:bg-slate-850 px-2 py-1 rounded">Password: <strong className="text-slate-800 dark:text-slate-200">{tenantCoopConfig.connectionPassword || 'Not Set'}</strong></span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

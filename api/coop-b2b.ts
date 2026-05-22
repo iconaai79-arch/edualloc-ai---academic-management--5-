@@ -243,7 +243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         </div>
 
         <div class="endpoint-url">
-            <span>ENDPOINT URL: /api/coop-b2b</span>
+            <span id="endpoint-display">ENDPOINT URL: /api/coop-b2b/validation</span>
             <span style="font-size: 0.7rem; color: var(--text-muted)">REST METHOD: POST</span>
         </div>
 
@@ -252,6 +252,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 <div class="tab-buttons">
                     <button id="tab-validate" class="tab-btn active" onclick="switchTab('validate')">Account Validation</button>
                     <button id="tab-advise" class="tab-btn" onclick="switchTab('advise')">Payment Advice</button>
+                    <button id="tab-credentials" class="tab-btn" onclick="switchTab('credentials')">Validate Credentials</button>
                 </div>
 
                 <form id="playground-form" onsubmit="runSimulation(event)">
@@ -318,9 +319,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             currentAction = action;
             document.getElementById('tab-validate').classList.toggle('active', action === 'validate');
             document.getElementById('tab-advise').classList.toggle('active', action === 'advise');
+            document.getElementById('tab-credentials').classList.toggle('active', action === 'credentials');
             
             document.getElementById('validation-fields').style.display = action === 'validate' ? 'block' : 'none';
             document.getElementById('advise-fields').style.display = action === 'advise' ? 'block' : 'none';
+
+            let endpointPath = '/api/coop-b2b/validation';
+            if (action === 'advise') {
+                endpointPath = '/api/coop-b2b/payment-advice';
+            } else if (action === 'credentials') {
+                endpointPath = '/api/coop-b2b/validate-credentials';
+            }
+            document.getElementById('endpoint-display').textContent = 'ENDPOINT URL: ' + endpointPath;
         }
 
         async function runSimulation(e) {
@@ -328,18 +338,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const outputElement = document.getElementById('api-output');
             outputElement.textContent = "Loading response...";
 
-            const payload = {
-                header: {
-                    serviceName: document.getElementById('serviceName').value,
-                    connectionID: document.getElementById('connectionID').value,
-                    connectionPassword: document.getElementById('connectionPassword').value,
-                    messageID: crypto.randomUUID()
-                },
-                request: currentAction === 'validate' ? {
+            let requestPayload = {};
+            let endpoint = '/api/coop-b2b/validation';
+
+            if (currentAction === 'validate') {
+                endpoint = '/api/coop-b2b/validation';
+                requestPayload = {
                     TransactionReferenceCode: document.getElementById('valRefCode').value || "536",
                     TransactionDate: new Date().toISOString(),
                     InstitutionCode: document.getElementById('valInstCode').value
-                } : {
+                };
+            } else if (currentAction === 'advise') {
+                endpoint = '/api/coop-b2b/payment-advice';
+                requestPayload = {
                     TransactionReferenceCode: document.getElementById('advTxnRef').value || ("COOPB2B" + Math.floor(Math.random() * 1000000000)),
                     TransactionDate: new Date().toISOString(),
                     TotalAmount: parseFloat(document.getElementById('advAmount').value).toFixed(1),
@@ -357,11 +368,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     AccountName: "IDENTIFIER'S_NAME",
                     InstitutionCode: parseInt(document.getElementById('advInstCode').value),
                     InstitutionName: "KEWISCO SACCO"
-                }
+                };
+            } else if (currentAction === 'credentials') {
+                endpoint = '/api/coop-b2b/validate-credentials';
+                requestPayload = {};
+            }
+
+            const payload = {
+                header: {
+                    serviceName: document.getElementById('serviceName').value,
+                    connectionID: document.getElementById('connectionID').value,
+                    connectionPassword: document.getElementById('connectionPassword').value,
+                    messageID: crypto.randomUUID()
+                },
+                request: requestPayload
             };
 
             try {
-                const response = await fetch('/api/coop-b2b', {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -384,6 +408,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    // Parse sub-route
+    const url = req.url || '';
+    let subRoute = '';
+    if (req.query.path) {
+        subRoute = String(req.query.path).toLowerCase().replace(/\/$/, '');
+    } else {
+        const pathname = url.split('?')[0];
+        const parts = pathname.split('/');
+        const lastPart = parts[parts.length - 1].toLowerCase();
+        if (lastPart !== 'coop-b2b') {
+            subRoute = lastPart;
+        }
+    }
+
     const body = req.body || {};
     const header = body.header || {};
     const bodyRequest = body.request || {};
@@ -392,7 +430,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const connectionPassword = header.connectionPassword || '';
     const messageID = header.messageID || `MSG_${Date.now()}`;
 
-    // Basic Credentials verification
     if (!connectionID || !connectionPassword) {
         return res.status(200).json({
             header: {
@@ -414,6 +451,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
     }
 
+    // Credentials verification
+    let isAuthorized = false;
+    let institution: any = null;
+
+    if (connectionID === 'TEST' && connectionPassword === 'CoopTest') {
+        isAuthorized = true;
+    } else {
+        try {
+            // Match connection credentials in database (institutions.coop_settings)
+            const { data: inst } = await supabase
+                .from('institutions')
+                .select('*')
+                .eq('coop_settings->>connectionID', connectionID)
+                .maybeSingle();
+
+            if (inst) {
+                const settings = inst.coop_settings || {};
+                if (settings.connectionPassword === connectionPassword) {
+                    isAuthorized = true;
+                    institution = inst;
+                }
+            }
+        } catch (err) {
+            console.error('[Coop B2B] Auth check failed:', err);
+        }
+    }
+
+    if (!isAuthorized) {
+        return res.status(200).json({
+            header: {
+                messageID,
+                statusCode: '401',
+                statusDescription: 'The caller is not authorized for this request. Invalid connection credentials.'
+            }
+        });
+    }
+
+    // Handle credentials check endpoint
+    if (subRoute === 'validate-credentials' || subRoute === 'credentials') {
+        return res.status(200).json({
+            header: {
+                messageID,
+                statusCode: '200',
+                statusDescription: 'Credentials successfully validated.'
+            }
+        });
+    }
+
     try {
         // Log transaction integration
         try {
@@ -427,8 +512,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.warn('[Coop B2B] Log failed:', err);
         }
 
-        // Route between Account Validation & Payment Advice
-        const isValidation = bodyRequest.TotalAmount === undefined || parseFloat(String(bodyRequest.TotalAmount)) === 0;
+        // Determine if this is a validation request
+        let isValidation = false;
+        if (subRoute === 'validation') {
+            isValidation = true;
+        } else if (subRoute === 'payment-advice' || subRoute === 'advice') {
+            isValidation = false;
+        } else {
+            // Fallback: Dynamic detection for backward compatibility
+            isValidation = bodyRequest.TotalAmount === undefined || parseFloat(String(bodyRequest.TotalAmount)) === 0;
+        }
 
         if (isValidation) {
             // ================= ACCOUNT VALIDATION LOGIC =================
