@@ -22,6 +22,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Serve interactive playground for testing
     if (req.method === 'GET') {
+        const url = req.url || '';
+        let subRoute = '';
+        if (req.query.path) {
+            subRoute = String(req.query.path).toLowerCase().replace(/\/$/, '');
+        } else {
+            const pathname = url.split('?')[0];
+            const parts = pathname.split('/');
+            const lastPart = parts[parts.length - 1].toLowerCase();
+            if (lastPart !== 'coop-b2b') {
+                subRoute = lastPart;
+            }
+        }
+
+        if (subRoute === 'ip') {
+            res.setHeader('Content-Type', 'application/json');
+            let serverIp = 'Unknown';
+            try {
+                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipRes.json();
+                serverIp = ipData.ip || 'Unknown';
+            } catch (err) {
+                // Fallback
+            }
+            const clientIp = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'Unknown').split(',')[0].trim();
+            return res.status(200).json({ serverIp, clientIp });
+        }
+
         res.setHeader('Content-Type', 'text/html');
         return res.status(200).send(`<!DOCTYPE html>
 <html lang="en">

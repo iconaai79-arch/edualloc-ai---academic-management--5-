@@ -857,11 +857,19 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
     const [localKcbConfig, setLocalKcbConfig] = useState<KcbConfig>(companyDetails?.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
     const [localCoopConfig, setLocalCoopConfig] = useState<CoopB2bConfig>(companyDetails?.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
+    const [coopIps, setCoopIps] = useState<{ serverIp: string; clientIp: string } | null>(null);
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', folderId: '', isActive: false });
     const [isTestingGoogleDrive, setIsTestingGoogleDrive] = useState(false);
     const [isTestingDriveUpload, setIsTestingDriveUpload] = useState(false);
 
     const [isSavingConfigs, setIsSavingConfigs] = useState(false);
+
+    useEffect(() => {
+        fetch('/api/coop-b2b/ip')
+            .then(res => res.json())
+            .then(data => setCoopIps(data))
+            .catch(() => {});
+    }, []);
 
     useEffect(() => {
         if (companyDetails) {
@@ -4725,14 +4733,35 @@ Please change it after login.`;
                                         <div className="animate-fade-in space-y-6">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
-                                                    <div className="flex items-center gap-4 mb-6">
-                                                        <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl">
-                                                            <span className="w-6 h-6 text-emerald-600 font-black text-center block">C</span>
+                                                    <div className="flex justify-between items-center mb-6">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl">
+                                                                <span className="w-6 h-6 text-emerald-600 font-black text-center block">C</span>
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="text-sm font-black uppercase tracking-widest">Co-op Bank B2B Credentials</h4>
+                                                                <p className="text-[10px] font-bold text-slate-400">Gateway Authentication settings</p>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <h4 className="text-sm font-black uppercase tracking-widest">Co-op Bank B2B Credentials</h4>
-                                                            <p className="text-[10px] font-bold text-slate-400">Gateway Authentication settings</p>
-                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const randomId = 'COOP_B2B_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+                                                                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+                                                                let randomPassword = '';
+                                                                for (let i = 0; i < 16; i++) {
+                                                                    randomPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+                                                                }
+                                                                setLocalCoopConfig({
+                                                                    ...localCoopConfig,
+                                                                    connectionID: randomId,
+                                                                    connectionPassword: randomPassword
+                                                                });
+                                                            }}
+                                                            className="text-[9px] font-black uppercase tracking-widest bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors"
+                                                        >
+                                                            Generate
+                                                        </button>
                                                     </div>
                                                     <div className="space-y-4">
                                                         <div>
@@ -4795,6 +4824,20 @@ Please change it after login.`;
                                                             Configure the Co-operative Bank B2B Gateway callbacks. Point the respective bank API endpoints to the URLs below.
                                                         </p>
                                                         
+                                                        {/* Server IP Display */}
+                                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Server Outbound IP (For Whitelisting)</p>
+                                                            <div className="flex items-center justify-between">
+                                                                <code className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 break-all select-all cursor-pointer">
+                                                                    {coopIps?.serverIp || 'Loading...'}
+                                                                </code>
+                                                                <span className="text-[9px] bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded text-emerald-600 dark:text-emerald-400 font-bold uppercase">Outbound IP</span>
+                                                            </div>
+                                                            <p className="text-[9px] font-medium text-slate-400 mt-2">
+                                                                Provide this IP address to the Co-operative Bank team to whitelist outgoing callbacks from <strong className="text-slate-650 dark:text-slate-350">{typeof window !== 'undefined' ? window.location.hostname : 'yourdomain.com'}</strong>.
+                                                            </p>
+                                                        </div>
+
                                                         {/* Account Validation Endpoint */}
                                                         <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
                                                             <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Account Validation Endpoint</p>
@@ -6209,12 +6252,33 @@ Please change it after login.`;
                         </div>
 
                         <div className="p-8 overflow-y-auto max-h-[60vh] custom-scrollbar space-y-6">
-                            <div className="bg-teal-50 dark:bg-teal-900/20 p-5 rounded-2xl border border-teal-100 dark:border-teal-900/50 flex gap-4">
-                                <div className="text-teal-600"><CoopIcon className="w-6 h-6" /></div>
-                                <div>
-                                    <h4 className="text-xs font-black uppercase tracking-widest text-teal-900 dark:text-teal-400">Co-op B2B Direct Integration</h4>
-                                    <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">Configure Co-operative Bank B2B credentials for direct tenant collections and reconciliation.</p>
+                            <div className="bg-teal-50 dark:bg-teal-900/20 p-5 rounded-2xl border border-teal-100 dark:border-teal-900/50 flex items-center justify-between gap-4">
+                                <div className="flex gap-4">
+                                    <div className="text-teal-600 flex-shrink-0"><CoopIcon className="w-6 h-6" /></div>
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-teal-900 dark:text-teal-400">Co-op B2B Direct Integration</h4>
+                                        <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">Configure Co-operative Bank B2B credentials for direct tenant collections and reconciliation.</p>
+                                    </div>
                                 </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const randomId = 'COOP_B2B_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+                                        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+                                        let randomPassword = '';
+                                        for (let i = 0; i < 16; i++) {
+                                            randomPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+                                        }
+                                        setTenantCoopConfig({
+                                            ...tenantCoopConfig,
+                                            connectionID: randomId,
+                                            connectionPassword: randomPassword
+                                        });
+                                    }}
+                                    className="text-[9px] font-black uppercase tracking-widest bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors shrink-0"
+                                >
+                                    Generate
+                                </button>
                             </div>
 
                             <div className="space-y-4">
@@ -6269,6 +6333,20 @@ Please change it after login.`;
                                         <h4 className="text-xs font-black uppercase tracking-widest">Co-op Gateway Specs</h4>
                                         <p className="text-[9px] font-bold text-slate-400 uppercase">Tenant endpoints</p>
                                     </div>
+                                </div>
+
+                                {/* Outbound IP Display */}
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Server Outbound IP (For Whitelisting)</p>
+                                    <div className="flex items-center justify-between">
+                                        <code className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 break-all select-all cursor-pointer">
+                                            {coopIps?.serverIp || 'Loading...'}
+                                        </code>
+                                        <span className="text-[8px] bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded text-emerald-600 dark:text-emerald-400 font-bold uppercase">Outbound IP</span>
+                                    </div>
+                                    <p className="text-[8px] font-medium text-slate-400 mt-1.5">
+                                        Provide this IP address to the Co-operative Bank team to whitelist outgoing callbacks from <strong className="text-slate-650 dark:text-slate-350">{typeof window !== 'undefined' ? window.location.hostname : 'yourdomain.com'}</strong>.
+                                    </p>
                                 </div>
                                 
                                 {/* Account Validation Endpoint */}
