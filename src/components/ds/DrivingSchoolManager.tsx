@@ -304,7 +304,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             if (type === 'lesson') return { ...base, lessonDate: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '09:00', lessonType: 'Practical' };
             if (type === 'vehicle') return { ...base, transmission: 'Manual', capacity: 1 };
             if (type === 'instructor') return { ...base, rating: 5, instructorType: 'Driving Instructor' };
-            if (type === 'invoice') return { ...base, items: [], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
+            if (type === 'invoice') return { ...base, items: [{ name: 'Tuition Fee', amount: 0, priority: 1 }], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
             if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
             if (type === 'fee_structure') {
                 return { 
@@ -856,7 +856,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <select required value={formData.studentId || ''} onChange={e => {
                                         const s = students.find(x => x.id === e.target.value);
                                         setFormData({...formData, studentId: e.target.value, studentName: s?.fullName || ''});
-                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-black dark:text-white">
                                         <option value="">Select Student</option>
                                         {students
                                             .filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) || s.admissionNumber?.toLowerCase().includes(studentSearch.toLowerCase()))
@@ -877,20 +877,183 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                 items: fs.items
                                             });
                                         } else {
-                                            setFormData({ ...formData, feeStructureId: '', items: [] });
+                                            setFormData({ ...formData, feeStructureId: '', items: [{ name: 'Tuition Fee', amount: 0, priority: 1 }], totalAmount: 0, balance: 0 });
                                         }
-                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-black dark:text-white">
                                         <option value="">Select Fee Structure</option>
                                         {settings?.feeStructures?.map((fs: DSFeeStructure) => <option key={fs.id} value={fs.id}>{fs.className} (KES {fs.totalAmount.toLocaleString()})</option>)}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount (KES)</label>
-                                    <input required type="number" value={formData.totalAmount || ''} onChange={e => setFormData({...formData, totalAmount: Number(e.target.value), balance: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="0.00" />
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount (KES) [Calculated]</label>
+                                    <input disabled type="number" value={formData.totalAmount || 0} className="w-full px-6 py-4 bg-slate-100 dark:bg-slate-800/80 border-none rounded-2xl font-bold text-black dark:text-white cursor-not-allowed opacity-80" placeholder="0.00" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Number</label>
-                                    <input required type="text" value={formData.invoiceNumber || ''} onChange={e => setFormData({...formData, invoiceNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="INV-DS-XXXX" />
+                                    <input required type="text" value={formData.invoiceNumber || ''} onChange={e => setFormData({...formData, invoiceNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-black dark:text-white" placeholder="INV-DS-XXXX" />
+                                </div>
+                                <div className="md:col-span-2 p-6 bg-slate-50/50 dark:bg-slate-900/30 rounded-[2rem] border border-slate-100 dark:border-slate-800/80 space-y-4">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <div>
+                                            <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Fee Structure Items (Votes)</h5>
+                                            <p className="text-[10px] text-slate-400">Configure customized granular fee items for this invoice.</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const current = Array.isArray(formData.items) ? formData.items : [];
+                                                const nextItems = [...current, { name: '', amount: 0, priority: current.length + 1 }];
+                                                const sum = nextItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+                                                setFormData({
+                                                    ...formData,
+                                                    items: nextItems,
+                                                    totalAmount: sum,
+                                                    balance: sum
+                                                });
+                                            }}
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-sm"
+                                        >
+                                            + Add Custom Row
+                                        </button>
+                                    </div>
+
+                                    {settings?.votes && Array.isArray(settings.votes) && settings.votes.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 pt-1 items-center">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mr-1">Quick Add Vote:</span>
+                                            {settings.votes.map((vt: any) => (
+                                                <button
+                                                    key={vt.id || vt.voteName}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const current = Array.isArray(formData.items) ? formData.items : [];
+                                                        const nextItems = [...current, { 
+                                                            name: vt.voteName || vt.vote_name || '', 
+                                                            amount: vt.defaultAmount ?? vt.default_amount ?? 0, 
+                                                            priority: current.length + 1 
+                                                        }];
+                                                        const sum = nextItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+                                                        setFormData({ 
+                                                            ...formData, 
+                                                            items: nextItems,
+                                                            totalAmount: sum,
+                                                            balance: sum
+                                                        });
+                                                    }}
+                                                    className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-lg text-[9px] font-bold border border-slate-200 dark:border-slate-700 hover:border-indigo-500 transition-all flex items-center gap-1"
+                                                >
+                                                    <PlusIcon className="w-2.5 h-2.5 text-indigo-500" />
+                                                    {vt.voteName || vt.vote_name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {(Array.isArray(formData.items) ? formData.items : []).length > 0 && (
+                                         <div className="flex gap-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">
+                                             <div className="flex-[2]">Vote Head / Label</div>
+                                             <div className="flex-1 text-right pr-2">Amount (KES)</div>
+                                             <div className="w-16 text-center">Priority</div>
+                                             <div className="w-8"></div>
+                                         </div>
+                                    )}
+
+                                    <div className="space-y-2 pt-2">
+                                        {(Array.isArray(formData.items) ? formData.items : []).map((it: any, idx: number) => {
+                                            return (
+                                                <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 animate-fade-in">
+                                                    <div className="flex-[2] flex flex-col gap-1">
+                                                        <input
+                                                            list={`invoice-votes-datalist-${idx}`}
+                                                            type="text"
+                                                            required
+                                                            value={it.name || ''}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                const nextItems = [...formData.items];
+                                                                const matchedVote = (settings?.votes || []).find((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === val.toLowerCase().trim());
+                                                                nextItems[idx] = { 
+                                                                    ...it, 
+                                                                    name: val,
+                                                                    amount: (matchedVote && it.amount === 0) ? (matchedVote.defaultAmount ?? matchedVote.default_amount ?? 0) : it.amount
+                                                                };
+                                                                const sum = nextItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+                                                                setFormData({ 
+                                                                    ...formData, 
+                                                                    items: nextItems,
+                                                                    totalAmount: sum,
+                                                                    balance: sum
+                                                                });
+                                                            }}
+                                                            placeholder="Vote Head Name"
+                                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 py-2 text-black dark:text-white focus:ring-1 focus:ring-indigo-500"
+                                                        />
+                                                        <datalist id={`invoice-votes-datalist-${idx}`}>
+                                                            {(settings?.votes || []).map((vt: any) => {
+                                                                const n = vt.voteName || vt.vote_name;
+                                                                return n ? <option key={vt.id || n} value={n} /> : null;
+                                                            })}
+                                                        </datalist>
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 px-2 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+                                                            <span className="text-[9px] font-black text-slate-400">KES</span>
+                                                            <input
+                                                                type="number"
+                                                                required
+                                                                value={it.amount === 0 ? '' : it.amount}
+                                                                onChange={e => {
+                                                                    const nextItems = [...formData.items];
+                                                                    nextItems[idx] = { ...it, amount: Number(e.target.value) };
+                                                                    const sum = nextItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+                                                                    setFormData({ 
+                                                                        ...formData, 
+                                                                        items: nextItems,
+                                                                        totalAmount: sum,
+                                                                        balance: sum
+                                                                    });
+                                                                }}
+                                                                placeholder="0"
+                                                                className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right text-black dark:text-white"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="w-16">
+                                                        <input
+                                                            type="number"
+                                                            title="Priority Order"
+                                                            value={it.priority || idx + 1}
+                                                            onChange={e => {
+                                                                const nextItems = [...formData.items];
+                                                                nextItems[idx] = { ...it, priority: Number(e.target.value) };
+                                                                setFormData({ ...formData, items: nextItems });
+                                                            }}
+                                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold px-2 py-1.5 rounded-xl text-center text-black dark:text-white focus:ring-0"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const nextItems = formData.items.filter((_: any, i: number) => i !== idx);
+                                                            const sum = nextItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+                                                            setFormData({ 
+                                                                ...formData, 
+                                                                items: nextItems,
+                                                                totalAmount: sum,
+                                                                balance: sum
+                                                            });
+                                                        }}
+                                                        className="p-2 text-slate-300 hover:text-red-500 rounded-xl transition-colors"
+                                                        title="Remove Item"
+                                                    >
+                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {(Array.isArray(formData.items) ? formData.items : []).length === 0 && (
+                                            <p className="text-center text-xs text-slate-400 py-4 font-medium italic">No fee items assigned yet. Click Quick Add or Add Custom Row above.</p>
+                                        )}
+                                    </div>
                                 </div>
                             </>
                         )}
@@ -1037,14 +1200,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Name</label>
-                                        <input required type="text" value={formData.className || ''} onChange={e => setFormData({...formData, className: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. CLASS C1" />
+                                        <input required type="text" value={formData.className || ''} onChange={e => setFormData({...formData, className: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-black dark:text-white" placeholder="e.g. CLASS C1" />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest ml-1 flex items-center gap-1">
                                             <span>Package Description</span>
                                             <span className="text-[8px] bg-indigo-50 dark:bg-indigo-900/40 text-indigo-500 px-1.5 py-0.5 rounded">Optional</span>
                                         </label>
-                                        <input type="text" value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" placeholder="e.g. Standard License Course" />
+                                        <input type="text" value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-black dark:text-white" placeholder="e.g. Standard License Course" />
                                     </div>
                                 </div>
 
@@ -1158,7 +1321,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                          </div>
                                                      </div>
                                                      <div className="w-16">
-                                                         <input
+                                                        <input
                                                              type="number"
                                                              title="Priority Order"
                                                              value={it.priority || idx + 1}
@@ -1167,7 +1330,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                                  nextItems[idx] = { ...it, priority: Number(e.target.value) };
                                                                  setFormData({ ...formData, items: nextItems });
                                                              }}
-                                                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold px-2 py-1.5 rounded-xl text-center text-slate-600 dark:text-slate-300 focus:ring-0"
+                                                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold px-2 py-1.5 rounded-xl text-center text-black dark:text-white focus:ring-0"
                                                          />
                                                      </div>
                                                      <button
