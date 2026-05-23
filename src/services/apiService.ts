@@ -114,16 +114,29 @@ function toCamelCase(obj: any): any {
 
 // Local Storage Helper
 const ls = {
-    get: (table: string) => {
-        const data = localStorage.getItem(`eduai_${table}`);
-        return data ? JSON.parse(data) : [];
+    get: (table: string): any[] => {
+        try {
+            const data = localStorage.getItem(`eduai_${table}`);
+            if (!data) return [];
+            const parsed = JSON.parse(data);
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter(r => r && typeof r === 'object');
+        } catch (e) {
+            console.error(`[localStorage helper] Error parsing table ${table}:`, e);
+            return [];
+        }
     },
     set: (table: string, data: any[]) => {
-        localStorage.setItem(`eduai_${table}`, JSON.stringify(data));
+        try {
+            const safeData = Array.isArray(data) ? data : [];
+            localStorage.setItem(`eduai_${table}`, JSON.stringify(safeData));
+        } catch (e) {
+            console.error(`[localStorage helper] Error writing table ${table}:`, e);
+        }
     },
     upsert: (table: string, record: any) => {
         const records = ls.get(table);
-        const index = records.findIndex((r: any) => r.id === record.id);
+        const index = records.findIndex((r: any) => r && r.id === record.id);
         if (index >= 0) {
             records[index] = { ...records[index], ...record };
         } else {
@@ -134,7 +147,7 @@ const ls = {
     },
     delete: (table: string, id: string) => {
         const records = ls.get(table);
-        const filtered = records.filter((r: any) => r.id !== id);
+        const filtered = records.filter((r: any) => r && r.id !== id);
         ls.set(table, filtered);
     }
 };
@@ -540,6 +553,9 @@ export const apiService = {
             }
 
             let records = ls.get(effectiveModule);
+            if (!Array.isArray(records)) records = [];
+            records = records.filter((r: any) => r && typeof r === 'object');
+
             if (institutionId && institutionId !== 'ALL') {
                 const filterKey = getFilterCol(effectiveModule, 'institution');
                 records = records.filter((r: any) => r[filterKey] === institutionId);
@@ -556,9 +572,10 @@ export const apiService = {
                 );
             }
 
-            const result = toCamelCase(records) || [];
-            if (module === 'institutions' && Array.isArray(result)) {
-                result.forEach((inst: any) => {
+            const result = toCamelCase(records);
+            const finalResult = Array.isArray(result) ? result : [];
+            if (module === 'institutions' && Array.isArray(finalResult)) {
+                finalResult.forEach((inst: any) => {
                     const settings = inst.coopSettings || inst.coop_settings;
                     if (settings) {
                         inst.coopConfig = {
@@ -571,7 +588,7 @@ export const apiService = {
                     }
                 });
             }
-            return result;
+            return finalResult;
         }
 
         try {
