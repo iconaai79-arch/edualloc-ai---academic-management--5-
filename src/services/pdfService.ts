@@ -347,14 +347,14 @@ export const generateCarInvoicePdfDataUri = async (
             const finalY = data.cursor.y;
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
-            doc.text('TOTAL PAYABLE:', pageWidth - margin - 40, finalY + 15);
+            doc.text('TOTAL PAYABLE:', pageWidth - margin - 85, finalY + 15);
             doc.text(`KES ${invoice.totalAmount.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
             
             doc.setFontSize(10);
             doc.text('CLIENT DETAILS:', margin, finalY + 15);
             doc.setFont('helvetica', 'normal');
             doc.text(invoice.clientName, margin, finalY + 22);
-            doc.text(invoice.clientPhone, margin, finalY + 27);
+            doc.text(invoice.clientPhone || '', margin, finalY + 27);
             doc.text(invoice.clientEmail || '', margin, finalY + 32);
         }
     });

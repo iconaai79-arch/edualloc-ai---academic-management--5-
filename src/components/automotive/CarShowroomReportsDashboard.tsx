@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
     CarListing, 
     CarInvoice, 
@@ -56,6 +56,14 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
 
     const [salesSearch, setSalesSearch] = useState('');
     const [salesStatusFilter, setSalesStatusFilter] = useState('all');
+    const [salesStartDate, setSalesStartDate] = useState(
+        new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+    );
+    const [salesEndDate, setSalesEndDate] = useState(
+        new Date().toISOString().split('T')[0]
+    );
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+    const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
 
     // Statement Report State
     const [selectedClient, setSelectedClient] = useState('');
@@ -121,11 +129,105 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
         return matchSearch && matchStatus && matchFuel;
     });
 
-    const filteredInvoices = invoices.filter(inv => {
-        const matchSearch = `${inv.invoiceNumber} ${inv.clientName} ${inv.registrationNumber || ''}`.toLowerCase().includes(salesSearch.toLowerCase());
-        const matchStatus = salesStatusFilter === 'all' || inv.status === salesStatusFilter;
-        return matchSearch && matchStatus;
-    });
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(inv => {
+            const matchSearch = `${inv.invoiceNumber} ${inv.clientName} ${inv.registrationNumber || ''}`.toLowerCase().includes(salesSearch.toLowerCase());
+            const matchStatus = salesStatusFilter === 'all' || inv.status === salesStatusFilter;
+            const date = inv.createdAt ? inv.createdAt.split('T')[0] : '';
+            const matchDate = (!salesStartDate || date >= salesStartDate) && (!salesEndDate || date <= salesEndDate);
+            return matchSearch && matchStatus && matchDate;
+        });
+    }, [invoices, salesSearch, salesStatusFilter, salesStartDate, salesEndDate]);
+
+    const salesTotals = useMemo(() => {
+        let invoiced = 0;
+        let collected = 0;
+        let due = 0;
+        filteredInvoices.forEach(inv => {
+            if (inv.status !== 'cancelled') {
+                invoiced += inv.totalAmount || 0;
+                collected += inv.paidAmount || 0;
+                due += inv.balanceAmount || 0;
+            }
+        });
+        return { invoiced, collected, due };
+    }, [filteredInvoices]);
+
+    useEffect(() => {
+        let active = true;
+        let localBlobUrl: string | null = null;
+
+        const updatePreview = async () => {
+            if (!institution) return;
+            setIsGeneratingPreview(true);
+            try {
+                const dataUri = await pdfService.generateCarSalesSummaryPdf(
+                    filteredInvoices,
+                    payments,
+                    institution,
+                    companyDetails || ({} as any),
+                    institution.logoUrl || null
+                );
+                if (!active) {
+                    if (localBlobUrl) {
+                        try { URL.revokeObjectURL(localBlobUrl); } catch (e) {}
+                    }
+                    return;
+                }
+                
+                const base64 = dataUri.split(',')[1];
+                const binary = atob(base64);
+                const array = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    array[i] = binary.charCodeAt(i);
+                }
+                const blob = new Blob([array], { type: 'application/pdf' });
+                localBlobUrl = URL.createObjectURL(blob);
+                
+                setPdfPreviewUrl(prev => {
+                    if (prev) {
+                        try {
+                            URL.revokeObjectURL(prev);
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+                    return localBlobUrl;
+                });
+            } catch (err) {
+                console.error("Failed to generate live PDF preview:", err);
+            } finally {
+                if (active) {
+                    setIsGeneratingPreview(false);
+                }
+            }
+        };
+
+        const timer = setTimeout(updatePreview, 300);
+
+        return () => {
+            active = false;
+            clearTimeout(timer);
+            if (localBlobUrl) {
+                URL.revokeObjectURL(localBlobUrl);
+            }
+        };
+    }, [filteredInvoices, institution, companyDetails, payments]);
+
+    useEffect(() => {
+        return () => {
+            setPdfPreviewUrl(prev => {
+                if (prev) {
+                    try {
+                        URL.revokeObjectURL(prev);
+                    } catch (e) {
+                        console.error(e);
+                    }
+                }
+                return null;
+            });
+        };
+    }, []);
 
     // --- PDF Generator Triggers ---
     const handleDownloadInventoryPdf = async () => {
@@ -507,90 +609,173 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
 
             {/* Sales Tab */}
             {activeTab === 'sales' && (
-                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="relative flex-grow max-w-md">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                            <input
-                                type="text"
-                                placeholder="Search client name, invoice number, plate..."
-                                value={salesSearch}
-                                onChange={e => setSalesSearch(e.target.value)}
-                                className="w-full h-11 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl pl-11 pr-5 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-100 transition-all"
-                            />
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left Column: Filters and Table */}
+                    <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm flex flex-col">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-4">
+                            <div className="relative w-full">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <input
+                                    type="text"
+                                    placeholder="Search client name, invoice number, plate..."
+                                    value={salesSearch}
+                                    onChange={e => setSalesSearch(e.target.value)}
+                                    className="w-full h-11 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl pl-11 pr-5 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-100 transition-all"
+                                />
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <select
+                                    value={salesStatusFilter}
+                                    onChange={e => setSalesStatusFilter(e.target.value)}
+                                    className="flex-grow sm:flex-grow-0 h-11 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-4 text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 outline-none"
+                                >
+                                    <option value="all">All Invoice Statuses</option>
+                                    <option value="fully_paid">Fully Paid</option>
+                                    <option value="partially_paid">Partially Paid</option>
+                                    <option value="pending">Unpaid/Pending</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+
+                                <div className="flex-grow sm:flex-grow-0 flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800 rounded-2xl px-3 h-11">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">From</span>
+                                        <input
+                                            type="date"
+                                            value={salesStartDate}
+                                            onChange={e => setSalesStartDate(e.target.value)}
+                                            className="bg-transparent border-none p-0 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-0 w-28"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">To</span>
+                                        <input
+                                            type="date"
+                                            value={salesEndDate}
+                                            onChange={e => setSalesEndDate(e.target.value)}
+                                            className="bg-transparent border-none p-0 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-0 w-28"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <select
-                                value={salesStatusFilter}
-                                onChange={e => setSalesStatusFilter(e.target.value)}
-                                className="h-11 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-4 text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 outline-none"
-                            >
-                                <option value="all">All Invoice Statuses</option>
-                                <option value="fully_paid">Fully Paid</option>
-                                <option value="partially_paid">Partially Paid</option>
-                                <option value="pending">Unpaid/Pending</option>
-                                <option value="cancelled">Cancelled</option>
-                            </select>
+
+                        <div className="overflow-x-auto flex-grow max-h-[600px] overflow-y-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-400 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                                        <th className="p-6">Invoice #</th>
+                                        <th className="p-6">Client Details</th>
+                                        <th className="p-6">Car Registration</th>
+                                        <th className="p-6">Total Amount</th>
+                                        <th className="p-6">Paid Amount</th>
+                                        <th className="p-6">Balance</th>
+                                        <th className="p-6">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredInvoices.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-bold">No sales invoices matches criteria.</td>
+                                        </tr>
+                                    ) : (
+                                        filteredInvoices.map(inv => (
+                                            <tr key={inv.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all">
+                                                <td className="p-6 text-sm font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                                                    {inv.invoiceNumber}
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="space-y-0.5">
+                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{inv.clientName}</p>
+                                                        <p className="text-xs text-slate-400 font-bold">{inv.clientPhone || 'No contact phone'}</p>
+                                                    </div>
+                                                </td>
+                                                <td className="p-6 text-xs font-mono font-black uppercase text-slate-800 dark:text-slate-200">
+                                                    {inv.registrationNumber || 'N/A'}
+                                                </td>
+                                                <td className="p-6 text-sm font-black text-slate-900 dark:text-white">
+                                                    KES {(inv.totalAmount || 0).toLocaleString()}
+                                                </td>
+                                                <td className="p-6 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                                                    KES {(inv.paidAmount || 0).toLocaleString()}
+                                                </td>
+                                                <td className="p-6 text-sm font-bold text-rose-600 dark:text-rose-400">
+                                                    KES {(inv.balanceAmount || 0).toLocaleString()}
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
+                                                        inv.status === 'fully_paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400' :
+                                                        inv.status === 'partially_paid' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-400' :
+                                                        inv.status === 'cancelled' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-400' :
+                                                        'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400'
+                                                    }`}>
+                                                        {inv.status === 'fully_paid' ? 'Fully Paid' : inv.status === 'partially_paid' ? 'Partially Paid' : inv.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    <th className="p-6">Invoice #</th>
-                                    <th className="p-6">Client Details</th>
-                                    <th className="p-6">Car Registration</th>
-                                    <th className="p-6">Total Amount</th>
-                                    <th className="p-6">Paid Amount</th>
-                                    <th className="p-6">Balance</th>
-                                    <th className="p-6">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredInvoices.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-bold">No sales invoices matches criteria.</td>
-                                    </tr>
-                                ) : (
-                                    filteredInvoices.map(inv => (
-                                        <tr key={inv.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all">
-                                            <td className="p-6 text-sm font-black text-indigo-600 dark:text-indigo-400 font-mono">
-                                                {inv.invoiceNumber}
-                                            </td>
-                                            <td className="p-6">
-                                                <div className="space-y-0.5">
-                                                    <p className="text-sm font-black text-slate-900 dark:text-white">{inv.clientName}</p>
-                                                    <p className="text-xs text-slate-400 font-bold">{inv.clientPhone || 'No contact phone'}</p>
-                                                </div>
-                                            </td>
-                                            <td className="p-6 text-xs font-mono font-black uppercase text-slate-800 dark:text-slate-200">
-                                                {inv.registrationNumber || 'N/A'}
-                                            </td>
-                                            <td className="p-6 text-sm font-black text-slate-900 dark:text-white">
-                                                KES {(inv.totalAmount || 0).toLocaleString()}
-                                            </td>
-                                            <td className="p-6 text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                                                KES {(inv.paidAmount || 0).toLocaleString()}
-                                            </td>
-                                            <td className="p-6 text-sm font-bold text-rose-600 dark:text-rose-400">
-                                                KES {(inv.balanceAmount || 0).toLocaleString()}
-                                            </td>
-                                            <td className="p-6">
-                                                <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
-                                                    inv.status === 'fully_paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400' :
-                                                    inv.status === 'partially_paid' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-400' :
-                                                    inv.status === 'cancelled' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-400' :
-                                                    'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400'
-                                                }`}>
-                                                    {inv.status === 'fully_paid' ? 'Fully Paid' : inv.status === 'partially_paid' ? 'Partially Paid' : inv.status === 'cancelled' ? 'Cancelled' : 'Pending'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))
+                    {/* Right Column: PDF Preview and Totals */}
+                    <div className="lg:col-span-5 flex flex-col space-y-6">
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 flex flex-col h-[650px] shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">On-Screen PDF Report</h4>
+                                    <p className="text-[9px] font-bold text-slate-400 mt-0.5">Auto-updates as filters change</p>
+                                </div>
+                                {pdfPreviewUrl && (
+                                    <button
+                                        onClick={() => {
+                                            const link = document.createElement('a');
+                                            link.href = pdfPreviewUrl;
+                                            link.download = `Showroom_Sales_Summary_${institution?.name.replace(/\s+/g, '_')}_${salesStartDate}_to_${salesEndDate}.pdf`;
+                                            link.click();
+                                        }}
+                                        disabled={isGeneratingPreview}
+                                        className="h-9 px-4 bg-slate-50 dark:bg-slate-800 hover:bg-indigo-550 hover:bg-indigo-600 hover:text-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 rounded-xl transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest border border-slate-100 dark:border-slate-800/50"
+                                        title="Download Report PDF"
+                                    >
+                                        <Download className="w-3.5 h-3.5" /> Download
+                                    </button>
                                 )}
-                            </tbody>
-                        </table>
+                            </div>
+
+                            <div className="flex-grow bg-slate-50 dark:bg-slate-950 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-850 relative">
+                                {isGeneratingPreview && (
+                                    <div className="absolute top-3 right-3 z-20 bg-white/80 dark:bg-slate-900/80 p-2 rounded-full shadow-md backdrop-blur-sm">
+                                        <Loader2 className="w-4 h-4 text-indigo-600 animate-spin" />
+                                    </div>
+                                )}
+                                {pdfPreviewUrl ? (
+                                    <iframe
+                                        src={`${pdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                                        className="w-full h-full border-none"
+                                        title="Sales PDF Preview"
+                                    />
+                                ) : (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-xs font-bold gap-3">
+                                        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                                        <span className="uppercase tracking-widest text-[9px]">Generating live PDF...</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Total summaries for both collected and due at bottom of preview */}
+                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-4">
+                                <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100/10">
+                                    <span className="block text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Revenue Collected</span>
+                                    <span className="text-sm font-black text-slate-900 dark:text-white mt-1 block">KES {salesTotals.collected.toLocaleString()}</span>
+                                </div>
+                                <div className="p-4 bg-rose-50/50 dark:bg-rose-950/20 rounded-2xl border border-rose-100/10">
+                                    <span className="block text-[8px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest">Total Outstanding Due</span>
+                                    <span className="text-sm font-black text-slate-900 dark:text-white mt-1 block">KES {salesTotals.due.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
