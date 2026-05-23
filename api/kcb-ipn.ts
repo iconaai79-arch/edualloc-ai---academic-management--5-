@@ -607,12 +607,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let inst: any = null;
         let invoice: any = null;
         if (!transaction && amount > 0) {
-            // Check if customerReference is an invoice number
-            if (customerReference) {
+            // Check if customerReference or narration is an invoice number
+            const referenceCode = (customerReference || narration || '').trim();
+            if (referenceCode) {
                 const { data: invoiceData } = await supabase
                     .from('invoices')
                     .select('*')
-                    .eq('invoice_number', customerReference)
+                    .eq('invoice_number', referenceCode)
                     .maybeSingle();
                 invoice = invoiceData;
                 if (invoice) {
@@ -623,11 +624,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         .maybeSingle();
                     inst = instData;
                 } else {
-                    const { data: carInvoiceData } = await supabase
+                    let carInvoiceData = null;
+                    const { data: directInvoiceMatch } = await supabase
                         .from('car_sales_invoices')
                         .select('*')
-                        .eq('invoice_number', customerReference)
+                        .eq('invoice_number', referenceCode)
                         .maybeSingle();
+                    carInvoiceData = directInvoiceMatch;
+                    
+                    if (!carInvoiceData) {
+                        const { data: regMatch } = await supabase
+                            .from('car_sales_invoices')
+                            .select('*')
+                            .ilike('registration_number', referenceCode)
+                            .maybeSingle();
+                        carInvoiceData = regMatch;
+                    }
+
                     if (carInvoiceData) {
                         invoice = carInvoiceData;
                         const { data: instData } = await supabase

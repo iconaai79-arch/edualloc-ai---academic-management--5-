@@ -4151,6 +4151,7 @@ export interface CarInvoice {
     dueDate?: string;
     invoiceNumber: string;
     registrationNumber?: string;
+    soldBy?: string;
     notes?: string;
     isInstallment?: boolean;
     installmentFrequency?: 'monthly' | 'weekly' | 'bi-weekly';

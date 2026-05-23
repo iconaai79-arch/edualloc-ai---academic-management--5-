@@ -57,12 +57,19 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         // Simulate a delay for "processing"
         setTimeout(() => {
             transactions.filter(t => t.status === 'unreconciled').forEach(t => {
-                // Logic: Match reference with invoice number and exact amount
-                const matchingInvoice = invoices.find(inv => 
-                    (t.reference.includes(inv.invoiceNumber) || inv.invoiceNumber.includes(t.reference)) && 
-                    inv.totalAmount === t.amount &&
-                    inv.status !== 'fully_paid'
-                );
+                // Logic: Match reference with invoice number or registration plate (case-insensitive) and exact amount
+                const matchingInvoice = invoices.find(inv => {
+                    const refUpper = t.reference.toUpperCase().trim();
+                    const invNumUpper = inv.invoiceNumber.toUpperCase().trim();
+                    const regNumUpper = inv.registrationNumber ? inv.registrationNumber.toUpperCase().trim() : '';
+
+                    const matchesInvoiceNum = refUpper.includes(invNumUpper) || invNumUpper.includes(refUpper);
+                    const matchesRegNum = regNumUpper && (refUpper.includes(regNumUpper) || regNumUpper.includes(refUpper));
+
+                    return (matchesInvoiceNum || matchesRegNum) && 
+                           inv.totalAmount === t.amount &&
+                           inv.status !== 'fully_paid';
+                });
 
                 if (matchingInvoice) {
                     onReconcile(t.id, matchingInvoice.id);
@@ -200,8 +207,19 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                             <button 
                                                 onClick={() => {
                                                     // This would ideally open a modal to select an invoice
-                                                    // For now, let's auto-find best match or prompt
-                                                    const bestMatch = invoices.find(inv => 
+                                                    // Prioritize matches that also match reference / registration narration
+                                                    const bestMatch = invoices.find(inv => {
+                                                        const refUpper = transaction.reference.toUpperCase().trim();
+                                                        const invNumUpper = inv.invoiceNumber.toUpperCase().trim();
+                                                        const regNumUpper = inv.registrationNumber ? inv.registrationNumber.toUpperCase().trim() : '';
+
+                                                        const matchesInvoiceNum = refUpper.includes(invNumUpper) || invNumUpper.includes(refUpper);
+                                                        const matchesRegNum = regNumUpper && (refUpper.includes(regNumUpper) || regNumUpper.includes(refUpper));
+
+                                                        return (matchesInvoiceNum || matchesRegNum) && 
+                                                               inv.totalAmount === transaction.amount && 
+                                                               inv.status !== 'fully_paid';
+                                                    }) || invoices.find(inv => 
                                                         inv.totalAmount === transaction.amount && 
                                                         inv.status !== 'fully_paid'
                                                     );

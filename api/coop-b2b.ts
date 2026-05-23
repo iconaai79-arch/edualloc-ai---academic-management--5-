@@ -570,15 +570,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let accountName = '';
 
             // 1. Try matching with car sales invoices first
+            let carInvMatched = null;
             const { data: carInv } = await supabase
                 .from('car_sales_invoices')
                 .select('*')
                 .eq('invoice_number', refCode)
                 .maybeSingle();
+            carInvMatched = carInv;
 
-            if (carInv) {
-                invoice = carInv;
-                accountName = carInv.client_name || 'Client';
+            if (!carInvMatched) {
+                const { data: carInvReg } = await supabase
+                    .from('car_sales_invoices')
+                    .select('*')
+                    .ilike('registration_number', refCode)
+                    .maybeSingle();
+                carInvMatched = carInvReg;
+            }
+
+            if (carInvMatched) {
+                invoice = carInvMatched;
+                accountName = carInvMatched.client_name || 'Client';
             } else {
                 // 2. Try matching with standard school billing invoices
                 const { data: stdInv } = await supabase
@@ -739,14 +750,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let institution: any = null;
 
             // Find target invoice
+            let carInvMatched = null;
             const { data: carInv } = await supabase
                 .from('car_sales_invoices')
                 .select('*')
                 .eq('invoice_number', targetAccount)
                 .maybeSingle();
+            carInvMatched = carInv;
 
-            if (carInv) {
-                invoice = carInv;
+            if (!carInvMatched) {
+                const { data: carInvReg } = await supabase
+                    .from('car_sales_invoices')
+                    .select('*')
+                    .ilike('registration_number', targetAccount)
+                    .maybeSingle();
+                carInvMatched = carInvReg;
+            }
+
+            if (carInvMatched) {
+                invoice = carInvMatched;
                 isCarInvoice = true;
             } else {
                 const { data: stdInv } = await supabase

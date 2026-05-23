@@ -1760,6 +1760,7 @@ CREATE TABLE IF NOT EXISTS car_sales_invoices (
     due_date DATE,
     invoice_number TEXT NOT NULL,
     registration_number TEXT,
+    sold_by TEXT,
     notes TEXT,
     is_installment BOOLEAN DEFAULT FALSE,
     installment_frequency TEXT,

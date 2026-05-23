@@ -23,11 +23,13 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
         clientPhone: '',
         totalAmount: 0,
         registrationNumber: '',
+        soldBy: '',
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes: ''
     });
 
     const [isSaving, setIsSaving] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     React.useEffect(() => {
         if (invoice) {
@@ -39,6 +41,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                 clientPhone: invoice.clientPhone || '',
                 totalAmount: invoice.totalAmount,
                 registrationNumber: invoice.registrationNumber || '',
+                soldBy: invoice.soldBy || '',
                 dueDate: invoice.dueDate ? invoice.dueDate.split('T')[0] : '',
                 notes: invoice.notes || '',
                 isInstallment: invoice.isInstallment || false,
@@ -54,10 +57,12 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                 clientPhone: '',
                 totalAmount: 0,
                 registrationNumber: '',
+                soldBy: '',
                 dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 notes: ''
             });
         }
+        setSearchTerm('');
     }, [invoice, isOpen]);
 
     if (!isOpen) return null;
@@ -77,6 +82,18 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
 
     const selectedListing = listings.find(l => l.id === formData.listingId);
 
+    const filteredListings = listings.filter(l => {
+        const isNotSold = l.status !== 'sold' || l.id === formData.listingId;
+        const query = searchTerm.toLowerCase();
+        const matchesSearch = 
+            l.make.toLowerCase().includes(query) ||
+            l.model.toLowerCase().includes(query) ||
+            String(l.year).includes(query) ||
+            (l as any).registrationNumber?.toLowerCase().includes(query) ||
+            (l as any).registration_number?.toLowerCase().includes(query);
+        return isNotSold && matchesSearch;
+    });
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
             <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-scale-in border border-slate-100 dark:border-slate-700">
@@ -95,39 +112,55 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                     <div className="space-y-4">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Vehicle from Inventory</label>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <select 
-                                required
-                                value={formData.listingId}
-                                onChange={(e) => {
-                                    const lId = e.target.value;
-                                    const l = listings.find(item => item.id === lId);
-                                    const price = l?.price || 0;
-                                    setFormData(prev => ({ 
-                                        ...prev, 
-                                        listingId: lId, 
-                                        totalAmount: price,
-                                        registrationNumber: (l as any)?.registrationNumber || prev.registrationNumber,
-                                        installmentAmount: prev.isInstallment && prev.totalInstallments ? price / prev.totalInstallments : prev.installmentAmount
-                                    }));
-                                }}
-                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
-                            >
-                                <option value="">Choose a vehicle...</option>
-                                {listings.filter(l => l.status === 'active' || l.id === formData.listingId).map(l => (
-                                    <option key={l.id} value={l.id}>{l.year} {l.make} {l.model} - KES {l.price.toLocaleString()}</option>
-                                ))}
-                            </select>
-                            <input 
-                                type="text"
-                                placeholder="Car Reg Number (e.g. KDC 123X)"
-                                value={formData.registrationNumber}
-                                onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
-                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
-                            />
+                            <div className="space-y-3">
+                                <input 
+                                    type="text"
+                                    placeholder="🔍 Search vehicle make, model or plate..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                                />
+                                <select 
+                                    required
+                                    value={formData.listingId}
+                                    onChange={(e) => {
+                                        const lId = e.target.value;
+                                        const l = listings.find(item => item.id === lId);
+                                        const price = l?.price || 0;
+                                        setFormData(prev => ({ 
+                                            ...prev, 
+                                            listingId: lId, 
+                                            totalAmount: price,
+                                            registrationNumber: (l as any)?.registrationNumber || (l as any)?.registration_number || prev.registrationNumber,
+                                            installmentAmount: prev.isInstallment && prev.totalInstallments ? price / prev.totalInstallments : prev.installmentAmount
+                                        }));
+                                    }}
+                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                                >
+                                    <option value="">Choose a vehicle...</option>
+                                    {filteredListings.map(l => (
+                                        <option key={l.id} value={l.id}>{l.year} {l.make} {l.model} - KES {l.price.toLocaleString()}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="h-[54px] flex items-center px-6 bg-indigo-50/30 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100/50 dark:border-indigo-800/50">
+                                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                        {selectedListing ? `${selectedListing.year} ${selectedListing.make} ${selectedListing.model}` : "No vehicle selected"}
+                                    </span>
+                                </div>
+                                <input 
+                                    type="text"
+                                    placeholder="Car Reg Number (e.g. KDC 123X)"
+                                    value={formData.registrationNumber}
+                                    onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
+                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    {/* Client Details */}
+                    {/* Client & Salesperson Details */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Client Full Name</label>
@@ -156,15 +189,30 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                         </div>
                     </div>
 
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
-                        <input 
-                            type="email"
-                            placeholder="client@example.com"
-                            value={formData.clientEmail}
-                            onChange={(e) => setFormData({ ...formData, clientEmail: e.target.value })}
-                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
-                        />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
+                            <input 
+                                type="email"
+                                placeholder="client@example.com"
+                                value={formData.clientEmail}
+                                onChange={(e) => setFormData({ ...formData, clientEmail: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                            />
+                        </div>
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Sold By / Salesperson Staff Name</label>
+                            <div className="relative">
+                                <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400" />
+                                <input 
+                                    type="text"
+                                    placeholder="Staff name (e.g. Jane Smith)"
+                                    value={formData.soldBy || ''}
+                                    onChange={(e) => setFormData({ ...formData, soldBy: e.target.value })}
+                                    className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     {/* Financials */}
