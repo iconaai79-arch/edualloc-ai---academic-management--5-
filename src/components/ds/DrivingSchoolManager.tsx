@@ -1093,103 +1093,118 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         </div>
                                     )}
 
-                                    <div className="space-y-2 pt-2">
-                                        {(Array.isArray(formData.items) ? formData.items : []).map((it: any, idx: number) => (
-                                            <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 animate-fade-in">
-                                                <div className="flex-[2] flex flex-col gap-1">
-                                                    <select
-                                                        value={
-                                                            ((settings?.votes || []).some((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === (it.name || '').toLowerCase().trim()))
-                                                                ? ((settings?.votes || []).find((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === (it.name || '').toLowerCase().trim())?.voteName || it.name)
-                                                                : (((it.name || '').trim() === '') ? '' : 'custom_other_name')
-                                                        }
-                                                        onChange={e => {
-                                                            const val = e.target.value;
-                                                            const nextItems = [...formData.items];
-                                                            if (val === 'custom_other_name') {
-                                                                nextItems[idx] = { ...it, name: 'Custom Vote' };
-                                                            } else {
-                                                                const matchedVote = (settings?.votes || []).find((v: any) => (v.voteName || v.vote_name) === val);
-                                                                nextItems[idx] = { 
-                                                                    ...it, 
-                                                                    name: val, 
-                                                                    amount: matchedVote ? (matchedVote.defaultAmount ?? (matchedVote as any).default_amount ?? it.amount) : it.amount 
-                                                                };
-                                                            }
-                                                            setFormData({ ...formData, items: nextItems });
-                                                        }}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-2.5 py-1.5 text-slate-800 dark:text-white focus:ring-1 focus:ring-indigo-500"
-                                                    >
-                                                        <option value="" disabled>Select Vote Head...</option>
-                                                        {(settings?.votes || []).map((vt: any) => {
-                                                            const n = vt.voteName || vt.vote_name;
-                                                            return n ? <option key={vt.id || n} value={n}>{n}</option> : null;
-                                                        })}
-                                                        <option value="custom_other_name">✏️ Custom / Other Name</option>
-                                                    </select>
-                                                    
-                                                    {(!((settings?.votes || []).some((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === (it.name || '').toLowerCase().trim())) && (it.name || '').trim() !== '') && (
-                                                        <input
-                                                            type="text"
-                                                            required
-                                                            value={it.name || ''}
-                                                            onChange={e => {
-                                                                const nextItems = [...formData.items];
-                                                                nextItems[idx] = { ...it, name: e.target.value };
-                                                                setFormData({ ...formData, items: nextItems });
-                                                            }}
-                                                            placeholder="Type Custom Name"
-                                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-indigo-300 dark:border-indigo-700 rounded-xl text-xs font-bold px-2.5 py-1 text-slate-800 dark:text-white focus:ring-1 focus:ring-indigo-500"
-                                                        />
-                                                    )}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 px-2 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
-                                                        <span className="text-[9px] font-black text-slate-400">KES</span>
-                                                        <input
-                                                            type="number"
-                                                            required
-                                                            value={it.amount === 0 ? '' : it.amount}
-                                                            onChange={e => {
-                                                                const nextItems = [...formData.items];
-                                                                nextItems[idx] = { ...it, amount: Number(e.target.value) };
-                                                                setFormData({ ...formData, items: nextItems });
-                                                            }}
-                                                            placeholder="0"
-                                                            className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right text-slate-800 dark:text-white"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="w-16">
-                                                    <input
-                                                        type="number"
-                                                        title="Priority Order"
-                                                        value={it.priority || idx + 1}
-                                                        onChange={e => {
-                                                            const nextItems = [...formData.items];
-                                                            nextItems[idx] = { ...it, priority: Number(e.target.value) };
-                                                            setFormData({ ...formData, items: nextItems });
-                                                        }}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold px-2 py-1.5 rounded-xl text-center text-slate-600 dark:text-slate-300 focus:ring-0"
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const nextItems = formData.items.filter((_: any, i: number) => i !== idx);
-                                                        setFormData({ ...formData, items: nextItems });
-                                                    }}
-                                                    className="p-2 text-slate-300 hover:text-red-500 rounded-xl transition-colors"
-                                                    title="Remove Item"
-                                                >
-                                                    <TrashIcon className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                        {(Array.isArray(formData.items) ? formData.items : []).length === 0 && (
-                                            <p className="text-center text-xs text-slate-400 py-4 font-medium italic">No fee items assigned yet. Click Quick Add or Add Custom Row above.</p>
-                                        )}
-                                    </div>
+                                    {(Array.isArray(formData.items) ? formData.items : []).length > 0 && (
+                                         <div className="flex gap-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">
+                                             <div className="flex-[2]">Vote Head / Label</div>
+                                             <div className="flex-1 text-right pr-2">Amount (KES)</div>
+                                             <div className="w-16 text-center">Priority</div>
+                                             <div className="w-8"></div>
+                                         </div>
+                                     )}
+
+                                     <div className="space-y-2 pt-2">
+                                         {(Array.isArray(formData.items) ? formData.items : []).map((it: any, idx: number) => {
+                                             const isPredefined = (settings?.votes || []).some((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === (it.name || '').toLowerCase().trim());
+                                             const selectValue = it.isCustom 
+                                                 ? 'custom_other_name' 
+                                                 : (isPredefined 
+                                                     ? ((settings?.votes || []).find((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === (it.name || '').toLowerCase().trim())?.voteName || it.name)
+                                                     : (((it.name || '').trim() === '') ? '' : 'custom_other_name'));
+
+                                             return (
+                                                 <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 animate-fade-in">
+                                                     <div className="flex-[2] flex flex-col gap-1">
+                                                         <select
+                                                             value={selectValue}
+                                                             onChange={e => {
+                                                                 const val = e.target.value;
+                                                                 const nextItems = [...formData.items];
+                                                                 if (val === 'custom_other_name') {
+                                                                     nextItems[idx] = { ...it, name: '', isCustom: true };
+                                                                 } else {
+                                                                     const matchedVote = (settings?.votes || []).find((v: any) => (v.voteName || v.vote_name) === val);
+                                                                     nextItems[idx] = { 
+                                                                         ...it, 
+                                                                         name: val, 
+                                                                         amount: matchedVote ? (matchedVote.defaultAmount ?? (matchedVote as any).default_amount ?? it.amount) : it.amount,
+                                                                         isCustom: false 
+                                                                     };
+                                                                 }
+                                                                 setFormData({ ...formData, items: nextItems });
+                                                             }}
+                                                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-2.5 py-1.5 text-slate-800 dark:text-white focus:ring-1 focus:ring-indigo-500"
+                                                         >
+                                                             <option value="" disabled>Select Vote Head...</option>
+                                                             {(settings?.votes || []).map((vt: any) => {
+                                                                 const n = vt.voteName || vt.vote_name;
+                                                                 return n ? <option key={vt.id || n} value={n}>{n}</option> : null;
+                                                             })}
+                                                             <option value="custom_other_name">✏️ Custom / Other Name</option>
+                                                         </select>
+                                                         
+                                                         {selectValue === 'custom_other_name' && (
+                                                             <input
+                                                                 type="text"
+                                                                 required
+                                                                 value={it.name || ''}
+                                                                 onChange={e => {
+                                                                     const nextItems = [...formData.items];
+                                                                     nextItems[idx] = { ...it, name: e.target.value, isCustom: true };
+                                                                     setFormData({ ...formData, items: nextItems });
+                                                                 }}
+                                                                 placeholder="Type Custom Name"
+                                                                 className="w-full bg-slate-50 dark:bg-slate-900 border border-indigo-300 dark:border-indigo-700 rounded-xl text-xs font-bold px-2.5 py-1 text-slate-800 dark:text-white focus:ring-1 focus:ring-indigo-500"
+                                                             />
+                                                         )}
+                                                     </div>
+                                                     <div className="flex-1">
+                                                         <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 px-2 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+                                                             <span className="text-[9px] font-black text-slate-400">KES</span>
+                                                             <input
+                                                                 type="number"
+                                                                 required
+                                                                 value={it.amount === 0 ? '' : it.amount}
+                                                                 onChange={e => {
+                                                                     const nextItems = [...formData.items];
+                                                                     nextItems[idx] = { ...it, amount: Number(e.target.value) };
+                                                                     setFormData({ ...formData, items: nextItems });
+                                                                 }}
+                                                                 placeholder="0"
+                                                                 className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right text-slate-800 dark:text-white"
+                                                             />
+                                                         </div>
+                                                     </div>
+                                                     <div className="w-16">
+                                                         <input
+                                                             type="number"
+                                                             title="Priority Order"
+                                                             value={it.priority || idx + 1}
+                                                             onChange={e => {
+                                                                 const nextItems = [...formData.items];
+                                                                 nextItems[idx] = { ...it, priority: Number(e.target.value) };
+                                                                 setFormData({ ...formData, items: nextItems });
+                                                             }}
+                                                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold px-2 py-1.5 rounded-xl text-center text-slate-600 dark:text-slate-300 focus:ring-0"
+                                                         />
+                                                     </div>
+                                                     <button
+                                                         type="button"
+                                                         onClick={() => {
+                                                             const nextItems = formData.items.filter((_: any, i: number) => i !== idx);
+                                                             setFormData({ ...formData, items: nextItems });
+                                                         }}
+                                                         className="p-2 text-slate-300 hover:text-red-500 rounded-xl transition-colors"
+                                                         title="Remove Item"
+                                                     >
+                                                         <TrashIcon className="w-3.5 h-3.5" />
+                                                     </button>
+                                                 </div>
+                                             );
+                                         })}
+                                         {(Array.isArray(formData.items) ? formData.items : []).length === 0 && (
+                                             <p className="text-center text-xs text-slate-400 py-4 font-medium italic">No fee items assigned yet. Click Quick Add or Add Custom Row above.</p>
+                                         )}
+                                     </div>
 
                                     <div className="flex justify-end pt-2 border-t border-slate-200/60 dark:border-slate-800">
                                         <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-xl">
@@ -4235,7 +4250,17 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         <p className="text-lg font-black text-slate-900 dark:text-white tracking-tight">KES {fee.totalAmount?.toLocaleString()}</p>
                                                     </div>
                                                     <h5 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{fee.description || 'Standard Course'}</h5>
-                                                    <p className="text-[10px] font-medium text-slate-400">{fee.items?.length || 0} Fee items included</p>
+                                                    <p className="text-[10px] font-medium text-slate-400 mb-3">{fee.items?.length || 0} Fee items included</p>
+                                                    {Array.isArray(fee.items) && fee.items.length > 0 && (
+                                                        <div className="mt-4 space-y-2 border-t border-slate-100 dark:border-slate-700/50 pt-3 select-none">
+                                                            {fee.items.map((item: any, i: number) => (
+                                                                <div key={i} className="flex items-center justify-between text-[11px]">
+                                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">{item.name || item.voteName || item.vote_name}</span>
+                                                                    <span className="text-slate-700 dark:text-slate-300 font-bold">KES {(item.amount ?? item.defaultAmount ?? 0).toLocaleString()}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

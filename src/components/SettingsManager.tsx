@@ -2480,6 +2480,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </div>
 
                                                 <div className="space-y-2">
+                                                    {newFeeForm.items.length > 0 && (
+                                                        <div className="flex gap-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">
+                                                            <div className="flex-[2]">Vote Head / Label</div>
+                                                            <div className="flex-1 text-right pr-2">Amount (KES)</div>
+                                                            <div className="w-16 text-center">Priority</div>
+                                                            <div className="w-8"></div>
+                                                        </div>
+                                                    )}
                                                     {newFeeForm.items.map((it, idx) => (
                                                         <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60">
                                                             <div className="flex-[2]">

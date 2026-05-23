@@ -755,7 +755,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             ];
         }
 
-        if (isDS) {
+        if (isDS || activeScope === 'ds') {
             return [
                 { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_students', label: 'Students', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
@@ -818,10 +818,6 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         logisticsTabs.push('transport', 'logistics');
                     }
                     return logisticsTabs.includes(tab.id);
-                }
-                // Driving School sub-module within a higher-ed institution
-                if (activeScope === 'ds') {
-                    return ['driving_school', 'settings', 'reports'].includes(tab.id);
                 }
             }
 
