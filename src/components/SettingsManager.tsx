@@ -2501,7 +2501,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                         setNewFeeForm({ ...newFeeForm, items: nextItems });
                                                                     }}
                                                                     placeholder="Item Name (e.g. PDL)"
-                                                                    className="w-full bg-transparent border-none text-xs font-bold px-2 py-1 focus:ring-0 text-slate-800 dark:text-slate-100"
+                                                                    className="w-full bg-transparent border-none text-xs font-bold px-2 py-1 focus:ring-0 text-black dark:text-white"
                                                                 />
                                                             </div>
                                                             <div className="flex-1">
@@ -2517,7 +2517,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                             setNewFeeForm({ ...newFeeForm, items: nextItems });
                                                                         }}
                                                                         placeholder="0"
-                                                                        className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right text-slate-800 dark:text-slate-100"
+                                                                        className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right text-black dark:text-white"
                                                                     />
                                                                 </div>
                                                             </div>
