@@ -13,9 +13,10 @@ interface CreateCarInvoiceModalProps {
     listings: CarListing[];
     currentUser: User;
     invoice?: CarInvoice | null;
+    users?: User[];
 }
 
-export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ isOpen, onClose, onSave, listings, currentUser, invoice }) => {
+export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ isOpen, onClose, onSave, listings, currentUser, invoice, users }) => {
     const [formData, setFormData] = useState<Partial<CarInvoice>>({
         listingId: '',
         clientName: '',
@@ -30,6 +31,16 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
 
     const [isSaving, setIsSaving] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+
+    const staffMembers = React.useMemo(() => {
+        if (!users) return [];
+        return users.filter(u => 
+            u.institutionId === currentUser.institutionId &&
+            u.role !== 'student' && 
+            u.role !== 'customer' &&
+            u.role !== 'super_admin'
+        );
+    }, [users, currentUser.institutionId]);
 
     React.useEffect(() => {
         if (invoice) {
@@ -203,14 +214,29 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                         <div className="space-y-4">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Sold By / Salesperson Staff Name</label>
                             <div className="relative">
-                                <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400" />
-                                <input 
-                                    type="text"
-                                    placeholder="Staff name (e.g. Jane Smith)"
-                                    value={formData.soldBy || ''}
-                                    onChange={(e) => setFormData({ ...formData, soldBy: e.target.value })}
-                                    className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
-                                />
+                                <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400 z-10" />
+                                {staffMembers.length > 0 ? (
+                                    <select
+                                        value={formData.soldBy || ''}
+                                        onChange={(e) => setFormData({ ...formData, soldBy: e.target.value })}
+                                        className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white cursor-pointer"
+                                    >
+                                        <option value="">Select a salesperson...</option>
+                                        {staffMembers.map(member => (
+                                            <option key={member.id} value={member.name}>
+                                                {member.name} ({member.role.replace(/_/g, ' ')})
+                                            </option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <input 
+                                        type="text"
+                                        placeholder="Staff name (e.g. Jane Smith)"
+                                        value={formData.soldBy || ''}
+                                        onChange={(e) => setFormData({ ...formData, soldBy: e.target.value })}
+                                        className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                                    />
+                                )}
                             </div>
                         </div>
                     </div>

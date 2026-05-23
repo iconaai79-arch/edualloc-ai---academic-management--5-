@@ -2757,6 +2757,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         listings={props.carListings || []}
                         currentUser={props.currentUser!}
                         invoice={selectedInvoiceForEdit}
+                        users={props.users || []}
                     />
                 </React.Suspense>
             )}
