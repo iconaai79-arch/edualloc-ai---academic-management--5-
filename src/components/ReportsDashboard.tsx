@@ -718,7 +718,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
             }
             return allowed.includes(tab.key);
         }
-        if (isDS) {
+        if (isDS || activeScope === 'ds') {
             const allowed = ['visuals', 'stats', 'audit', 'attendance', 'client_statements'];
             return allowed.includes(tab.key);
         }

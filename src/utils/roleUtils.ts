@@ -159,9 +159,6 @@ export const isEduInstitution = (institution: Partial<Institution> | null | unde
     // Driving School accounts are independent — not part of the education pipeline
     if (category === 'Driving School' || type === 'Driving School') return false;
     
-    const hasDSModule = institution.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
-    if (category === 'College' && hasDSModule) return false;
-
     return type === 'Education' || eduCats.includes(type as any) || eduCats.includes(category || '');
 };
 

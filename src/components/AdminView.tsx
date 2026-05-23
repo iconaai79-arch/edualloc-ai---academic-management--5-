@@ -1483,7 +1483,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 ) : (
                     <>
-                {activeTab === 'dashboard' && !isCoop && !isDS && !isAutoMarket && !isCampaign && (
+                {activeTab === 'dashboard' && !isCoop && !isDS && !isAutoMarket && !isCampaign && activeScope !== 'ds' && (
                     <div className="space-y-6">
                         {isCampaign ? (
                             <div className="animate-fade-in">
