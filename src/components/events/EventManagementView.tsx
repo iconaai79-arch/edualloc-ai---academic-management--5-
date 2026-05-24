@@ -189,8 +189,8 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             if (onLogAction) onLogAction('create_event', `Created event: ${newEvent.name}`);
             await loadEventData();
             setSelectedEventId(newEvent.id);
-        } catch (err) {
-            alert('Failed to save event');
+        } catch (err: any) {
+            alert('Failed to save event: ' + (err.message || err));
         }
     };
 
@@ -198,11 +198,17 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
         e.preventDefault();
         if (!selectedEventId) return;
 
+        const distanceVal = parseFloat(categoryForm.distanceKm);
+        if (isNaN(distanceVal) || distanceVal <= 0) {
+            alert('Please enter a valid distance in kilometers (greater than 0).');
+            return;
+        }
+
         const newCategory: EventCategory = {
             id: 'cat_' + Date.now(),
             eventId: selectedEventId,
             name: categoryForm.name,
-            distanceKm: parseFloat(categoryForm.distanceKm),
+            distanceKm: distanceVal,
             registrationFee: parseFloat(categoryForm.registrationFee || '0'),
             capacity: categoryForm.capacity ? parseInt(categoryForm.capacity) : undefined,
             genderRestriction: categoryForm.genderRestriction,
@@ -216,8 +222,8 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             setIsAddCategoryOpen(false);
             if (onLogAction) onLogAction('create_event_category', `Created category: ${newCategory.name}`);
             await loadEventData();
-        } catch (err) {
-            alert('Failed to save category');
+        } catch (err: any) {
+            alert('Failed to save category: ' + (err.message || err));
         }
     };
 

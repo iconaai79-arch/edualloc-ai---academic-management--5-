@@ -1,7 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { EventCategory, EventParticipant, EventSplit } from '../../types';
-import { SearchIcon, PrinterIcon, AwardIcon, ClockIcon, BarChart3Icon, AwardSymbol } from '../icons'; // Wait, let's make sure we use existing icons!
-// We have: SearchIcon, PrinterIcon, SparklesIcon, ClockIcon, ChartBarIcon, CheckCircleIcon, XIcon, UserIcon, etc. Let's import those!
 import { SearchIcon as LucideSearchIcon, PrinterIcon as LucidePrinterIcon, SparklesIcon, ClockIcon, ChartBarIcon, CheckCircleIcon, XIcon, UserIcon } from '../icons';
 
 interface EventLeaderboardProps {
