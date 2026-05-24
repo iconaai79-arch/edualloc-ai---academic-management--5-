@@ -1697,7 +1697,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 "ALTER TABLE ds_vehicles ADD COLUMN IF NOT EXISTS assigned_instructor_id text;",
                 "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS confirmation_status text;",
                 "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS room_id text;",
-                "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS room_name text;"
+                "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS room_name text;",
+                "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS theory_test_score integer;",
+                "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS practical_test_score integer;",
+                "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS ntsa_booking_status text;"
             ];
 
             migrations.forEach(sql => {

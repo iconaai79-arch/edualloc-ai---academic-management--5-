@@ -1557,6 +1557,9 @@ CREATE TABLE IF NOT EXISTS ds_students (
     license_type_interested TEXT,
     theory_progress_percent INTEGER DEFAULT 0,
     practical_progress_percent INTEGER DEFAULT 0,
+    theory_test_score INTEGER,
+    practical_test_score INTEGER,
+    ntsa_booking_status TEXT,
     status TEXT DEFAULT 'Enrolled',
     enrollment_date DATE DEFAULT CURRENT_DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -1564,6 +1567,9 @@ CREATE TABLE IF NOT EXISTS ds_students (
 
 -- Ensure email column exists for older schema versions
 ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS theory_test_score INTEGER;
+ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS practical_test_score INTEGER;
+ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS ntsa_booking_status TEXT;
 
 CREATE TABLE IF NOT EXISTS ds_lessons (
     id TEXT PRIMARY KEY,
