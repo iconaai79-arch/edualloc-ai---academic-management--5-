@@ -22,18 +22,24 @@ interface RevenueWarRoomProps {
 }
 
 export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
-    invoices = [],
-    receipts = [],
-    expenses = [],
-    goals = [],
-    students = [],
+    invoices: rawInvoices,
+    receipts: rawReceipts,
+    expenses: rawExpenses,
+    goals: rawGoals,
+    students: rawStudents,
     institution,
-    transactions = [],
+    transactions: rawTransactions,
     receiptLimit,
     setReceiptLimit,
     transactionLimit,
     setTransactionLimit
 }) => {
+    const invoices = Array.isArray(rawInvoices) ? rawInvoices : [];
+    const receipts = Array.isArray(rawReceipts) ? rawReceipts : [];
+    const expenses = Array.isArray(rawExpenses) ? rawExpenses : [];
+    const goals = Array.isArray(rawGoals) ? rawGoals : [];
+    const students = Array.isArray(rawStudents) ? rawStudents : [];
+    const transactions = Array.isArray(rawTransactions) ? rawTransactions : [];
     const stats = useMemo(() => {
         const totalBilled = invoices.reduce((acc, inv) => acc + inv.totalAmount, 0);
         const totalCollected = receipts.reduce((acc, rec) => acc + rec.amountPaid, 0);

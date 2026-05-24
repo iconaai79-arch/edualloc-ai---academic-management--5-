@@ -76,18 +76,18 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
 
                 {/* Centralized Finance Hub */}
                 <FinanceManager 
-                    invoices={invoices}
-                    receipts={receipts}
-                    expenses={expenses}
-                    goals={goals}
-                    feeStructures={feeStructures}
-                    students={students}
-                    academicYears={academicYears}
-                    semesters={semesters}
-                    institution={currentInstitution}
-                    onGenerateInvoices={onGenerateInvoices}
-                    onAddExpense={onAddExpense}
-                    receiptLimit={receiptLimit}
+                invoices={invoices || []}
+                receipts={receipts || []}
+                expenses={expenses || []}
+                goals={goals || []}
+                feeStructures={feeStructures || []}
+                students={students || []}
+                academicYears={academicYears || []}
+                semesters={semesters || []}
+                institution={currentInstitution}
+                onGenerateInvoices={onGenerateInvoices || (async () => {})}
+                onAddExpense={onAddExpense || (async () => {})}
+                receiptLimit={receiptLimit}
                     setReceiptLimit={setReceiptLimit}
                     transactionLimit={transactionLimit}
                     setTransactionLimit={setTransactionLimit}

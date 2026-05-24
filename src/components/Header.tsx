@@ -15,12 +15,12 @@ interface HeaderProps {
     currentUser: User | null;
     institutionName?: string;
     onLogout: () => void;
-    onEditProfile: () => void;
-    logoUrl: string | null;
-    systemLogoUrl: string | null;
+    onEditProfile?: () => void;
+    logoUrl?: string | null;
+    systemLogoUrl?: string | null;
     applicationTitle?: string;
-    notifications: AppNotification[];
-    onMarkAsRead: (id?: string) => void;
+    notifications?: AppNotification[];
+    onMarkAsRead?: (id?: string) => void;
     currentInstitution?: Institution | null;
     isApiOnline?: boolean;
     activeRole?: Role;
@@ -242,7 +242,7 @@ export const Header: React.FC<HeaderProps> = ({
                             primaryColor={primaryColor}
                         />
 
-                        <NotificationBell notifications={notifications} onMarkAsRead={onMarkAsRead} />
+                        <NotificationBell notifications={notifications || []} onMarkAsRead={onMarkAsRead || (() => {})} />
 
                         <div className="relative" ref={menuRef}>
                             <button
@@ -288,9 +288,11 @@ export const Header: React.FC<HeaderProps> = ({
                                         </div>
                                     )}
                                     <div className="p-1 px-2">
-                                        <button onClick={() => { onEditProfile(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-3 transition-colors rounded-xl">
-                                            <PencilIcon className="w-4 h-4" /> Edit Profile
-                                        </button>
+                                        {onEditProfile && (
+                                            <button onClick={() => { onEditProfile(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-3 transition-colors rounded-xl">
+                                                <PencilIcon className="w-4 h-4" /> Edit Profile
+                                            </button>
+                                        )}
                                         <button onClick={() => { onLogout(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 transition-colors rounded-xl">
                                             <ArrowRightOnRectangleIcon className="w-4 h-4" /> Sign Out
                                         </button>

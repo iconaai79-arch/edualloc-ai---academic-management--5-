@@ -14,13 +14,17 @@ interface AutomatedBillingProps {
 }
 
 export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
-    feeStructures = [],
-    students = [],
-    academicYears = [],
-    semesters = [],
+    feeStructures: rawFeeStructures,
+    students: rawStudents,
+    academicYears: rawAcademicYears,
+    semesters: rawSemesters,
     institution,
     onGenerateInvoices
 }) => {
+    const feeStructures = Array.isArray(rawFeeStructures) ? rawFeeStructures : [];
+    const students = Array.isArray(rawStudents) ? rawStudents : [];
+    const academicYears = Array.isArray(rawAcademicYears) ? rawAcademicYears : [];
+    const semesters = Array.isArray(rawSemesters) ? rawSemesters : [];
     const [selectedAY, setSelectedAY] = useState('');
     const [selectedSem, setSelectedSem] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
