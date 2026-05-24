@@ -9,6 +9,7 @@ interface EventRegistrationModalProps {
     categories: EventCategory[];
     eventName: string;
     onRegister: (data: Partial<EventParticipant>) => Promise<EventParticipant>;
+    editingParticipant?: EventParticipant | null;
 }
 
 export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
@@ -16,7 +17,8 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
     onClose,
     categories,
     eventName,
-    onRegister
+    onRegister,
+    editingParticipant
 }) => {
     const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Form, 2: Payment, 3: Success
     const [formData, setFormData] = useState({
@@ -33,6 +35,42 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
         waiverSigned: false,
         initialPledge: '0'
     });
+
+    React.useEffect(() => {
+        if (editingParticipant) {
+            setFormData({
+                firstName: editingParticipant.firstName || '',
+                lastName: editingParticipant.lastName || '',
+                email: editingParticipant.email || '',
+                phone: editingParticipant.phone || '',
+                gender: (editingParticipant.gender as any) || 'male',
+                age: editingParticipant.age ? String(editingParticipant.age) : '',
+                tShirtSize: editingParticipant.tShirtSize || 'M',
+                categoryId: editingParticipant.categoryId || '',
+                emergencyContactName: editingParticipant.emergencyContactName || '',
+                emergencyContactPhone: editingParticipant.emergencyContactPhone || '',
+                waiverSigned: editingParticipant.waiverSigned || false,
+                initialPledge: '0'
+            });
+            setStep(1);
+        } else {
+            setFormData({
+                firstName: '',
+                lastName: '',
+                email: '',
+                phone: '',
+                gender: 'male',
+                age: '',
+                tShirtSize: 'M',
+                categoryId: categories[0]?.id || '',
+                emergencyContactName: '',
+                emergencyContactPhone: '',
+                waiverSigned: false,
+                initialPledge: '0'
+            });
+            setStep(1);
+        }
+    }, [editingParticipant, isOpen, categories]);
 
     const [paymentPhone, setPaymentPhone] = useState('');
     const [paymentStatus, setPaymentStatus] = useState<'idle' | 'sending' | 'pending' | 'success' | 'failed'>('idle');
@@ -82,6 +120,7 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
             const emailLower = formData.email.trim().toLowerCase();
             const phoneTrim = formData.phone.trim();
             const duplicate = allParticipants.find(p => 
+                p.id !== editingParticipant?.id && 
                 eventCategoryIds.includes(p.categoryId) && 
                 ((emailLower && p.email?.toLowerCase() === emailLower) || (phoneTrim && p.phone === phoneTrim))
             );
@@ -91,6 +130,32 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
             }
         } catch (err) {
             console.error('Error checking duplicate registration:', err);
+        }
+
+        if (editingParticipant) {
+            setPaymentStatus('sending');
+            try {
+                const updated = await onRegister({
+                    ...editingParticipant,
+                    categoryId: formData.categoryId,
+                    firstName: formData.firstName,
+                    lastName: formData.lastName,
+                    email: formData.email,
+                    phone: formData.phone,
+                    gender: formData.gender,
+                    age: parseInt(formData.age),
+                    tShirtSize: formData.tShirtSize,
+                    emergencyContactName: formData.emergencyContactName,
+                    emergencyContactPhone: formData.emergencyContactPhone,
+                });
+                setRegisteredParticipant(updated);
+                setPaymentStatus('success');
+                setStep(3);
+            } catch (err: any) {
+                setErrorMsg(err.message || 'Failed to update runner');
+                setPaymentStatus('failed');
+            }
+            return;
         }
 
         setPaymentPhone(formData.phone);
@@ -425,9 +490,9 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
                             <div className="w-14 h-14 bg-green-50 dark:bg-green-950/30 rounded-full flex items-center justify-center mb-4 text-green-500">
                                 <CheckCircleIcon className="w-10 h-10" />
                             </div>
-                            <h4 className="text-xl font-black text-slate-900 dark:text-white">Registration Complete!</h4>
+                            <h4 className="text-xl font-black text-slate-900 dark:text-white">{editingParticipant ? 'Runner Updated!' : 'Registration Complete!'}</h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1">
-                                Welcome to the race! Your registration has been processed successfully.
+                                {editingParticipant ? "The runner's profile details have been successfully updated." : 'Welcome to the race! Your registration has been processed successfully.'}
                             </p>
 
                             {/* Ticket / Kit Pass Card */}

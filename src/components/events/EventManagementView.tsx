@@ -39,6 +39,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     const [isAddEventOpen, setIsAddEventOpen] = useState(false);
     const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
     const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+    const [editingParticipant, setEditingParticipant] = useState<EventParticipant | null>(null);
 
     // Active selected Event context
     const [selectedEventId, setSelectedEventId] = useState<string>('');
@@ -328,6 +329,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
         const phoneTrim = data.phone?.trim();
         
         const duplicate = participants.find(p => 
+            p.id !== data.id && 
             activeCategoryIds.includes(p.categoryId) && 
             ((emailLower && p.email?.toLowerCase() === emailLower) || (phoneTrim && p.phone === phoneTrim))
         );
@@ -335,26 +337,27 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             throw new Error(`A runner with this email or phone number is already registered for this event (BIB: ${duplicate.bibNumber}).`);
         }
 
-        // Find highest BIB number and increment
+        // Find highest BIB number and increment (only if creating a new runner)
         const existingBibs = participants
             .map(p => parseInt(p.bibNumber || '0'))
             .filter(b => !isNaN(b));
         const maxBib = existingBibs.length > 0 ? Math.max(...existingBibs) : 1000;
-        const newBib = String(maxBib + 1);
+        const newBib = data.bibNumber || String(maxBib + 1);
 
         const newParticipant: EventParticipant = {
-            ...(data as any),
             id: 'part_' + Date.now(),
+            createdAt: new Date().toISOString(),
+            ...(data as any),
             bibNumber: newBib,
-            createdAt: new Date().toISOString()
+            updatedAt: new Date().toISOString()
         };
 
         const savedParticipant = await apiService.saveModuleRecord('event_participants', newParticipant);
         
-        // Log transaction for bank feeds if registration is paid
+        // Log transaction for bank feeds if registration is paid (only if creating a new runner)
         const category = categories.find(c => c.id === data.categoryId);
         const fee = category ? Number(category.registrationFee || 0) : 0;
-        if (fee > 0 && data.mpesaReference) {
+        if (!data.id && fee > 0 && data.mpesaReference) {
             const mpesaTx = {
                 id: 'tx_' + Date.now(),
                 transactionId: data.mpesaReference,
@@ -375,7 +378,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             await apiService.saveModuleRecord('mpesa_transactions', mpesaTx).catch(e => console.error("Failed to auto-record admin mpesa_transaction", e));
         }
 
-        if (onLogAction) onLogAction('register_runner', `Registered runner BIB ${newBib}: ${newParticipant.firstName} ${newParticipant.lastName}`);
+        if (onLogAction) onLogAction(data.id ? 'update_runner' : 'register_runner', `${data.id ? 'Updated' : 'Registered'} runner BIB ${newBib}: ${newParticipant.firstName} ${newParticipant.lastName}`);
         await loadEventData();
         return savedParticipant;
     };
@@ -789,7 +792,10 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                         <div className="flex items-center justify-between mb-4">
                             <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Runner Registration Database</h4>
                             <button
-                                onClick={() => setIsRegModalOpen(true)}
+                                onClick={() => {
+                                    setEditingParticipant(null);
+                                    setIsRegModalOpen(true);
+                                }}
                                 className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1"
                             >
                                 <PlusIcon className="w-4 h-4" /> Add Runner
@@ -831,11 +837,20 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                                 {runner.status === 'started' && <span className="text-indigo-600 animate-pulse">On Course</span>}
                                                 {runner.status === 'completed' && <span className="text-green-600">Finished</span>}
                                             </td>
-                                            <td className="py-3 text-right">
+                                            <td className="py-3 text-right flex items-center justify-end gap-1.5">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingParticipant(runner);
+                                                        setIsRegModalOpen(true);
+                                                    }}
+                                                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold rounded text-[9px] transition-all active:scale-95"
+                                                >
+                                                    Edit
+                                                </button>
                                                 {runner.status === 'registered' && (
                                                     <button
                                                         onClick={() => handleUpdateParticipantStatus(runner.id, 'checked_in')}
-                                                        className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 font-bold rounded text-[9px]"
+                                                        className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-650 dark:text-indigo-400 font-bold rounded text-[9px] transition-all active:scale-95"
                                                     >
                                                         Collect Kit
                                                     </button>
@@ -1066,10 +1081,14 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             {/* Registration Modal */}
             <EventRegistrationModal
                 isOpen={isRegModalOpen}
-                onClose={() => setIsRegModalOpen(false)}
+                onClose={() => {
+                    setIsRegModalOpen(false);
+                    setEditingParticipant(null);
+                }}
                 categories={activeEventCategories}
                 eventName={activeEvent?.name || ''}
                 onRegister={handleRegisterRunner}
+                editingParticipant={editingParticipant}
             />
 
             {/* Add Event Modal */}
