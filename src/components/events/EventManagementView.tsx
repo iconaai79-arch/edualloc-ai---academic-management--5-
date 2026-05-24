@@ -8,7 +8,7 @@ import { FundraisingTracker } from './FundraisingTracker';
 import { 
     CalendarDaysIcon, SparklesIcon, UserGroupIcon, MapPinIcon, 
     BanknotesIcon, PlusIcon, Trash2Icon, AlertTriangleIcon, CheckCircleIcon,
-    ChartBarIcon, ClockIcon, Edit2Icon, XIcon
+    ChartBarIcon, ClockIcon, Edit2Icon, XIcon, ShareIcon
 } from '../icons';
 
 interface EventManagementViewProps {
@@ -483,8 +483,24 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             <div className="lg:col-span-2 space-y-6">
                                 {activeEvent ? (
                                     <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm relative overflow-hidden">
-                                        <h4 className="text-lg font-bold text-slate-800 dark:text-white">{activeEvent.name}</h4>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">{activeEvent.description}</p>
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <h4 className="text-lg font-bold text-slate-800 dark:text-white">{activeEvent.name}</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">{activeEvent.description}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    const link = `${window.location.origin}/?view=event-register&id=${activeEvent.id}`;
+                                                    navigator.clipboard.writeText(link);
+                                                    alert(`Public self-registration link copied to clipboard:\n${link}`);
+                                                }}
+                                                className="ml-4 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-650 dark:text-indigo-400 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-sm shrink-0"
+                                                title="Copy public self-registration link"
+                                            >
+                                                <ShareIcon className="w-4 h-4" />
+                                                <span>Share Link</span>
+                                            </button>
+                                        </div>
                                         
                                         <div className="grid grid-cols-2 gap-4 mt-6 text-xs border-t border-slate-100 dark:border-slate-700 pt-4">
                                             <div>

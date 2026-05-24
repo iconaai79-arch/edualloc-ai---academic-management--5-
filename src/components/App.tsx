@@ -71,6 +71,7 @@ const LogisticsDashboard = lazy(() => import('./LogisticsDashboard'));
 const CampaignSocialPortal = lazy(() => import('./CampaignSocialPortal').then(m => ({ default: m.CampaignSocialPortal })));
 const CampaignLoginView = lazy(() => import('./CampaignLoginView').then(m => ({ default: m.CampaignLoginView })));
 const PublicCarInvoicePayment = lazy(() => import('./automotive/PublicCarInvoicePayment').then(m => ({ default: m.PublicCarInvoicePayment })));
+const PublicEventRegistration = lazy(() => import('./events/PublicEventRegistration').then(m => ({ default: m.PublicEventRegistration })));
 
 
 import { apiService, initSupabaseClient } from '../services/apiService';
@@ -354,6 +355,14 @@ export const App: React.FC = () => {
             const view = params.get('view');
             const hostname = window.location.hostname;
             return view === 'ds' || view === 'driving' || hostname === 'drivingschool.eduai.co.ke' || hostname.includes('drivingschool');
+        } catch (e) {
+            return false;
+        }
+    });
+    const [showPublicEventRegistration, setShowPublicEventRegistration] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'event-register';
         } catch (e) {
             return false;
         }
@@ -4278,6 +4287,10 @@ export const App: React.FC = () => {
                     lessonId={targetManageLessonId} 
                     onClose={() => { window.location.href = '/'; }} 
                 />
+            ) : showPublicEventRegistration ? (
+                <Suspense fallback={<SystemPulseLoader message="Loading Registration Page..." />}>
+                    <PublicEventRegistration />
+                </Suspense>
             ) : (
                 <>
             {currentUser && (

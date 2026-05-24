@@ -102,7 +102,7 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items', 'hospitality_vehicles'];
+const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items', 'hospitality_vehicles', 'events', 'event_categories', 'event_participants', 'event_splits', 'event_pledges'];
 
 const isTableWithoutInstitutionId = (module: string) => {
   return [
@@ -135,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const isPublicGet = req.method === 'GET' && isPublicModule;
         
         // Allow POST for registration and social interactions
-        const isPublicPost = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach', 'alumnae_members', 'invoices', 'receipts'].includes(moduleName));
+        const isPublicPost = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach', 'alumnae_members', 'invoices', 'receipts', 'event_participants', 'event_pledges'].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
         if (!user && !isPublicGet && !isPublicPost && !isSocialInteraction) {
