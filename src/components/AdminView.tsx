@@ -943,23 +943,25 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
         { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
-        { role: 'fuel_admin', label: 'Fuel Station Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-700' }
+        { role: 'fuel_admin', label: 'Fuel Station Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-700' },
+        { role: 'event_manager', label: 'Event Management', icon: <CalendarDaysIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' }
     ].filter(opt => {
         if (isRetailAgency) {
             return ['retail_agent', 'customer'].includes(opt.role);
         }
         if (isEdu) {
-            let eduAllowed = ['security', 'store', 'transport_assistant', 'boarding_master', 'info_desk', 'librarian', 'parent', 'student', 'lecturer', 'finance'];
+            let eduAllowed = ['security', 'store', 'transport_assistant', 'boarding_master', 'info_desk', 'librarian', 'parent', 'student', 'lecturer', 'finance', 'event_manager'];
             if (!isModuleActive('school_store')) eduAllowed = eduAllowed.filter(r => r !== 'store');
             if (!isModuleActive('library')) eduAllowed = eduAllowed.filter(r => r !== 'librarian');
             if (!isModuleActive('academics')) eduAllowed = eduAllowed.filter(r => !['parent', 'student', 'lecturer'].includes(r));
             if (!isModuleActive('finance')) eduAllowed = eduAllowed.filter(r => r !== 'finance');
             if (!isModuleActive('boarding')) eduAllowed = eduAllowed.filter(r => r !== 'boarding_master');
             if (!isModuleActive('transport')) eduAllowed = eduAllowed.filter(r => r !== 'transport_assistant');
+            if (!isModuleActive('events')) eduAllowed = eduAllowed.filter(r => r !== 'event_manager');
             return eduAllowed.includes(opt.role);
         } else {
             // Non-educational: Hide educational portal perspectives
-            const filtered = !['parent', 'student', 'lecturer', 'librarian', 'boarding_master', 'transport_assistant', 'retail_agent', 'driver', 'customer'].includes(opt.role);
+            const filtered = !['parent', 'student', 'lecturer', 'librarian', 'boarding_master', 'transport_assistant', 'retail_agent', 'driver', 'customer', 'event_manager'].includes(opt.role);
             
             // Further restrict church_admin to only Church institutions
             if (opt.role === 'church_admin') {
@@ -1465,6 +1467,59 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                             }
                                                         }}
                                                         className="bg-emerald-600 hover:bg-emerald-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 9: Marathon & Event Management */}
+                            {(() => {
+                                const isActive = isModuleActive('events');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The Marathon & Event Management module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            props.onSwitchPerspective?.('event_manager');
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/20 dark:bg-indigo-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-indigo-600 text-white rounded-2xl w-fit shadow-lg shadow-indigo-100 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 00-2 2z" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Event Management</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Track athletic marathons, manage race category parameters, log BIB numbers, timing splits, fundraising pledges, and medical tents.
+                                                </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('events');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate events trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-indigo-600 hover:bg-indigo-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
                                                     >
                                                         Activate Trial
                                                     </button>
