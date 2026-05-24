@@ -111,10 +111,10 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
  */
 export const isSchoolInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
     if (!institution) return false;
-    const type = institution.institutionType;
-    const category = institution.category;
-    const schoolCats = ['Primary', 'Secondary', 'Kindergarten', 'ECD', 'International', 'Pre-primary', 'Junior Secondary'];
-    return (type === 'Education' && schoolCats.includes(category || '')) || schoolCats.includes(type as any);
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    const schoolCats = ['primary', 'secondary', 'kindergarten', 'ecd', 'international', 'pre-primary', 'junior secondary'];
+    return (type === 'education' && schoolCats.includes(category)) || schoolCats.includes(type);
 };
 
 /**
@@ -122,9 +122,9 @@ export const isSchoolInstitution = (institution: Partial<Institution> | null | u
  */
 export const isPrimaryInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
     if (!institution) return false;
-    const type = institution.institutionType;
-    const category = institution.category;
-    return (type === 'Education' && (category === 'Primary' || category === 'Kindergarten' || category === 'ECD' || category === 'Pre-primary')) || (type as any) === 'Primary' || (type as any) === 'Kindergarten';
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    return (type === 'education' && ['primary', 'kindergarten', 'ecd', 'pre-primary'].includes(category)) || type === 'primary' || type === 'kindergarten';
 };
 
 /**
@@ -132,9 +132,9 @@ export const isPrimaryInstitution = (institution: Partial<Institution> | null | 
  */
 export const isSecondaryInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
     if (!institution) return false;
-    const type = institution.institutionType;
-    const category = institution.category;
-    return (type === 'Education' && (category === 'Secondary' || category === 'Junior Secondary')) || (type as any) === 'Secondary';
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    return (type === 'education' && (category === 'secondary' || category === 'junior secondary')) || type === 'secondary';
 };
 
 /**
@@ -142,10 +142,10 @@ export const isSecondaryInstitution = (institution: Partial<Institution> | null 
  */
 export const isHigherEdInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
     if (!institution) return false;
-    const type = institution.institutionType;
-    const category = institution.category;
-    const higherEdCats = ['University', 'College', 'TVET', 'Polytechnic', 'Institute'];
-    return (type === 'Education' && higherEdCats.includes(category || '')) || higherEdCats.includes(type as any);
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    const higherEdCats = ['university', 'college', 'tvet', 'polytechnic', 'institute'];
+    return (type === 'education' && higherEdCats.includes(category)) || higherEdCats.includes(type);
 };
 
 /**
@@ -153,13 +153,13 @@ export const isHigherEdInstitution = (institution: Partial<Institution> | null |
  */
 export const isEduInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
     if (!institution) return false;
-    const type = institution.institutionType;
-    const category = institution.category;
-    const eduCats = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten', 'Pre-primary', 'Junior Secondary'];
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    const eduCats = ['primary', 'secondary', 'university', 'college', 'institute', 'polytechnic', 'ecd', 'international', 'tvet', 'kindergarten', 'pre-primary', 'junior secondary'];
     // Driving School accounts are independent — not part of the education pipeline
-    if (category === 'Driving School' || type === 'Driving School') return false;
+    if (category === 'driving school' || type === 'driving school') return false;
     
-    return type === 'Education' || eduCats.includes(type as any) || eduCats.includes(category || '');
+    return type === 'education' || eduCats.includes(type) || eduCats.includes(category);
 };
 
 /**
@@ -167,11 +167,11 @@ export const isEduInstitution = (institution: Partial<Institution> | null | unde
  */
 export const isDSInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
     if (!institution) return false;
-    const type = institution.institutionType;
-    const category = institution.category;
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
     const subType = institution.businessSubType?.toLowerCase() || '';
     const hasModule = institution.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
-    return type === 'Driving School' || subType.includes('driving school') || category === 'Driving School' || !!hasModule;
+    return type === 'driving school' || subType.includes('driving school') || category === 'driving school' || !!hasModule;
 };
 
 /**

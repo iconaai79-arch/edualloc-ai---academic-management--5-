@@ -547,7 +547,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setLocalcafeOrders(cOrders || []);
             setAddOns(ads || []);
 
-            const settings = await apiService.fetchModuleRecords<CarWashSettings>('carwash_settings', institutionId);
+            const settings: CarWashSettings[] = await apiService.fetchModuleRecords('carwash_settings', institutionId);
             if (settings && settings.length > 0) {
                 setCarWashSettings(settings[0]);
                 setSettingsForm(settings[0]);
@@ -2506,7 +2506,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             courses={courses || []}
                             smsConfig={smsConfig}
                             smsBalance={smsBalance}
-                            onSendSms={onSendSms}
+                            onSendSms={async (rec, msg, cfg, uni, inst) => {
+                                const recipients = Array.isArray(rec) ? rec.join(',') : rec;
+                                const res = await onSendSms(recipients, msg, cfg, uni, inst);
+                                return res || { success: true, message: 'Sent' };
+                            }}
                             currentInstitution={currentInstitution}
                             currentUser={currentUser}
                             mpesaConfig={mpesaConfig || companyDetails.mpesaConfig}

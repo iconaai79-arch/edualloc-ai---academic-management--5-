@@ -753,21 +753,22 @@ export const App: React.FC = () => {
             const isSuper = currentUser?.role === 'super_admin';
 
             // Sector Detection
-            const isAcademic = isSuper || ['Education', 'Primary', 'Secondary', 'College', 'University', 'Institute', 'TVET', 'Polytechnic'].includes(instType);
-            const isHealth = isSuper || ['HIS', 'Pharmacy'].includes(instType);
-            const isLaw = isSuper || instType === 'Law Firm';
-            const isCoop = isSuper || ['Cooperative', 'SACCO'].includes(instType);
-            const isBusiness = isSuper || ['Business', 'Business Ecosystem', 'Retail', 'Agrovet', 'Car Wash', 'Automotive Marketplace', 'Hardware', 'Pharmacy'].includes(instType);
-            const isLogistics = isSuper || ['Logistics', 'Transport'].includes(instType);
-            const isHospitality = isSuper || instType === 'Hospitality';
-            const isDrivingSchool = isSuper || instType === 'Driving School' || activeInstWithModules?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
-            const isPolitical = isSuper || instType === 'Political Campaign';
-            const isCommunity = isSuper || instType === 'Community';
+            const instTypeLower = instType.toLowerCase();
+            const isAcademic = isSuper || ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'].includes(instTypeLower);
+            const isHealth = isSuper || ['his', 'pharmacy'].includes(instTypeLower);
+            const isLaw = isSuper || instTypeLower === 'law firm';
+            const isCoop = isSuper || ['cooperative', 'sacco'].includes(instTypeLower);
+            const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'agrovet', 'car wash', 'automotive marketplace', 'hardware', 'pharmacy'].includes(instTypeLower);
+            const isLogistics = isSuper || ['logistics', 'transport'].includes(instTypeLower);
+            const isHospitality = isSuper || instTypeLower === 'hospitality';
+            const isDrivingSchool = isSuper || instTypeLower === 'driving school' || activeInstWithModules?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
+            const isPolitical = isSuper || instTypeLower === 'political campaign';
+            const isCommunity = isSuper || instTypeLower === 'community';
             const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
 
             // ── Module Onboarding: show wizard for edu admins with no active modules ──
-            const EDU_TYPES = ['Education', 'Primary', 'Secondary', 'College', 'University', 'Institute', 'TVET', 'Polytechnic'];
-            const isEduAdmin = EDU_TYPES.includes(instType) && currentUser && currentUser.role !== 'super_admin' && ['admin', 'head_teacher', 'dos', 'deputy'].includes(currentUser.role);
+            const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'];
+            const isEduAdmin = EDU_TYPES.includes(instTypeLower) && currentUser && currentUser.role !== 'super_admin' && ['admin', 'head_teacher', 'dos', 'deputy'].includes(currentUser.role);
             if (isEduAdmin && activeInst) {
                 const activeModules = (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id && (m.status === 'active' || m.status === 'trial'));
                 const dismissedKey = `edu_onboarding_dismissed_${activeInst.id}`;
@@ -898,8 +899,8 @@ export const App: React.FC = () => {
 
             // ── Auto-Migration: Seed modules for existing active institutions ──
             if (currentUser && activeInst) {
-                const EDU_TYPES = ['Education', 'Primary', 'Secondary', 'College', 'University', 'Institute', 'TVET', 'Polytechnic'];
-                if (EDU_TYPES.includes(instType)) {
+                const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'];
+                if (EDU_TYPES.includes(instType.toLowerCase())) {
                     const schoolModules = (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id);
                     const hasExistingData = (d && d.length > 0) || (s && s.length > 0) || (c && c.length > 0) || (ay && ay.length > 0) || (sem && sem.length > 0);
                     if (schoolModules.length === 0 && hasExistingData) {

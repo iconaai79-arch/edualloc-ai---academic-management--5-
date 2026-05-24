@@ -22,7 +22,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     currentInstitution,
     onLogAction
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'runners' | 'raceday' | 'medical' | 'fundraising' | 'leaderboard' | 'bankfeeds'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'runners' | 'raceday' | 'medical' | 'fundraising' | 'leaderboard' | 'bankfeeds' | 'staff'>('dashboard');
     const [isLoading, setIsLoading] = useState(true);
 
     // Module entities states
@@ -33,11 +33,13 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     const [medicalLogs, setMedicalLogs] = useState<EventMedicalLog[]>([]);
     const [pledges, setPledges] = useState<EventPledge[]>([]);
     const [transactions, setTransactions] = useState<any[]>([]);
+    const [eventManagers, setEventManagers] = useState<User[]>([]);
 
     // Form modals
     const [isRegModalOpen, setIsRegModalOpen] = useState(false);
     const [isAddEventOpen, setIsAddEventOpen] = useState(false);
     const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+    const [isAddManagerOpen, setIsAddManagerOpen] = useState(false);
     const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
     const [editingParticipant, setEditingParticipant] = useState<EventParticipant | null>(null);
 
@@ -47,6 +49,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     // New Event / Category Form States
     const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '' });
     const [categoryForm, setCategoryForm] = useState({ name: '', distanceKm: '', registrationFee: '', capacity: '', genderRestriction: 'any' as 'any' | 'male' | 'female', startTime: '' });
+    const [managerForm, setManagerForm] = useState({ name: '', email: '', phone: '', staffId: '', gender: 'Male', password: '' });
 
     // Fetch and Sync
     const loadEventData = async () => {
@@ -60,6 +63,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             let med = await apiService.fetchModuleRecords<EventMedicalLog>('event_medical_logs').catch(() => []);
             let plg = await apiService.fetchModuleRecords<EventPledge>('event_pledges').catch(() => []);
             let txs = await apiService.fetchModuleRecords<any>('mpesa_transactions').catch(() => []);
+            let usrs = await apiService.fetchModuleRecords<User>('users', currentInstitution.id).catch(() => []);
 
             // Check if we need to seed demo data
             if (evs.length === 0) {
@@ -106,18 +110,28 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             }
 
             // Deduplicate lists to prevent database duplication visual bugs
-            const uniqueEvs = Array.from(new Map(evs.map(e => [e.id, e])).values());
-            const uniqueCats = Array.from(new Map(cats.map(c => [c.id, c])).values());
-            const uniqueParts = Array.from(new Map(parts.map(p => [p.id, p])).values());
-            const uniqueTxs = Array.from(new Map(txs.map(t => [t.id, t])).values());
+            const safeEvs = Array.isArray(evs) ? evs : [];
+            const safeCats = Array.isArray(cats) ? cats : [];
+            const safeParts = Array.isArray(parts) ? parts : [];
+            const safeSpls = Array.isArray(spls) ? spls : [];
+            const safeMed = Array.isArray(med) ? med : [];
+            const safePlg = Array.isArray(plg) ? plg : [];
+            const safeTxs = Array.isArray(txs) ? txs : [];
+            const safeUsrs = Array.isArray(usrs) ? usrs : [];
+
+            const uniqueEvs = Array.from(new Map(safeEvs.map(e => [e?.id, e])).values()).filter(Boolean);
+            const uniqueCats = Array.from(new Map(safeCats.map(c => [c?.id, c])).values()).filter(Boolean);
+            const uniqueParts = Array.from(new Map(safeParts.map(p => [p?.id, p])).values()).filter(Boolean);
+            const uniqueTxs = Array.from(new Map(safeTxs.map(t => [t?.id, t])).values()).filter(Boolean);
 
             setEvents(uniqueEvs);
             setCategories(uniqueCats);
             setParticipants(uniqueParts);
             setTransactions(uniqueTxs);
-            setSplits(uniqueEvs.length > 0 ? spls : []);
-            setMedicalLogs(uniqueEvs.length > 0 ? med : []);
-            setPledges(uniqueEvs.length > 0 ? plg : []);
+            setSplits(uniqueEvs.length > 0 ? safeSpls : []);
+            setMedicalLogs(uniqueEvs.length > 0 ? safeMed : []);
+            setPledges(uniqueEvs.length > 0 ? safePlg : []);
+            setEventManagers(safeUsrs.filter(u => u && u.role === 'event_manager'));
 
             if (uniqueEvs.length > 0) {
                 setSelectedEventId(uniqueEvs[0].id);
@@ -322,6 +336,22 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
         }
     };
 
+    const handleDeleteRunner = async (runnerId: string) => {
+        const runner = participants.find(p => p.id === runnerId);
+        const runnerName = runner ? `${runner.firstName} ${runner.lastName}` : 'Runner';
+        if (!confirm(`Are you sure you want to delete runner ${runnerName}? This action cannot be undone.`)) {
+            return;
+        }
+        try {
+            await apiService.deleteModuleRecord('event_participants', runnerId);
+            if (onLogAction) onLogAction('delete_runner', `Deleted runner: ${runnerName}`);
+            await loadEventData();
+            alert('Runner deleted successfully!');
+        } catch (err: any) {
+            alert('Failed to delete runner: ' + (err.message || err));
+        }
+    };
+
     const handleRegisterRunner = async (data: Partial<EventParticipant>) => {
         // Check if runner is already registered for this event
         const activeCategoryIds = activeEventCategories.map(c => c.id);
@@ -380,6 +410,9 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
         if (onLogAction) onLogAction(data.id ? 'update_runner' : 'register_runner', `${data.id ? 'Updated' : 'Registered'} runner BIB ${newBib}: ${newParticipant.firstName} ${newParticipant.lastName}`);
         await loadEventData();
+        if (!savedParticipant) {
+            throw new Error('Failed to save event participant record.');
+        }
         return savedParticipant;
     };
 
@@ -457,6 +490,53 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
         if (confirm('Are you sure you want to delete this event? This will erase all categories, participants, splits, and medical logs associated with it.')) {
             await apiService.deleteModuleRecord('events', id);
             await loadEventData();
+        }
+    };
+
+    const handleCreateManager = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!managerForm.name || !managerForm.email || !managerForm.password) {
+            alert('Name, Email, and Password are required');
+            return;
+        }
+        try {
+            const newUser: User = {
+                id: `u_evt_mgr_${Date.now()}`,
+                institutionId: currentInstitution.id,
+                name: managerForm.name,
+                email: managerForm.email,
+                phoneNumber: managerForm.phone,
+                gender: managerForm.gender as any,
+                staffId: managerForm.staffId,
+                role: 'event_manager',
+                password: managerForm.password,
+                expertise: ['Event Management']
+            };
+            await apiService.saveModuleRecord('users', newUser);
+            setIsAddManagerOpen(false);
+            setManagerForm({ name: '', email: '', phone: '', staffId: '', gender: 'Male', password: '' });
+            await loadEventData();
+            if (onLogAction) {
+                onLogAction('create_event_manager', `Created event manager: ${newUser.name} (${newUser.email})`);
+            }
+        } catch (error: any) {
+            console.error('Failed to create event manager:', error);
+            alert(error.message || 'Failed to save event manager');
+        }
+    };
+
+    const handleDeleteManager = async (id: string) => {
+        if (!confirm('Are you sure you want to revoke access and delete this Event Manager?')) return;
+        try {
+            await apiService.deleteModuleRecord('users', id);
+            await loadEventData();
+            if (onLogAction) {
+                const deletedName = eventManagers.find(m => m.id === id)?.name || id;
+                onLogAction('delete_event_manager', `Deleted event manager with ID: ${id} (${deletedName})`);
+            }
+        } catch (error: any) {
+            console.error('Failed to delete event manager:', error);
+            alert(error.message || 'Failed to delete event manager');
         }
     };
 
@@ -567,7 +647,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
             {/* Dashboard Sub Tabs */}
             <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto whitespace-nowrap scrollbar-hide py-1">
-                {(['dashboard', 'events', 'runners', 'raceday', 'medical', 'fundraising', 'leaderboard', 'bankfeeds'] as const).map(tab => (
+                {(['dashboard', 'events', 'runners', 'raceday', 'medical', 'fundraising', 'leaderboard', 'bankfeeds', 'staff'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -577,7 +657,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800'
                         }`}
                     >
-                        {tab === 'raceday' ? 'Race Day Control' : tab === 'bankfeeds' ? 'Bank Feeds' : tab}
+                        {tab === 'raceday' ? 'Race Day Control' : tab === 'bankfeeds' ? 'Bank Feeds' : tab === 'staff' ? 'Event Staff' : tab}
                     </button>
                 ))}
             </div>
@@ -847,6 +927,12 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                                 >
                                                     Edit
                                                 </button>
+                                                <button
+                                                    onClick={() => handleDeleteRunner(runner.id)}
+                                                    className="px-2 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-650 dark:text-red-400 font-bold rounded text-[9px] transition-all active:scale-95"
+                                                >
+                                                    Delete
+                                                </button>
                                                 {runner.status === 'registered' && (
                                                     <button
                                                         onClick={() => handleUpdateParticipantStatus(runner.id, 'checked_in')}
@@ -1076,6 +1162,82 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                         </div>
                     </div>
                 )}
+                {activeTab === 'staff' && (
+                    <div className="space-y-6">
+                        {/* Table for Staff / Event Managers */}
+                        <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Event Staff Registry</h4>
+                                    <p className="text-xs text-slate-400 mt-0.5">Manage staff members authorized to access and control the Marathon &amp; Event Management console.</p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setManagerForm({ name: '', email: '', phone: '', staffId: '', gender: 'Male', password: '' });
+                                        setIsAddManagerOpen(true);
+                                    }}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 animate-fade-in"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    <span>Add Event Manager</span>
+                                </button>
+                            </div>
+
+                            <div className="overflow-x-auto text-xs">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-400 font-bold uppercase text-[10px]">
+                                            <th className="pb-2">Name</th>
+                                            <th className="pb-2">Email</th>
+                                            <th className="pb-2">Phone Number</th>
+                                            <th className="pb-2">Staff ID / National ID</th>
+                                            <th className="pb-2">Gender</th>
+                                            <th className="pb-2">System Role</th>
+                                            <th className="pb-2 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {eventManagers.map(mgr => (
+                                            <tr key={mgr.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                                <td className="py-3 font-bold text-slate-850 dark:text-slate-250 flex items-center gap-2">
+                                                    <div className="w-7 h-7 bg-indigo-50 dark:bg-indigo-950/40 rounded-full flex items-center justify-center text-indigo-650 dark:text-indigo-400 font-black uppercase text-[10px]">
+                                                        {mgr.name.slice(0, 2)}
+                                                    </div>
+                                                    <span>{mgr.name}</span>
+                                                </td>
+                                                <td className="py-3 text-slate-650 dark:text-slate-400">{mgr.email}</td>
+                                                <td className="py-3 font-mono text-slate-500">{mgr.phoneNumber || 'N/A'}</td>
+                                                <td className="py-3 font-mono text-slate-500">{mgr.staffId || 'N/A'}</td>
+                                                <td className="py-3 capitalize text-slate-500">{mgr.gender || 'N/A'}</td>
+                                                <td className="py-3">
+                                                    <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-650 dark:text-indigo-400 rounded text-[9px] font-black uppercase">
+                                                        Event Manager
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 text-right">
+                                                    <button
+                                                        onClick={() => handleDeleteManager(mgr.id)}
+                                                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-500 rounded-lg transition-all active:scale-90"
+                                                        title="Revoke Access"
+                                                    >
+                                                        <Trash2Icon className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {eventManagers.length === 0 && (
+                                            <tr>
+                                                <td colSpan={7} className="text-center py-8 text-slate-500 font-bold">
+                                                    No registered Event Managers found for this institution.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Registration Modal */}
@@ -1227,6 +1389,90 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                 />
                             </div>
                             <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md">{editingCategoryId ? 'Save Changes' : 'Add Category'}</button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Manager Modal */}
+            {isAddManagerOpen && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                            <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Add Event Manager</h3>
+                            <button onClick={() => setIsAddManagerOpen(false)} className="p-1 rounded-full hover:bg-slate-200 text-slate-400"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <form onSubmit={handleCreateManager} className="p-6 space-y-4 text-xs">
+                            <div>
+                                <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Full Name *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={managerForm.name}
+                                    onChange={e => setManagerForm({ ...managerForm, name: e.target.value })}
+                                    placeholder="e.g. John Doe"
+                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Email Address *</label>
+                                <input
+                                    type="email"
+                                    required
+                                    value={managerForm.email}
+                                    onChange={e => setManagerForm({ ...managerForm, email: e.target.value })}
+                                    placeholder="e.g. john.doe@institution.com"
+                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Phone Number</label>
+                                    <input
+                                        type="tel"
+                                        value={managerForm.phone}
+                                        onChange={e => setManagerForm({ ...managerForm, phone: e.target.value })}
+                                        placeholder="e.g. 0712345678"
+                                        className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Staff / National ID</label>
+                                    <input
+                                        type="text"
+                                        value={managerForm.staffId}
+                                        onChange={e => setManagerForm({ ...managerForm, staffId: e.target.value })}
+                                        placeholder="e.g. 34567890"
+                                        className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Gender</label>
+                                    <select
+                                        value={managerForm.gender}
+                                        onChange={e => setManagerForm({ ...managerForm, gender: e.target.value })}
+                                        className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    >
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Password *</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        value={managerForm.password}
+                                        onChange={e => setManagerForm({ ...managerForm, password: e.target.value })}
+                                        placeholder="Min 6 characters"
+                                        className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                                    />
+                                </div>
+                            </div>
+                            <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md transition-all active:scale-95">Save Event Manager</button>
                         </form>
                     </div>
                 </div>
