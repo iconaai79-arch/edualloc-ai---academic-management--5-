@@ -22,7 +22,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     currentInstitution,
     onLogAction
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'runners' | 'raceday' | 'medical' | 'fundraising' | 'leaderboard'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'runners' | 'raceday' | 'medical' | 'fundraising' | 'leaderboard' | 'bankfeeds'>('dashboard');
     const [isLoading, setIsLoading] = useState(true);
 
     // Module entities states
@@ -32,6 +32,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     const [splits, setSplits] = useState<EventSplit[]>([]);
     const [medicalLogs, setMedicalLogs] = useState<EventMedicalLog[]>([]);
     const [pledges, setPledges] = useState<EventPledge[]>([]);
+    const [transactions, setTransactions] = useState<any[]>([]);
 
     // Form modals
     const [isRegModalOpen, setIsRegModalOpen] = useState(false);
@@ -56,6 +57,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             let spls = await apiService.fetchModuleRecords<EventSplit>('event_splits').catch(() => []);
             let med = await apiService.fetchModuleRecords<EventMedicalLog>('event_medical_logs').catch(() => []);
             let plg = await apiService.fetchModuleRecords<EventPledge>('event_pledges').catch(() => []);
+            let txs = await apiService.fetchModuleRecords<any>('mpesa_transactions').catch(() => []);
 
             // Check if we need to seed demo data
             if (evs.length === 0) {
@@ -101,15 +103,22 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                 plg = demoPledges;
             }
 
-            setEvents(evs);
-            setCategories(cats);
-            setParticipants(parts);
-            setSplits(evs.length > 0 ? spls : []);
-            setMedicalLogs(evs.length > 0 ? med : []);
-            setPledges(evs.length > 0 ? plg : []);
+            // Deduplicate lists to prevent database duplication visual bugs
+            const uniqueEvs = Array.from(new Map(evs.map(e => [e.id, e])).values());
+            const uniqueCats = Array.from(new Map(cats.map(c => [c.id, c])).values());
+            const uniqueParts = Array.from(new Map(parts.map(p => [p.id, p])).values());
+            const uniqueTxs = Array.from(new Map(txs.map(t => [t.id, t])).values());
 
-            if (evs.length > 0) {
-                setSelectedEventId(evs[0].id);
+            setEvents(uniqueEvs);
+            setCategories(uniqueCats);
+            setParticipants(uniqueParts);
+            setTransactions(uniqueTxs);
+            setSplits(uniqueEvs.length > 0 ? spls : []);
+            setMedicalLogs(uniqueEvs.length > 0 ? med : []);
+            setPledges(uniqueEvs.length > 0 ? plg : []);
+
+            if (uniqueEvs.length > 0) {
+                setSelectedEventId(uniqueEvs[0].id);
             }
         } catch (error) {
             console.error('Failed to load event module data:', error);
@@ -139,6 +148,63 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             };
         });
     }, [participants, activeEventCategories, categories]);
+
+    const activeEventTransactions = useMemo(() => {
+        return transactions.filter(t => {
+            const meta = typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata;
+            return meta && meta.eventId === selectedEventId;
+        });
+    }, [transactions, selectedEventId]);
+
+    const handleVerifyTransactionStatus = async (tx: any) => {
+        try {
+            let currentConfig = null;
+            try {
+                const settings = await apiService.fetchCompanySettings();
+                if (settings && settings.ncbaConfig) {
+                    currentConfig = settings.ncbaConfig;
+                }
+            } catch (e) {
+                console.error("Failed to load company details", e);
+            }
+
+            const checkoutRequestId = tx.checkoutRequestId || tx.transactionId;
+            if (!checkoutRequestId) {
+                alert('No checkout request ID found for this transaction.');
+                return;
+            }
+
+            const res = await apiService.checkNcbaStatus(checkoutRequestId, currentConfig);
+            
+            if (res && (res.status === 'completed' || res.status === 'success' || res.status === 'paid')) {
+                const updatedTx = { ...tx, status: 'completed' };
+                await apiService.saveModuleRecord('mpesa_transactions', updatedTx);
+                
+                // Find matching participant to update payment status
+                const meta = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata;
+                if (meta && meta.eventId) {
+                    const allParts = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
+                    const matchedPart = allParts.find(p => p.email === tx.payerName || p.phone === tx.phoneNumber || (p.firstName && tx.payerName?.includes(p.firstName)));
+                    if (matchedPart) {
+                        const updatedPart = { ...matchedPart, paymentStatus: 'paid', mpesaReference: tx.transactionId };
+                        await apiService.saveModuleRecord('event_participants', updatedPart);
+                    }
+                }
+                
+                alert('Payment verified and reconciled successfully!');
+                await loadEventData();
+            } else if (res && (res.status === 'failed' || res.status === 'cancelled')) {
+                const updatedTx = { ...tx, status: 'failed' };
+                await apiService.saveModuleRecord('mpesa_transactions', updatedTx);
+                alert('Payment transaction failed or was cancelled.');
+                await loadEventData();
+            } else {
+                alert('Payment is still pending on the gateway. Current status: ' + (res.status || 'pending'));
+            }
+        } catch (err: any) {
+            alert('Failed to verify payment: ' + (err.message || err));
+        }
+    };
 
     const activeEventSplits = useMemo(() => {
         const partIds = activeEventParticipants.map(p => p.id);
@@ -430,7 +496,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
             {/* Dashboard Sub Tabs */}
             <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto whitespace-nowrap scrollbar-hide py-1">
-                {(['dashboard', 'events', 'runners', 'raceday', 'medical', 'fundraising', 'leaderboard'] as const).map(tab => (
+                {(['dashboard', 'events', 'runners', 'raceday', 'medical', 'fundraising', 'leaderboard', 'bankfeeds'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -440,7 +506,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800'
                         }`}
                     >
-                        {tab === 'raceday' ? 'Race Day Control' : tab}
+                        {tab === 'raceday' ? 'Race Day Control' : tab === 'bankfeeds' ? 'Bank Feeds' : tab}
                     </button>
                 ))}
             </div>
@@ -766,6 +832,128 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                         splits={activeEventSplits}
                         eventName={activeEvent?.name || ''}
                     />
+                )}
+
+                {activeTab === 'bankfeeds' && (
+                    <div className="space-y-6">
+                        {/* Summary cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                            <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Bank Receipts (Paid)</span>
+                                <div className="text-2xl font-black text-green-600 dark:text-green-400 mt-1">
+                                    KES {activeEventTransactions.filter(t => t.status === 'completed' || t.status === 'success' || t.status === 'paid').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                                </div>
+                                <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 block">
+                                    {activeEventTransactions.filter(t => t.status === 'completed' || t.status === 'success' || t.status === 'paid').length} successful transactions
+                                </span>
+                            </div>
+                            
+                            <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Pending Checkout Pushes</span>
+                                <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
+                                    KES {activeEventTransactions.filter(t => t.status === 'pending' || t.status === 'idle').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                                </div>
+                                <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 block">
+                                    {activeEventTransactions.filter(t => t.status === 'pending' || t.status === 'idle').length} pending user checks
+                                </span>
+                            </div>
+
+                            <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Failed Attempts</span>
+                                <div className="text-2xl font-black text-red-600 dark:text-red-400 mt-1">
+                                    {activeEventTransactions.filter(t => t.status === 'failed' || t.status === 'cancelled').length}
+                                </div>
+                                <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 block">
+                                    Transactions timed out or rejected
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Transaction List Table */}
+                        <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Live Bank Feed &amp; API logs</h4>
+                                    <p className="text-xs text-slate-400 mt-0.5">Real-time payment logs received via Safaricom M-PESA and NCBA Bank Express API gateways.</p>
+                                </div>
+                                <button
+                                    onClick={loadEventData}
+                                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H19" />
+                                    </svg>
+                                    <span>Refresh Feeds</span>
+                                </button>
+                            </div>
+
+                            <div className="overflow-x-auto text-xs">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-400 font-bold uppercase text-[10px]">
+                                            <th className="pb-2">Date/Time</th>
+                                            <th className="pb-2">Reference</th>
+                                            <th className="pb-2">Payer Details</th>
+                                            <th className="pb-2">Race Category</th>
+                                            <th className="pb-2">Amount (KES)</th>
+                                            <th className="pb-2">Gateway Status</th>
+                                            <th className="pb-2 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {activeEventTransactions.map(tx => {
+                                            const meta = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata;
+                                            const catName = categories.find(c => c.id === meta?.categoryId)?.name || 'Unknown Category';
+                                            return (
+                                                <tr key={tx.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                                                    <td className="py-3 text-slate-500 font-mono">
+                                                        {tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'N/A'}
+                                                    </td>
+                                                    <td className="py-3 font-mono font-bold text-slate-750 dark:text-slate-350">
+                                                        {tx.transactionId || tx.checkoutRequestId || 'N/A'}
+                                                    </td>
+                                                    <td className="py-3">
+                                                        <span className="font-bold text-slate-800 dark:text-white block">{tx.payerName || 'Guest Runner'}</span>
+                                                        <span className="text-[10px] text-slate-400 font-mono">{tx.phoneNumber || tx.customerMobileNumber}</span>
+                                                    </td>
+                                                    <td className="py-3 text-slate-500">{catName}</td>
+                                                    <td className="py-3 font-bold text-slate-850 dark:text-slate-200">
+                                                        KES {Number(tx.amount || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="py-3">
+                                                        {(tx.status === 'completed' || tx.status === 'success' || tx.status === 'paid') ? (
+                                                            <span className="px-2 py-0.5 bg-green-50 dark:bg-green-950/20 text-green-600 rounded text-[9px] font-bold">PAID</span>
+                                                        ) : (tx.status === 'failed' || tx.status === 'cancelled') ? (
+                                                            <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/20 text-red-600 rounded text-[9px] font-bold">FAILED</span>
+                                                        ) : (
+                                                            <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/20 text-amber-600 rounded text-[9px] font-bold animate-pulse">PENDING</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 text-right">
+                                                        {(tx.status === 'pending' || tx.status === 'idle') && (
+                                                            <button
+                                                                onClick={() => handleVerifyTransactionStatus(tx)}
+                                                                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-650 dark:text-indigo-400 font-bold rounded text-[9px] transition-all"
+                                                            >
+                                                                Verify Status
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {activeEventTransactions.length === 0 && (
+                                            <tr>
+                                                <td colSpan={7} className="text-center py-8 text-slate-500 font-bold">
+                                                    No API transactions or bank feeds found for this event.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
 

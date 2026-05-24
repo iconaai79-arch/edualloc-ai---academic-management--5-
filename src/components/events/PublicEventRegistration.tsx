@@ -40,12 +40,14 @@ export const PublicEventRegistration: React.FC = () => {
         sponsorName: ''
     });
 
-    // Payment Simulation States
     const [paymentPhone, setPaymentPhone] = useState('');
     const [paymentStatus, setPaymentStatus] = useState<'idle' | 'sending' | 'pending' | 'success' | 'failed'>('idle');
     const [mpesaRef, setMpesaRef] = useState('');
     const [registeredParticipant, setRegisteredParticipant] = useState<EventParticipant | null>(null);
     const [ncbaConfig, setNcbaConfig] = useState<any>(null);
+    
+    // Guard against multiple submissions or polling double-triggers
+    const isRegisteringRef = React.useRef(false);
 
     // Watch URL query parameters for changes
     useEffect(() => {
@@ -76,9 +78,11 @@ export const PublicEventRegistration: React.FC = () => {
                         const cats = await apiService.fetchModuleRecords<EventCategory>('event_categories', undefined, undefined, {
                             filter: { event_id: eventId }
                         });
-                        setCategories(cats);
-                        if (cats.length > 0) {
-                            setSelectedCategoryId(cats[0].id);
+                        // Deduplicate categories by ID
+                        const uniqueCats = Array.from(new Map(cats.map(c => [c.id, c])).values());
+                        setCategories(uniqueCats);
+                        if (uniqueCats.length > 0) {
+                            setSelectedCategoryId(uniqueCats[0].id);
                         }
                     } else {
                         setErrorMsg('Selected athletic event could not be found.');
@@ -87,8 +91,10 @@ export const PublicEventRegistration: React.FC = () => {
                 } else {
                     // Load all active events for selection
                     const allEvents = await apiService.fetchModuleRecords<SportEvent>('events');
-                    // Filter events that are active or planning
-                    setActiveEvents(allEvents.filter(e => e.status === 'active' || e.status === 'planning'));
+                    // Filter events that are active or planning and deduplicate by ID
+                    const filtered = allEvents.filter(e => e.status === 'active' || e.status === 'planning');
+                    const uniqueEvents = Array.from(new Map(filtered.map(e => [e.id, e])).values());
+                    setActiveEvents(uniqueEvents);
                 }
             } catch (err: any) {
                 console.error('[PublicEventRegistration] load error:', err);
@@ -153,57 +159,86 @@ export const PublicEventRegistration: React.FC = () => {
     };
 
     const handleCompleteRegistration = async (reference: string) => {
-        // Determine next BIB number
-        const allParticipants = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
-        const existingBibs = allParticipants
-            .map(p => parseInt(p.bibNumber || '0'))
-            .filter(b => !isNaN(b));
-        const maxBib = existingBibs.length > 0 ? Math.max(...existingBibs) : 1000;
-        const newBib = String(maxBib + 1);
+        if (isRegisteringRef.current) return;
+        isRegisteringRef.current = true;
+        try {
+            // Determine next BIB number
+            const allParticipants = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
+            const existingBibs = allParticipants
+                .map(p => parseInt(p.bibNumber || '0'))
+                .filter(b => !isNaN(b));
+            const maxBib = existingBibs.length > 0 ? Math.max(...existingBibs) : 1000;
+            const newBib = String(maxBib + 1);
 
-        const fee = activeCategory ? Number(activeCategory.registrationFee) : 0;
+            const fee = activeCategory ? Number(activeCategory.registrationFee) : 0;
 
-        const newParticipant: EventParticipant = {
-            id: 'part_' + Date.now(),
-            categoryId: selectedCategoryId,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            email: formData.email,
-            phone: formData.phone,
-            gender: formData.gender,
-            age: parseInt(formData.age),
-            tShirtSize: formData.tShirtSize,
-            waiverSigned: true,
-            paymentStatus: fee > 0 ? 'paid' : 'pending',
-            mpesaReference: fee > 0 ? reference : undefined,
-            emergencyContactName: formData.emergencyContactName,
-            emergencyContactPhone: formData.emergencyContactPhone,
-            status: 'registered',
-            createdAt: new Date().toISOString()
-        };
-
-        const savedParticipant = await apiService.saveModuleRecord<EventParticipant>('event_participants', newParticipant);
-        if (!savedParticipant) {
-            throw new Error('Registration record could not be saved.');
-        }
-
-        // Save fundraising pledge if present
-        const pledgeAmount = parseFloat(formData.initialPledge);
-        if (pledgeAmount > 0) {
-            const pledge: EventPledge = {
-                id: 'pledge_' + Date.now(),
-                participantId: savedParticipant.id,
-                sponsorName: formData.sponsorName.trim() || `${formData.firstName} ${formData.lastName}`,
-                amount: pledgeAmount,
-                paymentStatus: 'paid',
+            const newParticipant: EventParticipant = {
+                id: 'part_' + Date.now(),
+                categoryId: selectedCategoryId,
+                bibNumber: newBib,
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                email: formData.email,
+                phone: formData.phone,
+                gender: formData.gender,
+                age: parseInt(formData.age),
+                tShirtSize: formData.tShirtSize,
+                waiverSigned: true,
+                paymentStatus: fee > 0 ? 'paid' : 'pending',
+                mpesaReference: fee > 0 ? reference : undefined,
+                emergencyContactName: formData.emergencyContactName,
+                emergencyContactPhone: formData.emergencyContactPhone,
+                status: 'registered',
                 createdAt: new Date().toISOString()
             };
-            await apiService.saveModuleRecord('event_pledges', pledge);
-        }
 
-        setRegisteredParticipant(savedParticipant);
-        setPaymentStatus('success');
-        setStep(4);
+            const savedParticipant = await apiService.saveModuleRecord<EventParticipant>('event_participants', newParticipant);
+            if (!savedParticipant) {
+                throw new Error('Registration record could not be saved.');
+            }
+
+            // Save fundraising pledge if present
+            const pledgeAmount = parseFloat(formData.initialPledge);
+            if (pledgeAmount > 0) {
+                const pledge: EventPledge = {
+                    id: 'pledge_' + Date.now(),
+                    participantId: savedParticipant.id,
+                    sponsorName: formData.sponsorName.trim() || `${formData.firstName} ${formData.lastName}`,
+                    amount: pledgeAmount,
+                    paymentStatus: 'paid',
+                    createdAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('event_pledges', pledge);
+            }
+
+            // Auto-log M-PESA Transaction for Bank Feeds
+            if (fee > 0 || pledgeAmount > 0) {
+                const mpesaTx = {
+                    id: 'tx_' + Date.now(),
+                    transactionId: reference,
+                    checkoutRequestId: reference,
+                    institutionId: event?.institutionId || 'GLOBAL',
+                    amount: fee + pledgeAmount,
+                    phoneNumber: formData.phone,
+                    payerName: `${formData.firstName} ${formData.lastName}`,
+                    status: 'completed',
+                    timestamp: new Date().toISOString(),
+                    metadata: {
+                        type: 'event_registration',
+                        eventId: eventId,
+                        categoryId: selectedCategoryId,
+                        reference: reference
+                    }
+                };
+                await apiService.saveModuleRecord('mpesa_transactions', mpesaTx).catch(e => console.error("Failed to auto-record mpesa_transaction", e));
+            }
+
+            setRegisteredParticipant(savedParticipant);
+            setPaymentStatus('success');
+            setStep(4);
+        } finally {
+            isRegisteringRef.current = false;
+        }
     };
 
     const handleInitiatePayment = async () => {
