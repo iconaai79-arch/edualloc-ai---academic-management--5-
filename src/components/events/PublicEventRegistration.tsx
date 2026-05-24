@@ -328,8 +328,29 @@ export const PublicEventRegistration: React.FC = () => {
     if (!eventId) {
         return (
             <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white">
+                {/* Sticky Header for Events List */}
+                <div className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80 px-4 sm:px-6 py-4">
+                    <div className="max-w-4xl mx-auto flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-black text-sm">
+                                EP
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">Academic Portal</span>
+                                <span className="text-xs font-bold text-slate-400">Events Registry</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => { window.location.href = '/'; }}
+                            className="text-xs font-bold text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800/60 transition-all border border-slate-850"
+                        >
+                            Portal Login
+                        </button>
+                    </div>
+                </div>
+
                 {/* Hero Panel */}
-                <div className="relative overflow-hidden bg-slate-900 border-b border-slate-800 py-16 px-6">
+                <div className="relative overflow-hidden bg-slate-900 border-b border-slate-800 py-16 px-4 sm:px-6">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.15),transparent_45%)]"></div>
                     <div className="max-w-4xl mx-auto text-center relative z-10">
                         <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-full text-xs font-bold uppercase tracking-widest inline-flex items-center gap-1.5 mb-4">
@@ -365,7 +386,7 @@ export const PublicEventRegistration: React.FC = () => {
                             </p>
                         </div>
                     ) : (
-                        <div className="grid md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {activeEvents.map(evt => (
                                 <div 
                                     key={evt.id} 
@@ -434,7 +455,7 @@ export const PublicEventRegistration: React.FC = () => {
         <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white pb-16">
             
             {/* Header branding */}
-            <div className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80 px-6 py-4">
+            <div className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80 px-4 sm:px-6 py-4">
                 <div className="max-w-4xl mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         {event.logoUrl ? (
@@ -474,25 +495,25 @@ export const PublicEventRegistration: React.FC = () => {
             )}
 
             {/* Main view container */}
-            <div className="max-w-2xl mx-auto px-6 mt-8">
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 mt-8">
                 
                 {/* Step indicator */}
-                <div className="mb-8 flex items-center justify-between text-xs font-extrabold text-slate-500 border-b border-slate-900 pb-4">
+                <div className="mb-8 flex items-center justify-between text-[10px] sm:text-xs font-extrabold text-slate-500 border-b border-slate-900 pb-4">
                     <div className={`flex items-center gap-1.5 ${step === 1 ? 'text-indigo-400' : step > 1 ? 'text-green-500' : ''}`}>
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] border ${step === 1 ? 'border-indigo-400 bg-indigo-500/10' : step > 1 ? 'border-green-500 bg-green-500/10' : 'border-slate-800'}`}>1</span>
                         <span>Selection</span>
                     </div>
-                    <div className="h-px bg-slate-800 flex-1 mx-4"></div>
+                    <div className="h-px bg-slate-800 flex-1 mx-1 sm:mx-4"></div>
                     <div className={`flex items-center gap-1.5 ${step === 2 ? 'text-indigo-400' : step > 2 ? 'text-green-500' : ''}`}>
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] border ${step === 2 ? 'border-indigo-400 bg-indigo-500/10' : step > 2 ? 'border-green-500 bg-green-500/10' : 'border-slate-800'}`}>2</span>
                         <span>Profile</span>
                     </div>
-                    <div className="h-px bg-slate-800 flex-1 mx-4"></div>
+                    <div className="h-px bg-slate-800 flex-1 mx-1 sm:mx-4"></div>
                     <div className={`flex items-center gap-1.5 ${step === 3 ? 'text-indigo-400' : step > 3 ? 'text-green-500' : ''}`}>
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] border ${step === 3 ? 'border-indigo-400 bg-indigo-500/10' : step > 3 ? 'border-green-500 bg-green-500/10' : 'border-slate-800'}`}>3</span>
                         <span>Payment</span>
                     </div>
-                    <div className="h-px bg-slate-800 flex-1 mx-4"></div>
+                    <div className="h-px bg-slate-800 flex-1 mx-1 sm:mx-4"></div>
                     <div className={`flex items-center gap-1.5 ${step === 4 ? 'text-green-500' : ''}`}>
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] border ${step === 4 ? 'border-green-500 bg-green-500/10' : 'border-slate-800'}`}>4</span>
                         <span>Ticket</span>
@@ -513,7 +534,7 @@ export const PublicEventRegistration: React.FC = () => {
                             <h2 className="text-2xl md:text-3xl font-black text-white">{event.name}</h2>
                             <p className="text-xs md:text-sm text-slate-400 leading-relaxed">{event.description || 'Welcome! Set your records in this sports event.'}</p>
                             
-                            <div className="grid grid-cols-2 gap-4 border-t border-slate-800/60 pt-4 text-xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-800/60 pt-4 text-xs">
                                 <div className="flex items-center gap-2 text-slate-400">
                                     <CalendarDaysIcon className="w-4.5 h-4.5 text-indigo-400" />
                                     <div>
@@ -593,7 +614,7 @@ export const PublicEventRegistration: React.FC = () => {
                                 <UserIcon className="w-5 h-5 text-indigo-400" /> Runner Profile Info
                             </h3>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 mb-1">First Name *</label>
                                     <input
@@ -618,7 +639,7 @@ export const PublicEventRegistration: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 mb-1">Email Address *</label>
                                     <input
@@ -643,7 +664,7 @@ export const PublicEventRegistration: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 mb-1">Gender *</label>
                                     <select
@@ -697,7 +718,7 @@ export const PublicEventRegistration: React.FC = () => {
                                 You can choose to add an additional fundraising pledge as a contribution. Sponsoring organizations or friends can also pledge to sponsor your run.
                             </p>
                             
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[11px] font-bold text-slate-400 mb-1">Pledge Amount (KES)</label>
                                     <input
@@ -728,7 +749,7 @@ export const PublicEventRegistration: React.FC = () => {
                             <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-1">
                                 <PhoneIcon className="w-4.5 h-4.5 text-indigo-400" /> Emergency Details
                             </h3>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 mb-1">Emergency Contact Name *</label>
                                     <input
@@ -773,17 +794,17 @@ export const PublicEventRegistration: React.FC = () => {
                         </div>
 
                         {/* Back / Register */}
-                        <div className="flex items-center gap-3 pt-2">
+                        <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
                             <button
                                 type="button"
                                 onClick={() => setStep(1)}
-                                className="w-1/3 py-3 border border-slate-800 hover:bg-slate-900 text-slate-400 hover:text-white rounded-xl text-xs font-bold transition-all"
+                                className="w-full sm:w-1/3 py-3 border border-slate-800 hover:bg-slate-900 text-slate-400 hover:text-white rounded-xl text-xs font-bold transition-all"
                             >
                                 Back
                             </button>
                             <button
                                 type="submit"
-                                className="w-2/3 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                                className="w-full sm:w-2/3 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-md"
                             >
                                 Continue (KES {totalFee.toLocaleString()})
                             </button>
@@ -888,7 +909,7 @@ export const PublicEventRegistration: React.FC = () => {
                             </div>
 
                             {/* Runner card details */}
-                            <div className="grid grid-cols-2 gap-4 w-full text-left border-t border-b border-slate-850 py-4 text-xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full text-left border-t border-b border-slate-850 py-4 text-xs">
                                 <div>
                                     <span className="block text-slate-500 font-medium mb-0.5">Runner Name</span>
                                     <span className="font-bold text-slate-200">{registeredParticipant.firstName} {registeredParticipant.lastName}</span>
@@ -916,10 +937,10 @@ export const PublicEventRegistration: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-3 mt-8">
+                        <div className="flex flex-col sm:flex-row items-center gap-3 mt-8 w-full justify-center">
                             <button
                                 onClick={() => window.print()}
-                                className="px-6 py-2.5 border border-slate-800 hover:bg-slate-900 text-slate-400 hover:text-white rounded-xl text-xs font-bold transition-all"
+                                className="w-full sm:w-auto px-6 py-2.5 border border-slate-800 hover:bg-slate-900 text-slate-400 hover:text-white rounded-xl text-xs font-bold transition-all"
                             >
                                 Print Pass
                             </button>
@@ -931,7 +952,7 @@ export const PublicEventRegistration: React.FC = () => {
                                     setPaymentStatus('idle');
                                     setEventId(null);
                                 }}
-                                className="px-8 py-2.5 bg-indigo-650 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                                className="w-full sm:w-auto px-8 py-2.5 bg-indigo-650 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition-all shadow-md"
                             >
                                 Return to Events Board
                             </button>

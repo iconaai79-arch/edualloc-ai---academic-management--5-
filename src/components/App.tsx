@@ -4179,6 +4179,15 @@ export const App: React.FC = () => {
         );
     }
 
+    // ── EARLY ESCAPE: Public event registration URL — skip auth & boot entirely ──
+    if (window.location.search.includes('view=event-register')) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <PublicEventRegistration />
+            </Suspense>
+        );
+    }
+
     if (appInitializing || isTransitioning) return (
         <SystemPulseLoader 
             message={isTransitioning ? "Establishing secure perspective link..." : (loadError ? "System Handshake Compromised" : (isAlumnaeMode ? "Connecting to Alumnae Network..." : "Establishing secure cloud registry link..."))} 
