@@ -38,6 +38,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     const [isRegModalOpen, setIsRegModalOpen] = useState(false);
     const [isAddEventOpen, setIsAddEventOpen] = useState(false);
     const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+    const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
 
     // Active selected Event context
     const [selectedEventId, setSelectedEventId] = useState<string>('');
@@ -133,6 +134,17 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
     const activeEvent = events.find(e => e.id === selectedEventId);
 
+    const safeParseMetadata = (metadata: any) => {
+        if (!metadata) return null;
+        if (typeof metadata === 'object') return metadata;
+        try {
+            const parsed = JSON.parse(metadata);
+            return typeof parsed === 'object' ? parsed : null;
+        } catch (e) {
+            return null;
+        }
+    };
+
     const activeEventCategories = useMemo(() => {
         return categories.filter(c => c.eventId === selectedEventId);
     }, [categories, selectedEventId]);
@@ -151,7 +163,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
     const activeEventTransactions = useMemo(() => {
         return transactions.filter(t => {
-            const meta = typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata;
+            const meta = safeParseMetadata(t.metadata);
             return meta && meta.eventId === selectedEventId;
         });
     }, [transactions, selectedEventId]);
@@ -181,7 +193,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                 await apiService.saveModuleRecord('mpesa_transactions', updatedTx);
                 
                 // Find matching participant to update payment status
-                const meta = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata;
+                const meta = safeParseMetadata(tx.metadata);
                 if (meta && meta.eventId) {
                     const allParts = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
                     const matchedPart = allParts.find(p => p.email === tx.payerName || p.phone === tx.phoneNumber || (p.firstName && tx.payerName?.includes(p.firstName)));
@@ -271,8 +283,8 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             return;
         }
 
-        const newCategory: EventCategory = {
-            id: 'cat_' + Date.now(),
+        const categoryData: EventCategory = {
+            id: editingCategoryId || 'cat_' + Date.now(),
             eventId: selectedEventId,
             name: categoryForm.name,
             distanceKm: distanceVal,
@@ -284,18 +296,45 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
         };
 
         try {
-            await apiService.saveModuleRecord('event_categories', newCategory);
+            await apiService.saveModuleRecord('event_categories', categoryData);
             setCategoryForm({ name: '', distanceKm: '', registrationFee: '', capacity: '', genderRestriction: 'any', startTime: '' });
             setIsAddCategoryOpen(false);
-            if (onLogAction) onLogAction('create_event_category', `Created category: ${newCategory.name}`);
+            setEditingCategoryId(null);
+            if (onLogAction) onLogAction(editingCategoryId ? 'update_event_category' : 'create_event_category', `${editingCategoryId ? 'Updated' : 'Created'} category: ${categoryData.name}`);
             await loadEventData();
-            alert('Category created successfully!');
+            alert(`Category ${editingCategoryId ? 'updated' : 'created'} successfully!`);
         } catch (err: any) {
             alert('Failed to save category: ' + (err.message || err));
         }
     };
 
+    const handleDeleteCategory = async (categoryId: string) => {
+        if (!confirm('Are you sure you want to delete this race category? All participants registered under this category will also be removed.')) {
+            return;
+        }
+        try {
+            await apiService.deleteModuleRecord('event_categories', categoryId);
+            await loadEventData();
+            alert('Category deleted successfully!');
+        } catch (err: any) {
+            alert('Failed to delete category: ' + (err.message || err));
+        }
+    };
+
     const handleRegisterRunner = async (data: Partial<EventParticipant>) => {
+        // Check if runner is already registered for this event
+        const activeCategoryIds = activeEventCategories.map(c => c.id);
+        const emailLower = data.email?.trim().toLowerCase();
+        const phoneTrim = data.phone?.trim();
+        
+        const duplicate = participants.find(p => 
+            activeCategoryIds.includes(p.categoryId) && 
+            ((emailLower && p.email?.toLowerCase() === emailLower) || (phoneTrim && p.phone === phoneTrim))
+        );
+        if (duplicate) {
+            throw new Error(`A runner with this email or phone number is already registered for this event (BIB: ${duplicate.bibNumber}).`);
+        }
+
         // Find highest BIB number and increment
         const existingBibs = participants
             .map(p => parseInt(p.bibNumber || '0'))
@@ -310,10 +349,35 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             createdAt: new Date().toISOString()
         };
 
-        await apiService.saveModuleRecord('event_participants', newParticipant);
+        const savedParticipant = await apiService.saveModuleRecord('event_participants', newParticipant);
+        
+        // Log transaction for bank feeds if registration is paid
+        const category = categories.find(c => c.id === data.categoryId);
+        const fee = category ? Number(category.registrationFee || 0) : 0;
+        if (fee > 0 && data.mpesaReference) {
+            const mpesaTx = {
+                id: 'tx_' + Date.now(),
+                transactionId: data.mpesaReference,
+                checkoutRequestId: data.mpesaReference,
+                institutionId: activeEvent?.institutionId || 'GLOBAL',
+                amount: fee,
+                phoneNumber: data.phone || '',
+                payerName: `${data.firstName} ${data.lastName}`,
+                status: 'completed',
+                timestamp: new Date().toISOString(),
+                metadata: {
+                    type: 'event_registration',
+                    eventId: selectedEventId,
+                    categoryId: data.categoryId,
+                    reference: data.mpesaReference
+                }
+            };
+            await apiService.saveModuleRecord('mpesa_transactions', mpesaTx).catch(e => console.error("Failed to auto-record admin mpesa_transaction", e));
+        }
+
         if (onLogAction) onLogAction('register_runner', `Registered runner BIB ${newBib}: ${newParticipant.firstName} ${newParticipant.lastName}`);
         await loadEventData();
-        return newParticipant;
+        return savedParticipant;
     };
 
     const handleUpdateEventStatus = async (status: SportEvent['status']) => {
@@ -470,7 +534,11 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                         Register Runner
                     </button>
                     <button
-                        onClick={() => setIsAddCategoryOpen(true)}
+                        onClick={() => {
+                            setEditingCategoryId(null);
+                            setCategoryForm({ name: '', distanceKm: '', registrationFee: '', capacity: '', genderRestriction: 'any', startTime: '' });
+                            setIsAddCategoryOpen(true);
+                        }}
                         disabled={!selectedEventId}
                         className="px-4 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all active:scale-95"
                     >
@@ -647,7 +715,19 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                 {activeTab === 'events' && (
                     <div className="space-y-6">
                         <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
-                            <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider mb-4">Event Categories List</h4>
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Event Categories List</h4>
+                                <button
+                                    onClick={() => {
+                                        setEditingCategoryId(null);
+                                        setCategoryForm({ name: '', distanceKm: '', registrationFee: '', capacity: '', genderRestriction: 'any', startTime: '' });
+                                        setIsAddCategoryOpen(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-755 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                                >
+                                    <PlusIcon className="w-4 h-4" /> Add Category
+                                </button>
+                            </div>
                             <div className="overflow-x-auto text-xs">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
@@ -658,6 +738,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                             <th className="pb-2">Max Capacity</th>
                                             <th className="pb-2">Gender Restriction</th>
                                             <th className="pb-2">Start Time</th>
+                                            <th className="pb-2 text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -669,6 +750,31 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                                 <td className="py-3">{cat.capacity || 'Unlimited'}</td>
                                                 <td className="py-3 uppercase">{cat.genderRestriction}</td>
                                                 <td className="py-3 font-mono">{cat.startTime || 'TBD'}</td>
+                                                <td className="py-3 text-right flex items-center justify-end gap-1">
+                                                    <button
+                                                        onClick={() => {
+                                                            setCategoryForm({
+                                                                name: cat.name,
+                                                                distanceKm: String(cat.distanceKm),
+                                                                registrationFee: String(cat.registrationFee),
+                                                                capacity: cat.capacity ? String(cat.capacity) : '',
+                                                                genderRestriction: cat.genderRestriction as any,
+                                                                startTime: cat.startTime || ''
+                                                            });
+                                                            setEditingCategoryId(cat.id);
+                                                            setIsAddCategoryOpen(true);
+                                                        }}
+                                                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold rounded text-[9px] transition-all"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteCategory(cat.id)}
+                                                        className="px-2 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 font-bold rounded text-[9px] transition-all"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -902,7 +1008,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                     </thead>
                                     <tbody>
                                         {activeEventTransactions.map(tx => {
-                                            const meta = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata;
+                                            const meta = safeParseMetadata(tx.metadata);
                                             const catName = categories.find(c => c.id === meta?.categoryId)?.name || 'Unknown Category';
                                             return (
                                                 <tr key={tx.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50">
@@ -1028,8 +1134,8 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                 <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
                     <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                            <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Add Race Category</h3>
-                            <button onClick={() => setIsAddCategoryOpen(false)} className="p-1 rounded-full hover:bg-slate-200 text-slate-400"><XIcon className="w-5 h-5" /></button>
+                            <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">{editingCategoryId ? 'Edit Race Category' : 'Add Race Category'}</h3>
+                            <button onClick={() => { setIsAddCategoryOpen(false); setEditingCategoryId(null); setCategoryForm({ name: '', distanceKm: '', registrationFee: '', capacity: '', genderRestriction: 'any', startTime: '' }); }} className="p-1 rounded-full hover:bg-slate-200 text-slate-400"><XIcon className="w-5 h-5" /></button>
                         </div>
                         <form onSubmit={handleAddCategory} className="p-6 space-y-4 text-xs">
                             <div>
@@ -1101,7 +1207,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                     className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 font-mono"
                                 />
                             </div>
-                            <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md">Add Category</button>
+                            <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md">{editingCategoryId ? 'Save Changes' : 'Add Category'}</button>
                         </form>
                     </div>
                 </div>

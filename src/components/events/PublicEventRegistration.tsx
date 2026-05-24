@@ -164,6 +164,19 @@ export const PublicEventRegistration: React.FC = () => {
         try {
             // Determine next BIB number
             const allParticipants = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
+
+            // Prevent duplicate registration check
+            const eventCategoryIds = categories.map(c => c.id);
+            const emailLower = formData.email.trim().toLowerCase();
+            const phoneTrim = formData.phone.trim();
+            const duplicate = allParticipants.find(p => 
+                eventCategoryIds.includes(p.categoryId) && 
+                ((emailLower && p.email?.toLowerCase() === emailLower) || (phoneTrim && p.phone === phoneTrim))
+            );
+            if (duplicate) {
+                throw new Error(`A runner with this email or phone number is already registered for this event (BIB: ${duplicate.bibNumber}).`);
+            }
+
             const existingBibs = allParticipants
                 .map(p => parseInt(p.bibNumber || '0'))
                 .filter(b => !isNaN(b));
@@ -244,6 +257,25 @@ export const PublicEventRegistration: React.FC = () => {
     const handleInitiatePayment = async () => {
         setPaymentStatus('sending');
         setErrorMsg('');
+
+        // Check for duplicate registration before initiating payment
+        try {
+            const allParticipants = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
+            const eventCategoryIds = categories.map(c => c.id);
+            const emailLower = formData.email.trim().toLowerCase();
+            const phoneTrim = formData.phone.trim();
+            const duplicate = allParticipants.find(p => 
+                eventCategoryIds.includes(p.categoryId) && 
+                ((emailLower && p.email?.toLowerCase() === emailLower) || (phoneTrim && p.phone === phoneTrim))
+            );
+            if (duplicate) {
+                setErrorMsg(`A runner with this email or phone number is already registered for this event (BIB: ${duplicate.bibNumber}).`);
+                setPaymentStatus('failed');
+                return;
+            }
+        } catch (e) {
+            console.error('Error checking duplicate registration:', e);
+        }
 
         const fee = activeCategory ? Number(activeCategory.registrationFee) : 0;
         const totalAmount = fee + Number(formData.initialPledge || 0);

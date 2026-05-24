@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { EventCategory, EventParticipant } from '../../types';
 import { XIcon, MpesaIcon, PhoneIcon, UserIcon, EnvelopeIcon, CheckCircleIcon, QrCodeIcon } from '../icons';
+import { apiService } from '../../services/apiService';
 
 interface EventRegistrationModalProps {
     isOpen: boolean;
@@ -43,7 +44,7 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
 
     const activeCategory = categories.find(c => c.id === formData.categoryId);
 
-    const handleFormSubmit = (e: React.FormEvent) => {
+    const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMsg('');
 
@@ -72,6 +73,24 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
                 setErrorMsg(`Maximum age for this category is ${activeCategory.ageLimitMax}`);
                 return;
             }
+        }
+
+        // Check for duplicate registration before going to payment
+        try {
+            const allParticipants = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
+            const eventCategoryIds = categories.map(c => c.id);
+            const emailLower = formData.email.trim().toLowerCase();
+            const phoneTrim = formData.phone.trim();
+            const duplicate = allParticipants.find(p => 
+                eventCategoryIds.includes(p.categoryId) && 
+                ((emailLower && p.email?.toLowerCase() === emailLower) || (phoneTrim && p.phone === phoneTrim))
+            );
+            if (duplicate) {
+                setErrorMsg(`A runner with this email or phone number is already registered for this event (BIB: ${duplicate.bibNumber}).`);
+                return;
+            }
+        } catch (err) {
+            console.error('Error checking duplicate registration:', err);
         }
 
         setPaymentPhone(formData.phone);
