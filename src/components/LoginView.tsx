@@ -48,8 +48,14 @@ interface LoginViewProps {
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
     onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, onOpenShowcase, companyDetails, onForgotPassword, onResetPassword,
-    onVerifyOtp, onResendOtp, onVerifyResetOtp, schoolRegistry = [], initialView = 'login', prefillModuleId
+    onVerifyOtp, onResendOtp, onVerifyResetOtp, schoolRegistry = [], initialView = 'login', prefillModuleId, users = []
 }) => {
+    const superAdmin = (users || []).find(u => u.role === 'super_admin') || {
+        name: 'System Super Admin',
+        email: 'super@app.com',
+        role: 'super_admin' as const,
+        profilePhotoUrl: null
+    };
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'recovery_otp' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>(initialView);
     const [identifier, setIdentifier] = useState('');
     const [recoveryMethod, setRecoveryMethod] = useState<'email' | 'phone'>('email');
@@ -969,6 +975,21 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
             <footer className="bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-800 p-6 no-print">
                 <div className="max-w-7xl mx-auto flex flex-wrap justify-start gap-8">
+                    <div className="flex items-center gap-3 group">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100/50 dark:border-indigo-800/30 flex items-center justify-center overflow-hidden shrink-0 shadow-sm transition-transform duration-300 group-hover:scale-105">
+                            {superAdmin.profilePhotoUrl ? (
+                                <img src={superAdmin.profilePhotoUrl} alt={superAdmin.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                                    {superAdmin.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                </span>
+                            )}
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Super Admin</p>
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{superAdmin.name}</p>
+                        </div>
+                    </div>
                     <div className="flex items-center gap-3 group">
                         <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-xl text-slate-400 group-hover:text-indigo-600 transition-colors">
                             <PhoneIcon className="w-5 h-5" />
