@@ -44,21 +44,21 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
     const [isReconciling, setIsReconciling] = useState(false);
 
     const filteredBank = useMemo(() => {
-        return bankTransactions.filter(t => {
+        return (bankTransactions || []).filter(t => {
             const matchesSearch = 
-                t.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.senderName?.toLowerCase().includes(searchQuery.toLowerCase());
+                (t.reference || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (t.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
             const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
             return matchesSearch && matchesStatus;
         }).sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime());
     }, [bankTransactions, searchQuery, statusFilter]);
 
     const filteredMpesa = useMemo(() => {
-        return mpesaTransactions.filter(t => {
+        return (mpesaTransactions || []).filter(t => {
             const matchesSearch = 
-                t.transactionId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.phoneNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.payerName?.toLowerCase().includes(searchQuery.toLowerCase());
+                (t.transactionId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (t.phoneNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (t.payerName || '').toLowerCase().includes(searchQuery.toLowerCase());
             
             // Map Mpesa status to reconciliation status for consistency in UI
             const reconStatus = (t.metadata?.reconciled || t.status === 'completed') ? 'reconciled' : 'unreconciled';
@@ -74,8 +74,8 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
         setIsReconciling(true);
         setTimeout(() => {
             if (activeFeed === 'bank') {
-                filteredBank.filter(t => t.status === 'unreconciled').forEach(t => {
-                    const match = invoices.find(inv => 
+                (filteredBank || []).filter(t => t.status === 'unreconciled').forEach(t => {
+                    const match = (invoices || []).find(inv => 
                         (t.reference.includes(inv.invoiceNumber) || inv.invoiceNumber.includes(t.reference)) && 
                         inv.totalAmount === t.amount &&
                         inv.status !== 'Fully Paid'
@@ -83,8 +83,8 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
                     if (match) onReconcile(t.id, match.id, 'bank');
                 });
             } else {
-                filteredMpesa.filter(t => t.status === 'completed' && !t.metadata?.reconciled).forEach(t => {
-                    const match = invoices.find(inv => 
+                (filteredMpesa || []).filter(t => t.status === 'completed' && !t.metadata?.reconciled).forEach(t => {
+                    const match = (invoices || []).find(inv => 
                         (t.description?.includes(inv.invoiceNumber) || inv.invoiceNumber.includes(t.transactionId)) && 
                         inv.totalAmount === t.amount &&
                         inv.status !== 'Fully Paid'
@@ -173,7 +173,7 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
                     <div>
                         <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">Unmatched Volume</p>
                         <h3 className="text-2xl font-black">
-                            KES {(activeFeed === 'bank' ? filteredBank : filteredMpesa)
+                            KES {((activeFeed === 'bank' ? filteredBank : filteredMpesa) || [])
                                 .filter(t => (t as any).status === 'unreconciled' || (t as any).status === 'completed')
                                 .reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
                         </h3>

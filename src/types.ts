@@ -3868,6 +3868,9 @@ export interface DSStudent {
     courseDurationDays?: number;
     remainingDays?: number;
     preferredLessonHours?: 'Morning' | 'Noon' | 'Evening';
+    theoryTestScore?: number;
+    practicalTestScore?: number;
+    ntsaBookingStatus?: 'Not Booked' | 'Eligible' | 'Booked' | 'Passed' | 'Failed';
     createdAt: string;
 }
 
@@ -3951,6 +3954,15 @@ export interface DSSettings {
         practicalDurationMinutes?: number;
         dailySequence?: ('Theory' | 'Practical')[];
         nextDayAutoGenerationTime?: string;
+        enableSmsReminders?: boolean;
+        smsReminderHours?: number;
+        smsReminderTemplate?: string;
+        enablePdlExpiryAlerts?: boolean;
+        pdlExpiryDaysThreshold?: number;
+        pdlExpirySmsTemplate?: string;
+        enableTestDayAlerts?: boolean;
+        testDayProgressThreshold?: number;
+        testDaySmsTemplate?: string;
     };
     invoicePrefix?: string;
     receiptPrefix?: string;

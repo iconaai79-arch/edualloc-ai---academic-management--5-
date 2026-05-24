@@ -2585,6 +2585,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         ) : isDS ? (
                             <DSAnalyticsView 
                                 institution={props.currentInstitution!}
+                                letterheadConfig={props.letterheadConfig}
                             />
                         ) : isAutoMarket ? (
                             <CarShowroomReportsDashboard

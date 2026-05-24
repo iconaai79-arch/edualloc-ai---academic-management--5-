@@ -495,9 +495,22 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
  
             if (student.phone) {
-                const sms = isReminder 
-                    ? `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`
-                    : `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}. Manage here: ${actionLink}`;
+                let sms = '';
+                if (isReminder) {
+                    const customTemplate = settings?.schedulingRules?.smsReminderTemplate;
+                    if (settings?.schedulingRules?.enableSmsReminders && customTemplate) {
+                        sms = customTemplate
+                            .replace(/{student}/g, student.fullName)
+                            .replace(/{school}/g, portalTitle)
+                            .replace(/{instructor}/g, instructor.name)
+                            .replace(/{time}/g, lesson.startTime)
+                            .replace(/{date}/g, lesson.lessonDate || (lesson as any).date || '');
+                    } else {
+                        sms = `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`;
+                    }
+                } else {
+                    sms = `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}. Manage here: ${actionLink}`;
+                }
                 
                 await apiService.sendSms(student.phone, sms, activeSmsConfig, 1, institutionId).catch(e => console.error("SMS to student failed", e));
             }
@@ -529,7 +542,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         } catch (err) {
             console.error("[DS Automation] Lesson notification critical failure:", err);
         }
-    }, [institutionId, students, instructors, vehicles]);
+    }, [institutionId, students, instructors, vehicles, settings]);
 
     const checkUpcomingLessons = useCallback(async () => {
         if (!lessons.length) return;
