@@ -4749,6 +4749,17 @@ export const App: React.FC = () => {
                                             setTransactionLimit={setTransactionLimit}
                                             requisitions={requisitions}
                                             onUpdateRequisition={handleUpdateRequisition}
+                                            voteHeads={voteHeads}
+                                            courses={courses}
+                                            onRefreshData={loadData}
+                                            onGenerateInvoices={async (invoicesList) => {
+                                                await Promise.all(invoicesList.map(inv => apiService.saveModuleRecord('invoices', {
+                                                    ...inv,
+                                                    institutionId: activeInstitution!.id,
+                                                    createdAt: new Date().toISOString()
+                                                })));
+                                                await loadData();
+                                            }}
                                         />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'hr_officer' ? (

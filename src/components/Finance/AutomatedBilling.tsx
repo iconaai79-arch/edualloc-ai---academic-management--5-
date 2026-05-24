@@ -31,6 +31,16 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     const [progress, setProgress] = useState(0);
     const [step, setStep] = useState<'config' | 'preview' | 'processing' | 'done'>('config');
 
+    const activeFeeStructures = feeStructures.filter(f => 
+        f.academicYearId === selectedAY && 
+        String(f.term || '') === String(selectedSem)
+    );
+
+    const totalProjectedRevenue = students.reduce((sum, s) => {
+        const studentFeeStructures = activeFeeStructures.filter(f => !f.courseId || f.courseId === s.courseId);
+        return sum + studentFeeStructures.reduce((acc, f) => acc + f.amount, 0);
+    }, 0);
+
     const handleRunBilling = async () => {
         setIsGenerating(true);
         setStep('processing');
@@ -42,15 +52,27 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             await new Promise(r => setTimeout(r, 200));
         }
 
-        // Logic to generate invoice objects would go here
-        const mockInvoices = students.map(s => ({
-            id: `inv_auto_${Date.now()}_${s.id}`,
-            studentId: s.id,
-            totalAmount: feeStructures.reduce((acc, f) => acc + f.amount, 0),
-            status: 'pending',
-            issueDate: new Date().toISOString(),
-            institutionId: institution.id
-        }));
+        const mockInvoices = students.map(s => {
+            const studentFeeStructures = activeFeeStructures.filter(f => !f.courseId || f.courseId === s.courseId);
+            const totalAmount = studentFeeStructures.reduce((acc, f) => acc + f.amount, 0);
+            return {
+                id: `inv_auto_${Date.now()}_${s.id}`,
+                invoiceNumber: `INV-${Date.now().toString().slice(-6)}-${s.id.slice(-4)}`,
+                studentId: s.id,
+                totalAmount: totalAmount,
+                status: 'pending' as const,
+                issueDate: new Date().toISOString().split('T')[0],
+                dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                items: studentFeeStructures.map(f => ({
+                    description: f.name,
+                    quantity: 1,
+                    unitPrice: f.amount,
+                    amount: f.amount
+                })),
+                institutionId: institution.id
+            };
+        });
 
         await onGenerateInvoices(mockInvoices);
         setStep('done');
@@ -102,8 +124,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                             <span className="text-[10px] font-black uppercase tracking-widest">Impact Analysis</span>
                         </div>
                         <p className="text-sm font-bold text-amber-800/80 leading-relaxed">
-                            Generating billing for {students.length} students across {feeStructures.length} active fee categories. 
-                            Estimated revenue projection: <span className="font-black">KES {(students.length * feeStructures.reduce((acc, f) => acc + f.amount, 0)).toLocaleString()}</span>.
+                            Generating billing for {students.length} students across {activeFeeStructures.length} active fee categories. 
+                            Estimated revenue projection: <span className="font-black">KES {totalProjectedRevenue.toLocaleString()}</span>.
                         </p>
                     </div>
 
@@ -122,12 +144,19 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest text-sm border-l-4 border-indigo-600 pl-4">Billing Preview Summary</h3>
                     
                     <div className="space-y-4 max-h-64 overflow-y-auto pr-4 custom-scrollbar">
-                        {feeStructures.map((f, i) => (
-                            <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                <span className="text-sm font-bold text-slate-700">{f.name}</span>
-                                <span className="text-sm font-black text-slate-900">KES {f.amount.toLocaleString()}</span>
-                            </div>
-                        ))}
+                        {activeFeeStructures.length === 0 ? (
+                            <p className="text-center text-xs font-medium text-slate-400 p-4">No active fee structures configured for this academic year and semester.</p>
+                        ) : (
+                            activeFeeStructures.map((f, i) => (
+                                <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-700">{f.name}</p>
+                                        {f.courseId && <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Course Restricted</p>}
+                                    </div>
+                                    <span className="text-sm font-black text-slate-900">KES {f.amount.toLocaleString()}</span>
+                                </div>
+                            ))
+                        )}
                     </div>
 
                     <div className="pt-6 border-t border-slate-100 flex gap-4">

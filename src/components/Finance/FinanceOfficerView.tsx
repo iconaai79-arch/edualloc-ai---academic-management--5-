@@ -1,6 +1,6 @@
 
 import React from 'react';
-import type { User, Institution, Invoice, Receipt, Expense, FinancialGoal, FeeStructure, AcademicYear, Semester, Requisition } from '../../types';
+import type { User, Institution, Invoice, Receipt, Expense, FinancialGoal, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course } from '../../types';
 import { FinanceManager } from './FinanceManager';
 import { Header } from '../Header';
 
@@ -27,6 +27,9 @@ interface FinanceOfficerViewProps {
     onLogAction?: (action: string) => void;
     requisitions?: Requisition[];
     onUpdateRequisition?: (id: string, data: any) => Promise<void>;
+    voteHeads?: VoteHead[];
+    courses?: Course[];
+    onRefreshData?: () => Promise<void>;
 }
 
 export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
@@ -51,7 +54,10 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     onGenerateReceipt,
     onLogAction,
     requisitions,
-    onUpdateRequisition
+    onUpdateRequisition,
+    voteHeads,
+    courses,
+    onRefreshData
 }) => {
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -76,18 +82,18 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
 
                 {/* Centralized Finance Hub */}
                 <FinanceManager 
-                invoices={invoices || []}
-                receipts={receipts || []}
-                expenses={expenses || []}
-                goals={goals || []}
-                feeStructures={feeStructures || []}
-                students={students || []}
-                academicYears={academicYears || []}
-                semesters={semesters || []}
-                institution={currentInstitution}
-                onGenerateInvoices={onGenerateInvoices || (async () => {})}
-                onAddExpense={onAddExpense || (async () => {})}
-                receiptLimit={receiptLimit}
+                    invoices={invoices || []}
+                    receipts={receipts || []}
+                    expenses={expenses || []}
+                    goals={goals || []}
+                    feeStructures={feeStructures || []}
+                    students={students || []}
+                    academicYears={academicYears || []}
+                    semesters={semesters || []}
+                    institution={currentInstitution}
+                    onGenerateInvoices={onGenerateInvoices || (async () => {})}
+                    onAddExpense={onAddExpense || (async () => {})}
+                    receiptLimit={receiptLimit}
                     setReceiptLimit={setReceiptLimit}
                     transactionLimit={transactionLimit}
                     setTransactionLimit={setTransactionLimit}
@@ -95,6 +101,9 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                     requisitions={requisitions}
                     onUpdateRequisition={onUpdateRequisition}
                     currentUser={currentUser}
+                    voteHeads={voteHeads}
+                    courses={courses}
+                    onRefreshData={onRefreshData}
                 />
             </main>
         </div>
