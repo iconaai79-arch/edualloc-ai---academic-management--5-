@@ -586,8 +586,21 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
 
     const currentTab = activeView || internalTab;
 
-    const safeBuildings = useMemo(() => (Array.isArray(buildings) ? buildings : []).filter(b => b), [buildings]);
-    const safeRooms = useMemo(() => (Array.isArray(rooms) ? rooms : []).filter(r => r), [rooms]);
+    const safeBuildings = useMemo(() => {
+        const list = Array.isArray(buildings) ? buildings : [];
+        if (currentInstitution?.id) {
+            return list.filter(b => b && b.institutionId === currentInstitution.id);
+        }
+        return list.filter(b => b);
+    }, [buildings, currentInstitution?.id]);
+
+    const safeRooms = useMemo(() => {
+        const list = Array.isArray(rooms) ? rooms : [];
+        if (currentInstitution?.id) {
+            return list.filter(r => r && r.institutionId === currentInstitution.id);
+        }
+        return list.filter(r => r);
+    }, [rooms, currentInstitution?.id]);
     const safeCourses = useMemo(() => (Array.isArray(courses) ? courses : []).filter(c => c), [courses]);
 
     const groupedRooms = useMemo(() => {

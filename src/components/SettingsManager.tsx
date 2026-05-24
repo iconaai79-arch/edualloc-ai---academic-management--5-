@@ -4334,7 +4334,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 >
                                     <MapPinIcon className="w-4 h-4" /> Rooms
                                 </button>
-                                {!isSchool && (
+                                {!isSchool && !isDS && (
                                     <button
                                         onClick={() => setFacilitiesSubTab('levels')}
                                         className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${facilitiesSubTab === 'levels' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
@@ -4400,7 +4400,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 />
                             )}
 
-                            {facilitiesSubTab === 'levels' && !isSchool && (
+                            {facilitiesSubTab === 'levels' && !isSchool && !isDS && (
                                 <AcademicLevelManager onAdd={props.onAddAcademicLevel} onUpdate={props.onUpdateAcademicLevel} onDelete={props.onDeleteAcademicLevel} academicLevels={props.academicLevels || []} currentInstitution={props.currentInstitution} />
                             )}
 

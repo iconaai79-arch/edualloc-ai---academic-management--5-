@@ -1474,9 +1474,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     externalTab,
     onRefreshData: onRefreshDataProp,
     departments,
-    rooms,
+    rooms: rawRooms,
     letterheadConfig
 }) => {
+    const rooms = useMemo(() => {
+        return (rawRooms || []).filter(r => r && r.institutionId === currentInstitution?.id);
+    }, [rawRooms, currentInstitution]);
+
     const { success, error: toastError } = useToast();
     const {
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
