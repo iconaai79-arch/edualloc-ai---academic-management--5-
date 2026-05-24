@@ -8,7 +8,7 @@ import { FundraisingTracker } from './FundraisingTracker';
 import { 
     CalendarDaysIcon, SparklesIcon, UserGroupIcon, MapPinIcon, 
     BanknotesIcon, PlusIcon, Trash2Icon, AlertTriangleIcon, CheckCircleIcon,
-    ChartBarIcon, ClockIcon, Edit2Icon
+    ChartBarIcon, ClockIcon, Edit2Icon, XIcon
 } from '../icons';
 
 interface EventManagementViewProps {
