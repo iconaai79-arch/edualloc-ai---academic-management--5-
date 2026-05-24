@@ -135,7 +135,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 'alumni': { institutionType: 'Education', category: 'Alumni Network', businessSubType: 'Alumni Network' },
                 'pharmacy': { institutionType: 'Pharmacy', category: '', businessSubType: '' },
                 'fuel': { institutionType: 'Fuel Station', category: 'Fuel Station', businessSubType: 'Fuel Station' },
-                'civil': { institutionType: 'Construction', category: 'Construction', businessSubType: 'Construction' }
+                'civil': { institutionType: 'Construction', category: 'Construction', businessSubType: 'Construction' },
+                'events': { institutionType: 'Education', category: 'Sports & Athletics', businessSubType: 'Sports & Athletics' }
             };
 
             const prefill = MODULE_REG_MAPPING[prefillModuleId];
@@ -706,6 +707,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="Driving School">Driving School</option>
                                                         <option value="University">University</option>
                                                         <option value="Alumni Network">Alumni Network / Alumna Association</option>
+                                                        <option value="Sports & Athletics">Sports & Athletics / Events Hub</option>
                                                     </select>
                                                 </div>
                                             )}

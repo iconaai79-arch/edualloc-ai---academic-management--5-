@@ -99,6 +99,16 @@ const EDU_MODULES: EduModule[] = [
         gradient: 'from-blue-500 to-indigo-500',
         features: ['Vehicle tracking', 'Driver mapping', 'Onboarding history', 'Gate check-in logs'],
     },
+    {
+        id: 'events',
+        name: 'Event Desk',
+        tagline: 'Marathon & Sports Coordinator',
+        description: 'Complete event setup, runner registrations with mock payments, check-in log, RFID timings split simulator, and finisher certificate generators.',
+        icon: '🏃',
+        color: 'indigo',
+        gradient: 'from-violet-500 to-indigo-600',
+        features: ['Category setup', 'BIB & Kit desk', 'Timing splits', 'Printable certificates'],
+    },
 ];
 
 // ─── Props ────────────────────────────────────────────────────────────────────
