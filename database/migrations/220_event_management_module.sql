@@ -113,27 +113,116 @@ CREATE POLICY "Permissive select for event_splits" ON event_splits FOR SELECT US
 CREATE POLICY "Permissive select for event_medical_logs" ON event_medical_logs FOR SELECT USING (true);
 CREATE POLICY "Permissive select for event_pledges" ON event_pledges FOR SELECT USING (true);
 
--- Permissive write policies for authenticated users
-CREATE POLICY "Insert events for all authenticated" ON events FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update events for all authenticated" ON events FOR UPDATE USING (true);
-CREATE POLICY "Delete events for all authenticated" ON events FOR DELETE USING (true);
+-- Secure write policies enforcing institutional tenancy and roles
+CREATE POLICY "Insert events for institutional staff" ON events FOR INSERT WITH CHECK (
+    institution_id = public.get_curr_user_inst_id() 
+    OR public.get_curr_user_role() = 'super_admin'
+);
+CREATE POLICY "Update events for institutional staff" ON events FOR UPDATE USING (
+    institution_id = public.get_curr_user_inst_id() 
+    OR public.get_curr_user_role() = 'super_admin'
+);
+CREATE POLICY "Delete events for institutional staff" ON events FOR DELETE USING (
+    institution_id = public.get_curr_user_inst_id() 
+    OR public.get_curr_user_role() = 'super_admin'
+);
 
-CREATE POLICY "Insert categories for all authenticated" ON event_categories FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update categories for all authenticated" ON event_categories FOR UPDATE USING (true);
-CREATE POLICY "Delete categories for all authenticated" ON event_categories FOR DELETE USING (true);
+CREATE POLICY "Insert categories for institutional staff" ON event_categories FOR INSERT WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM events e 
+        WHERE e.id = event_id 
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
+CREATE POLICY "Update categories for institutional staff" ON event_categories FOR UPDATE USING (
+    EXISTS (
+        SELECT 1 FROM events e 
+        WHERE e.id = event_id 
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
+CREATE POLICY "Delete categories for institutional staff" ON event_categories FOR DELETE USING (
+    EXISTS (
+        SELECT 1 FROM events e 
+        WHERE e.id = event_id 
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
 
-CREATE POLICY "Insert participants for all authenticated" ON event_participants FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update participants for all authenticated" ON event_participants FOR UPDATE USING (true);
-CREATE POLICY "Delete participants for all authenticated" ON event_participants FOR DELETE USING (true);
+-- Participants registration (public insertion allowed, updates/deletions restricted to staff)
+CREATE POLICY "Insert participants for everyone" ON event_participants FOR INSERT WITH CHECK (true);
+CREATE POLICY "Update participants for institutional staff" ON event_participants FOR UPDATE USING (
+    EXISTS (
+        SELECT 1 FROM event_categories c
+        JOIN events e ON e.id = c.event_id
+        WHERE c.id = category_id
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
+CREATE POLICY "Delete participants for institutional staff" ON event_participants FOR DELETE USING (
+    EXISTS (
+        SELECT 1 FROM event_categories c
+        JOIN events e ON e.id = c.event_id
+        WHERE c.id = category_id
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
 
-CREATE POLICY "Insert splits for all authenticated" ON event_splits FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update splits for all authenticated" ON event_splits FOR UPDATE USING (true);
-CREATE POLICY "Delete splits for all authenticated" ON event_splits FOR DELETE USING (true);
+-- Split logs (timing chip simulation allows insertion, updates/deletions restricted to staff)
+CREATE POLICY "Insert splits for everyone" ON event_splits FOR INSERT WITH CHECK (true);
+CREATE POLICY "Update splits for institutional staff" ON event_splits FOR UPDATE USING (
+    EXISTS (
+        SELECT 1 FROM event_participants p
+        JOIN event_categories c ON c.id = p.category_id
+        JOIN events e ON e.id = c.event_id
+        WHERE p.id = participant_id
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
+CREATE POLICY "Delete splits for institutional staff" ON event_splits FOR DELETE USING (
+    EXISTS (
+        SELECT 1 FROM event_participants p
+        JOIN event_categories c ON c.id = p.category_id
+        JOIN events e ON e.id = c.event_id
+        WHERE p.id = participant_id
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
 
-CREATE POLICY "Insert medical logs for all authenticated" ON event_medical_logs FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update medical logs for all authenticated" ON event_medical_logs FOR UPDATE USING (true);
-CREATE POLICY "Delete medical logs for all authenticated" ON event_medical_logs FOR DELETE USING (true);
+-- Medical logs (only accessible by medical/admin staff)
+CREATE POLICY "Insert medical logs for everyone" ON event_medical_logs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Update medical logs for institutional staff" ON event_medical_logs FOR UPDATE USING (
+    institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin' OR EXISTS (
+        SELECT 1 FROM events e 
+        WHERE e.id = event_id 
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
+CREATE POLICY "Delete medical logs for institutional staff" ON event_medical_logs FOR DELETE USING (
+    institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin' OR EXISTS (
+        SELECT 1 FROM events e 
+        WHERE e.id = event_id 
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
 
-CREATE POLICY "Insert pledges for all authenticated" ON event_pledges FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update pledges for all authenticated" ON event_pledges FOR UPDATE USING (true);
-CREATE POLICY "Delete pledges for all authenticated" ON event_pledges FOR DELETE USING (true);
+-- Fundraising pledges (public pledges allowed, updates/deletions restricted to staff)
+CREATE POLICY "Insert pledges for everyone" ON event_pledges FOR INSERT WITH CHECK (true);
+CREATE POLICY "Update pledges for institutional staff" ON event_pledges FOR UPDATE USING (
+    EXISTS (
+        SELECT 1 FROM event_participants p
+        JOIN event_categories c ON c.id = p.category_id
+        JOIN events e ON e.id = c.event_id
+        WHERE p.id = participant_id
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);
+CREATE POLICY "Delete pledges for institutional staff" ON event_pledges FOR DELETE USING (
+    EXISTS (
+        SELECT 1 FROM event_participants p
+        JOIN event_categories c ON c.id = p.category_id
+        JOIN events e ON e.id = c.event_id
+        WHERE p.id = participant_id
+        AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')
+    )
+);

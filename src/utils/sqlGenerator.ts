@@ -2028,46 +2028,64 @@ DROP POLICY IF EXISTS "Permissive select for event_pledges" ON event_pledges;
 CREATE POLICY "Permissive select for event_pledges" ON event_pledges FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Insert events for all authenticated" ON events;
-CREATE POLICY "Insert events for all authenticated" ON events FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Insert events for institutional staff" ON events;
+CREATE POLICY "Insert events for institutional staff" ON events FOR INSERT WITH CHECK (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
 DROP POLICY IF EXISTS "Update events for all authenticated" ON events;
-CREATE POLICY "Update events for all authenticated" ON events FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Update events for institutional staff" ON events;
+CREATE POLICY "Update events for institutional staff" ON events FOR UPDATE USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
 DROP POLICY IF EXISTS "Delete events for all authenticated" ON events;
-CREATE POLICY "Delete events for all authenticated" ON events FOR DELETE USING (true);
+DROP POLICY IF EXISTS "Delete events for institutional staff" ON events;
+CREATE POLICY "Delete events for institutional staff" ON events FOR DELETE USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
 
 DROP POLICY IF EXISTS "Insert categories for all authenticated" ON event_categories;
-CREATE POLICY "Insert categories for all authenticated" ON event_categories FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Insert categories for institutional staff" ON event_categories;
+CREATE POLICY "Insert categories for institutional staff" ON event_categories FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM events e WHERE e.id = event_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 DROP POLICY IF EXISTS "Update categories for all authenticated" ON event_categories;
-CREATE POLICY "Update categories for all authenticated" ON event_categories FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Update categories for institutional staff" ON event_categories;
+CREATE POLICY "Update categories for institutional staff" ON event_categories FOR UPDATE USING (EXISTS (SELECT 1 FROM events e WHERE e.id = event_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 DROP POLICY IF EXISTS "Delete categories for all authenticated" ON event_categories;
-CREATE POLICY "Delete categories for all authenticated" ON event_categories FOR DELETE USING (true);
+DROP POLICY IF EXISTS "Delete categories for institutional staff" ON event_categories;
+CREATE POLICY "Delete categories for institutional staff" ON event_categories FOR DELETE USING (EXISTS (SELECT 1 FROM events e WHERE e.id = event_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 
 DROP POLICY IF EXISTS "Insert participants for all authenticated" ON event_participants;
-CREATE POLICY "Insert participants for all authenticated" ON event_participants FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Insert participants for everyone" ON event_participants;
+CREATE POLICY "Insert participants for everyone" ON event_participants FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Update participants for all authenticated" ON event_participants;
-CREATE POLICY "Update participants for all authenticated" ON event_participants FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Update participants for institutional staff" ON event_participants;
+CREATE POLICY "Update participants for institutional staff" ON event_participants FOR UPDATE USING (EXISTS (SELECT 1 FROM event_categories c JOIN events e ON e.id = c.event_id WHERE c.id = category_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 DROP POLICY IF EXISTS "Delete participants for all authenticated" ON event_participants;
-CREATE POLICY "Delete participants for all authenticated" ON event_participants FOR DELETE USING (true);
+DROP POLICY IF EXISTS "Delete participants for institutional staff" ON event_participants;
+CREATE POLICY "Delete participants for institutional staff" ON event_participants FOR DELETE USING (EXISTS (SELECT 1 FROM event_categories c JOIN events e ON e.id = c.event_id WHERE c.id = category_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 
 DROP POLICY IF EXISTS "Insert splits for all authenticated" ON event_splits;
-CREATE POLICY "Insert splits for all authenticated" ON event_splits FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Insert splits for everyone" ON event_splits;
+CREATE POLICY "Insert splits for everyone" ON event_splits FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Update splits for all authenticated" ON event_splits;
-CREATE POLICY "Update splits for all authenticated" ON event_splits FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Update splits for institutional staff" ON event_splits;
+CREATE POLICY "Update splits for institutional staff" ON event_splits FOR UPDATE USING (EXISTS (SELECT 1 FROM event_participants p JOIN event_categories c ON c.id = p.category_id JOIN events e ON e.id = c.event_id WHERE p.id = participant_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 DROP POLICY IF EXISTS "Delete splits for all authenticated" ON event_splits;
-CREATE POLICY "Delete splits for all authenticated" ON event_splits FOR DELETE USING (true);
+DROP POLICY IF EXISTS "Delete splits for institutional staff" ON event_splits;
+CREATE POLICY "Delete splits for institutional staff" ON event_splits FOR DELETE USING (EXISTS (SELECT 1 FROM event_participants p JOIN event_categories c ON c.id = p.category_id JOIN events e ON e.id = c.event_id WHERE p.id = participant_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 
 DROP POLICY IF EXISTS "Insert medical logs for all authenticated" ON event_medical_logs;
-CREATE POLICY "Insert medical logs for all authenticated" ON event_medical_logs FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Insert medical logs for everyone" ON event_medical_logs;
+CREATE POLICY "Insert medical logs for everyone" ON event_medical_logs FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Update medical logs for all authenticated" ON event_medical_logs;
-CREATE POLICY "Update medical logs for all authenticated" ON event_medical_logs FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Update medical logs for institutional staff" ON event_medical_logs;
+CREATE POLICY "Update medical logs for institutional staff" ON event_medical_logs FOR UPDATE USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin' OR EXISTS (SELECT 1 FROM events e WHERE e.id = event_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 DROP POLICY IF EXISTS "Delete medical logs for all authenticated" ON event_medical_logs;
-CREATE POLICY "Delete medical logs for all authenticated" ON event_medical_logs FOR DELETE USING (true);
+DROP POLICY IF EXISTS "Delete medical logs for institutional staff" ON event_medical_logs;
+CREATE POLICY "Delete medical logs for institutional staff" ON event_medical_logs FOR DELETE USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin' OR EXISTS (SELECT 1 FROM events e WHERE e.id = event_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 
 DROP POLICY IF EXISTS "Insert pledges for all authenticated" ON event_pledges;
-CREATE POLICY "Insert pledges for all authenticated" ON event_pledges FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Insert pledges for everyone" ON event_pledges;
+CREATE POLICY "Insert pledges for everyone" ON event_pledges FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Update pledges for all authenticated" ON event_pledges;
-CREATE POLICY "Update pledges for all authenticated" ON event_pledges FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Update pledges for institutional staff" ON event_pledges;
+CREATE POLICY "Update pledges for institutional staff" ON event_pledges FOR UPDATE USING (EXISTS (SELECT 1 FROM event_participants p JOIN event_categories c ON c.id = p.category_id JOIN events e ON e.id = c.event_id WHERE p.id = participant_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 DROP POLICY IF EXISTS "Delete pledges for all authenticated" ON event_pledges;
-CREATE POLICY "Delete pledges for all authenticated" ON event_pledges FOR DELETE USING (true);
+DROP POLICY IF EXISTS "Delete pledges for institutional staff" ON event_pledges;
+CREATE POLICY "Delete pledges for institutional staff" ON event_pledges FOR DELETE USING (EXISTS (SELECT 1 FROM event_participants p JOIN event_categories c ON c.id = p.category_id JOIN events e ON e.id = c.event_id WHERE p.id = participant_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 
 -- Standardize RLS for remaining core tables
 DO $core_policy$

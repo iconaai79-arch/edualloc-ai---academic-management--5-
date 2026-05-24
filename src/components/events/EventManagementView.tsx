@@ -189,6 +189,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             if (onLogAction) onLogAction('create_event', `Created event: ${newEvent.name}`);
             await loadEventData();
             setSelectedEventId(newEvent.id);
+            alert('Event created successfully!');
         } catch (err: any) {
             alert('Failed to save event: ' + (err.message || err));
         }
@@ -222,6 +223,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             setIsAddCategoryOpen(false);
             if (onLogAction) onLogAction('create_event_category', `Created category: ${newCategory.name}`);
             await loadEventData();
+            alert('Category created successfully!');
         } catch (err: any) {
             alert('Failed to save category: ' + (err.message || err));
         }
