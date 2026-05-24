@@ -45,6 +45,7 @@ export const PublicEventRegistration: React.FC = () => {
     const [paymentStatus, setPaymentStatus] = useState<'idle' | 'sending' | 'pending' | 'success' | 'failed'>('idle');
     const [mpesaRef, setMpesaRef] = useState('');
     const [registeredParticipant, setRegisteredParticipant] = useState<EventParticipant | null>(null);
+    const [ncbaConfig, setNcbaConfig] = useState<any>(null);
 
     // Watch URL query parameters for changes
     useEffect(() => {
@@ -100,6 +101,20 @@ export const PublicEventRegistration: React.FC = () => {
         loadData();
     }, [eventId]);
 
+    useEffect(() => {
+        const loadConfig = async () => {
+            try {
+                const settings = await apiService.fetchCompanySettings();
+                if (settings && settings.ncbaConfig) {
+                    setNcbaConfig(settings.ncbaConfig);
+                }
+            } catch (e) {
+                console.error("Failed to load company details", e);
+            }
+        };
+        loadConfig();
+    }, []);
+
     const activeCategory = categories.find(c => c.id === selectedCategoryId);
 
     const handleFormSubmit = (e: React.FormEvent) => {
@@ -137,10 +152,139 @@ export const PublicEventRegistration: React.FC = () => {
         setStep(3);
     };
 
-    const handleMockPayment = async () => {
+    const handleCompleteRegistration = async (reference: string) => {
+        // Determine next BIB number
+        const allParticipants = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
+        const existingBibs = allParticipants
+            .map(p => parseInt(p.bibNumber || '0'))
+            .filter(b => !isNaN(b));
+        const maxBib = existingBibs.length > 0 ? Math.max(...existingBibs) : 1000;
+        const newBib = String(maxBib + 1);
+
+        const fee = activeCategory ? Number(activeCategory.registrationFee) : 0;
+
+        const newParticipant: EventParticipant = {
+            id: 'part_' + Date.now(),
+            categoryId: selectedCategoryId,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            email: formData.email,
+            phone: formData.phone,
+            gender: formData.gender,
+            age: parseInt(formData.age),
+            tShirtSize: formData.tShirtSize,
+            waiverSigned: true,
+            paymentStatus: fee > 0 ? 'paid' : 'pending',
+            mpesaReference: fee > 0 ? reference : undefined,
+            emergencyContactName: formData.emergencyContactName,
+            emergencyContactPhone: formData.emergencyContactPhone,
+            status: 'registered',
+            createdAt: new Date().toISOString()
+        };
+
+        const savedParticipant = await apiService.saveModuleRecord<EventParticipant>('event_participants', newParticipant);
+        if (!savedParticipant) {
+            throw new Error('Registration record could not be saved.');
+        }
+
+        // Save fundraising pledge if present
+        const pledgeAmount = parseFloat(formData.initialPledge);
+        if (pledgeAmount > 0) {
+            const pledge: EventPledge = {
+                id: 'pledge_' + Date.now(),
+                participantId: savedParticipant.id,
+                sponsorName: formData.sponsorName.trim() || `${formData.firstName} ${formData.lastName}`,
+                amount: pledgeAmount,
+                paymentStatus: 'paid',
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('event_pledges', pledge);
+        }
+
+        setRegisteredParticipant(savedParticipant);
+        setPaymentStatus('success');
+        setStep(4);
+    };
+
+    const handleInitiatePayment = async () => {
         setPaymentStatus('sending');
         setErrorMsg('');
 
+        const fee = activeCategory ? Number(activeCategory.registrationFee) : 0;
+        const totalAmount = fee + Number(formData.initialPledge || 0);
+
+        if (totalAmount === 0) {
+            try {
+                await handleCompleteRegistration('FREE');
+            } catch (err: any) {
+                setErrorMsg(err.message || 'Registration failed');
+                setPaymentStatus('failed');
+            }
+            return;
+        }
+
+        // Live NCBA API check
+        if (ncbaConfig) {
+            try {
+                const reference = 'EVT' + Math.floor(Math.random() * 900000 + 100000);
+                
+                const res = await apiService.initiateNcbaPayment(
+                    totalAmount,
+                    paymentPhone,
+                    {
+                        type: 'event_registration',
+                        reference,
+                        eventId: eventId,
+                        categoryId: selectedCategoryId
+                    },
+                    ncbaConfig
+                );
+                
+                const checkoutRequestId = res.checkoutRequestId || res.checkoutRequestID || res.checkout_request_id || res.id || res.requestId || res.data?.CheckoutRequestID || res.data?.checkoutRequestId || res.CheckoutRequestID;
+                
+                if (res.success !== false && checkoutRequestId) {
+                    setPaymentStatus('pending');
+                    
+                    // Poll NCBA for payment confirmation status
+                    let attempts = 0;
+                    const maxAttempts = 30; // 60s
+                    
+                    const interval = setInterval(async () => {
+                        attempts++;
+                        if (attempts > maxAttempts) {
+                            clearInterval(interval);
+                            setErrorMsg('Payment verification timed out. If you already completed the payment, please contact support with reference: ' + reference);
+                            setPaymentStatus('failed');
+                            return;
+                        }
+                        
+                        try {
+                            const statusRes = await apiService.checkNcbaStatus(checkoutRequestId, ncbaConfig);
+                            if (statusRes && (statusRes.status === 'completed' || statusRes.status === 'success' || statusRes.status === 'paid')) {
+                                clearInterval(interval);
+                                setMpesaRef(reference);
+                                await handleCompleteRegistration(reference);
+                            } else if (statusRes && (statusRes.status === 'failed' || statusRes.status === 'cancelled')) {
+                                clearInterval(interval);
+                                setErrorMsg('Payment transaction failed or was cancelled by user.');
+                                setPaymentStatus('failed');
+                            }
+                        } catch (pollErr) {
+                            console.error('Polling error:', pollErr);
+                        }
+                    }, 2000);
+                } else {
+                    throw new Error(res.message || 'STK Push failed to initiate.');
+                }
+            } catch (err: any) {
+                console.error('[NCBA Payment Error]', err);
+                setErrorMsg(err.message || 'Payment request failed. Please check your phone number and try again.');
+                setPaymentStatus('failed');
+            }
+            return;
+        }
+
+        // Mock payment fallback
         setTimeout(() => {
             setPaymentStatus('pending');
 
@@ -148,61 +292,9 @@ export const PublicEventRegistration: React.FC = () => {
                 try {
                     const generatedRef = 'MPK' + Math.floor(Math.random() * 900000 + 100000);
                     setMpesaRef(generatedRef);
-
-                    // Determine next BIB number
-                    const allParticipants = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
-                    const existingBibs = allParticipants
-                        .map(p => parseInt(p.bibNumber || '0'))
-                        .filter(b => !isNaN(b));
-                    const maxBib = existingBibs.length > 0 ? Math.max(...existingBibs) : 1000;
-                    const newBib = String(maxBib + 1);
-
-                    const fee = activeCategory ? Number(activeCategory.registrationFee) : 0;
-
-                    const newParticipant: EventParticipant = {
-                        id: 'part_' + Date.now(),
-                        categoryId: selectedCategoryId,
-                        firstName: formData.firstName,
-                        lastName: formData.lastName,
-                        email: formData.email,
-                        phone: formData.phone,
-                        gender: formData.gender,
-                        age: parseInt(formData.age),
-                        tShirtSize: formData.tShirtSize,
-                        waiverSigned: true,
-                        paymentStatus: fee > 0 ? 'paid' : 'pending',
-                        mpesaReference: fee > 0 ? generatedRef : undefined,
-                        emergencyContactName: formData.emergencyContactName,
-                        emergencyContactPhone: formData.emergencyContactPhone,
-                        status: 'registered',
-                        createdAt: new Date().toISOString()
-                    };
-
-                    const savedParticipant = await apiService.saveModuleRecord<EventParticipant>('event_participants', newParticipant);
-                    if (!savedParticipant) {
-                        throw new Error('Registration record could not be saved.');
-                    }
-
-                    // Save fundraising pledge if present
-                    const pledgeAmount = parseFloat(formData.initialPledge);
-                    if (pledgeAmount > 0) {
-                        const pledge: EventPledge = {
-                            id: 'pledge_' + Date.now(),
-                            participantId: savedParticipant.id,
-                            sponsorName: formData.sponsorName.trim() || `${formData.firstName} ${formData.lastName}`,
-                            amount: pledgeAmount,
-                            paymentStatus: 'paid',
-                            createdAt: new Date().toISOString()
-                        };
-                        await apiService.saveModuleRecord('event_pledges', pledge);
-                    }
-
-                    setRegisteredParticipant(savedParticipant);
-                    setPaymentStatus('success');
-                    setStep(4);
+                    await handleCompleteRegistration(generatedRef);
                 } catch (err: any) {
-                    console.error('[PublicRegistration] save error:', err);
-                    setErrorMsg(err.message || 'Registration failed. Please contact the administrator.');
+                    setErrorMsg(err.message || 'Registration failed');
                     setPaymentStatus('failed');
                 }
             }, 2000);
@@ -726,7 +818,7 @@ export const PublicEventRegistration: React.FC = () => {
 
                             {paymentStatus === 'idle' && (
                                 <button
-                                    onClick={handleMockPayment}
+                                    onClick={handleInitiatePayment}
                                     className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-xs transition-all shadow-md"
                                 >
                                     Initiate STK Push

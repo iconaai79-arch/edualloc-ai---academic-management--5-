@@ -382,6 +382,20 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                    {activeEvent && (
+                        <button
+                            onClick={() => {
+                                const link = `${window.location.origin}/?view=event-register&id=${activeEvent.id}`;
+                                navigator.clipboard.writeText(link);
+                                alert(`Public self-registration link copied to clipboard:\n${link}`);
+                            }}
+                            className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-650 dark:text-indigo-400 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+                            title="Copy public self-registration link"
+                        >
+                            <ShareIcon className="w-4 h-4" />
+                            <span>Share Link</span>
+                        </button>
+                    )}
                     <button
                         onClick={() => setIsRegModalOpen(true)}
                         disabled={!selectedEventId || activeEventCategories.length === 0}
