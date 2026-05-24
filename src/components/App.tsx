@@ -57,6 +57,7 @@ const FarmerPortal = lazy(() => import('./coop/FarmerPortal').then(m => ({ defau
 const RiderPortal = lazy(() => import('./coop/RiderPortal').then(m => ({ default: m.RiderPortal })));
 const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 const ResellerDashboard = lazy(() => import('./ResellerDashboard'));
+const EventManagementView = lazy(() => import('./events/EventManagementView').then(m => ({ default: m.EventManagementView })));
 const TenantStorefrontView = lazy(() => import('./retail/TenantStorefrontView').then(m => ({ default: m.TenantStorefrontView })));
 const SchoolStorefrontView = lazy(() => import('./public/SchoolStorefrontView').then(m => ({ default: m.SchoolStorefrontView })));
 const CommunityHubView = lazy(() => import('./public/CommunityHubView').then(m => ({ default: m.CommunityHubView })));
@@ -537,7 +538,7 @@ export const App: React.FC = () => {
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
 
-    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver'].includes(activeRole || '');
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -632,7 +633,8 @@ export const App: React.FC = () => {
                 'legal_admin': 'Legal Hub',
                 'cooperative_manager': 'Coop Manager',
                 'tenant': 'Tenant Portal',
-                'landlord': 'Landlord Portal'
+                'landlord': 'Landlord Portal',
+                'event_manager': 'Event Command Desk'
             };
             suffix = roleNames[activeRole] || activeRole.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
@@ -4766,6 +4768,20 @@ export const App: React.FC = () => {
                                                 });
                                                 loadData();
                                             }}
+                                            onLogAction={handleLogAction}
+                                        />
+                                    </ModuleAccessGuard>
+                                ) : activeRole === 'event_manager' ? (
+                                    <ModuleAccessGuard
+                                        moduleId="events"
+                                        moduleName="Marathon & Event Management"
+                                        description="Track race categories, registrations, timing splits, fundraising pledges, and medical tents."
+                                        institution={activeInstitution}
+                                        onActivateTrial={handleActivateModuleTrial}
+                                    >
+                                        <EventManagementView
+                                            currentUser={currentUser}
+                                            currentInstitution={activeInstitution!}
                                             onLogAction={handleLogAction}
                                         />
                                     </ModuleAccessGuard>

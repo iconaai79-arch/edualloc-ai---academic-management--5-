@@ -70,12 +70,12 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Academic / Schools
     if (isSchoolInstitution(institution)) {
-        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant'];
+        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'event_manager'];
     }
 
     // Tertiary / Higher Ed
     if (isHigherEdInstitution(institution)) {
-        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver'];
+        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager'];
     }
 
     // HIS / Health Information System

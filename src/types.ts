@@ -1,5 +1,5 @@
 /** HIS Nexus Type Definitions **/
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin' | 'campaign_admin' | 'campaign_agent' | 'fuel_admin' | 'attendant' | 'finance_officer' | 'hr_officer' | 'director' | 'finance' | 'sales' | 'reception';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin' | 'campaign_admin' | 'campaign_agent' | 'fuel_admin' | 'attendant' | 'finance_officer' | 'hr_officer' | 'director' | 'finance' | 'sales' | 'reception' | 'event_manager';
 
 export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
 
@@ -5063,5 +5063,98 @@ export interface KCBIPNResponse {
             transactionId: string;
         };
     };
+}
+
+// Event Management & Marathon Module Interfaces
+export interface SportEvent {
+    id: string;
+    institutionId: string;
+    name: string;
+    description?: string;
+    date: string;
+    location?: string;
+    status: 'planning' | 'active' | 'completed' | 'cancelled';
+    logoUrl?: string;
+    bannerUrl?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface EventCategory {
+    id: string;
+    eventId: string;
+    name: string;
+    distanceKm: number;
+    registrationFee: number;
+    capacity?: number;
+    ageLimitMin?: number;
+    ageLimitMax?: number;
+    genderRestriction: 'any' | 'male' | 'female';
+    startTime?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface EventParticipant {
+    id: string;
+    categoryId: string;
+    userId?: string;
+    bibNumber?: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    gender?: 'male' | 'female';
+    age?: number;
+    tShirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+    status: 'registered' | 'checked_in' | 'started' | 'completed' | 'dnf' | 'dns' | 'disqualified';
+    waiverSigned: boolean;
+    paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+    mpesaReference?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    // UI joins
+    categoryName?: string;
+    distanceKm?: number;
+    elapsedTime?: string;
+    splits?: EventSplit[];
+    totalPledges?: number;
+}
+
+export interface EventSplit {
+    id: string;
+    participantId: string;
+    splitName: string;
+    distanceKm: number;
+    timeElapsed: string;
+    recordedAt?: string;
+}
+
+export interface EventMedicalLog {
+    id: string;
+    eventId: string;
+    participantId: string;
+    tentNumber?: string;
+    diagnosis: string;
+    treatment?: string;
+    status: 'treated_and_released' | 'under_observation' | 'referred_to_hospital';
+    recordedAt?: string;
+    // UI joins
+    participantName?: string;
+    bibNumber?: string;
+}
+
+export interface EventPledge {
+    id: string;
+    participantId: string;
+    sponsorName: string;
+    amount: number;
+    paymentStatus: 'pending' | 'paid' | 'failed';
+    createdAt?: string;
+    // UI joins
+    participantName?: string;
+    bibNumber?: string;
 }
 
