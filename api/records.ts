@@ -104,6 +104,13 @@ async function getAuthUser(supabase: any, authHeader?: string) {
 
 const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items', 'hospitality_vehicles'];
 
+const isTableWithoutInstitutionId = (module: string) => {
+  return [
+    'counties', 'constituencies', 'wards', 'political_parties',
+    'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges'
+  ].includes(module);
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -153,7 +160,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (isCounty) {
                     if (moduleName === 'counties') q = q.eq('id', user.institutionId);
                     else if (moduleName === 'institutions') q = q.eq('county_id', user.institutionId);
-                    else q = q.eq('county_id', user.institutionId);
+                    else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('county_id', user.institutionId);
                 } else if (user.role === 'alumna') {
                     if (moduleName === 'alumni_messages') {
                         // Support both recipient_id and receiver_id for legacy/migration compatibility
@@ -162,12 +169,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         // Allow alumnae to see other members (networking)
                     } else if (['alumni_posts', 'alumni_comments', 'alumni_notifications'].includes(moduleName)) {
                         // Social feed and notifications are accessible to verified alumnae
-                    } else {
+                    } else if (!isTableWithoutInstitutionId(moduleName)) {
                         q = q.eq('institution_id', user.institutionId);
                     }
                 } else {
                     if (moduleName === 'institutions') q = q.eq('id', user.institutionId);
-                    else if (moduleName !== 'counties') q = q.eq('institution_id', user.institutionId);
+                    else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('institution_id', user.institutionId);
                 }
             }
 
@@ -211,7 +218,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!recordData) return res.status(400).json({ success: false, error: 'No data' });
             
             // Add tenancy if missing (skip for root tables that don't have this column or for super_admin)
-            const skipTenancy = user?.role === 'super_admin' || moduleName === 'institutions' || moduleName === 'counties';
+            const skipTenancy = user?.role === 'super_admin' || moduleName === 'institutions' || isTableWithoutInstitutionId(moduleName);
             const recordWithTenancy = Array.isArray(recordData) 
                 ? recordData.map(r => ({ ...r, ...(skipTenancy ? {} : { institution_id: r.institution_id || r.institutionId || user?.institutionId }) }))
                 : { ...recordData, ...(skipTenancy ? {} : { institution_id: recordData.institution_id || recordData.institutionId || user?.institutionId }) };
@@ -275,7 +282,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 else q = q.in('id', idsArray);
 
                 // Security check
-                if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName)) {
+                if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
                     const instCol = (moduleName === 'institutions' ? 'id' : 'institution_id');
                     const instId = user?.institutionId;
                     
@@ -322,7 +329,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let q = supabase.from(moduleName).delete().eq('id', idVal);
 
             // Security: Only allow deleting records within own institution
-            if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName)) {
+            if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
                 q = q.eq('institution_id', user?.institutionId);
             }
 
