@@ -1633,10 +1633,16 @@ CREATE TABLE IF NOT EXISTS ds_license_categories (
     name TEXT NOT NULL,
     description TEXT,
     base_fee DECIMAL(12, 2) DEFAULT 0,
+    parent_category TEXT DEFAULT 'Driving',
+    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(code, institution_id)
 );
+
+-- Ensure parent_category and is_active exist for older schema versions
+ALTER TABLE ds_license_categories ADD COLUMN IF NOT EXISTS parent_category TEXT DEFAULT 'Driving';
+ALTER TABLE ds_license_categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 
 CREATE TABLE IF NOT EXISTS ds_votes (
     id TEXT PRIMARY KEY,

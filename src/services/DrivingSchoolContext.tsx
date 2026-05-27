@@ -147,25 +147,32 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const finalVotes = Array.from(votesMap.values());
 
                 // Smart consolidation for License Categories
+                // NOTE: merge order matters — standalone table rows first, then JSONB blob wins last
+                // so that parentCategory (which may be missing from older standalone rows) is preserved
                 const catsMap = new Map();
                 const addCatToMap = (c: any) => {
                     const cCode = c?.code;
                     if (cCode) {
+                        const existing = catsMap.get(cCode.toLowerCase().trim()) || {};
                         catsMap.set(cCode.toLowerCase().trim(), {
+                            ...existing,
                             ...c,
                             code: cCode,
-                            name: c?.name || '',
-                            description: c?.description || '',
-                            baseFee: c?.baseFee ?? c?.base_fee ?? 0,
-                            isActive: c?.isActive ?? c?.is_active ?? true
+                            name: c?.name || existing?.name || '',
+                            description: c?.description ?? existing?.description ?? '',
+                            baseFee: c?.baseFee ?? c?.base_fee ?? existing?.baseFee ?? 0,
+                            isActive: c?.isActive ?? c?.is_active ?? existing?.isActive ?? true,
+                            parentCategory: c?.parentCategory ?? c?.parent_category ?? existing?.parentCategory ?? 'Driving'
                         });
                     }
                 };
+                // Apply in ascending priority: standalone rows first, JSONB blob last (wins)
+                if (dsCatsStandalone && Array.isArray(dsCatsStandalone)) dsCatsStandalone.forEach(addCatToMap);
                 if (prev?.licenseCategories && Array.isArray(prev.licenseCategories)) prev.licenseCategories.forEach(addCatToMap);
                 if (backupCats && Array.isArray(backupCats)) backupCats.forEach(addCatToMap);
                 if (baseSettings?.licenseCategories && Array.isArray(baseSettings.licenseCategories)) baseSettings.licenseCategories.forEach(addCatToMap);
-                if (dsCatsStandalone && Array.isArray(dsCatsStandalone)) dsCatsStandalone.forEach(addCatToMap);
                 const finalCats = Array.from(catsMap.values());
+
 
                 if (baseSettings) {
                     return {
