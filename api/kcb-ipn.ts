@@ -381,7 +381,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // --- Robust body reading: handles Vercel raw body stream, pre-parsed body, Buffer, and string ---
     let body: any = {};
     try {
-        if (req.body !== undefined && req.body !== null) {
+        const isPreparsed = req.body !== undefined && req.body !== null &&
+            !(typeof req.body === 'object' && !Array.isArray(req.body) && Object.keys(req.body).length === 0);
+
+        if (isPreparsed) {
             // Vercel has already parsed the body
             if (Buffer.isBuffer(req.body)) {
                 body = JSON.parse(req.body.toString('utf-8'));
@@ -391,16 +394,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 body = req.body;
             }
         } else {
-            // req.body is undefined: manually read the raw stream
-            const rawChunks: Buffer[] = [];
-            await new Promise<void>((resolve, reject) => {
-                (req as any).on('data', (chunk: Buffer) => rawChunks.push(chunk));
-                (req as any).on('end', () => resolve());
-                (req as any).on('error', reject);
-            });
-            const rawBody = Buffer.concat(rawChunks).toString('utf-8').trim();
+            let rawBody = '';
+            if (typeof req.on === 'function') {
+                // req.body is undefined or empty object: manually read the raw stream
+                const rawChunks: Buffer[] = [];
+                await new Promise<void>((resolve, reject) => {
+                    (req as any).on('data', (chunk: Buffer) => rawChunks.push(chunk));
+                    (req as any).on('end', () => resolve());
+                    (req as any).on('error', reject);
+                });
+                rawBody = Buffer.concat(rawChunks).toString('utf-8').trim();
+            }
             if (rawBody.length > 0) {
-                body = JSON.parse(rawBody);
+                if (rawBody.startsWith('{') || rawBody.startsWith('[')) {
+                    try {
+                        body = JSON.parse(rawBody);
+                    } catch (jsonErr) {
+                        console.warn('[KCB IPN] Failed parsing raw body as JSON, falling back to urlencoded:', jsonErr);
+                        const params = new URLSearchParams(rawBody);
+                        const parsedBody: any = {};
+                        for (const [key, value] of params.entries()) {
+                            parsedBody[key] = value;
+                        }
+                        body = parsedBody;
+                    }
+                } else {
+                    // Try parsing as form urlencoded
+                    const params = new URLSearchParams(rawBody);
+                    const parsedBody: any = {};
+                    let hasKeys = false;
+                    for (const [key, value] of params.entries()) {
+                        parsedBody[key] = value;
+                        hasKeys = true;
+                    }
+                    if (hasKeys) {
+                        body = parsedBody;
+                    } else {
+                        body = JSON.parse(rawBody);
+                    }
+                }
             }
         }
     } catch (parseErr) {
@@ -409,13 +441,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Handle edge case: entire JSON pasted as a single form-urlencoded key with empty value
+    // E.g. {"a": 1}= or encoded as %7B%22a%22%3A1%7D=
     if (body && typeof body === 'object' && !Array.isArray(body)) {
         const keys = Object.keys(body);
-        if (keys.length === 1 && (body[keys[0]] === '' || body[keys[0]] === undefined) && keys[0].trim().startsWith('{')) {
-            try {
-                body = JSON.parse(keys[0]);
-            } catch (e) {
-                console.error('[KCB IPN] Failed to parse single key JSON body:', e);
+        if (keys.length === 1 && (body[keys[0]] === '' || body[keys[0]] === undefined)) {
+            const keyStr = keys[0].trim();
+            if (keyStr.startsWith('{')) {
+                try {
+                    body = JSON.parse(keyStr);
+                } catch (e) {
+                    console.error('[KCB IPN] Failed to parse single key JSON body:', e);
+                }
             }
         }
     }
