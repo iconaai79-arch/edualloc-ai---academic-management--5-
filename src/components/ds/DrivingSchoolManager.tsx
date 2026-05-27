@@ -3962,22 +3962,19 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parent Category (Group)</label>
-                                                    <input 
-                                                        type="text" 
-                                                        list="parent-categories-ds" 
-                                                        value={newCategoryInput.parentCategory || ''} 
+                                                    <select 
+                                                        value={newCategoryInput.parentCategory || 'Driving'} 
                                                         onChange={e => setNewCategoryInput({...newCategoryInput, parentCategory: e.target.value})} 
-                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs" 
-                                                        placeholder="e.g. Driving (Defaults to Driving)" 
-                                                    />
-                                                    <datalist id="parent-categories-ds">
+                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs text-slate-900 dark:text-slate-100 appearance-none"
+                                                    >
                                                         {Array.from(new Set([
+                                                            'Driving',
                                                             ...(settings?.licenseGroups || ['Driving', 'Computer Classes', 'IELTS']),
                                                             ...Array.from(new Set((settings?.licenseCategories || []).map((c: any) => c.parentCategory).filter(Boolean)))
                                                         ])).map((parent: any) => (
-                                                            <option key={parent} value={parent} />
+                                                            <option key={parent} value={parent}>{parent}</option>
                                                         ))}
-                                                    </datalist>
+                                                    </select>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Base Course Fee (KES)</label>

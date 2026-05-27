@@ -2704,22 +2704,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parent Category (Group)</label>
-                                            <input 
-                                                type="text" 
-                                                list="parent-categories" 
-                                                value={newLicenseCategoryForm.parentCategory || ''} 
+                                            <select 
+                                                value={newLicenseCategoryForm.parentCategory || 'Driving'} 
                                                 onChange={e => setNewLicenseCategoryForm({...newLicenseCategoryForm, parentCategory: e.target.value})} 
-                                                className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" 
-                                                placeholder="e.g. Driving, Computer Classes, IELTS (Defaults to Driving)" 
-                                            />
-                                            <datalist id="parent-categories">
+                                                className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-900 dark:text-slate-100 appearance-none"
+                                            >
                                                 {Array.from(new Set([
+                                                    'Driving',
                                                     ...(localDsSettings?.licenseGroups || ['Driving', 'Computer Classes', 'IELTS']),
                                                     ...Array.from(new Set((localDsSettings?.licenseCategories || []).map((c: any) => c.parentCategory).filter(Boolean)))
                                                 ])).map((parent: any) => (
-                                                    <option key={parent} value={parent} />
+                                                    <option key={parent} value={parent}>{parent}</option>
                                                 ))}
-                                            </datalist>
+                                            </select>
                                         </div>
                                         <div className="md:col-span-2 space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description & Vehicles Covered</label>
