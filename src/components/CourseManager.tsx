@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { Course, Department, Subject, User, CourseLevel, AcademicLevel, LetterheadConfig, Institution, Room, AllocationRequest, Priority, ScheduleProfile, TimetableConstraint, TimetableConstraintType, TimetableSettings, TimetableEntry, LessonStructure } from '../types';
+import type { Course, Department, Subject, User, CourseLevel, AcademicLevel, LetterheadConfig, Institution, Room, AllocationRequest, Priority, ScheduleProfile, TimetableConstraint, TimetableConstraintType, TimetableSettings, TimetableEntry, LessonStructure, Building } from '../types';
 import { PlusIcon } from './icons/PlusIcon';
 import { XIcon } from './icons/XIcon';
 import { CheckIcon } from './icons/CheckIcon';

@@ -31,6 +31,7 @@ import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTe
 import { CheckIcon } from './icons/CheckIcon';
 import { XIcon } from './icons/XIcon';
 import { PlusIcon } from './icons/PlusIcon';
+import { TrashIcon } from './icons/TrashIcon';
 import { CreditCardIcon } from './icons/CreditCardIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
@@ -2481,7 +2482,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         onClick={() => {
                                                             setNewFeeForm({
                                                                 ...newFeeForm,
-                                                                items: [...newFeeForm.items, { name: 'Custom Fee', amount: 0, priority: newFeeForm.items.length + 1 }]
+                                                                items: [...newFeeForm.items, { name: '', amount: 0, priority: newFeeForm.items.length + 1 }]
                                                             });
                                                         }}
                                                         className="flex items-center gap-1 text-[9px] font-black text-indigo-600 uppercase tracking-widest bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900/40 hover:bg-indigo-50 transition-all"
@@ -2490,77 +2491,127 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     </button>
                                                 </div>
 
+                                                {localDsSettings?.votes && Array.isArray(localDsSettings.votes) && localDsSettings.votes.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5 pt-1 items-center">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mr-1">Quick Add Vote:</span>
+                                                        {localDsSettings.votes.map((vt: any) => (
+                                                            <button
+                                                                key={vt.id || vt.voteName}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const current = Array.isArray(newFeeForm.items) ? newFeeForm.items : [];
+                                                                    const nextItems = [...current, { 
+                                                                        name: vt.voteName || vt.vote_name || '', 
+                                                                        amount: vt.defaultAmount ?? (vt as any).default_amount ?? 0, 
+                                                                        priority: current.length + 1 
+                                                                    }];
+                                                                    setNewFeeForm({ 
+                                                                        ...newFeeForm, 
+                                                                        items: nextItems
+                                                                    });
+                                                                }}
+                                                                className="px-3 py-1 bg-white dark:bg-slate-850 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-lg text-[9px] font-bold border border-slate-200 dark:border-slate-700 hover:border-indigo-500 transition-all flex items-center gap-1"
+                                                            >
+                                                                <PlusIcon className="w-2.5 h-2.5 text-indigo-500" />
+                                                                {vt.voteName || vt.vote_name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+
                                                 <div className="space-y-2">
                                                     {newFeeForm.items.length > 0 && (
                                                         <div className="flex gap-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">
-                                                            <div className="flex-[2]">Vote Head / Label</div>
-                                                            <div className="flex-1 text-right pr-2">Amount (KES)</div>
-                                                            <div className="w-16 text-center">Priority</div>
+                                                            <div className="flex-[3]">Vote Head / Label</div>
+                                                            <div className="flex-[2] text-right pr-2">Amount (KES)</div>
+                                                            <div className="flex-[1] text-center">Priority</div>
                                                             <div className="w-8"></div>
                                                         </div>
                                                     )}
-                                                    {(Array.isArray(newFeeForm.items) ? newFeeForm.items : []).map((it, idx) => (
-                                                        <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60">
-                                                            <div className="flex-[2]">
-                                                                <input
-                                                                    type="text"
-                                                                    required
-                                                                    value={it.name || ''}
-                                                                    onChange={e => {
-                                                                        const nextItems = [...newFeeForm.items];
-                                                                        nextItems[idx] = { ...it, name: e.target.value };
-                                                                        setNewFeeForm({ ...newFeeForm, items: nextItems });
-                                                                    }}
-                                                                    placeholder="Item Name (e.g. PDL)"
-                                                                    className="w-full bg-transparent border-none text-xs font-bold px-2 py-1 focus:ring-0 text-black dark:text-white"
-                                                                />
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded-xl">
-                                                                    <span className="text-[9px] font-black text-slate-400">KES</span>
+                                                    {(Array.isArray(newFeeForm.items) ? newFeeForm.items : []).map((it, idx) => {
+                                                        return (
+                                                            <div key={idx} className="flex gap-4 items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+                                                                <div className="flex-[3]">
                                                                     <input
-                                                                        type="number"
+                                                                        list={`votes-datalist-${idx}`}
+                                                                        type="text"
                                                                         required
-                                                                        value={it.amount === 0 ? '' : it.amount}
+                                                                        value={it.name || ''}
                                                                         onChange={e => {
+                                                                            const val = e.target.value;
                                                                             const nextItems = [...newFeeForm.items];
-                                                                            nextItems[idx] = { ...it, amount: Number(e.target.value) };
+                                                                            const matchedVote = (localDsSettings?.votes || []).find((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === val.toLowerCase().trim());
+                                                                            nextItems[idx] = { 
+                                                                                ...it, 
+                                                                                name: val,
+                                                                                amount: (matchedVote && it.amount === 0) ? (matchedVote.defaultAmount ?? (matchedVote as any).default_amount ?? 0) : it.amount
+                                                                            };
                                                                             setNewFeeForm({ ...newFeeForm, items: nextItems });
                                                                         }}
-                                                                        placeholder="0"
-                                                                        className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right text-black dark:text-white"
+                                                                        placeholder="e.g. Tuition Fee"
+                                                                        className="w-full px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                                                                     />
+                                                                    <datalist id={`votes-datalist-${idx}`}>
+                                                                        {(localDsSettings?.votes || []).map((vt: any) => {
+                                                                            const n = vt.voteName || vt.vote_name;
+                                                                            return n ? <option key={vt.id || n} value={n} /> : null;
+                                                                        })}
+                                                                    </datalist>
                                                                 </div>
-                                                            </div>
-                                                            <div className="w-16">
                                                                 <input
                                                                     type="number"
-                                                                    title="Priority"
-                                                                    value={it.priority || 1}
+                                                                    required
+                                                                    value={it.amount === 0 ? '' : it.amount}
+                                                                    onChange={e => {
+                                                                        const nextItems = [...newFeeForm.items];
+                                                                        nextItems[idx] = { ...it, amount: Number(e.target.value) };
+                                                                        setNewFeeForm({ ...newFeeForm, items: nextItems });
+                                                                    }}
+                                                                    placeholder="Amount"
+                                                                    className="flex-[2] px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                                />
+                                                                <input
+                                                                    type="number"
+                                                                    value={it.priority || idx + 1}
                                                                     onChange={e => {
                                                                         const nextItems = [...newFeeForm.items];
                                                                         nextItems[idx] = { ...it, priority: Number(e.target.value) };
                                                                         setNewFeeForm({ ...newFeeForm, items: nextItems });
                                                                     }}
-                                                                    placeholder="Pri"
-                                                                    className="w-full bg-slate-50 dark:bg-slate-900 border-none text-xs font-bold p-1 rounded-xl text-center focus:ring-0 text-slate-500"
+                                                                    placeholder="Priority"
+                                                                    className="flex-[1] px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                                    title="Priority weight (lowest priority gets paid first)"
                                                                 />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setNewFeeForm({
+                                                                            ...newFeeForm,
+                                                                            items: newFeeForm.items.filter((_, i) => i !== idx)
+                                                                        });
+                                                                    }}
+                                                                    className="p-2 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950/20 rounded-xl transition-all"
+                                                                >
+                                                                    <TrashIcon className="w-5 h-5" />
+                                                                </button>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setNewFeeForm({
-                                                                        ...newFeeForm,
-                                                                        items: newFeeForm.items.filter((_, i) => i !== idx)
-                                                                    });
-                                                                }}
-                                                                className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                                                            >
-                                                                <XIcon className="w-4 h-4" />
-                                                            </button>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
+                                                    {newFeeForm.items.length === 0 && (
+                                                        <p className="text-center text-xs text-slate-400 py-4 font-medium italic">No fee items assigned yet. Click Quick Add or Add Item above.</p>
+                                                    )}
                                                 </div>
+
+                                                {newFeeForm.items.length > 0 && (
+                                                    <div className="flex justify-end pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                                                        <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-xl">
+                                                            <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Calculated Total:</span>
+                                                            <span className="text-sm font-black text-slate-900 dark:text-white">
+                                                                KES {newFeeForm.items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex gap-3">
@@ -2682,7 +2733,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         onClick={() => {
                                             setIsAddingLicenseCategory(true);
                                             setEditingLicenseCategoryId(null);
-                                            setNewLicenseCategoryForm({ code: '', name: '', description: '', isActive: true });
+                                            setNewLicenseCategoryForm({ code: '', name: '', description: '', isActive: true, parentCategory: 'Driving' });
                                         }}
                                         className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
                                     >
@@ -2860,6 +2911,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                                 setEditingFeeId(null);
                                                                                 setIsAddingFee(true);
                                                                                 setManagingFeeForCategory(null);
+                                                                                setDsConfigSubTab('business_rules');
                                                                             }}
                                                                             className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-all uppercase tracking-widest"
                                                                         >
@@ -2893,6 +2945,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                                                 setNewFeeForm({ className: fee.className, description: (fee as any).description || '', items: loadedItems });
                                                                                                 setIsAddingFee(true);
                                                                                                 setManagingFeeForCategory(null);
+                                                                                                setDsConfigSubTab('business_rules');
                                                                                             }}
                                                                                             className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
                                                                                         >Edit</button>
