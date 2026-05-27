@@ -2726,7 +2726,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div className="flex gap-3">
                                         <button onClick={() => { setIsAddingLicenseCategory(false); setEditingLicenseCategoryId(null); setNewLicenseCategoryForm({ code: '', name: '', description: '', isActive: true, parentCategory: '' }); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
                                         <button 
-                                            onClick={() => {
+                                            onClick={async () => {
                                                 if (!newLicenseCategoryForm.code || !newLicenseCategoryForm.name) {
                                                     alert("Please provide both Class Code and Category Name.");
                                                     return;
@@ -2755,6 +2755,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 setIsAddingLicenseCategory(false);
                                                 setEditingLicenseCategoryId(null);
                                                 setNewLicenseCategoryForm({ code: '', name: '', description: '', isActive: true, parentCategory: '' });
+                                                // Immediately persist to DB so parentCategory and all fields are saved
+                                                try {
+                                                    await props.onUpdateDSSettings?.(next);
+                                                } catch (err) {
+                                                    console.error('[SettingsManager] Failed to persist license category to DB:', err);
+                                                }
                                             }}
                                             className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                         >
