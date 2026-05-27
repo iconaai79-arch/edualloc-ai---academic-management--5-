@@ -154,88 +154,6 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     const [previewPdf, setPreviewPdf] = useState<string | null>(null);
     const [scoringStudent, setScoringStudent] = useState<DSStudent | null>(null);
 
-    // Category & Subcategory logic for Student/Lead enrollment
-    const categoryGroups = useMemo(() => {
-        if (settings?.licenseGroups && settings.licenseGroups.length > 0) {
-            return settings.licenseGroups;
-        }
-        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
-            const parents = settings.licenseCategories
-                .map((c: any) => c.parentCategory || 'Driving')
-                .filter((v, i, a) => a.indexOf(v) === i);
-            return parents;
-        }
-        return ['Driving'];
-    }, [settings?.licenseGroups, settings?.licenseCategories]);
-
-    const filteredSubcategories = useMemo(() => {
-        const selectedParent = formData.licenseCategory || 'Driving';
-        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
-            return settings.licenseCategories.filter((c: any) => (c.parentCategory || 'Driving') === selectedParent);
-        }
-        if (selectedParent === 'Driving') {
-            return [
-                { id: 'class_a', code: 'Class A', name: 'Motorcycle', baseFee: 8000 },
-                { id: 'class_b', code: 'Class B', name: 'Light Vehicle', baseFee: 15000 },
-                { id: 'class_c1', code: 'Class C1', name: 'Truck', baseFee: 18000 }
-            ];
-        }
-        return [];
-    }, [formData.licenseCategory, settings?.licenseCategories]);
-
-    // Automatically set default category and subcategory if missing
-    useEffect(() => {
-        if ((type === 'student' || type === 'lead') && !formData.licenseCategory) {
-            let initialParent = 'Driving';
-            if (formData.licenseTypeInterested && settings?.licenseCategories) {
-                const matched = settings.licenseCategories.find((c: any) => c.code === formData.licenseTypeInterested);
-                if (matched && matched.parentCategory) {
-                    initialParent = matched.parentCategory;
-                }
-            } else if (categoryGroups.length > 0) {
-                initialParent = categoryGroups[0];
-            }
-
-            let defaultSub = '';
-            if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
-                const subs = settings.licenseCategories.filter((c: any) => (c.parentCategory || 'Driving') === initialParent);
-                if (subs.length > 0) {
-                    defaultSub = subs[0].code;
-                }
-            } else if (initialParent === 'Driving') {
-                defaultSub = 'Class B';
-            }
-
-            setFormData((prev: any) => ({
-                ...prev,
-                licenseCategory: initialParent,
-                licenseTypeInterested: prev.licenseTypeInterested || defaultSub
-            }));
-        }
-    }, [type, categoryGroups, settings?.licenseCategories, formData.licenseCategory, formData.licenseTypeInterested]);
-
-    const handleCategoryChange = (val: string) => {
-        let defaultSub = '';
-        let matchedFee = 15000;
-        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
-            const subs = settings.licenseCategories.filter((c: any) => (c.parentCategory || 'Driving') === val);
-            if (subs.length > 0) {
-                defaultSub = subs[0].code;
-                matchedFee = subs[0].baseFee || 15000;
-            }
-        } else if (val === 'Driving') {
-            defaultSub = 'Class B';
-            matchedFee = 15000;
-        }
-
-        setFormData((prev: any) => ({
-            ...prev,
-            licenseCategory: val,
-            licenseTypeInterested: defaultSub,
-            quotedAmount: type === 'lead' ? matchedFee : prev.quotedAmount
-        }));
-    };
-
     const nextAdmissionNumber = useMemo(() => {
         const prefixStr = (settings?.studentIdPrefix || 'ADM-').trim();
         const asNum = Number(prefixStr);
@@ -432,6 +350,88 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     });
     const [studentSearch, setStudentSearch] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+
+    // Category & Subcategory logic for Student/Lead enrollment
+    const categoryGroups = useMemo(() => {
+        if (settings?.licenseGroups && settings.licenseGroups.length > 0) {
+            return settings.licenseGroups;
+        }
+        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
+            const parents = settings.licenseCategories
+                .map((c: any) => c.parentCategory || 'Driving')
+                .filter((v, i, a) => a.indexOf(v) === i);
+            return parents;
+        }
+        return ['Driving'];
+    }, [settings?.licenseGroups, settings?.licenseCategories]);
+
+    const filteredSubcategories = useMemo(() => {
+        const selectedParent = formData.licenseCategory || 'Driving';
+        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
+            return settings.licenseCategories.filter((c: any) => (c.parentCategory || 'Driving') === selectedParent);
+        }
+        if (selectedParent === 'Driving') {
+            return [
+                { id: 'class_a', code: 'Class A', name: 'Motorcycle', baseFee: 8000 },
+                { id: 'class_b', code: 'Class B', name: 'Light Vehicle', baseFee: 15000 },
+                { id: 'class_c1', code: 'Class C1', name: 'Truck', baseFee: 18000 }
+            ];
+        }
+        return [];
+    }, [formData.licenseCategory, settings?.licenseCategories]);
+
+    // Automatically set default category and subcategory if missing
+    useEffect(() => {
+        if ((type === 'student' || type === 'lead') && !formData.licenseCategory) {
+            let initialParent = 'Driving';
+            if (formData.licenseTypeInterested && settings?.licenseCategories) {
+                const matched = settings.licenseCategories.find((c: any) => c.code === formData.licenseTypeInterested);
+                if (matched && matched.parentCategory) {
+                    initialParent = matched.parentCategory;
+                }
+            } else if (categoryGroups.length > 0) {
+                initialParent = categoryGroups[0];
+            }
+
+            let defaultSub = '';
+            if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
+                const subs = settings.licenseCategories.filter((c: any) => (c.parentCategory || 'Driving') === initialParent);
+                if (subs.length > 0) {
+                    defaultSub = subs[0].code;
+                }
+            } else if (initialParent === 'Driving') {
+                defaultSub = 'Class B';
+            }
+
+            setFormData((prev: any) => ({
+                ...prev,
+                licenseCategory: initialParent,
+                licenseTypeInterested: prev.licenseTypeInterested || defaultSub
+            }));
+        }
+    }, [type, categoryGroups, settings?.licenseCategories, formData.licenseCategory, formData.licenseTypeInterested]);
+
+    const handleCategoryChange = (val: string) => {
+        let defaultSub = '';
+        let matchedFee = 15000;
+        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
+            const subs = settings.licenseCategories.filter((c: any) => (c.parentCategory || 'Driving') === val);
+            if (subs.length > 0) {
+                defaultSub = subs[0].code;
+                matchedFee = subs[0].baseFee || 15000;
+            }
+        } else if (val === 'Driving') {
+            defaultSub = 'Class B';
+            matchedFee = 15000;
+        }
+
+        setFormData((prev: any) => ({
+            ...prev,
+            licenseCategory: val,
+            licenseTypeInterested: defaultSub,
+            quotedAmount: type === 'lead' ? matchedFee : prev.quotedAmount
+        }));
+    };
 
     if (!type) return null;
 
