@@ -54,11 +54,7 @@ export const generateDSPDF = async (
             doc.addImage(headerImg, 'JPEG', margin, 15, imgWidth, imgHeight);
             currentY = imgHeight + 30; // extra space below letterhead
         }
-        // Draw separator line beneath letterhead
-        doc.setDrawColor(220, 220, 220);
-        doc.setLineWidth(0.5);
-        doc.line(margin, currentY - 8, pageWidth - margin, currentY - 8);
-        doc.setLineWidth(0.2);
+
     } else {
         // Fallback Header
         doc.setFontSize(22);
