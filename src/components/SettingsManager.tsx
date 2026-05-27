@@ -2605,13 +2605,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
                                         <div className="flex items-center justify-between mb-4">
                                             <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
-                                            <span className="text-lg font-black text-slate-900 dark:text-white">KSH {fee.totalAmount.toLocaleString()}</span>
+                                            <span className="text-lg font-black text-slate-900 dark:text-white">KSH {(fee.totalAmount ?? 0).toLocaleString()}</span>
                                         </div>
                                         <div className="space-y-2">
                                             {(Array.isArray(fee.items) ? fee.items : []).map((item, i) => (
                                                 <div key={i} className="flex items-center justify-between text-xs">
                                                     <span className="text-slate-500 font-medium">{item.name}</span>
-                                                    <span className="text-slate-700 dark:text-slate-300 font-bold">KSH {item.amount.toLocaleString()}</span>
+                                                    <span className="text-slate-700 dark:text-slate-300 font-bold">KSH {(item.amount ?? 0).toLocaleString()}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -2898,7 +2898,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-black text-xs rounded-xl uppercase tracking-widest">Priority {vote.priority}</span>
                                                 {vote.allocatedAmount > 0 && (
-                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Budget: KES {vote.allocatedAmount.toLocaleString()}</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Budget: KES {(vote.allocatedAmount ?? 0).toLocaleString()}</span>
                                                 )}
                                             </div>
                                             <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{vote.name}</h4>

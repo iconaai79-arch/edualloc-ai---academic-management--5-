@@ -1105,7 +1105,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-sm font-black text-rose-600">-KES {exp.amount.toLocaleString()}</p>
+                                                <p className="text-sm font-black text-rose-600">-KES {(exp.amount ?? 0).toLocaleString()}</p>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified</p>
                                             </div>
                                         </div>

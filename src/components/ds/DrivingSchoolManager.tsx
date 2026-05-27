@@ -830,7 +830,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     const vehicleConflict = formData.vehicleId && formData.lessonType !== 'Theory' ? sameDayLessons.find(l => l.vehicleId === formData.vehicleId && isOverlapping(formData.startTime, formData.endTime, l.startTime, l.endTime)) : null;
 
                                     const studentInvoices = (invoices || []).filter(inv => inv.studentId === formData.studentId && inv.balance > 0 && inv.status !== 'Fully Paid');
-                                    const totalOwed = studentInvoices.reduce((sum, i) => sum + i.balance, 0);
+                                    const totalOwed = studentInvoices.reduce((sum, i) => sum + (Number(i.balance) || 0), 0);
                                     
                                     return (
                                         <div className="md:col-span-2 space-y-3 pt-2">
@@ -864,7 +864,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                     <div>
                                                         <p className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Milestone Installment Lockout Check</p>
                                                         <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">
-                                                            Student has an outstanding fee balance of <strong>KES {totalOwed.toLocaleString()}</strong>. Ensure compliance with your minimum deposit policies prior to highway deployment.
+                                                            Student has an outstanding fee balance of <strong>KES {(totalOwed ?? 0).toLocaleString()}</strong>. Ensure compliance with your minimum deposit policies prior to highway deployment.
                                                         </p>
                                                     </div>
                                                 </div>
@@ -919,7 +919,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         }
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="">Select Fee Structure</option>
-                                        {settings?.feeStructures?.map((fs: DSFeeStructure) => <option key={fs.id} value={fs.id}>{fs.className} (KES {fs.totalAmount.toLocaleString()})</option>)}
+                                        {settings?.feeStructures?.map((fs: DSFeeStructure) => <option key={fs.id} value={fs.id}>{fs.className} (KES {(fs.totalAmount ?? 0).toLocaleString()})</option>)}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
@@ -1662,7 +1662,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             const student = (students || []).find(s => s.id === inv.studentId);
             const phone = student?.phone || (student as any)?.phoneNumber;
             if (student && phone) {
-                const textMsg = `Hello ${student.fullName.split(' ')[0]}, your driving course account (${inv.invoiceNumber}) has an outstanding balance of KES ${inv.balance.toLocaleString()}. Please settle via M-Pesa to avoid lesson interruption.`;
+                const textMsg = `Hello ${student.fullName.split(' ')[0]}, your driving course account (${inv.invoiceNumber}) has an outstanding balance of KES ${(inv.balance ?? 0).toLocaleString()}. Please settle via M-Pesa to avoid lesson interruption.`;
                 targets.push({ phone, message: textMsg, name: student.fullName });
             }
         });
@@ -3226,8 +3226,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
                                                             <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
                                                             <td className="px-10 py-6 text-sm">{invoice.studentName}</td>
-                                                        <td className="px-10 py-6 font-bold text-sm">KES {invoice.totalAmount.toLocaleString()}</td>
-                                                        <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {invoice.balance.toLocaleString()}</td>
+                                                        <td className="px-10 py-6 font-bold text-sm">KES {(invoice.totalAmount ?? 0).toLocaleString()}</td>
+                                                        <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {(invoice.balance ?? 0).toLocaleString()}</td>
                                                         <td className="px-10 py-6">
                                                             <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
                                                                 invoice.status === 'Fully Paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
@@ -3338,7 +3338,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                              <tr key={payment.id} className="hover:bg-amber-100/20">
                                                                  <td className="px-6 py-4 font-bold text-amber-900 dark:text-amber-300">{payment.receiptNumber}</td>
                                                                  <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">{payment.studentName}</td>
-                                                                 <td className="px-6 py-4 font-bold text-sm text-slate-900 dark:text-white">KES {payment.amount.toLocaleString()}</td>
+                                                                 <td className="px-6 py-4 font-bold text-sm text-slate-900 dark:text-white">KES {(payment.amount ?? 0).toLocaleString()}</td>
                                                                  <td className="px-6 py-4 text-xs italic text-rose-600 dark:text-rose-400">{payment.deletionReason}</td>
                                                                  <td className="px-6 py-4 text-xs text-slate-500">{payment.deletionRequestedBy || 'Admin'}</td>
                                                                  <td className="px-6 py-4 text-right space-x-2">
@@ -3427,7 +3427,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
                                                             <td className="px-10 py-6 text-sm">{payment.studentName}</td>
                                                             <td className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
-                                                            <td className="px-10 py-6 font-bold text-sm">KES {payment.amount.toLocaleString()}</td>
+                                                            <td className="px-10 py-6 font-bold text-sm">KES {(payment.amount ?? 0).toLocaleString()}</td>
                                                             <td className="px-10 py-6 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
                                                             <td className="px-10 py-6 text-right space-x-2">
                                                                 <button 
@@ -3637,7 +3637,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 <div className="text-right">
                                                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Fee Balance</span>
                                                     <span className={`text-xs font-black ${totalOwed > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                                        KES {totalOwed.toLocaleString()}
+                                                        KES {(totalOwed ?? 0).toLocaleString()}
                                                     </span>
                                                 </div>
                                             </div>
@@ -3649,7 +3649,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     <div className="space-y-1">
                                                         <h6 className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Financial Milestone Guidance Active</h6>
                                                         <p className="text-[11px] text-blue-700 dark:text-blue-300">
-                                                            Your account carries an outstanding cumulative balance of <b>KES {totalOwed.toLocaleString()}</b>. Institutional protocols encourage prompt deposits before scheduling subsequent continuous advanced coaching blocks.
+                                                            Your account carries an outstanding cumulative balance of <b>KES {(totalOwed ?? 0).toLocaleString()}</b>. Institutional protocols encourage prompt deposits before scheduling subsequent continuous advanced coaching blocks.
                                                         </p>
                                                     </div>
                                                 </div>
