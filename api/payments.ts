@@ -268,29 +268,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 created_at: new Date().toISOString()
             });
 
-            // Insert pending transaction record
-            const txnMetadata = {
-                type: body.paymentType || 'Rent',
-                tenantId: tenantId || '',
-                payerPhoneNumber: phoneNumber,
-                payerName: resolvedName,
-                reconciled: false
-            };
 
-            await supabase.from('mpesa_transactions').insert({
-                id: `txn_${Date.now()}`,
-                transaction_id: checkoutRequestId,
-                checkout_request_id: checkoutRequestId,
-                institution_id: institutionId,
-                amount: amount,
-                phone_number: phoneNumber,
-                status: 'pending',
-                provider: 'kcb',
-                customer_name: resolvedName,
-                customer_mobile_number: phoneNumber,
-                narration: transactionDesc || body.paymentType || 'Rent Payment',
-                metadata: txnMetadata
-            });
 
             return res.status(200).json({
                 success: true,
@@ -405,29 +383,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     created_at: new Date().toISOString()
                 });
 
-                // Insert pending transaction record
-                const txnMetadata = {
-                    type: body.paymentType || 'Rent',
-                    tenantId: tenantId || '',
-                    payerPhoneNumber: phoneNumber,
-                    payerName: resolvedName,
-                    reconciled: false
-                };
 
-                await supabase.from('mpesa_transactions').insert({
-                    id: `txn_${Date.now()}`,
-                    transaction_id: checkoutRequestId,
-                    checkout_request_id: checkoutRequestId,
-                    institution_id: institutionId,
-                    amount: amount,
-                    phone_number: phoneNumber,
-                    status: 'pending',
-                    provider: 'kcb',
-                    customer_name: resolvedName,
-                    customer_mobile_number: phoneNumber,
-                    narration: transactionDesc || body.paymentType || 'Rent Payment',
-                    metadata: txnMetadata
-                });
 
                 return res.status(200).json({
                     success: true,
@@ -471,30 +427,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 created_at: new Date().toISOString()
             });
 
-            // Insert pending transaction record
             const checkoutRequestId = `KCB_CO_Mock_Fallback_${Date.now()}`;
-            const txnMetadata = {
-                type: body.paymentType || 'Rent',
-                tenantId: tenantId || '',
-                payerPhoneNumber: phoneNumber,
-                payerName: resolvedName,
-                reconciled: false
-            };
-
-            await supabase.from('mpesa_transactions').insert({
-                id: `txn_${Date.now()}`,
-                transaction_id: checkoutRequestId,
-                checkout_request_id: checkoutRequestId,
-                institution_id: institutionId,
-                amount: amount,
-                phone_number: phoneNumber,
-                status: 'pending',
-                provider: 'kcb',
-                customer_name: resolvedName,
-                customer_mobile_number: phoneNumber,
-                narration: transactionDesc || body.paymentType || 'Rent Payment',
-                metadata: txnMetadata
-            });
 
             return res.status(200).json({
                 success: true,
