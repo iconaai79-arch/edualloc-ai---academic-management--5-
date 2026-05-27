@@ -27,8 +27,6 @@ import {
 import { generateDSStudentLogbookPDF, generateDSPDF } from '../../utils/dsPdfGenerator';
 import { generateStudentStatement } from '../../utils/dsReportGenerator';
 import { CurrencyIcon } from '../icons';
-import { generateStudentStatement } from '../../utils/dsReportGenerator';
-import { CurrencyIcon } from '../icons';
 
 import { useToast } from '../../services/ToastContext';
 

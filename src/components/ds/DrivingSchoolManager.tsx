@@ -159,7 +159,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         const asNum = Number(prefixStr);
         if (!isNaN(asNum) && prefixStr !== '') {
             let maxVal = asNum;
-            students.forEach(s => {
+            (students || []).forEach(s => {
                 if (s.admissionNumber) {
                     const sNum = Number(s.admissionNumber.trim());
                     if (!isNaN(sNum) && sNum >= asNum && sNum > maxVal) {
@@ -170,7 +170,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             return String(maxVal + 1);
         } else {
             let maxNum = 0;
-            students.forEach(s => {
+            (students || []).forEach(s => {
                 if (s.admissionNumber && s.admissionNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
                     const remainder = s.admissionNumber.slice(prefixStr.length).trim();
                     const match = remainder.match(/\d+/);
@@ -191,7 +191,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         const asNum = Number(prefixStr);
         if (!isNaN(asNum) && prefixStr !== '') {
             let maxVal = asNum;
-            invoices.forEach(inv => {
+            (invoices || []).forEach(inv => {
                 if (inv.invoiceNumber) {
                     const num = Number(inv.invoiceNumber.trim());
                     if (!isNaN(num) && num >= asNum && num > maxVal) {
@@ -202,7 +202,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             return String(maxVal + 1);
         } else {
             let maxNum = 0;
-            invoices.forEach(inv => {
+            (invoices || []).forEach(inv => {
                 if (inv.invoiceNumber && inv.invoiceNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
                     const remainder = inv.invoiceNumber.slice(prefixStr.length).trim();
                     const match = remainder.match(/\d+/);
@@ -223,7 +223,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         const asNum = Number(prefixStr);
         if (!isNaN(asNum) && prefixStr !== '') {
             let maxVal = asNum;
-            payments.forEach(pay => {
+            (payments || []).forEach(pay => {
                 if (pay.receiptNumber) {
                     const num = Number(pay.receiptNumber.trim());
                     if (!isNaN(num) && num >= asNum && num > maxVal) {
@@ -234,7 +234,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             return String(maxVal + 1);
         } else {
             let maxNum = 0;
-            payments.forEach(pay => {
+            (payments || []).forEach(pay => {
                 if (pay.receiptNumber && pay.receiptNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
                     const remainder = pay.receiptNumber.slice(prefixStr.length).trim();
                     const match = remainder.match(/\d+/);
@@ -2246,7 +2246,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const filteredInvoices = useMemo(() => 
         (invoices || []).filter(inv => {
             const student = (normalizedStudents || []).find(s => s.id === inv.studentId);
-            const adm = student?.admissionNumber || student?.admission_number || '';
+            const adm = student?.admissionNumber || (student as any)?.admission_number || '';
             return (inv.studentName || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
                    (inv.invoiceNumber || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
                    adm.toLowerCase().includes(invoiceSearch.toLowerCase());
@@ -2265,7 +2265,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const filteredPayments = useMemo(() => 
         (payments || []).filter(pay => {
             const student = (normalizedStudents || []).find(s => s.id === pay.studentId);
-            const adm = student?.admissionNumber || student?.admission_number || '';
+            const adm = student?.admissionNumber || (student as any)?.admission_number || '';
             return (pay.studentName || student?.fullName || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
                    (pay.receiptNumber || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
                    (pay.paymentMethod || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
@@ -3319,7 +3319,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                                                 {paginatedInvoices.map(invoice => {
                                                     const student = (normalizedStudents || []).find(s => s.id === invoice.studentId);
-                                                    const admNo = student?.admissionNumber || student?.admission_number || '-';
+                                                    const admNo = student?.admissionNumber || (student as any)?.admission_number || '-';
                                                     return (
                                                         <tr key={invoice.id} className="hover:bg-slate-50/50">
                                                             <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
@@ -3512,7 +3512,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                                                     {paginatedPayments.map(payment => {
                                                         const student = (normalizedStudents || []).find(s => s.id === payment.studentId);
-                                                        const admNo = student?.admissionNumber || student?.admission_number || '-';
+                                                        const admNo = student?.admissionNumber || (student as any)?.admission_number || '-';
                                                         return (
                                                             <tr key={payment.id} className="hover:bg-slate-50/50">
                                                                 <td className="px-10 py-6 font-bold flex items-center gap-2">
