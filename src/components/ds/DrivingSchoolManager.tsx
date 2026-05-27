@@ -1526,7 +1526,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     
     const rolesList = useMemo(() => [
         (currentUser?.role || '').toLowerCase(),
-        ...(currentUser?.roles || []).map(r => (r || '').toLowerCase())
+        ...(Array.isArray(currentUser?.roles) ? currentUser.roles : []).map(r => (r || '').toLowerCase())
     ], [currentUser]);
     const isAdmin = useMemo(() => rolesList.some(role => 
         ['admin', 'super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin', 'owner', 'director', 'driving_instructor', 'head_teacher', 'finance', 'reseller', 'manager'].includes(role) || 
