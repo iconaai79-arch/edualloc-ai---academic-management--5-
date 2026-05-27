@@ -180,6 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const balance = getParam('balance');
         const narration = getParam('narration');
         const tenantId = getParam('tenantId');
+        const paymentType = getParam('paymentType') || 'Rent';
 
         const supabase = getSupabase();
         if (!supabase) return res.status(503).json({ error: 'Database context missing' });
@@ -215,6 +216,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        // Fallback to global kcb_config in system_settings if institution config is empty
+        if (Object.keys(kcbConfig).length === 0) {
+            try {
+                const { data: sData } = await supabase
+                    .from('system_settings')
+                    .select('data')
+                    .eq('id', 1)
+                    .maybeSingle();
+                if (sData?.data?.kcb_config || sData?.data?.kcbConfig) {
+                    kcbConfig = sData.data.kcb_config || sData.data.kcbConfig || {};
+                }
+            } catch (err) {
+                console.error('[KCB STK] Failed to fetch global settings:', err);
+            }
+        }
+
         // Fallback to body.config for backward compatibility
         if (Object.keys(kcbConfig).length === 0 && (body.config || body.kcbConfig)) {
             kcbConfig = body.config || body.kcbConfig || {};
@@ -243,11 +260,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const institutionId = resolvedInstitutionId;
 
         const environment = (kcbConfig.environment || 'sandbox').trim();
-        const isKcbDemo = !appKey || !appSecret || 
-                          appKey.toLowerCase().includes('demo') || 
-                          appKey.toLowerCase().includes('test') || 
-                          appSecret.toLowerCase().includes('demo') || 
-                          appSecret.toLowerCase().includes('test');
+        const isKcbDemo = environment === 'sandbox' || 
+                          environment === 'mock' ||
+                          environment === 'test' ||
+                          !appKey || !appSecret || 
+                          appKey === 'kcb_demo_key' || 
+                          appSecret === 'kcb_demo_secret';
 
         if (isKcbDemo) {
             console.log('[KCB STK] Mock Mode Active.');
@@ -367,31 +385,86 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const stkPushData = await stkPushRes.json() as any;
             if (stkPushRes.ok) {
                 const checkoutRequestId = stkPushData.CheckoutRequestID || stkPushData.checkoutRequestID || stkPushData.checkoutRequestId || `KCB_CO_${Date.now()}`;
-                const responseCode = stkPushData.ResponseCode || stkPushData.responseCode || '0';
-                const message = stkPushData.ResponseDescription || stkPushData.responseDescription || stkPushData.customerMessage || stkPushData.CustomerMessage || 'KCB STK Push initiated successfully.';
+                
+                // KCB may return response codes or result codes in various casing
+                const responseCode = String(
+                    stkPushData.ResponseCode ?? stkPushData.responseCode ?? 
+                    stkPushData.ResultCode ?? stkPushData.resultCode ??
+                    stkPushData.statusCode ?? stkPushData.StatusCode ??
+                    stkPushData.Result?.ResultCode ?? 
+                    stkPushData.header?.statusCode ??
+                    '0'
+                );
 
-                await supabase.from('integration_logs').insert({
-                    provider: 'kcb_stk_push_initiate',
-                    payload: {
-                        shortCode,
-                        amount,
-                        phoneNumber,
-                        checkoutRequestId: checkoutRequestId,
-                        status: 'initiated'
-                    },
-                    status: 'success',
-                    created_at: new Date().toISOString()
-                });
+                const isSuccess = responseCode === '0' || responseCode === '00' || responseCode === 'SUCCESS' || responseCode === 'SUCCESSFUL';
+                const message = stkPushData.ResponseDescription || stkPushData.responseDescription || stkPushData.customerMessage || stkPushData.CustomerMessage || (isSuccess ? 'KCB STK Push initiated successfully.' : 'KCB Gateway rejected the request.');
 
+                if (isSuccess) {
+                    await supabase.from('integration_logs').insert({
+                        provider: 'kcb_stk_push_initiate',
+                        payload: {
+                            shortCode,
+                            amount,
+                            phoneNumber,
+                            checkoutRequestId: checkoutRequestId,
+                            status: 'initiated'
+                        },
+                        status: 'success',
+                        created_at: new Date().toISOString()
+                    });
 
+                    // Insert a pending transaction so callback webhook can reconcile it later
+                    await supabase.from('mpesa_transactions').insert({
+                        id: `txn_${Date.now()}`,
+                        transaction_id: `KCB_${checkoutRequestId}`,
+                        checkout_request_id: checkoutRequestId,
+                        institution_id: institutionId || 'SYSTEM',
+                        amount: amount,
+                        phone_number: phoneNumber,
+                        status: 'pending',
+                        payer_name: resolvedName,
+                        provider: 'kcb',
+                        metadata: {
+                            type: paymentType === 'Rent' ? 'invoice' : (paymentType === 'Deposit' ? 'deposit' : 'utility'),
+                            paymentType,
+                            payerPhoneNumber: phoneNumber,
+                            payerName: resolvedName
+                        }
+                    });
 
-                return res.status(200).json({
-                    success: true,
-                    ResponseCode: responseCode,
-                    CheckoutRequestID: checkoutRequestId,
-                    message: message,
-                    rawResponse: stkPushData
-                });
+                    return res.status(200).json({
+                        success: true,
+                        ResponseCode: responseCode,
+                        CheckoutRequestID: checkoutRequestId,
+                        message: message,
+                        rawResponse: stkPushData
+                    });
+                } else {
+                    // Gateway returned an error response in JSON even though HTTP was 200
+                    await supabase.from('integration_logs').insert({
+                        provider: 'kcb_stk_push_initiate',
+                        payload: {
+                            shortCode,
+                            amount,
+                            phoneNumber,
+                            checkoutRequestId: checkoutRequestId,
+                            status: 'failed',
+                            error: message,
+                            rawResponse: stkPushData
+                        },
+                        status: 'failed',
+                        created_at: new Date().toISOString()
+                    });
+
+                    return res.status(200).json({
+                        success: false,
+                        ResponseCode: responseCode,
+                        CheckoutRequestID: checkoutRequestId,
+                        message: message,
+                        details: stkPushData,
+                        rawResponse: stkPushData
+                    });
+                }
             }
 
             return res.status(200).json({
@@ -421,20 +494,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     amount,
                     shortCode,
                     error: e.message,
-                    fallback: 'sandbox_bypass'
+                    fallback: isKcbDemo ? 'sandbox_bypass' : 'none'
                 },
-                status: 'success',
+                status: 'failed',
                 created_at: new Date().toISOString()
             });
 
-            const checkoutRequestId = `KCB_CO_Mock_Fallback_${Date.now()}`;
-
-            return res.status(200).json({
-                success: true,
-                ResponseCode: '0',
-                CheckoutRequestID: checkoutRequestId,
-                message: 'KCB STK Push simulated successfully (Network offline/fallback mode).'
-            });
+            if (isKcbDemo) {
+                const checkoutRequestId = `KCB_CO_Mock_Fallback_${Date.now()}`;
+                return res.status(200).json({
+                    success: true,
+                    ResponseCode: '0',
+                    CheckoutRequestID: checkoutRequestId,
+                    message: 'KCB STK Push simulated successfully (Network offline/fallback mode).'
+                });
+            } else {
+                return res.status(200).json({
+                    success: false,
+                    message: `KCB STK Push initiation failed: ${e.message || 'Gateway connection issue'}. Please try again.`,
+                    error: e.message
+                });
+            }
         }
     }
 
@@ -450,10 +530,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const passkey = (kcbConfig.passkey || '').trim();
 
         const environment = (kcbConfig.environment || 'sandbox').trim();
-        const isKcbQueryDemo = !appKey || !appSecret || 
+        const isKcbQueryDemo = environment === 'sandbox' || 
+                               environment === 'mock' ||
+                               environment === 'test' ||
+                               !appKey || !appSecret || 
                                checkoutRequestId.includes('Mock') ||
-                               appKey.toLowerCase().includes('demo') || 
-                               appKey.toLowerCase().includes('test');
+                               appKey === 'kcb_demo_key';
 
         if (isKcbQueryDemo) {
             console.log('[KCB Query] Mock Mode Active.');

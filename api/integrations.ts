@@ -2170,10 +2170,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const passkey = (kcbConfig.passkey || '').trim();
                 const environment = (kcbConfig.environment || 'sandbox').trim();
 
-                const isKcbQueryDemo = !appKey || !appSecret || 
+                const isKcbQueryDemo = environment === 'sandbox' || 
+                                       environment === 'mock' ||
+                                       environment === 'test' ||
+                                       !appKey || !appSecret || 
                                        checkoutRequestId.includes('Mock') ||
-                                       appKey.toLowerCase().includes('demo') || 
-                                       appKey.toLowerCase().includes('test');
+                                       appKey === 'kcb_demo_key';
 
                 if (isKcbQueryDemo) {
                     finalStatus = 'completed';
