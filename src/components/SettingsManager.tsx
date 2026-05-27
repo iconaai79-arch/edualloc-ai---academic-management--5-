@@ -2549,9 +2549,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <div className="space-y-2">
                                                     {newFeeForm.items.length > 0 && (
                                                         <div className="flex gap-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">
-                                                            <div className="flex-[3] min-w-[220px]">Vote Head / Label</div>
-                                                            <div className="flex-[2]">Amount (KES)</div>
-                                                            <div className="flex-[1] text-center">Priority</div>
+                                                            <div className="flex-1 min-w-[220px]">Vote Head / Label</div>
+                                                            <div className="w-32">Amount (KES)</div>
+                                                            <div className="w-12 text-center">Priority</div>
                                                             <div className="w-9"></div>
                                                         </div>
                                                     )}
@@ -2605,18 +2605,20 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                         setNewFeeForm({ ...newFeeForm, items: nextItems });
                                                                     }}
                                                                     placeholder="Amount"
-                                                                    className="flex-[2] px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                                    className="w-32 px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                                                                 />
                                                                 <input
                                                                     type="number"
+                                                                    min="1"
+                                                                    max="9"
                                                                     value={it.priority || idx + 1}
                                                                     onChange={e => {
                                                                         const nextItems = [...newFeeForm.items];
                                                                         nextItems[idx] = { ...it, priority: Number(e.target.value) };
                                                                         setNewFeeForm({ ...newFeeForm, items: nextItems });
                                                                     }}
-                                                                    placeholder="Priority"
-                                                                    className="flex-[1] px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                                    placeholder="#"
+                                                                    className="w-12 px-2 py-2 text-center bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                                                                     title="Priority weight (lowest priority gets paid first)"
                                                                 />
                                                                 <button
