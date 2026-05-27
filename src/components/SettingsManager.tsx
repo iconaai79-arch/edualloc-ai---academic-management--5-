@@ -3221,7 +3221,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         defaultAmount: vData.allocatedAmount,
                                                         isMandatory: false
                                                     };
-                                                    const existingDsVotes = props.dsSettings?.votes || [];
+                                                    const currentSettings = (localDsSettings || props.dsSettings || {}) as DSSettings;
+                                                    const existingDsVotes = currentSettings.votes || [];
                                                     let nextDsVotes = [...existingDsVotes];
                                                     if (editingVoteHeadId) {
                                                         nextDsVotes = nextDsVotes.map(v => v.id === editingVoteHeadId ? { ...v, ...dsVoteObj } : v);
@@ -3229,12 +3230,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         nextDsVotes.push(dsVoteObj);
                                                     }
                                                     const dsPayload = {
-                                                        ...props.dsSettings,
-                                                        id: props.dsSettings?.id || `ds_settings_${props.currentInstitution?.id}`,
+                                                        ...currentSettings,
+                                                        id: currentSettings.id || `ds_settings_${props.currentInstitution?.id}`,
                                                         institutionId: props.currentInstitution?.id || 'inst',
                                                         votes: nextDsVotes
-                                                    };
+                                                    } as DSSettings;
                                                     console.log("[SettingsManager] Synchronizing vote head to Driving School sub-collection. Payload structure:", dsPayload);
+                                                    setLocalDsSettings(dsPayload);
                                                     await props.onUpdateDSSettings(dsPayload).catch(err => {
                                                         console.error("[SettingsManager] DS Settings sub-collection persistence error:", err);
                                                     });
@@ -3287,14 +3289,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         props.onUpdateVoteHeads?.(nextList);
 
                                                         if (props.isDS && props.onUpdateDSSettings) {
-                                                            const nextDsVotes = (props.dsSettings?.votes || []).filter(v => v.id !== vote.id);
+                                                            const currentSettings = (localDsSettings || props.dsSettings || {}) as DSSettings;
+                                                            const nextDsVotes = (currentSettings.votes || []).filter((v: any) => v.id !== vote.id);
                                                             const dsPayload = {
-                                                                ...props.dsSettings,
-                                                                id: props.dsSettings?.id || `ds_settings_${props.currentInstitution?.id}`,
+                                                                ...currentSettings,
+                                                                id: currentSettings.id || `ds_settings_${props.currentInstitution?.id}`,
                                                                 institutionId: props.currentInstitution?.id || 'inst',
                                                                 votes: nextDsVotes
-                                                            };
+                                                            } as DSSettings;
                                                             console.log("[SettingsManager] Deleting vote head from Driving School sub-collection. Payload:", dsPayload);
+                                                            setLocalDsSettings(dsPayload);
                                                             await props.onUpdateDSSettings(dsPayload).catch(err => console.error(err));
                                                         }
                                                     }
