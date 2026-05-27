@@ -4024,6 +4024,9 @@ export interface DSPayment {
     receiptNumber: string;
     receivedBy?: string;
     status?: string;
+    deletionReason?: string;
+    editReason?: string;
+    deletionRequestedBy?: string;
     createdAt: string;
 }
 
