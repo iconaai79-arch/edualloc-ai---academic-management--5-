@@ -1633,7 +1633,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [paymentSearch, setPaymentSearch] = useState('');
     const [invoicePage, setInvoicePage] = useState(1);
     const [paymentPage, setPaymentPage] = useState(1);
-    const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots'>('categories');
+    const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots' | 'groups'>('categories');
+    const [newDSGroupForm, setNewDSGroupForm] = useState('');
+    const [editingDSGroupOriginalName, setEditingDSGroupOriginalName] = useState<string | null>(null);
+    const [editingDSGroupForm, setEditingDSGroupForm] = useState('');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
     const [leadStatusFilter, setLeadStatusFilter] = useState<string>('All');
     const [selectedReportInstructorId, setSelectedReportInstructorId] = useState<string>('all');
@@ -3852,6 +3855,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide w-full md:w-auto">
                                     {[
                                         { id: 'categories', label: 'License Categories', icon: AcademicCapIcon },
+                                        { id: 'groups', label: 'Category Groups', icon: ListIcon },
                                         { id: 'votes', label: 'Fee Votes / Heads', icon: CreditCardIcon },
                                         { id: 'rules', label: 'Scheduling Rules', icon: ClipboardListIcon },
                                         { id: 'numbering', label: 'Document Numbering', icon: ListIcon },
@@ -3967,7 +3971,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         placeholder="e.g. Driving (Defaults to Driving)" 
                                                     />
                                                     <datalist id="parent-categories-ds">
-                                                        {Array.from(new Set((settings?.licenseCategories || []).map((c: any) => c.parentCategory).filter(Boolean))).map((parent: any) => (
+                                                        {Array.from(new Set([
+                                                            ...(settings?.licenseGroups || ['Driving', 'Computer Classes', 'IELTS']),
+                                                            ...Array.from(new Set((settings?.licenseCategories || []).map((c: any) => c.parentCategory).filter(Boolean)))
+                                                        ])).map((parent: any) => (
                                                             <option key={parent} value={parent} />
                                                         ))}
                                                     </datalist>
@@ -4068,6 +4075,168 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         </div>
                                                     </div>
                                                 ));
+                                            })()}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {settingsSubTab === 'groups' && (
+                                    <div className="space-y-12 animate-fade-in">
+                                        <div>
+                                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Category Groups</h4>
+                                            <p className="text-xs font-medium text-slate-400">Manage custom group headers (e.g. Driving, IELTS, Computer classes) to classify your courses.</p>
+                                        </div>
+
+                                        {/* Add Group Form */}
+                                        <div className="p-8 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-[2.5rem] border border-indigo-100/50 dark:border-indigo-900/20 space-y-4">
+                                            <div className="flex items-center gap-2">
+                                                <PlusIcon className="w-4 h-4 text-indigo-600" />
+                                                <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Add Category Group</h5>
+                                            </div>
+                                            <div className="flex flex-col md:flex-row gap-4">
+                                                <input 
+                                                    type="text" 
+                                                    value={newDSGroupForm}
+                                                    onChange={e => setNewDSGroupForm(e.target.value)}
+                                                    placeholder="e.g. Computer Classes"
+                                                    className="flex-1 px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const name = newDSGroupForm.trim();
+                                                        if (!name) return;
+                                                        
+                                                        const currentGroups = settings?.licenseGroups || ['Driving', 'Computer Classes', 'IELTS'];
+                                                        if (currentGroups.map(g => g.toLowerCase()).includes(name.toLowerCase())) {
+                                                            toastError("Group name already exists.");
+                                                            return;
+                                                        }
+                                                        
+                                                        const next = {
+                                                            ...settings,
+                                                            licenseGroups: [...currentGroups, name]
+                                                        } as DSSettings;
+                                                        onUpdateSettings(next);
+                                                        setNewDSGroupForm('');
+                                                        success("Category group added successfully.");
+                                                    }}
+                                                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
+                                                >
+                                                    Add Group
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Groups List View */}
+                                        <div className="space-y-4">
+                                            <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Active Groups</h5>
+                                            {(() => {
+                                                const currentGroups = settings?.licenseGroups || ['Driving', 'Computer Classes', 'IELTS'];
+                                                return (
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {currentGroups.map((group, idx) => {
+                                                            const isEditing = editingDSGroupOriginalName === group;
+                                                            const count = (settings?.licenseCategories || []).filter(c => (c.parentCategory || 'Driving') === group).length;
+
+                                                            return (
+                                                                <div key={idx} className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs flex items-center justify-between gap-4">
+                                                                    <div className="flex-1">
+                                                                        {isEditing ? (
+                                                                            <input 
+                                                                                type="text" 
+                                                                                value={editingDSGroupForm}
+                                                                                onChange={e => setEditingDSGroupForm(e.target.value)}
+                                                                                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs"
+                                                                            />
+                                                                        ) : (
+                                                                            <div>
+                                                                                <h6 className="font-bold text-sm text-slate-900 dark:text-white">{group}</h6>
+                                                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{count} {count === 1 ? 'Category' : 'Categories'}</p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-3">
+                                                                        {isEditing ? (
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        const newName = editingDSGroupForm.trim();
+                                                                                        if (!newName || newName === group) {
+                                                                                            setEditingDSGroupOriginalName(null);
+                                                                                            return;
+                                                                                        }
+                                                                                        if (currentGroups.filter(g => g !== group).map(g => g.toLowerCase()).includes(newName.toLowerCase())) {
+                                                                                            toastError("Another group with this name already exists.");
+                                                                                            return;
+                                                                                        }
+                                                                                        
+                                                                                        const nextGroups = currentGroups.map(g => g === group ? newName : g);
+                                                                                        const nextCategories = (settings?.licenseCategories || []).map(c => 
+                                                                                            (c.parentCategory || 'Driving') === group ? { ...c, parentCategory: newName } : c
+                                                                                        );
+                                                                                        
+                                                                                        onUpdateSettings({
+                                                                                            ...settings,
+                                                                                            licenseGroups: nextGroups,
+                                                                                            licenseCategories: nextCategories
+                                                                                        });
+                                                                                        setEditingDSGroupOriginalName(null);
+                                                                                        success("Category group renamed successfully.");
+                                                                                    }}
+                                                                                    className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                                                                >
+                                                                                    Save
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => setEditingDSGroupOriginalName(null)}
+                                                                                    className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:underline"
+                                                                                >
+                                                                                    Cancel
+                                                                                </button>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setEditingDSGroupOriginalName(group);
+                                                                                        setEditingDSGroupForm(group);
+                                                                                    }}
+                                                                                    className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                                                                >
+                                                                                    Edit
+                                                                                </button>
+                                                                                {group !== 'Driving' && (
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            if (!confirm(`Are you sure you want to delete the group "${group}"? All categories under this group will be moved to the default "Driving" group.`)) {
+                                                                                                return;
+                                                                                            }
+                                                                                            
+                                                                                            const nextGroups = currentGroups.filter(g => g !== group);
+                                                                                            const nextCategories = (settings?.licenseCategories || []).map(c => 
+                                                                                                (c.parentCategory || 'Driving') === group ? { ...c, parentCategory: 'Driving' } : c
+                                                                                            );
+                                                                                            
+                                                                                            onUpdateSettings({
+                                                                                                ...settings,
+                                                                                                licenseGroups: nextGroups,
+                                                                                                licenseCategories: nextCategories
+                                                                                            });
+                                                                                            success("Category group deleted successfully.");
+                                                                                        }}
+                                                                                        className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                                                                    >
+                                                                                        Delete
+                                                                                    </button>
+                                                                                )}
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
                                             })()}
                                         </div>
                                     </div>

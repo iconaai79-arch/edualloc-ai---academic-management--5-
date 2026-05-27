@@ -3940,6 +3940,7 @@ export interface DSSettings {
     feeStructures?: DSFeeStructure[];
     licenseCategories?: DSLicenseCategory[];
     votes?: DSVote[];
+    licenseGroups?: string[];
     defaultCourseDuration?: number; // in days/attendances
     cancellationPolicy?: string;
     workingHours?: any;
