@@ -2548,11 +2548,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
                                                 <div className="space-y-2">
                                                     {newFeeForm.items.length > 0 && (
-                                                        <div className="flex gap-2 px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">
-                                                            <div className="flex-[3]">Vote Head / Label</div>
-                                                            <div className="flex-[2] text-right pr-2">Amount (KES)</div>
+                                                        <div className="flex gap-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 select-none">
+                                                            <div className="flex-[3] min-w-[220px]">Vote Head / Label</div>
+                                                            <div className="flex-[2]">Amount (KES)</div>
                                                             <div className="flex-[1] text-center">Priority</div>
-                                                            <div className="w-8"></div>
+                                                            <div className="w-9"></div>
                                                         </div>
                                                     )}
                                                     {(Array.isArray(newFeeForm.items) ? newFeeForm.items : []).map((it, idx) => {
