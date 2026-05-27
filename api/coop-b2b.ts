@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let serverIp = 'Unknown';
             try {
                 const ipRes = await fetch('https://api.ipify.org?format=json');
-                const ipData = await ipRes.json();
+                const ipData = (await ipRes.json()) as any;
                 serverIp = ipData.ip || 'Unknown';
             } catch (err) {
                 // Fallback
