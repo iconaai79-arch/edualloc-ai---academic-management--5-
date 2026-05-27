@@ -1524,8 +1524,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase'>('dashboard');
     
-    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'director';
-    const isDirector = currentUser?.role === 'director' || currentUser?.role === 'super_admin';
+    const userRole = (currentUser?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'director', 'driving_instructor', 'head_teacher', 'finance'].includes(userRole);
+    const isDirector = ['director', 'super_admin', 'head_teacher'].includes(userRole);
 
     const [reasonModal, setReasonModal] = useState<{
         isOpen: boolean;
@@ -1588,7 +1589,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             setIsActionLoading(false);
         }
     };
-    const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
+    const [financeTab, setFinanceTab] = useState<'invoices' | 'payments' | 'feeds'>('invoices');
+    const [invoiceSearch, setInvoiceSearch] = useState('');
+    const [paymentSearch, setPaymentSearch] = useState('');
+    const [invoicePage, setInvoicePage] = useState(1);
+    const [paymentPage, setPaymentPage] = useState(1);
     const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots'>('categories');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
     const [leadStatusFilter, setLeadStatusFilter] = useState<string>('All');
@@ -2122,18 +2127,35 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     const filteredInvoices = useMemo(() => 
         (invoices || []).filter(inv => 
-            (inv.studentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (inv.invoiceNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
+            (inv.studentName || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
+            (inv.invoiceNumber || '').toLowerCase().includes(invoiceSearch.toLowerCase())
         ),
-    [invoices, searchTerm]);
+    [invoices, invoiceSearch]);
+
+    const itemsPerPage = 10;
+
+    const totalInvoicePages = Math.max(1, Math.ceil(filteredInvoices.length / itemsPerPage));
+    const activeInvoicePage = invoicePage > totalInvoicePages ? 1 : invoicePage;
+    const paginatedInvoices = useMemo(() => {
+        const page = invoicePage > totalInvoicePages ? 1 : invoicePage;
+        return filteredInvoices.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+    }, [filteredInvoices, invoicePage, totalInvoicePages]);
 
     const filteredPayments = useMemo(() => 
         (payments || []).filter(pay => {
             const student = (normalizedStudents || []).find(s => s.id === pay.studentId);
-            return (pay.studentName || student?.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                   (pay.receiptNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
+            return (pay.studentName || student?.fullName || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
+                   (pay.receiptNumber || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
+                   (pay.paymentMethod || '').toLowerCase().includes(paymentSearch.toLowerCase());
         }),
-    [payments, normalizedStudents, searchTerm]);
+    [payments, normalizedStudents, paymentSearch]);
+
+    const totalPaymentPages = Math.max(1, Math.ceil(filteredPayments.length / itemsPerPage));
+    const activePaymentPage = paymentPage > totalPaymentPages ? 1 : paymentPage;
+    const paginatedPayments = useMemo(() => {
+        const page = paymentPage > totalPaymentPages ? 1 : paymentPage;
+        return filteredPayments.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+    }, [filteredPayments, paymentPage, totalPaymentPages]);
 
     const filteredLeads = useMemo(() => 
         (leads || []).filter(l => {
@@ -3091,12 +3113,20 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             {/* Finance Sub-Tabs */}
                             <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-[2rem] w-fit">
                                 <button 
-                                    onClick={() => setFinanceTab('records')}
+                                    onClick={() => setFinanceTab('invoices')}
                                     className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        financeTab === 'records' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                        financeTab === 'invoices' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                                     }`}
                                 >
-                                    Billing Records
+                                    Recent Invoices
+                                </button>
+                                <button 
+                                    onClick={() => setFinanceTab('payments')}
+                                    className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        financeTab === 'payments' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    Recent Payments
                                 </button>
                                 <button 
                                     onClick={() => setFinanceTab('feeds')}
@@ -3108,11 +3138,153 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 </button>
                             </div>
 
-                            {financeTab === 'records' ? (
-                                <>
+                            {financeTab === 'invoices' && (
+                                <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
+                                    <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Invoices</h3>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage billing and student receivables</p>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-4">
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search invoices..."
+                                                    value={invoiceSearch}
+                                                    onChange={(e) => {
+                                                        setInvoiceSearch(e.target.value);
+                                                        setInvoicePage(1);
+                                                    }}
+                                                    className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 w-60"
+                                                />
+                                                <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 items-center justify-end">
+                                                <button onClick={handleSendPdlExpiryAlerts} disabled={isSendingReminders} className="px-4 py-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center gap-1.5 border border-rose-200 dark:border-rose-800/40 disabled:opacity-50" title="Auto detect PDLs nearing 90-day expiry">
+                                                    <SparklesIcon className="w-3.5 h-3.5" />
+                                                    Expiring PDL Alerts
+                                                </button>
+                                                <button onClick={handleSendTestDayReminders} disabled={isSendingReminders} className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-100 transition-all flex items-center gap-1.5 border border-blue-200 dark:border-blue-800/40 disabled:opacity-50" title="Alert candidates exceeding 80% practical mastery">
+                                                    <SparklesIcon className="w-3.5 h-3.5" />
+                                                    Test Day Alerts
+                                                </button>
+                                                <button onClick={handleSendBulkReminders} disabled={isSendingReminders} className="px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 disabled:opacity-50">
+                                                    <PhoneIcon className="w-3.5 h-3.5" />
+                                                    {isSendingReminders ? 'Sending...' : 'Remind Balances'}
+                                                </button>
+                                                <button onClick={() => setActionModal({ type: 'payment' })} className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-1.5">
+                                                    <CurrencyIcon className="w-3.5 h-3.5" />
+                                                    Record Payment
+                                                </button>
+                                                <button onClick={() => setActionModal({ type: 'invoice' })} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5">
+                                                    <PlusIcon className="w-3.5 h-3.5" />
+                                                    Generate Invoice
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                    <th className="px-10 py-6">Invoice #</th>
+                                                    <th className="px-10 py-6">Student</th>
+                                                    <th className="px-10 py-6">Amount</th>
+                                                    <th className="px-10 py-6">Balance</th>
+                                                    <th className="px-10 py-6">Status</th>
+                                                    <th className="px-10 py-6 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                                {paginatedInvoices.map(invoice => (
+                                                    <tr key={invoice.id} className="hover:bg-slate-50/50">
+                                                        <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
+                                                        <td className="px-10 py-6 text-sm">{invoice.studentName}</td>
+                                                        <td className="px-10 py-6 font-bold text-sm">KES {invoice.totalAmount.toLocaleString()}</td>
+                                                        <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {invoice.balance.toLocaleString()}</td>
+                                                        <td className="px-10 py-6">
+                                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                                invoice.status === 'Fully Paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                                            }`}>
+                                                                {invoice.status}
+                                                            </span>
+                                                            {invoice.items && (
+                                                                <div className="mt-2 space-y-1">
+                                                                    {invoice.items.map((item: any, idx: number) => (
+                                                                        <div key={idx} className="flex items-center gap-2 text-[8px] font-bold uppercase tracking-widest text-slate-400">
+                                                                            <div className={`w-1.5 h-1.5 rounded-full ${item.paidAmount >= item.amount ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                                                            <span>{item.name}: {item.amount > 0 ? ((item.paidAmount || 0) / item.amount * 100).toFixed(0) : '0'}%</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-10 py-6 text-right space-x-2">
+                                                            <button 
+                                                                onClick={async () => {
+                                                                    const student = (students || []).find(s => s.id === invoice.studentId);
+                                                                    if (student) {
+                                                                        const doc = await generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
+                                                                        doc.output('dataurlnewwindow');
+                                                                    }
+                                                                }}
+                                                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                                title="Preview & Print"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                            </button>
+                                                            <button 
+                                                                onClick={async () => {
+                                                                    const student = (students || []).find(s => s.id === invoice.studentId);
+                                                                    if (student) {
+                                                                        const doc = await generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
+                                                                        doc.save(`${invoice.invoiceNumber}.pdf`);
+                                                                    }
+                                                                }}
+                                                                className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
+                                                                title="Download PDF"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    {/* Invoice Pagination Footer */}
+                                    {filteredInvoices.length > itemsPerPage && (
+                                        <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                                            <p className="text-xs font-medium text-slate-500">
+                                                Showing <span className="font-black text-slate-900 dark:text-white">{((activeInvoicePage - 1) * itemsPerPage) + 1}</span> to <span className="font-black text-slate-900 dark:text-white">{Math.min(activeInvoicePage * itemsPerPage, filteredInvoices.length)}</span> of <span className="font-black text-slate-900 dark:text-white">{filteredInvoices.length}</span> invoices
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setInvoicePage(prev => Math.max(1, prev - 1))}
+                                                    disabled={activeInvoicePage === 1}
+                                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                                >
+                                                    Previous
+                                                </button>
+                                                <button
+                                                    onClick={() => setInvoicePage(prev => Math.min(totalInvoicePages, prev + 1))}
+                                                    disabled={activeInvoicePage === totalInvoicePages}
+                                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                                >
+                                                    Next
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {financeTab === 'payments' && (
+                                <div className="space-y-8 animate-fade-in">
                                     {/* Pending Deletions Section */}
                                     {payments.filter(p => p.status === 'Pending Deletion').length > 0 && (
-                                         <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-[3rem] p-8 mb-8 space-y-6">
+                                         <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-[3rem] p-8 space-y-6">
                                              <div>
                                                  <h4 className="text-lg font-black text-amber-800 dark:text-amber-400 uppercase tracking-tight flex items-center gap-2">
                                                      <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -3171,198 +3343,141 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                              </div>
                                          </div>
                                      )}
-                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Invoices</h3>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage billing and student receivables</p>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 items-center justify-end">
-                                        <button onClick={handleSendPdlExpiryAlerts} disabled={isSendingReminders} className="px-4 py-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center gap-1.5 border border-rose-200 dark:border-rose-800/40 disabled:opacity-50" title="Auto detect PDLs nearing 90-day expiry">
-                                            <SparklesIcon className="w-3.5 h-3.5" />
-                                            Expiring PDL Alerts
-                                        </button>
-                                        <button onClick={handleSendTestDayReminders} disabled={isSendingReminders} className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-100 transition-all flex items-center gap-1.5 border border-blue-200 dark:border-blue-800/40 disabled:opacity-50" title="Alert candidates exceeding 80% practical mastery">
-                                            <SparklesIcon className="w-3.5 h-3.5" />
-                                            Test Day Alerts
-                                        </button>
-                                        <button onClick={handleSendBulkReminders} disabled={isSendingReminders} className="px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 disabled:opacity-50">
-                                            <PhoneIcon className="w-3.5 h-3.5" />
-                                            {isSendingReminders ? 'Sending...' : 'Remind Balances'}
-                                        </button>
-                                        <button onClick={() => setActionModal({ type: 'payment' })} className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-1.5">
-                                            <CurrencyIcon className="w-3.5 h-3.5" />
-                                            Record Payment
-                                        </button>
-                                        <button onClick={() => setActionModal({ type: 'invoice' })} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5">
-                                            <PlusIcon className="w-3.5 h-3.5" />
-                                            Generate Invoice
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
-                                                <th className="px-10 py-6">Invoice #</th>
-                                                <th className="px-10 py-6">Student</th>
-                                                <th className="px-10 py-6">Amount</th>
-                                                <th className="px-10 py-6">Balance</th>
-                                                <th className="px-10 py-6">Status</th>
-                                                <th className="px-10 py-6 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                            {filteredInvoices.map(invoice => (
-                                                <tr key={invoice.id} className="hover:bg-slate-50/50">
-                                                    <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
-                                                    <td className="px-10 py-6 text-sm">{invoice.studentName}</td>
-                                                    <td className="px-10 py-6 font-bold text-sm">KES {invoice.totalAmount.toLocaleString()}</td>
-                                                    <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {invoice.balance.toLocaleString()}</td>
-                                                    <td className="px-10 py-6">
-                                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                                            invoice.status === 'Fully Paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                                                        }`}>
-                                                            {invoice.status}
-                                                        </span>
-                                                        {invoice.items && (
-                                                            <div className="mt-2 space-y-1">
-                                                                {invoice.items.map((item: any, idx: number) => (
-                                                                    <div key={idx} className="flex items-center gap-2 text-[8px] font-bold uppercase tracking-widest text-slate-400">
-                                                                        <div className={`w-1.5 h-1.5 rounded-full ${item.paidAmount >= item.amount ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                                                                        <span>{item.name}: {item.amount > 0 ? ((item.paidAmount || 0) / item.amount * 100).toFixed(0) : '0'}%</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-10 py-6 text-right space-x-2">
-                                                        <button 
-                                                            onClick={async () => {
-                                                                const student = (students || []).find(s => s.id === invoice.studentId);
-                                                                if (student) {
-                                                                    const doc = await generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
-                                                                    doc.output('dataurlnewwindow');
-                                                                }
-                                                            }}
-                                                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                                                            title="Preview & Print"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                        </button>
-                                                        <button 
-                                                            onClick={async () => {
-                                                                const student = (students || []).find(s => s.id === invoice.studentId);
-                                                                if (student) {
-                                                                    const doc = await generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
-                                                                    doc.save(`${invoice.invoiceNumber}.pdf`);
-                                                                }
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
-                                                            title="Download PDF"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
 
-                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Payments</h3>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Track collections and receipting</p>
+                                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Payments</h3>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Track collections and receipting</p>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search payments..."
+                                                        value={paymentSearch}
+                                                        onChange={(e) => {
+                                                            setPaymentSearch(e.target.value);
+                                                            setPaymentPage(1);
+                                                        }}
+                                                        className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 w-60"
+                                                    />
+                                                    <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left">
+                                                <thead>
+                                                    <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                        <th className="px-10 py-6">Receipt #</th>
+                                                        <th className="px-10 py-6">Student</th>
+                                                        <th className="px-10 py-6">Method</th>
+                                                        <th className="px-10 py-6">Amount</th>
+                                                        <th className="px-10 py-6">Date</th>
+                                                        <th className="px-10 py-6 text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                                    {paginatedPayments.map(payment => (
+                                                        <tr key={payment.id} className="hover:bg-slate-50/50">
+                                                            <td className="px-10 py-6 font-bold flex items-center gap-2">
+                                                                 <span>{payment.receiptNumber}</span>
+                                                                 {payment.status === 'Pending Deletion' && (
+                                                                     <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-500 text-[8px] font-black uppercase tracking-widest border border-amber-200 dark:border-amber-800/40">
+                                                                         Pending Deletion
+                                                                     </span>
+                                                                 )}
+                                                             </td>
+                                                            <td className="px-10 py-6 text-sm">{payment.studentName}</td>
+                                                            <td className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
+                                                            <td className="px-10 py-6 font-bold text-sm">KES {payment.amount.toLocaleString()}</td>
+                                                            <td className="px-10 py-6 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                                            <td className="px-10 py-6 text-right space-x-2">
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        const student = (students || []).find(s => s.id === payment.studentId);
+                                                                        if (student) {
+                                                                            const doc = await generateDSPDF('receipt', payment, student as any, settings, currentInstitution, invoices);
+                                                                            doc.save(`${payment.receiptNumber}.pdf`);
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
+                                                                    title="Download PDF"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                                </button>
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        const student = (students || []).find(s => s.id === payment.studentId);
+                                                                        if (student) {
+                                                                            const url = await generateDSThermalReceipt(payment, student as any, currentInstitution, false, invoices);
+                                                                            const win = window.open(url, '_blank');
+                                                                            if (win) {
+                                                                                win.focus();
+                                                                                setTimeout(() => win.print(), 500);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                                    title="Thermal Print (EPOS)"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                                                </button>
+                                                                {isAdmin && payment.status !== 'Pending Deletion' && (
+                                                                    <>
+                                                                        <button 
+                                                                            onClick={() => setActionModal({ type: 'payment', initialData: payment })}
+                                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all inline-flex items-center"
+                                                                            title="Edit Payment"
+                                                                        >
+                                                                            <PencilIcon className="w-4 h-4" />
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={() => handleRequestDeletion(payment.id)}
+                                                                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-all inline-flex items-center"
+                                                                            title="Delete Payment"
+                                                                        >
+                                                                            <TrashIcon className="w-4 h-4" />
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Payment Pagination Footer */}
+                                        {filteredPayments.length > itemsPerPage && (
+                                            <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                                                <p className="text-xs font-medium text-slate-500">
+                                                    Showing <span className="font-black text-slate-900 dark:text-white">{((activePaymentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-black text-slate-900 dark:text-white">{Math.min(activePaymentPage * itemsPerPage, filteredPayments.length)}</span> of <span className="font-black text-slate-900 dark:text-white">{filteredPayments.length}</span> payments
+                                                </p>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => setPaymentPage(prev => Math.max(1, prev - 1))}
+                                                        disabled={activePaymentPage === 1}
+                                                        className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                                    >
+                                                        Previous
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setPaymentPage(prev => Math.min(totalPaymentPages, prev + 1))}
+                                                        disabled={activePaymentPage === totalPaymentPages}
+                                                        className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                                    >
+                                                        Next
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
-                                                <th className="px-10 py-6">Receipt #</th>
-                                                <th className="px-10 py-6">Student</th>
-                                                <th className="px-10 py-6">Method</th>
-                                                <th className="px-10 py-6">Amount</th>
-                                                <th className="px-10 py-6">Date</th>
-                                                <th className="px-10 py-6 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                            {(filteredPayments || []).slice(0, 10).map(payment => (
-                                                <tr key={payment.id} className="hover:bg-slate-50/50">
-                                                    <td className="px-10 py-6 font-bold flex items-center gap-2">
-                                                         <span>{payment.receiptNumber}</span>
-                                                         {payment.status === 'Pending Deletion' && (
-                                                             <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-500 text-[8px] font-black uppercase tracking-widest border border-amber-200 dark:border-amber-800/40">
-                                                                 Pending Deletion
-                                                             </span>
-                                                         )}
-                                                     </td>
-                                                    <td className="px-10 py-6 text-sm">{payment.studentName}</td>
-                                                    <td className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
-                                                    <td className="px-10 py-6 font-bold text-sm">KES {payment.amount.toLocaleString()}</td>
-                                                    <td className="px-10 py-6 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
-                                                    <td className="px-10 py-6 text-right space-x-2">
-                                                        <button 
-                                                            onClick={async () => {
-                                                                const student = (students || []).find(s => s.id === payment.studentId);
-                                                                if (student) {
-                                                                    const doc = await generateDSPDF('receipt', payment, student as any, settings, currentInstitution, invoices);
-                                                                    doc.save(`${payment.receiptNumber}.pdf`);
-                                                                }
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
-                                                            title="Download PDF"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                                        </button>
-                                                        <button 
-                                                            onClick={async () => {
-                                                                const student = (students || []).find(s => s.id === payment.studentId);
-                                                                if (student) {
-                                                                    const url = await generateDSThermalReceipt(payment, student as any, currentInstitution, false, invoices);
-                                                                    const win = window.open(url, '_blank');
-                                                                    if (win) {
-                                                                        win.focus();
-                                                                        setTimeout(() => win.print(), 500);
-                                                                    }
-                                                                }
-                                                            }}
-                                                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                                            title="Thermal Print (EPOS)"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                                                        </button>
-                                                        {isAdmin && payment.status !== 'Pending Deletion' && (
-                                                            <>
-                                                                <button 
-                                                                    onClick={() => setActionModal({ type: 'payment', initialData: payment })}
-                                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all inline-flex items-center"
-                                                                    title="Edit Payment"
-                                                                >
-                                                                    <PencilIcon className="w-4 h-4" />
-                                                                </button>
-                                                                <button 
-                                                                    onClick={() => handleRequestDeletion(payment.id)}
-                                                                    className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-all inline-flex items-center"
-                                                                    title="Delete Payment"
-                                                                >
-                                                                    <TrashIcon className="w-4 h-4" />
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                                </>
-                            ) : (
+                            )}
+
+                            {financeTab === 'feeds' && (
                                 <DSFinanceFeeds 
                                     bankTransactions={bankTransactions}
                                     mpesaTransactions={mpesaTransactions}
