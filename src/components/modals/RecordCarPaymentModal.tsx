@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
-import { CarInvoice, CarPayment, User } from '../../types';
+import { CarInvoice, CarPayment, User, CarListing } from '../../types';
 import { XIcon } from '../icons/XIcon';
 import { CurrencyIcon } from '../icons/CurrencyIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
 import { PhoneIcon } from '../icons/PhoneIcon';
 import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { SearchIcon } from '../icons/SearchIcon';
 import { apiService } from '../../services/apiService';
 
 interface RecordCarPaymentModalProps {
@@ -33,6 +34,29 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
     const [isStkPushing, setIsStkPushing] = useState(false);
     const [stkStatus, setStkStatus] = useState<'idle' | 'prompt_sent' | 'completed' | 'failed'>('idle');
     const [stkError, setStkError] = useState<string | null>(null);
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [listings, setListings] = useState<CarListing[]>([]);
+
+    React.useEffect(() => {
+        const loadListings = async () => {
+            try {
+                const data = await apiService.fetchCarListings(currentUser?.institutionId, 'all');
+                setListings(data || []);
+            } catch (err) {
+                console.error("Failed to load car listings for payment mapping:", err);
+            }
+        };
+        if (isOpen && currentUser?.institutionId) {
+            loadListings();
+        }
+    }, [isOpen, currentUser?.institutionId]);
+
+    React.useEffect(() => {
+        if (isOpen) {
+            setSearchQuery('');
+        }
+    }, [isOpen]);
 
     React.useEffect(() => {
         if (payment) {
@@ -237,19 +261,59 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                 <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto flex-grow custom-scrollbar">
                     {/* Invoice Selection Dropdown */}
                     {!invoice && !payment && (
-                        <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Invoice to Pay</label>
-                            <select 
-                                required
-                                value={selectedInvoice?.id || ''}
-                                onChange={(e) => handleInvoiceChange(e.target.value)}
-                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
-                            >
-                                <option value="">Choose an invoice...</option>
-                                {invoices?.filter(i => i.status !== 'fully_paid').map(i => (
-                                    <option key={i.id} value={i.id}>{i.invoiceNumber} - {i.clientName} (Bal: KES {i.balanceAmount.toLocaleString()})</option>
-                                ))}
-                            </select>
+                        <div className="space-y-4 animate-fade-in">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Search Invoice</label>
+                                <div className="relative">
+                                    <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500" />
+                                    <input 
+                                        type="text"
+                                        placeholder="Search by Reg No, Client, Invoice or Car Model..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Invoice to Pay</label>
+                                <select 
+                                    required
+                                    value={selectedInvoice?.id || ''}
+                                    onChange={(e) => handleInvoiceChange(e.target.value)}
+                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
+                                >
+                                    <option value="">Choose an invoice...</option>
+                                    {(invoices || [])
+                                        .filter(i => i.status !== 'fully_paid')
+                                        .filter(i => {
+                                            const query = searchQuery.toLowerCase().trim();
+                                            if (!query) return true;
+
+                                            const matchesInv = i.invoiceNumber?.toLowerCase().includes(query);
+                                            const matchesName = i.clientName?.toLowerCase().includes(query);
+                                            
+                                            const listing = listings.find(l => l.id === i.listingId);
+                                            const matchesReg = i.registrationNumber?.toLowerCase().includes(query) || 
+                                                              listing?.registrationNumber?.toLowerCase().includes(query);
+                                            const matchesMake = listing?.make?.toLowerCase().includes(query);
+                                            const matchesModel = listing?.model?.toLowerCase().includes(query);
+                                            const matchesCar = matchesMake || matchesModel;
+
+                                            return matchesInv || matchesName || matchesReg || matchesCar;
+                                        })
+                                        .map(i => {
+                                            const listing = listings.find(l => l.id === i.listingId);
+                                            const carDetails = listing ? ` - ${listing.make} ${listing.model} (${listing.year})` : '';
+                                            return (
+                                                <option key={i.id} value={i.id}>
+                                                    {i.invoiceNumber} - {i.clientName}{carDetails} (Bal: KES {i.balanceAmount.toLocaleString()})
+                                                </option>
+                                            );
+                                        })}
+                                </select>
+                            </div>
                         </div>
                     )}
 

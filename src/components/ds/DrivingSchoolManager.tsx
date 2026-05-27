@@ -411,6 +411,53 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         }
     }, [type, categoryGroups, settings?.licenseCategories, formData.licenseCategory, formData.licenseTypeInterested]);
 
+    // Prefill invoice based on the selected student's class category
+    useEffect(() => {
+        if (type === 'invoice' && formData.studentId && !formData.id) {
+            const student = (students || []).find(s => s.id === formData.studentId);
+            if (student) {
+                const studentClass = student.licenseTypeInterested || '';
+                const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                
+                // 1. Try matching configured fee structures
+                const matchedFS = settings?.feeStructures?.find(fs => {
+                    if (!fs.className || !studentClass) return false;
+                    const normFS = normalizeName(fs.className);
+                    const normStud = normalizeName(studentClass);
+                    return normFS === normStud || normFS.includes(normStud) || normStud.includes(normFS);
+                });
+                
+                if (matchedFS) {
+                    setFormData((prev: any) => ({
+                        ...prev,
+                        feeStructureId: matchedFS.id,
+                        totalAmount: matchedFS.totalAmount,
+                        balance: matchedFS.totalAmount,
+                        items: Array.isArray(matchedFS.items) ? JSON.parse(JSON.stringify(matchedFS.items)) : []
+                    }));
+                } else {
+                    // 2. Try matching license category base fees
+                    const matchedCat = settings?.licenseCategories?.find(c => {
+                        if (!c.code || !studentClass) return false;
+                        const normCode = normalizeName(c.code);
+                        const normStud = normalizeName(studentClass);
+                        return normCode === normStud || normCode.includes(normStud) || normStud.includes(normCode);
+                    });
+                    
+                    if (matchedCat && matchedCat.baseFee) {
+                        setFormData((prev: any) => ({
+                            ...prev,
+                            feeStructureId: '',
+                            totalAmount: matchedCat.baseFee,
+                            balance: matchedCat.baseFee,
+                            items: [{ name: `${matchedCat.code || 'Tuition'} Fee`, amount: matchedCat.baseFee, priority: 1 }]
+                        }));
+                    }
+                }
+            }
+        }
+    }, [formData.studentId, type, students, settings]);
+
     const handleCategoryChange = (val: string) => {
         let defaultSub = '';
         let matchedFee = 15000;
