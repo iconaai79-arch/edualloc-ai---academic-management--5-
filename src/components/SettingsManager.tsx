@@ -2559,9 +2559,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         return (
                                                             <div key={idx} className="flex gap-4 items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60">
                                                                 <div className="flex-[3]">
-                                                                    <input
-                                                                        list={`votes-datalist-${idx}`}
-                                                                        type="text"
+                                                                    <select
                                                                         required
                                                                         value={it.name || ''}
                                                                         onChange={e => {
@@ -2575,15 +2573,27 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                             };
                                                                             setNewFeeForm({ ...newFeeForm, items: nextItems });
                                                                         }}
-                                                                        placeholder="e.g. Tuition Fee"
-                                                                        className="w-full px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                                                    />
-                                                                    <datalist id={`votes-datalist-${idx}`}>
-                                                                        {(localDsSettings?.votes || []).map((vt: any) => {
-                                                                            const n = vt.voteName || vt.vote_name;
-                                                                            return n ? <option key={vt.id || n} value={n} /> : null;
-                                                                        })}
-                                                                    </datalist>
+                                                                        className="w-full px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-xs"
+                                                                    >
+                                                                        <option value="">Select Vote Head</option>
+                                                                        {(!localDsSettings?.votes || localDsSettings.votes.length === 0) ? (
+                                                                            <>
+                                                                                <option value="Tuition Fee">Tuition Fee</option>
+                                                                                <option value="PDL">PDL</option>
+                                                                                <option value="Assessment">Assessment</option>
+                                                                                <option value="Exam Fee">Exam Fee</option>
+                                                                                <option value="Licensing Fee">Licensing Fee</option>
+                                                                            </>
+                                                                        ) : (
+                                                                            (localDsSettings.votes || []).map((vt: any) => {
+                                                                                const n = vt.voteName || vt.vote_name;
+                                                                                return n ? <option key={vt.id || n} value={n}>{n}</option> : null;
+                                                                            })
+                                                                        )}
+                                                                        {it.name && !((localDsSettings?.votes || []).some((v: any) => (v.voteName || v.vote_name) === it.name) || (!localDsSettings?.votes || localDsSettings.votes.length === 0) && ['Tuition Fee', 'PDL', 'Assessment', 'Exam Fee', 'Licensing Fee'].includes(it.name)) && (
+                                                                            <option value={it.name}>{it.name}</option>
+                                                                        )}
+                                                                    </select>
                                                                 </div>
                                                                 <input
                                                                     type="number"
