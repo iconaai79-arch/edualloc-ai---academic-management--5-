@@ -1525,8 +1525,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase'>('dashboard');
     
     const userRole = (currentUser?.role || '').toLowerCase();
-    const isAdmin = ['admin', 'super_admin', 'director', 'driving_instructor', 'head_teacher', 'finance'].includes(userRole);
-    const isDirector = ['director', 'super_admin', 'head_teacher'].includes(userRole);
+    const isAdmin = ['admin', 'super_admin', 'superadmin', 'super admin', 'system_admin', 'system admin', 'owner', 'director', 'driving_instructor', 'head_teacher', 'finance'].includes(userRole);
+    const isDirector = ['director', 'super_admin', 'superadmin', 'super admin', 'system_admin', 'system admin', 'owner', 'head_teacher'].includes(userRole);
 
     const [reasonModal, setReasonModal] = useState<{
         isOpen: boolean;
@@ -3172,10 +3172,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     <PhoneIcon className="w-3.5 h-3.5" />
                                                     {isSendingReminders ? 'Sending...' : 'Remind Balances'}
                                                 </button>
-                                                <button onClick={() => setActionModal({ type: 'payment' })} className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-1.5">
-                                                    <CurrencyIcon className="w-3.5 h-3.5" />
-                                                    Record Payment
-                                                </button>
+
                                                 <button onClick={() => setActionModal({ type: 'invoice' })} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5">
                                                     <PlusIcon className="w-3.5 h-3.5" />
                                                     Generate Invoice
@@ -3364,6 +3361,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     />
                                                     <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                                 </div>
+                                                <button onClick={() => setActionModal({ type: 'payment' })} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5">
+                                                    <PlusIcon className="w-3.5 h-3.5" />
+                                                    Record Payment
+                                                </button>
                                             </div>
                                         </div>
                                         <div className="overflow-x-auto">
