@@ -49,11 +49,16 @@ export const generateDSPDF = async (
             const finalWidth = (headerImg.width * finalHeight) / headerImg.height;
             const xPos = (pageWidth - finalWidth) / 2;
             doc.addImage(headerImg, 'JPEG', xPos, 15, finalWidth, finalHeight);
-            currentY = finalHeight + 25;
+            currentY = finalHeight + 30; // extra space below letterhead
         } else {
             doc.addImage(headerImg, 'JPEG', margin, 15, imgWidth, imgHeight);
-            currentY = imgHeight + 25;
+            currentY = imgHeight + 30; // extra space below letterhead
         }
+        // Draw separator line beneath letterhead
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.5);
+        doc.line(margin, currentY - 8, pageWidth - margin, currentY - 8);
+        doc.setLineWidth(0.2);
     } else {
         // Fallback Header
         doc.setFontSize(22);
@@ -65,7 +70,7 @@ export const generateDSPDF = async (
         doc.text(institution?.address || '', margin, currentY + 8);
         doc.text(institution?.phone || '', margin, currentY + 13);
         doc.text(institution?.email || '', margin, currentY + 18);
-        currentY += 25;
+        currentY += 30;
     }
 
     // Lookup associated invoice if type is receipt
@@ -80,48 +85,50 @@ export const generateDSPDF = async (
         }
     }
 
-    // Document Type & Number
+    // Document Type & Number — always placed BELOW the header with clear spacing
     doc.setFontSize(28);
+    doc.setFont(undefined, 'bold');
     doc.setTextColor(30, 41, 59); // Slate-800
     const title = type === 'invoice' ? 'INVOICE' : 'RECEIPT';
     const number = type === 'invoice' ? (data as DSInvoice).invoiceNumber : (data as DSPayment).receiptNumber;
-    doc.text(title, pageWidth - margin, currentY - 5, { align: 'right' });
+    doc.text(title, pageWidth - margin, currentY + 5, { align: 'right' });
 
+    doc.setFont(undefined, 'normal');
     doc.setFontSize(12);
-    doc.text(`#${number}`, pageWidth - margin, currentY + 5, { align: 'right' });
+    doc.text(`#${number}`, pageWidth - margin, currentY + 15, { align: 'right' });
 
-    // Bill To / Paid By
-    doc.setFontSize(10);
+    // Bill To / Paid By — anchored relative to title block
+    const billBlockY = currentY + 30;
+    doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(type === 'invoice' ? 'BILL TO:' : 'PAID BY:', margin, currentY + 25);
+    doc.setFont(undefined, 'bold');
+    doc.text(type === 'invoice' ? 'BILL TO:' : 'PAID BY:', margin, billBlockY);
+    doc.setFont(undefined, 'normal');
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
-    doc.text(student.fullName, margin, currentY + 33);
+    doc.text(student.fullName, margin, billBlockY + 8);
     doc.setFontSize(10);
     doc.setTextColor(100);
+    let detailY = billBlockY + 14;
     if (student.admissionNumber) {
-        doc.text(`Adm: ${student.admissionNumber}`, margin, currentY + 39);
-        let nextY = currentY + 44;
-        if (student.enrollmentDate) {
-            doc.text(`Admission: ${new Date(student.enrollmentDate).toLocaleDateString()}`, margin, nextY);
-            nextY += 5;
-        }
-        doc.text(student.phone || 'N/A', margin, nextY);
-        doc.text(student.email || 'N/A', margin, nextY + 5);
-    } else {
-        let nextY = currentY + 39;
-        if (student.enrollmentDate) {
-            doc.text(`Admission: ${new Date(student.enrollmentDate).toLocaleDateString()}`, margin, nextY);
-            nextY += 5;
-        }
-        doc.text(student.phone || 'N/A', margin, nextY);
-        doc.text(student.email || 'N/A', margin, nextY + 5);
+        doc.text(`Adm: ${student.admissionNumber}`, margin, detailY);
+        detailY += 5;
     }
+    if (student.enrollmentDate) {
+        doc.text(`Enrolled: ${new Date(student.enrollmentDate).toLocaleDateString()}`, margin, detailY);
+        detailY += 5;
+    }
+    doc.text(student.phone || 'N/A', margin, detailY);
+    doc.text(student.email || 'N/A', margin, detailY + 5);
 
-    // Date
-    doc.text('DATE:', pageWidth - margin - 40, currentY + 25);
+    // Date (right-aligned beside the title)
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.setFont(undefined, 'bold');
+    doc.text('DATE:', pageWidth - margin - 40, billBlockY);
+    doc.setFont(undefined, 'normal');
     doc.setTextColor(30, 41, 59);
-    doc.text(new Date().toLocaleDateString(), pageWidth - margin, currentY + 25, { align: 'right' });
+    doc.text(new Date().toLocaleDateString(), pageWidth - margin, billBlockY, { align: 'right' });
 
     // Table
     let tableHead: string[] = [];
@@ -151,7 +158,7 @@ export const generateDSPDF = async (
     }
 
     autoTable(doc, {
-        startY: currentY + 65,
+        startY: currentY + 75,  // enough clearance below bill-to block
         head: [tableHead],
         body: tableData,
         theme: 'striped',
