@@ -2198,6 +2198,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'vehicle_unavailability' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | 'lead' | null; data?: any; initialData?: any }>({ type: null });
     const [unassignedDueToVehicles, setUnassignedDueToVehicles] = useState<Array<{ name: string; slot: string }>>([]);
     const [selectedQRLesson, setSelectedQRLesson] = useState<any | null>(null);
+    const [enrollWizard, setEnrollWizard] = useState<{ open: boolean; student: any | null; step: 'invoice' | 'payment' | 'lesson' | 'done'; createdInvoiceId: string | null }>({ open: false, student: null, step: 'invoice', createdInvoiceId: null });
 
     // Normalization
     const normalizedStudents = useMemo(() => (students || []).map(s => ({
@@ -5140,7 +5141,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             const { type } = actionModal;
                             if (type === 'student') {
                                 if (data.id) await onUpdateStudent(data);
-                                else await onAddStudent(data);
+                                else {
+                                    await onAddStudent(data);
+                                    // Open post-enrollment wizard for new students
+                                    setEnrollWizard({ open: true, student: data, step: 'invoice', createdInvoiceId: null });
+                                }
                             }
                             else if (type === 'instructor') await onAddInstructor(data);
                             else if (type === 'vehicle') {
@@ -5151,16 +5156,25 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             }
                             else if (type === 'lesson') {
                                 if (data.id) await onUpdateLesson(data);
-                                else await onAddLesson(data);
+                                else {
+                                    await onAddLesson(data);
+                                    if (enrollWizard.open) setEnrollWizard(w => ({ ...w, step: 'done' }));
+                                }
                             }
                             else if (type === 'lead') {
                                 if (data.id) await updateLead(data);
                                 else await addLead(data);
                             }
-                            else if (type === 'invoice') await onAddInvoice(data);
+                            else if (type === 'invoice') {
+                                await onAddInvoice(data);
+                                if (enrollWizard.open) setEnrollWizard(w => ({ ...w, step: 'payment', createdInvoiceId: (data as any).id || null }));
+                            }
                             else if (type === 'payment') {
                                 if (data.id) await onUpdatePayment(data);
-                                else await onAddPayment(data);
+                                else {
+                                    await onAddPayment(data);
+                                    if (enrollWizard.open) setEnrollWizard(w => ({ ...w, step: 'lesson' }));
+                                }
                             }
                             else if (type === 'fee_structure') {
                                 const dynamicItems = Array.isArray(data.items) ? data.items : [
@@ -5284,6 +5298,134 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         departments={departments}
                         rooms={rooms || []}
                     />
+                )}
+
+                {/* ── Post-Enrollment Wizard ── */}
+                {enrollWizard.open && enrollWizard.student && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden animate-scale-up">
+                            {/* Header */}
+                            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-8 pt-8 pb-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Enrollment Workflow</span>
+                                    <button onClick={() => setEnrollWizard(w => ({ ...w, open: false }))} className="p-1.5 rounded-xl hover:bg-white/10 text-white/70 hover:text-white transition-all">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                                {/* Progress Steps */}
+                                <div className="flex items-center gap-0">
+                                    {(['enrolled', 'invoice', 'payment', 'lesson'] as const).map((s, i) => {
+                                        const labels = ['Enrolled', 'Invoice', 'Payment', 'Lesson'];
+                                        const stepOrder = ['invoice', 'payment', 'lesson', 'done'];
+                                        const currentIdx = stepOrder.indexOf(enrollWizard.step);
+                                        const isCompleted = i === 0 || i < currentIdx + 1;
+                                        const isActive = (i === 0 && enrollWizard.step === 'invoice') || stepOrder[i - 1] === enrollWizard.step;
+                                        return (
+                                            <React.Fragment key={s}>
+                                                <div className="flex flex-col items-center gap-1.5">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all ${
+                                                        isCompleted ? 'bg-white border-white text-indigo-600' :
+                                                        isActive ? 'bg-white/20 border-white text-white' :
+                                                        'bg-white/10 border-white/30 text-white/50'
+                                                    }`}>
+                                                        {isCompleted && !isActive ? '✓' : i + 1}
+                                                    </div>
+                                                    <span className={`text-[8px] font-black uppercase tracking-wider ${
+                                                        isCompleted ? 'text-white' : 'text-white/40'
+                                                    }`}>{labels[i]}</span>
+                                                </div>
+                                                {i < 3 && <div className={`flex-1 h-0.5 mb-4 mx-1 ${ i < currentIdx ? 'bg-white' : 'bg-white/20'}`} />}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Student Summary */}
+                            <div className="px-8 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-sm font-black text-indigo-600 uppercase">
+                                        {(enrollWizard.student?.fullName || enrollWizard.student?.full_name || enrollWizard.student?.name || 'S').charAt(0)}
+                                    </span>
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-black text-slate-900 dark:text-white truncate">{enrollWizard.student?.fullName || enrollWizard.student?.full_name || enrollWizard.student?.name}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{enrollWizard.student?.licenseClass || enrollWizard.student?.className || 'New Student'}</p>
+                                </div>
+                                <span className="ml-auto px-3 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest flex-shrink-0">✓ Enrolled</span>
+                            </div>
+
+                            {/* Step Content */}
+                            <div className="px-8 py-6 space-y-4">
+                                {enrollWizard.step === 'invoice' && (
+                                    <>
+                                        <div>
+                                            <h4 className="text-base font-black text-slate-900 dark:text-white">Generate Invoice</h4>
+                                            <p className="text-xs text-slate-400 font-medium mt-1">Create an invoice for this student based on their selected fee structure.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => { setActionModal({ type: 'invoice', initialData: { studentId: enrollWizard.student?.id, studentName: enrollWizard.student?.fullName || enrollWizard.student?.name } }); }}
+                                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
+                                        >
+                                            Generate Invoice →
+                                        </button>
+                                        <button onClick={() => setEnrollWizard(w => ({ ...w, step: 'payment' }))} className="w-full text-center text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors py-1">
+                                            Skip this step →
+                                        </button>
+                                    </>
+                                )}
+                                {enrollWizard.step === 'payment' && (
+                                    <>
+                                        <div>
+                                            <h4 className="text-base font-black text-slate-900 dark:text-white">Record Payment</h4>
+                                            <p className="text-xs text-slate-400 font-medium mt-1">Record a payment against the student's invoice.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => { setActiveTab('finance'); setFinanceTab('payments'); setActionModal({ type: 'payment', initialData: { studentId: enrollWizard.student?.id, invoiceId: enrollWizard.createdInvoiceId } }); }}
+                                            className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
+                                        >
+                                            Record Payment →
+                                        </button>
+                                        <button onClick={() => setEnrollWizard(w => ({ ...w, step: 'lesson' }))} className="w-full text-center text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors py-1">
+                                            Skip this step →
+                                        </button>
+                                    </>
+                                )}
+                                {enrollWizard.step === 'lesson' && (
+                                    <>
+                                        <div>
+                                            <h4 className="text-base font-black text-slate-900 dark:text-white">Schedule First Lesson</h4>
+                                            <p className="text-xs text-slate-400 font-medium mt-1">Assign an instructor, vehicle and time slot for the student's first lesson.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => { setActiveTab('lessons'); setActionModal({ type: 'lesson', initialData: { studentId: enrollWizard.student?.id } }); }}
+                                            className="w-full py-4 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-violet-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
+                                        >
+                                            Schedule Lesson →
+                                        </button>
+                                        <button onClick={() => setEnrollWizard(w => ({ ...w, step: 'done' }))} className="w-full text-center text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors py-1">
+                                            Skip this step →
+                                        </button>
+                                    </>
+                                )}
+                                {enrollWizard.step === 'done' && (
+                                    <div className="text-center py-4">
+                                        <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
+                                            <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                        </div>
+                                        <h4 className="text-lg font-black text-slate-900 dark:text-white mb-1">All Done!</h4>
+                                        <p className="text-xs text-slate-400 font-medium mb-6">The student has been fully set up in the system.</p>
+                                        <button
+                                            onClick={() => setEnrollWizard({ open: false, student: null, step: 'invoice', createdInvoiceId: null })}
+                                            className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all"
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 {isImportModalOpen && (
