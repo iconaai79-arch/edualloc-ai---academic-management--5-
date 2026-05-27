@@ -393,7 +393,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         code: '',
         name: '',
         description: '',
-        isActive: true
+        isActive: true,
+        parentCategory: ''
     });
     useEffect(() => {
         if (activeTab !== 'driving_school') {
@@ -2692,13 +2693,29 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category Name</label>
                                             <input required type="text" value={newLicenseCategoryForm.name} onChange={e => setNewLicenseCategoryForm({...newLicenseCategoryForm, name: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Light Truck / Commercial" />
                                         </div>
+                                        <div className="space-y-2 md:col-span-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parent Category (Group)</label>
+                                            <input 
+                                                type="text" 
+                                                list="parent-categories" 
+                                                value={newLicenseCategoryForm.parentCategory || ''} 
+                                                onChange={e => setNewLicenseCategoryForm({...newLicenseCategoryForm, parentCategory: e.target.value})} 
+                                                className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" 
+                                                placeholder="e.g. Driving, Computer Classes, IELTS (Defaults to Driving)" 
+                                            />
+                                            <datalist id="parent-categories">
+                                                {Array.from(new Set((localDsSettings?.licenseCategories || []).map((c: any) => c.parentCategory).filter(Boolean))).map((parent: any) => (
+                                                    <option key={parent} value={parent} />
+                                                ))}
+                                            </datalist>
+                                        </div>
                                         <div className="md:col-span-2 space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description & Vehicles Covered</label>
                                             <input type="text" value={newLicenseCategoryForm.description} onChange={e => setNewLicenseCategoryForm({...newLicenseCategoryForm, description: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" placeholder="e.g. Motor vehicles of gross vehicle weight exceeding 3500kg..." />
                                         </div>
                                     </div>
                                     <div className="flex gap-3">
-                                        <button onClick={() => { setIsAddingLicenseCategory(false); setEditingLicenseCategoryId(null); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
+                                        <button onClick={() => { setIsAddingLicenseCategory(false); setEditingLicenseCategoryId(null); setNewLicenseCategoryForm({ code: '', name: '', description: '', isActive: true, parentCategory: '' }); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
                                         <button 
                                             onClick={() => {
                                                 if (!newLicenseCategoryForm.code || !newLicenseCategoryForm.name) {
@@ -2710,7 +2727,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     code: newLicenseCategoryForm.code.trim(),
                                                     name: newLicenseCategoryForm.name.trim(),
                                                     description: newLicenseCategoryForm.description.trim(),
-                                                    isActive: newLicenseCategoryForm.isActive
+                                                    isActive: newLicenseCategoryForm.isActive,
+                                                    parentCategory: newLicenseCategoryForm.parentCategory.trim() || 'Driving'
                                                 };
                                                 let nextList = [...(localDsSettings?.licenseCategories || [])];
                                                 if (editingLicenseCategoryId) {
@@ -2727,7 +2745,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 setLocalDsSettings(next);
                                                 setIsAddingLicenseCategory(false);
                                                 setEditingLicenseCategoryId(null);
-                                                setNewLicenseCategoryForm({ code: '', name: '', description: '', isActive: true });
+                                                setNewLicenseCategoryForm({ code: '', name: '', description: '', isActive: true, parentCategory: '' });
                                             }}
                                             className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                         >
@@ -2737,52 +2755,71 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {(localDsSettings?.licenseCategories || []).map((cat) => (
-                                    <div key={cat.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
-                                        <div>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-black text-xs rounded-xl uppercase tracking-widest">{cat.code}</span>
+                            <div className="space-y-12">
+                                {(() => {
+                                    const grouped: Record<string, any[]> = {};
+                                    (localDsSettings?.licenseCategories || []).forEach((cat: any) => {
+                                        const parent = cat.parentCategory || 'Driving';
+                                        if (!grouped[parent]) grouped[parent] = [];
+                                        grouped[parent].push(cat);
+                                    });
+                                    const entries = Object.entries(grouped);
+                                    if (entries.length === 0) {
+                                        return (
+                                            <div className="py-12 text-center bg-slate-50/50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">No custom license categories configured</p>
+                                                <p className="text-[9px] text-slate-400">System will use standard legacy defaults (Class A, Class B, Class C1)</p>
                                             </div>
-                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{cat.name}</h4>
-                                            {cat.description && (
-                                                <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">{cat.description}</p>
-                                            )}
+                                        );
+                                    }
+                                    return entries.map(([parent, cats]) => (
+                                        <div key={parent} className="space-y-4">
+                                            <h4 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.2em] border-b border-slate-100 dark:border-slate-800 pb-2">{parent}</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {cats.map((cat) => (
+                                                    <div key={cat.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                                                        <div>
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-black text-xs rounded-xl uppercase tracking-widest">{cat.code}</span>
+                                                            </div>
+                                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{cat.name}</h4>
+                                                            {cat.description && (
+                                                                <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">{cat.description}</p>
+                                                            )}
+                                                        </div>
+                                                        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-end gap-4">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setEditingLicenseCategoryId(cat.id);
+                                                                    setNewLicenseCategoryForm({
+                                                                        code: cat.code,
+                                                                        name: cat.name,
+                                                                        description: cat.description || '',
+                                                                        isActive: cat.isActive ?? true,
+                                                                        parentCategory: cat.parentCategory || 'Driving'
+                                                                    });
+                                                                    setIsAddingLicenseCategory(true);
+                                                                }}
+                                                                className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                                            >
+                                                                Edit Category
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    const next = { ...localDsSettings, licenseCategories: localDsSettings?.licenseCategories?.filter(c => c.id !== cat.id) } as DSSettings;
+                                                                    setLocalDsSettings(next);
+                                                                }}
+                                                                className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-end gap-4">
-                                            <button 
-                                                onClick={() => {
-                                                    setEditingLicenseCategoryId(cat.id);
-                                                    setNewLicenseCategoryForm({
-                                                        code: cat.code,
-                                                        name: cat.name,
-                                                        description: cat.description || '',
-                                                        isActive: cat.isActive ?? true
-                                                    });
-                                                    setIsAddingLicenseCategory(true);
-                                                }}
-                                                className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
-                                            >
-                                                Edit Category
-                                            </button>
-                                            <button 
-                                                onClick={() => {
-                                                    const next = { ...localDsSettings, licenseCategories: localDsSettings?.licenseCategories?.filter(c => c.id !== cat.id) } as DSSettings;
-                                                    setLocalDsSettings(next);
-                                                }}
-                                                className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                                {(localDsSettings?.licenseCategories || []).length === 0 && (
-                                    <div className="md:col-span-2 py-12 text-center bg-slate-50/50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">No custom license categories configured</p>
-                                        <p className="text-[9px] text-slate-400">System will use standard legacy defaults (Class A, Class B, Class C1)</p>
-                                    </div>
-                                )}
+                                    ));
+                                })()}
                             </div>
                         </div>
                     )}

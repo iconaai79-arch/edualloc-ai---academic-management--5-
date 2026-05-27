@@ -417,16 +417,26 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Category</label>
                                     <select value={formData.licenseTypeInterested || ''} onChange={e => setFormData({...formData, licenseTypeInterested: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="">Select Class</option>
-                                        {(settings?.licenseCategories && settings.licenseCategories.length > 0) ? (
-                                            settings.licenseCategories.map(cat => (
-                                                <option key={cat.id} value={cat.code}>{cat.code} - {cat.name}</option>
-                                            ))
-                                        ) : (
-                                            <>
+                                        {(settings?.licenseCategories && settings.licenseCategories.length > 0) ? (() => {
+                                            const grouped: Record<string, typeof settings.licenseCategories> = {};
+                                            settings.licenseCategories.forEach(cat => {
+                                                const parent = cat.parentCategory || 'Driving';
+                                                if (!grouped[parent]) grouped[parent] = [];
+                                                grouped[parent].push(cat);
+                                            });
+                                            return Object.entries(grouped).map(([parent, cats]) => (
+                                                <optgroup key={parent} label={parent}>
+                                                    {cats.map(cat => (
+                                                        <option key={cat.id} value={cat.code}>{cat.code} - {cat.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            ));
+                                        })() : (
+                                            <optgroup label="Driving">
                                                 <option value="Class A">Class A (Motorcycle)</option>
                                                 <option value="Class B">Class B (Light Vehicle)</option>
                                                 <option value="Class C1">Class C1 (Truck)</option>
-                                            </>
+                                            </optgroup>
                                         )}
                                     </select>
                                 </div>
@@ -542,16 +552,26 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
                                     >
                                         <option value="">Select Class</option>
-                                        {(settings?.licenseCategories && settings.licenseCategories.length > 0) ? (
-                                            settings.licenseCategories.map((cat: any) => (
-                                                <option key={cat.id} value={cat.code}>{cat.code} - {cat.name} (KES {Number(cat.baseFee || 0).toLocaleString()})</option>
-                                            ))
-                                        ) : (
-                                            <>
+                                        {(settings?.licenseCategories && settings.licenseCategories.length > 0) ? (() => {
+                                            const grouped: Record<string, typeof settings.licenseCategories> = {};
+                                            settings.licenseCategories.forEach(cat => {
+                                                const parent = cat.parentCategory || 'Driving';
+                                                if (!grouped[parent]) grouped[parent] = [];
+                                                grouped[parent].push(cat);
+                                            });
+                                            return Object.entries(grouped).map(([parent, cats]) => (
+                                                <optgroup key={parent} label={parent}>
+                                                    {cats.map((cat: any) => (
+                                                        <option key={cat.id} value={cat.code}>{cat.code} - {cat.name} (KES {Number(cat.baseFee || 0).toLocaleString()})</option>
+                                                    ))}
+                                                </optgroup>
+                                            ));
+                                        })() : (
+                                            <optgroup label="Driving">
                                                 <option value="Class A">Class A (Motorcycle)</option>
                                                 <option value="Class B">Class B (Light Vehicle)</option>
                                                 <option value="Class C1">Class C1 (Truck)</option>
-                                            </>
+                                            </optgroup>
                                         )}
                                     </select>
                                 </div>
@@ -1631,7 +1651,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [portalEndTime, setPortalEndTime] = useState<string>('10:00');
     const [portalLessonType, setPortalLessonType] = useState<string>('Practical');
     const [isSendingReminders, setIsSendingReminders] = useState(false);
-    const [newCategoryInput, setNewCategoryInput] = useState({ code: '', name: '', description: '', baseFee: 0, isActive: true });
+    const [newCategoryInput, setNewCategoryInput] = useState({ code: '', name: '', description: '', baseFee: 0, isActive: true, parentCategory: '' });
     const [newVoteInput, setNewVoteInput] = useState({ voteName: '', defaultAmount: 0, isMandatory: false });
     const [bulkVotesEntries, setBulkVotesEntries] = useState<Array<{ voteName: string; defaultAmount: number; isMandatory: boolean }>>([
         { voteName: '', defaultAmount: 0, isMandatory: false }
@@ -3889,11 +3909,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Quick Standard Presets</p>
                                             <div className="flex flex-wrap gap-2.5">
                                                 {[
-                                                    { code: 'A1', name: 'Light Passenger Craft (Moped)', baseFee: 6500, description: 'Up to 50cc lightweight motorcycles.' },
-                                                    { code: 'B', name: 'Light Passenger Vehicle (Car)', baseFee: 15000, description: 'Standard light vehicles (Manual/Automatic).' },
-                                                    { code: 'C1', name: 'Light Commercial Vehicle', baseFee: 18500, description: 'Commercial vehicle exceeding 3,500kg up to 7,500kg.' },
-                                                    { code: 'C', name: 'Heavy Commercial Vehicle', baseFee: 22000, description: 'Large multi-axle freight trucks.' },
-                                                    { code: 'E', name: 'Special Purpose Vehicle', baseFee: 25000, description: 'Tractors, heavy machinery, or specialized carriers.' }
+                                                    { code: 'A1', name: 'Light Passenger Craft (Moped)', baseFee: 6500, description: 'Up to 50cc lightweight motorcycles.', parentCategory: 'Driving' },
+                                                    { code: 'B', name: 'Light Passenger Vehicle (Car)', baseFee: 15000, description: 'Standard light vehicles (Manual/Automatic).', parentCategory: 'Driving' },
+                                                    { code: 'C1', name: 'Light Commercial Vehicle', baseFee: 18500, description: 'Commercial vehicle exceeding 3,500kg up to 7,500kg.', parentCategory: 'Driving' },
+                                                    { code: 'C', name: 'Heavy Commercial Vehicle', baseFee: 22000, description: 'Large multi-axle freight trucks.', parentCategory: 'Driving' },
+                                                    { code: 'E', name: 'Special Purpose Vehicle', baseFee: 25000, description: 'Tractors, heavy machinery, or specialized carriers.', parentCategory: 'Driving' }
                                                 ].map((preset, idx) => (
                                                     <button
                                                         key={idx}
@@ -3915,7 +3935,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Register License Category</h5>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category Code *</label>
                                                     <input 
@@ -3935,6 +3955,22 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         placeholder="e.g. Light Passenger Vehicle"
                                                         className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
                                                     />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Parent Category (Group)</label>
+                                                    <input 
+                                                        type="text" 
+                                                        list="parent-categories-ds" 
+                                                        value={newCategoryInput.parentCategory || ''} 
+                                                        onChange={e => setNewCategoryInput({...newCategoryInput, parentCategory: e.target.value})} 
+                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs" 
+                                                        placeholder="e.g. Driving (Defaults to Driving)" 
+                                                    />
+                                                    <datalist id="parent-categories-ds">
+                                                        {Array.from(new Set((settings?.licenseCategories || []).map((c: any) => c.parentCategory).filter(Boolean))).map((parent: any) => (
+                                                            <option key={parent} value={parent} />
+                                                        ))}
+                                                    </datalist>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Base Course Fee (KES)</label>
@@ -3974,10 +4010,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         name: newCategoryInput.name.trim(),
                                                         description: newCategoryInput.description.trim(),
                                                         baseFee: newCategoryInput.baseFee,
-                                                        isActive: newCategoryInput.isActive
+                                                        isActive: newCategoryInput.isActive,
+                                                        parentCategory: newCategoryInput.parentCategory?.trim() || 'Driving'
                                                     }];
                                                     onUpdateSettings({ ...settings, licenseCategories: updated });
-                                                    setNewCategoryInput({ code: '', name: '', description: '', baseFee: 0, isActive: true });
+                                                    setNewCategoryInput({ code: '', name: '', description: '', baseFee: 0, isActive: true, parentCategory: '' });
                                                     success("License category appended successfully.");
                                                 }}
                                                 className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
@@ -3987,36 +4024,51 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         </div>
 
                                         {/* Categories List View */}
-                                        <div className="space-y-4">
+                                        <div className="space-y-8">
                                             <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Active Classifications ({settings?.licenseCategories?.length || 0})</h5>
-                                            {(settings?.licenseCategories || []).length === 0 ? (
-                                                <p className="p-8 text-center text-xs font-medium text-slate-400 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-dashed">No driving license categories configured yet. Use presets above to instantiate.</p>
-                                            ) : (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {(settings?.licenseCategories || []).map(cat => (
-                                                        <div key={cat.id} className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs flex items-start justify-between gap-4">
-                                                            <div className="space-y-1">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg font-black text-xs">{cat.code}</span>
-                                                                    <h6 className="font-bold text-sm text-slate-900 dark:text-white">{cat.name}</h6>
+                                            {(() => {
+                                                const grouped: Record<string, any[]> = {};
+                                                (settings?.licenseCategories || []).forEach((cat: any) => {
+                                                    const parent = cat.parentCategory || 'Driving';
+                                                    if (!grouped[parent]) grouped[parent] = [];
+                                                    grouped[parent].push(cat);
+                                                });
+                                                const entries = Object.entries(grouped);
+                                                if (entries.length === 0) {
+                                                    return (
+                                                        <p className="p-8 text-center text-xs font-medium text-slate-400 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-dashed">No driving license categories configured yet. Use presets above to instantiate.</p>
+                                                    );
+                                                }
+                                                return entries.map(([parent, cats]) => (
+                                                    <div key={parent} className="space-y-4">
+                                                        <h6 className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.2em] border-b border-slate-100 dark:border-slate-800 pb-2">{parent}</h6>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            {cats.map(cat => (
+                                                                <div key={cat.id} className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs flex items-start justify-between gap-4">
+                                                                    <div className="space-y-1">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg font-black text-xs">{cat.code}</span>
+                                                                            <h6 className="font-bold text-sm text-slate-900 dark:text-white">{cat.name}</h6>
+                                                                        </div>
+                                                                        {cat.description && <p className="text-xs text-slate-500">{cat.description}</p>}
+                                                                        <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(cat.baseFee ?? (cat as any).base_fee ?? 0).toLocaleString()}</p>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const updated = (settings?.licenseCategories || []).filter(c => c.id !== cat.id);
+                                                                            onUpdateSettings({ ...settings, licenseCategories: updated });
+                                                                        }}
+                                                                        className="p-2 text-slate-300 hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                                                    >
+                                                                        <TrashIcon className="w-4 h-4" />
+                                                                    </button>
                                                                 </div>
-                                                                {cat.description && <p className="text-xs text-slate-500">{cat.description}</p>}
-                                                                <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(cat.baseFee ?? (cat as any).base_fee ?? 0).toLocaleString()}</p>
-                                                            </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const updated = (settings?.licenseCategories || []).filter(c => c.id !== cat.id);
-                                                                    onUpdateSettings({ ...settings, licenseCategories: updated });
-                                                                }}
-                                                                className="p-2 text-slate-300 hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                                                            >
-                                                                <TrashIcon className="w-4 h-4" />
-                                                            </button>
+                                                            ))}
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                                    </div>
+                                                ));
+                                            })()}
                                         </div>
                                     </div>
                                 )}

@@ -3913,6 +3913,7 @@ export interface DSLicenseCategory {
     description?: string;
     baseFee?: number;
     isActive?: boolean;
+    parentCategory?: string;
 }
 
 export interface DSVote {
