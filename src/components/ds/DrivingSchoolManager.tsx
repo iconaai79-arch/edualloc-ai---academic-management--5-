@@ -1524,9 +1524,28 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase'>('dashboard');
     
-    const userRole = (currentUser?.role || '').toLowerCase();
-    const isAdmin = ['admin', 'super_admin', 'superadmin', 'super admin', 'system_admin', 'system admin', 'owner', 'director', 'driving_instructor', 'head_teacher', 'finance'].includes(userRole);
-    const isDirector = ['director', 'super_admin', 'superadmin', 'super admin', 'system_admin', 'system admin', 'owner', 'head_teacher'].includes(userRole);
+    const rolesList = useMemo(() => [
+        (currentUser?.role || '').toLowerCase(),
+        ...(currentUser?.roles || []).map(r => (r || '').toLowerCase())
+    ], [currentUser]);
+    const isAdmin = useMemo(() => rolesList.some(role => 
+        ['admin', 'super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin', 'owner', 'director', 'driving_instructor', 'head_teacher', 'finance', 'reseller', 'manager'].includes(role) || 
+        role.includes('admin') || 
+        role.includes('director') || 
+        role.includes('owner') || 
+        role.includes('finance') || 
+        role.includes('reseller')
+    ), [rolesList]);
+    const isDirector = useMemo(() => rolesList.some(role => 
+        ['director', 'super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin', 'owner', 'head_teacher', 'reseller'].includes(role) || 
+        role.includes('director') || 
+        role.includes('owner') || 
+        role.includes('super_admin') || 
+        role.includes('superadmin') || 
+        role.includes('super admin') || 
+        role.includes('super-admin') || 
+        role.includes('reseller')
+    ), [rolesList]);
 
     const [reasonModal, setReasonModal] = useState<{
         isOpen: boolean;
@@ -2126,11 +2145,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     [normalizedInstructors, searchTerm]);
 
     const filteredInvoices = useMemo(() => 
-        (invoices || []).filter(inv => 
-            (inv.studentName || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
-            (inv.invoiceNumber || '').toLowerCase().includes(invoiceSearch.toLowerCase())
-        ),
-    [invoices, invoiceSearch]);
+        (invoices || []).filter(inv => {
+            const student = (normalizedStudents || []).find(s => s.id === inv.studentId);
+            const adm = student?.admissionNumber || student?.admission_number || '';
+            return (inv.studentName || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
+                   (inv.invoiceNumber || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
+                   adm.toLowerCase().includes(invoiceSearch.toLowerCase());
+        }),
+    [invoices, invoiceSearch, normalizedStudents]);
 
     const itemsPerPage = 10;
 
@@ -2144,9 +2166,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const filteredPayments = useMemo(() => 
         (payments || []).filter(pay => {
             const student = (normalizedStudents || []).find(s => s.id === pay.studentId);
+            const adm = student?.admissionNumber || student?.admission_number || '';
             return (pay.studentName || student?.fullName || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
                    (pay.receiptNumber || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
-                   (pay.paymentMethod || '').toLowerCase().includes(paymentSearch.toLowerCase());
+                   (pay.paymentMethod || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
+                   adm.toLowerCase().includes(paymentSearch.toLowerCase());
         }),
     [payments, normalizedStudents, paymentSearch]);
 
@@ -3185,6 +3209,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <thead>
                                                 <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
                                                     <th className="px-10 py-6">Invoice #</th>
+                                                    <th className="px-10 py-6">Adm #</th>
                                                     <th className="px-10 py-6">Student</th>
                                                     <th className="px-10 py-6">Amount</th>
                                                     <th className="px-10 py-6">Balance</th>
@@ -3193,10 +3218,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                                {paginatedInvoices.map(invoice => (
-                                                    <tr key={invoice.id} className="hover:bg-slate-50/50">
-                                                        <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
-                                                        <td className="px-10 py-6 text-sm">{invoice.studentName}</td>
+                                                {paginatedInvoices.map(invoice => {
+                                                    const student = (normalizedStudents || []).find(s => s.id === invoice.studentId);
+                                                    const admNo = student?.admissionNumber || student?.admission_number || '-';
+                                                    return (
+                                                        <tr key={invoice.id} className="hover:bg-slate-50/50">
+                                                            <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
+                                                            <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
+                                                            <td className="px-10 py-6 text-sm">{invoice.studentName}</td>
                                                         <td className="px-10 py-6 font-bold text-sm">KES {invoice.totalAmount.toLocaleString()}</td>
                                                         <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {invoice.balance.toLocaleString()}</td>
                                                         <td className="px-10 py-6">
@@ -3245,7 +3274,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             </button>
                                                         </td>
                                                     </tr>
-                                                ))}
+                                                );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
@@ -3372,6 +3402,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 <thead>
                                                     <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
                                                         <th className="px-10 py-6">Receipt #</th>
+                                                        <th className="px-10 py-6">Adm #</th>
                                                         <th className="px-10 py-6">Student</th>
                                                         <th className="px-10 py-6">Method</th>
                                                         <th className="px-10 py-6">Amount</th>
@@ -3380,9 +3411,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                                    {paginatedPayments.map(payment => (
-                                                        <tr key={payment.id} className="hover:bg-slate-50/50">
-                                                            <td className="px-10 py-6 font-bold flex items-center gap-2">
+                                                    {paginatedPayments.map(payment => {
+                                                        const student = (normalizedStudents || []).find(s => s.id === payment.studentId);
+                                                        const admNo = student?.admissionNumber || student?.admission_number || '-';
+                                                        return (
+                                                            <tr key={payment.id} className="hover:bg-slate-50/50">
+                                                                <td className="px-10 py-6 font-bold flex items-center gap-2">
                                                                  <span>{payment.receiptNumber}</span>
                                                                  {payment.status === 'Pending Deletion' && (
                                                                      <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-500 text-[8px] font-black uppercase tracking-widest border border-amber-200 dark:border-amber-800/40">
@@ -3390,6 +3424,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                      </span>
                                                                  )}
                                                              </td>
+                                                            <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
                                                             <td className="px-10 py-6 text-sm">{payment.studentName}</td>
                                                             <td className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
                                                             <td className="px-10 py-6 font-bold text-sm">KES {payment.amount.toLocaleString()}</td>
@@ -3445,7 +3480,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 )}
                                                             </td>
                                                         </tr>
-                                                    ))}
+                                                    );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
