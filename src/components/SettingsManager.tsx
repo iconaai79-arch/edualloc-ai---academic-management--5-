@@ -2472,7 +2472,29 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <div className="grid grid-cols-1 gap-6 mb-8">
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Name</label>
-                                                <input required type="text" value={newFeeForm.className} onChange={e => setNewFeeForm({...newFeeForm, className: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" placeholder="e.g. CLASS C1" />
+                                                <select 
+                                                    required 
+                                                    value={newFeeForm.className} 
+                                                    onChange={e => setNewFeeForm({...newFeeForm, className: e.target.value})} 
+                                                    className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-900 dark:text-slate-100"
+                                                >
+                                                    <option value="">Select License Category</option>
+                                                    {(localDsSettings?.licenseCategories || []).map((cat: any) => (
+                                                        <option key={cat.id} value={cat.code || cat.name}>
+                                                            {cat.code ? `${cat.code} - ${cat.name}` : cat.name}
+                                                        </option>
+                                                    ))}
+                                                    {(!localDsSettings?.licenseCategories || localDsSettings.licenseCategories.length === 0) && (
+                                                        <>
+                                                            <option value="Class A">Class A - Motorcycle</option>
+                                                            <option value="Class B">Class B - Light Vehicle</option>
+                                                            <option value="Class C1">Class C1 - Light Truck</option>
+                                                        </>
+                                                    )}
+                                                    {newFeeForm.className && !((localDsSettings?.licenseCategories || []).some((c: any) => (c.code || c.name) === newFeeForm.className) || ['Class A', 'Class B', 'Class C1'].includes(newFeeForm.className)) && (
+                                                        <option value={newFeeForm.className}>{newFeeForm.className}</option>
+                                                    )}
+                                                </select>
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Package Description (Optional)</label>
