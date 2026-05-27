@@ -3234,7 +3234,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             }`}>
                                                                 {invoice.status}
                                                             </span>
-                                                            {invoice.items && (
+                                                            {Array.isArray(invoice.items) && invoice.items.length > 0 && (
                                                                 <div className="mt-2 space-y-1">
                                                                     {invoice.items.map((item: any, idx: number) => (
                                                                         <div key={idx} className="flex items-center gap-2 text-[8px] font-bold uppercase tracking-widest text-slate-400">
