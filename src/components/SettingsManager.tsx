@@ -399,6 +399,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         isActive: true,
         parentCategory: ''
     });
+    const [managingFeeForCategory, setManagingFeeForCategory] = useState<string | null>(null);
     useEffect(() => {
         if (activeTab !== 'driving_school') {
             setLocalDsSettings(props.dsSettings || null);
@@ -2802,33 +2803,120 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                 <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">{cat.description}</p>
                                                             )}
                                                         </div>
-                                                        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-end gap-4">
-                                                            <button 
-                                                                onClick={() => {
-                                                                    setEditingLicenseCategoryId(cat.id);
-                                                                    setNewLicenseCategoryForm({
-                                                                        code: cat.code,
-                                                                        name: cat.name,
-                                                                        description: cat.description || '',
-                                                                        isActive: cat.isActive ?? true,
-                                                                        parentCategory: cat.parentCategory || 'Driving'
-                                                                    });
-                                                                    setIsAddingLicenseCategory(true);
-                                                                }}
-                                                                className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                                        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-2">
+                                                            <button
+                                                                onClick={() => setManagingFeeForCategory(managingFeeForCategory === cat.id ? null : cat.id)}
+                                                                className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl transition-all ${
+                                                                    managingFeeForCategory === cat.id
+                                                                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                                                                        : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
+                                                                }`}
                                                             >
-                                                                Edit Category
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                Fee Structure
                                                             </button>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    const next = { ...localDsSettings, licenseCategories: localDsSettings?.licenseCategories?.filter(c => c.id !== cat.id) } as DSSettings;
-                                                                    setLocalDsSettings(next);
-                                                                }}
-                                                                className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
-                                                            >
-                                                                Delete
-                                                            </button>
+                                                            <div className="flex items-center gap-4">
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setEditingLicenseCategoryId(cat.id);
+                                                                        setNewLicenseCategoryForm({
+                                                                            code: cat.code,
+                                                                            name: cat.name,
+                                                                            description: cat.description || '',
+                                                                            isActive: cat.isActive ?? true,
+                                                                            parentCategory: cat.parentCategory || 'Driving'
+                                                                        });
+                                                                        setIsAddingLicenseCategory(true);
+                                                                        setManagingFeeForCategory(null);
+                                                                    }}
+                                                                    className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                                                >
+                                                                    Edit Category
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        const next = { ...localDsSettings, licenseCategories: localDsSettings?.licenseCategories?.filter(c => c.id !== cat.id) } as DSSettings;
+                                                                        setLocalDsSettings(next);
+                                                                    }}
+                                                                    className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            </div>
                                                         </div>
+                                                        {/* Inline Fee Structure Panel */}
+                                                        {managingFeeForCategory === cat.id && (() => {
+                                                            const catFees = (localDsSettings?.feeStructures || []).filter(
+                                                                (f: any) => f.className?.toLowerCase().trim() === cat.code?.toLowerCase().trim() ||
+                                                                            f.className?.toLowerCase().trim() === cat.name?.toLowerCase().trim()
+                                                            );
+                                                            return (
+                                                                <div className="mt-4 pt-4 border-t border-emerald-100 dark:border-emerald-900/30 animate-fade-in-up">
+                                                                    <div className="flex items-center justify-between mb-3">
+                                                                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Fee Structures — {cat.code}: {cat.name}</p>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setNewFeeForm({ className: cat.code, description: `${cat.name} Fee Package`, items: [{ name: 'Tuition Fee', amount: 15000, priority: 1 }, { name: 'PDL', amount: 1500, priority: 2 }, { name: 'Assessment', amount: 2000, priority: 3 }] });
+                                                                                setEditingFeeId(null);
+                                                                                setIsAddingFee(true);
+                                                                                setManagingFeeForCategory(null);
+                                                                            }}
+                                                                            className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-all uppercase tracking-widest"
+                                                                        >
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                                                            Add New
+                                                                        </button>
+                                                                    </div>
+                                                                    {catFees.length > 0 ? (
+                                                                        <div className="space-y-2">
+                                                                            {catFees.map((fee: any) => (
+                                                                                <div key={fee.id} className="bg-white dark:bg-slate-900/60 rounded-2xl px-4 py-3 border border-slate-100 dark:border-slate-700/50">
+                                                                                    <div className="flex items-center justify-between mb-2">
+                                                                                        <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest">{fee.className}</span>
+                                                                                        <span className="text-xs font-black text-emerald-600">KES {(fee.totalAmount ?? 0).toLocaleString()}</span>
+                                                                                    </div>
+                                                                                    <div className="space-y-1 mb-3">
+                                                                                        {(Array.isArray(fee.items) ? fee.items : []).map((item: any, i: number) => (
+                                                                                            <div key={i} className="flex items-center justify-between text-[10px]">
+                                                                                                <span className="text-slate-400 font-medium">{item.name}</span>
+                                                                                                <span className="text-slate-600 dark:text-slate-300 font-bold">KES {(item.amount ?? 0).toLocaleString()}</span>
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/40">
+                                                                                        <button
+                                                                                            onClick={() => {
+                                                                                                setEditingFeeId(fee.id);
+                                                                                                const loadedItems = Array.isArray(fee.items) && fee.items.length > 0
+                                                                                                    ? fee.items.map((it: any) => ({ name: it.name, amount: it.amount, priority: it.priority ?? 1 }))
+                                                                                                    : [{ name: 'Standard Course Fee', amount: fee.totalAmount || 0, priority: 1 }];
+                                                                                                setNewFeeForm({ className: fee.className, description: (fee as any).description || '', items: loadedItems });
+                                                                                                setIsAddingFee(true);
+                                                                                                setManagingFeeForCategory(null);
+                                                                                            }}
+                                                                                            className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                                                                        >Edit</button>
+                                                                                        <button
+                                                                                            onClick={() => {
+                                                                                                const next = { ...localDsSettings, feeStructures: localDsSettings?.feeStructures?.filter((f: any) => f.id !== fee.id) } as DSSettings;
+                                                                                                setLocalDsSettings(next);
+                                                                                            }}
+                                                                                            className="text-[9px] font-black text-red-400 uppercase tracking-widest hover:underline"
+                                                                                        >Remove</button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="py-4 text-center rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700">
+                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">No fee structure for {cat.code} yet</p>
+                                                                            <p className="text-[9px] text-slate-400 mt-1">Click &quot;Add New&quot; to create one</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
+
                                                     </div>
                                                 ))}
                                             </div>
