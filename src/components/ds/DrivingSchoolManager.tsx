@@ -154,6 +154,88 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     const [previewPdf, setPreviewPdf] = useState<string | null>(null);
     const [scoringStudent, setScoringStudent] = useState<DSStudent | null>(null);
 
+    // Category & Subcategory logic for Student/Lead enrollment
+    const categoryGroups = useMemo(() => {
+        if (settings?.licenseGroups && settings.licenseGroups.length > 0) {
+            return settings.licenseGroups;
+        }
+        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
+            const parents = settings.licenseCategories
+                .map((c: any) => c.parentCategory || 'Driving')
+                .filter((v, i, a) => a.indexOf(v) === i);
+            return parents;
+        }
+        return ['Driving'];
+    }, [settings?.licenseGroups, settings?.licenseCategories]);
+
+    const filteredSubcategories = useMemo(() => {
+        const selectedParent = formData.licenseCategory || 'Driving';
+        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
+            return settings.licenseCategories.filter((c: any) => (c.parentCategory || 'Driving') === selectedParent);
+        }
+        if (selectedParent === 'Driving') {
+            return [
+                { id: 'class_a', code: 'Class A', name: 'Motorcycle', baseFee: 8000 },
+                { id: 'class_b', code: 'Class B', name: 'Light Vehicle', baseFee: 15000 },
+                { id: 'class_c1', code: 'Class C1', name: 'Truck', baseFee: 18000 }
+            ];
+        }
+        return [];
+    }, [formData.licenseCategory, settings?.licenseCategories]);
+
+    // Automatically set default category and subcategory if missing
+    useEffect(() => {
+        if ((type === 'student' || type === 'lead') && !formData.licenseCategory) {
+            let initialParent = 'Driving';
+            if (formData.licenseTypeInterested && settings?.licenseCategories) {
+                const matched = settings.licenseCategories.find((c: any) => c.code === formData.licenseTypeInterested);
+                if (matched && matched.parentCategory) {
+                    initialParent = matched.parentCategory;
+                }
+            } else if (categoryGroups.length > 0) {
+                initialParent = categoryGroups[0];
+            }
+
+            let defaultSub = '';
+            if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
+                const subs = settings.licenseCategories.filter((c: any) => (c.parentCategory || 'Driving') === initialParent);
+                if (subs.length > 0) {
+                    defaultSub = subs[0].code;
+                }
+            } else if (initialParent === 'Driving') {
+                defaultSub = 'Class B';
+            }
+
+            setFormData((prev: any) => ({
+                ...prev,
+                licenseCategory: initialParent,
+                licenseTypeInterested: prev.licenseTypeInterested || defaultSub
+            }));
+        }
+    }, [type, categoryGroups, settings?.licenseCategories, formData.licenseCategory, formData.licenseTypeInterested]);
+
+    const handleCategoryChange = (val: string) => {
+        let defaultSub = '';
+        let matchedFee = 15000;
+        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
+            const subs = settings.licenseCategories.filter((c: any) => (c.parentCategory || 'Driving') === val);
+            if (subs.length > 0) {
+                defaultSub = subs[0].code;
+                matchedFee = subs[0].baseFee || 15000;
+            }
+        } else if (val === 'Driving') {
+            defaultSub = 'Class B';
+            matchedFee = 15000;
+        }
+
+        setFormData((prev: any) => ({
+            ...prev,
+            licenseCategory: val,
+            licenseTypeInterested: defaultSub,
+            quotedAmount: type === 'lead' ? matchedFee : prev.quotedAmount
+        }));
+    };
+
     const nextAdmissionNumber = useMemo(() => {
         const prefixStr = (settings?.studentIdPrefix || 'ADM-').trim();
         const asNum = Number(prefixStr);
@@ -414,30 +496,29 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <input type="text" value={formData.idNumber || ''} onChange={e => setFormData({...formData, idNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100" placeholder="e.g. 12345678" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Category</label>
-                                    <select value={formData.licenseTypeInterested || ''} onChange={e => setFormData({...formData, licenseTypeInterested: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
-                                        <option value="">Select Class</option>
-                                        {(settings?.licenseCategories && settings.licenseCategories.length > 0) ? (() => {
-                                            const grouped: Record<string, typeof settings.licenseCategories> = {};
-                                            settings.licenseCategories.forEach(cat => {
-                                                const parent = cat.parentCategory || 'Driving';
-                                                if (!grouped[parent]) grouped[parent] = [];
-                                                grouped[parent].push(cat);
-                                            });
-                                            return Object.entries(grouped).map(([parent, cats]) => (
-                                                <optgroup key={parent} label={parent}>
-                                                    {cats.map(cat => (
-                                                        <option key={cat.id} value={cat.code}>{cat.code} - {cat.name}</option>
-                                                    ))}
-                                                </optgroup>
-                                            ));
-                                        })() : (
-                                            <optgroup label="Driving">
-                                                <option value="Class A">Class A (Motorcycle)</option>
-                                                <option value="Class B">Class B (Light Vehicle)</option>
-                                                <option value="Class C1">Class C1 (Truck)</option>
-                                            </optgroup>
-                                        )}
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
+                                    <select 
+                                        value={formData.licenseCategory || ''} 
+                                        onChange={e => handleCategoryChange(e.target.value)} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
+                                    >
+                                        <option value="">Select Category</option>
+                                        {categoryGroups.map(group => (
+                                            <option key={group} value={group}>{group}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Subcategory / Class</label>
+                                    <select 
+                                        value={formData.licenseTypeInterested || ''} 
+                                        onChange={e => setFormData({...formData, licenseTypeInterested: e.target.value})} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
+                                    >
+                                        <option value="">Select Subcategory</option>
+                                        {filteredSubcategories.map(cat => (
+                                            <option key={cat.id} value={cat.code}>{cat.code} - {cat.name}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
@@ -540,7 +621,20 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <input type="email" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100" placeholder="client@example.com" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Enquired License Class</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Enquired Category</label>
+                                    <select 
+                                        value={formData.licenseCategory || ''} 
+                                        onChange={e => handleCategoryChange(e.target.value)} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
+                                    >
+                                        <option value="">Select Category</option>
+                                        {categoryGroups.map(group => (
+                                            <option key={group} value={group}>{group}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Enquired Subcategory / Class</label>
                                     <select 
                                         value={formData.licenseTypeInterested || ''} 
                                         onChange={e => {
@@ -551,28 +645,10 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         }} 
                                         className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
                                     >
-                                        <option value="">Select Class</option>
-                                        {(settings?.licenseCategories && settings.licenseCategories.length > 0) ? (() => {
-                                            const grouped: Record<string, typeof settings.licenseCategories> = {};
-                                            settings.licenseCategories.forEach(cat => {
-                                                const parent = cat.parentCategory || 'Driving';
-                                                if (!grouped[parent]) grouped[parent] = [];
-                                                grouped[parent].push(cat);
-                                            });
-                                            return Object.entries(grouped).map(([parent, cats]) => (
-                                                <optgroup key={parent} label={parent}>
-                                                    {cats.map((cat: any) => (
-                                                        <option key={cat.id} value={cat.code}>{cat.code} - {cat.name} (KES {Number(cat.baseFee || 0).toLocaleString()})</option>
-                                                    ))}
-                                                </optgroup>
-                                            ));
-                                        })() : (
-                                            <optgroup label="Driving">
-                                                <option value="Class A">Class A (Motorcycle)</option>
-                                                <option value="Class B">Class B (Light Vehicle)</option>
-                                                <option value="Class C1">Class C1 (Truck)</option>
-                                            </optgroup>
-                                        )}
+                                        <option value="">Select Subcategory</option>
+                                        {filteredSubcategories.map(cat => (
+                                            <option key={cat.id} value={cat.code}>{cat.code} - {cat.name} (KES {Number(cat.baseFee || 0).toLocaleString()})</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
