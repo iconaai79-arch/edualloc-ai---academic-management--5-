@@ -230,7 +230,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba' | 'kcb' | 'coop'>('mpesa');
     const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>(isDS ? 'buildings' : 'departments');
-    const [dsConfigSubTab, setDsConfigSubTab] = useState<'business_rules' | 'license_category' | 'license_groups' | 'vote_heads'>('business_rules');
+    const [dsConfigSubTab, setDsConfigSubTab] = useState<'business_rules' | 'license_category' | 'license_groups' | 'vote_heads' | 'fee_structures'>('business_rules');
     const [newLicenseGroupForm, setNewLicenseGroupForm] = useState('');
     const [editingLicenseGroupOriginalName, setEditingLicenseGroupOriginalName] = useState<string | null>(null);
     const [editingLicenseGroupForm, setEditingLicenseGroupForm] = useState('');
@@ -2156,7 +2156,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 onClick={() => setDsConfigSubTab('business_rules')}
                                 className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${dsConfigSubTab === 'business_rules' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                             >
-                                <Cog8ToothIcon className="w-4 h-4" /> Business Rules & Fees
+                                <Cog8ToothIcon className="w-4 h-4" /> Business Rules
                             </button>
                             <button
                                 onClick={() => setDsConfigSubTab('license_category')}
@@ -2176,13 +2176,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             >
                                 <CalculatorIcon className="w-4 h-4" /> Votes (Fee Heads)
                             </button>
+                            <button
+                                onClick={() => setDsConfigSubTab('fee_structures')}
+                                className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${dsConfigSubTab === 'fee_structures' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <CurrencyIcon className="w-4 h-4" /> Fee Structures
+                            </button>
                         </nav>
                     </div>
 
                     {dsConfigSubTab === 'business_rules' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 animate-fade-in">
-                        {/* Column 1: Policies & Rules */}
-                        <div className="space-y-8">
+                        <div className="space-y-8 animate-fade-in max-w-4xl">
                             <div>
                                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-6 flex items-center gap-3">
                                     <AlertTriangleIcon className="w-5 h-5 text-amber-500" />
@@ -2405,7 +2409,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
                     <div className="pt-12 border-t border-slate-50 dark:border-slate-800">
                                 <div className="mb-8">
@@ -2454,9 +2457,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    )}
 
-                        {/* Column 2: Fee Structures */}
-                        <div className="pt-12 mt-12 border-t border-slate-100 dark:border-slate-800">
+                    {dsConfigSubTab === 'fee_structures' && (
+                        <div className="space-y-8 animate-fade-in">
                             <div className="flex items-center justify-between mb-8">
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Structures</h3>
@@ -2718,7 +2723,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 )}
                             </div>
                         </div>
-                    </div>
                     )}
 
                     {dsConfigSubTab === 'license_category' && (
@@ -2911,7 +2915,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                                 setEditingFeeId(null);
                                                                                 setIsAddingFee(true);
                                                                                 setManagingFeeForCategory(null);
-                                                                                setDsConfigSubTab('business_rules');
+                                                                                setDsConfigSubTab('fee_structures');
                                                                             }}
                                                                             className="flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-all uppercase tracking-widest"
                                                                         >
@@ -2945,7 +2949,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                                                 setNewFeeForm({ className: fee.className, description: (fee as any).description || '', items: loadedItems });
                                                                                                 setIsAddingFee(true);
                                                                                                 setManagingFeeForCategory(null);
-                                                                                                setDsConfigSubTab('business_rules');
+                                                                                                setDsConfigSubTab('fee_structures');
                                                                                             }}
                                                                                             className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
                                                                                         >Edit</button>
