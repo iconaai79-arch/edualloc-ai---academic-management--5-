@@ -431,7 +431,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const handleDsClassTemplateSelect = (className: string) => {
         setDsFormClass(className);
         const template = dsFeeStructures.find(fs => fs.className === className);
-        if (template && template.items) {
+        if (template && Array.isArray(template.items) && template.items.length > 0) {
             setDsFormItems(template.items.map((it: any) => ({
                 name: it.name || it.voteName || 'Item',
                 amount: it.amount || 0,

@@ -2488,7 +2488,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             <div className="w-8"></div>
                                                         </div>
                                                     )}
-                                                    {newFeeForm.items.map((it, idx) => (
+                                                    {(Array.isArray(newFeeForm.items) ? newFeeForm.items : []).map((it, idx) => (
                                                         <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60">
                                                             <div className="flex-[2]">
                                                                 <input
@@ -2608,7 +2608,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <span className="text-lg font-black text-slate-900 dark:text-white">KSH {fee.totalAmount.toLocaleString()}</span>
                                         </div>
                                         <div className="space-y-2">
-                                            {fee.items.map((item, i) => (
+                                            {(Array.isArray(fee.items) ? fee.items : []).map((item, i) => (
                                                 <div key={i} className="flex items-center justify-between text-xs">
                                                     <span className="text-slate-500 font-medium">{item.name}</span>
                                                     <span className="text-slate-700 dark:text-slate-300 font-bold">KSH {item.amount.toLocaleString()}</span>

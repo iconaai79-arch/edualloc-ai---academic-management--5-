@@ -163,7 +163,7 @@ export const generateDSPDF = async (
     let renderYAfterTable = (doc as any).lastAutoTable.finalY || 150;
 
     // Render Votes Breakdown for Receipts if associated invoice exists
-    if (type === 'receipt' && associatedInvoice && associatedInvoice.items && associatedInvoice.items.length > 0) {
+    if (type === 'receipt' && associatedInvoice && Array.isArray(associatedInvoice.items) && associatedInvoice.items.length > 0) {
         renderYAfterTable += 12;
         doc.setFontSize(11);
         doc.setTextColor(30, 41, 59);
@@ -318,7 +318,7 @@ export const generateDSThermalReceipt = async (
     doc.text(`Kes ${payment.amount.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 8;
 
-    if (associatedInvoice && associatedInvoice.items && associatedInvoice.items.length > 0) {
+    if (associatedInvoice && Array.isArray(associatedInvoice.items) && associatedInvoice.items.length > 0) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
         doc.text("--- Votes Breakdown ---", margin, yPos);
