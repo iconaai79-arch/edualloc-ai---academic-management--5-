@@ -2573,7 +2573,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                             };
                                                                             setNewFeeForm({ ...newFeeForm, items: nextItems });
                                                                         }}
-                                                                        className="w-full px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-xs"
+                                                                        className="w-full px-4 py-2 bg-white dark:bg-slate-900 rounded-xl outline-none border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                                                                     >
                                                                         <option value="">Select Vote Head</option>
                                                                         {(!localDsSettings?.votes || localDsSettings.votes.length === 0) ? (
@@ -2708,9 +2708,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                         <div className="space-y-2">
                                             {(Array.isArray(fee.items) ? fee.items : []).map((item, i) => (
-                                                <div key={i} className="flex items-center justify-between text-xs">
-                                                    <span className="text-slate-500 font-medium">{item.name}</span>
-                                                    <span className="text-slate-700 dark:text-slate-300 font-bold">KSH {(item.amount ?? 0).toLocaleString()}</span>
+                                                <div key={i} className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/40 last:border-none">
+                                                    <span className="text-[11px] font-black text-slate-950 dark:text-slate-50 uppercase tracking-wider">{item.name}</span>
+                                                    <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">KSH {(item.amount ?? 0).toLocaleString()}</span>
                                                 </div>
                                             ))}
                                         </div>
