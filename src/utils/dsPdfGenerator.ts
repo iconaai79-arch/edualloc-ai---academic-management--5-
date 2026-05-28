@@ -35,7 +35,15 @@ export const generateDSPDF = async (
 
     // Letterhead Support cascade: Institution -> System Default
     const letterheadUrl = institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.letterheadUrl || (companyDetails as any)?.logoUrl;
-    const headerImg = await loadImage(letterheadUrl);
+
+    // Footer Support cascade: Institution -> System Default
+    const footerUrl = institution?.letterheadConfig?.footerImageUrl || institution?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || (companyDetails as any)?.footerImageUrl;
+    const footerText = institution?.letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || '';
+
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadUrl),
+        loadImage(footerUrl)
+    ]);
 
     let currentY = 30;
 
@@ -229,10 +237,36 @@ export const generateDSPDF = async (
         doc.text(`KES ${associatedInvoice.balance.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 42, { align: 'right' });
     }
 
-    // Footer
-    doc.setFontSize(10);
-    doc.setTextColor(150);
-    doc.text('Thank you for choosing our Driving School!', pageWidth / 2, 280, { align: 'center' });
+    // Footer Layout & Page Numbers
+    const pageCount = doc.internal.getNumberOfPages();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        if (footerImg) {
+            const footerMargin = 10;
+            const availableWidth = pageWidth - (margin * 2);
+            const aspectRatio = footerImg.width / footerImg.height;
+            let finalWidth = availableWidth;
+            let finalHeight = finalWidth / aspectRatio;
+            const maxHeight = 20;
+            if (finalHeight > maxHeight) {
+                finalHeight = maxHeight;
+                finalWidth = finalHeight * aspectRatio;
+            }
+            const xPos = (pageWidth - finalWidth) / 2;
+            const yPos = pageHeight - finalHeight - footerMargin;
+            doc.addImage(footerImg, 'PNG', xPos, yPos, finalWidth, finalHeight);
+        }
+
+        const copyrightText = footerText || 'Thank you for choosing our Driving School!';
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(150, 150, 150);
+        doc.text(copyrightText, margin, pageHeight - 7);
+
+        const pageNumText = `Page ${i} of ${pageCount}`;
+        doc.text(pageNumText, pageWidth - margin, pageHeight - 7, { align: 'right' });
+    }
 
     return doc;
 };
