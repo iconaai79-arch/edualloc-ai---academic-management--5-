@@ -37,7 +37,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     const [dueDate, setDueDate] = useState('');
     const [items, setItems] = useState<InvoiceItem[]>([{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
 
-    const institutionMap = useMemo(() => new Map(institutions.map(i => [i.id, i])), [institutions]);
+    const institutionMap = useMemo(() => new Map<string, Institution>(institutions.map(i => [i.id, i])), [institutions]);
 
     const handleItemChange = (index: number, field: keyof InvoiceItem, value: string | number) => {
         const newItems = [...items];

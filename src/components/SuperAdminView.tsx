@@ -570,7 +570,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (view === 'showroom' || params.get('showroom')) return 'auto_marketplace';
         return 'dashboard';
     });
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile'>('list');
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile' | 'invoices'>('list');
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable' | 'discipline' | 'insights' | 'reports'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
@@ -2053,6 +2053,12 @@ Please change it after login.`;
                                 Tenant Registry
                             </button>
                             <button
+                                onClick={() => setInstitutionsSubTab('invoices')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${institutionsSubTab === 'invoices' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Invoices
+                            </button>
+                            <button
                                 onClick={() => setInstitutionsSubTab('branding')}
                                 className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${institutionsSubTab === 'branding' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
                             >
@@ -2125,6 +2131,18 @@ Please change it after login.`;
                                 AI Scout
                             </button>
                         </div>
+
+                        {institutionsSubTab === 'invoices' && (
+                            <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in">
+                                <TenantInvoiceManager
+                                    invoices={invoices}
+                                    institutions={institutions}
+                                    companyDetails={companyDetails}
+                                    logoUrl={logoUrl || null}
+                                    onCreateInvoice={props.onManualInvoice || (() => {})}
+                                />
+                            </div>
+                        )}
 
                         {institutionsSubTab === 'branding' && (
                             <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in">
