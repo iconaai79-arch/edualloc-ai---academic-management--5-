@@ -19,7 +19,11 @@ import {
     Sparkles,
     Copy,
     Edit,
-    Trash2
+    Trash2,
+    ChevronLeft,
+    ChevronRight,
+    Filter,
+    ArrowUpDown
 } from 'lucide-react';
 import { apiService } from '../../services/apiService';
 
@@ -99,25 +103,146 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
             .replace(/{due_date}/g, invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'N/A');
     };
 
-    const filteredInvoices = invoices.filter(inv => 
-        inv.clientName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    // Sorting & Filtering State
+    const [invoiceSortKey, setInvoiceSortKey] = useState<'date' | 'clientName' | 'amount' | 'status'>('date');
+    const [invoiceSortOrder, setInvoiceSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [paymentSortKey, setPaymentSortKey] = useState<'date' | 'clientName' | 'amount' | 'method'>('date');
+    const [paymentSortOrder, setPaymentSortOrder] = useState<'asc' | 'desc'>('desc');
+    
+    const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'all' | 'fully_paid' | 'partially_paid' | 'pending' | 'cancelled'>('all');
+    const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
+    
+    const [invoiceDateFilter, setInvoiceDateFilter] = useState<'all' | '7days' | '30days' | 'thisMonth' | 'thisYear'>('all');
+    const [paymentDateFilter, setPaymentDateFilter] = useState<'all' | '7days' | '30days' | 'thisMonth' | 'thisYear'>('all');
 
-    const filteredPayments = payments.filter(pay => {
-        const query = searchQuery.toLowerCase().trim();
-        if (!query) return true;
+    // Pagination State
+    const [invoicePage, setInvoicePage] = useState(1);
+    const [paymentPage, setPaymentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
-        const matchesPaymentId = pay.id.toLowerCase().includes(query);
-        const matchesRef = pay.transactionReference?.toLowerCase().includes(query);
+    const isWithinDateRange = (dateStr: string | Date | undefined, filter: string) => {
+        if (filter === 'all' || !dateStr) return true;
+        const date = new Date(dateStr);
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
-        const inv = invoices.find(i => i.id === pay.invoiceId);
-        const matchesClient = inv?.clientName?.toLowerCase().includes(query);
-        const matchesInvNumber = inv?.invoiceNumber?.toLowerCase().includes(query);
-        const matchesRegNumber = inv?.registrationNumber?.toLowerCase().includes(query);
+        switch (filter) {
+            case '7days': {
+                const sevenDaysAgo = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+                return date >= sevenDaysAgo;
+            }
+            case '30days': {
+                const thirtyDaysAgo = new Date(todayStart.getTime() - 30 * 24 * 60 * 60 * 1000);
+                return date >= thirtyDaysAgo;
+            }
+            case 'thisMonth': {
+                return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+            }
+            case 'thisYear': {
+                return date.getFullYear() === now.getFullYear();
+            }
+            default:
+                return true;
+        }
+    };
 
-        return matchesPaymentId || matchesRef || matchesClient || matchesInvNumber || matchesRegNumber;
-    });
+    const sortedFilteredInvoices = useMemo(() => {
+        const filtered = invoices.filter(inv => {
+            const matchesSearch = 
+                inv.clientName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase());
+                
+            const matchesStatus = invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter;
+            const matchesDate = isWithinDateRange(inv.createdAt, invoiceDateFilter);
+            
+            return matchesSearch && matchesStatus && matchesDate;
+        });
+
+        return filtered.sort((a, b) => {
+            let comparison = 0;
+            if (invoiceSortKey === 'date') {
+                const dateA = new Date(a.createdAt || 0).getTime();
+                const dateB = new Date(b.createdAt || 0).getTime();
+                comparison = dateA - dateB;
+            } else if (invoiceSortKey === 'clientName') {
+                comparison = a.clientName.localeCompare(b.clientName);
+            } else if (invoiceSortKey === 'amount') {
+                comparison = a.totalAmount - b.totalAmount;
+            } else if (invoiceSortKey === 'status') {
+                comparison = a.status.localeCompare(b.status);
+            }
+            return invoiceSortOrder === 'asc' ? comparison : -comparison;
+        });
+    }, [invoices, searchQuery, invoiceStatusFilter, invoiceDateFilter, invoiceSortKey, invoiceSortOrder]);
+
+    const sortedFilteredPayments = useMemo(() => {
+        const filtered = payments.filter(pay => {
+            const query = searchQuery.toLowerCase().trim();
+            let matchesSearch = true;
+            if (query) {
+                const matchesPaymentId = pay.id.toLowerCase().includes(query);
+                const matchesRef = pay.transactionReference?.toLowerCase().includes(query);
+                const inv = invoices.find(i => i.id === pay.invoiceId);
+                const matchesClient = inv?.clientName?.toLowerCase().includes(query);
+                const matchesInvNumber = inv?.invoiceNumber?.toLowerCase().includes(query);
+                const matchesRegNumber = inv?.registrationNumber?.toLowerCase().includes(query);
+                matchesSearch = matchesPaymentId || matchesRef || matchesClient || matchesInvNumber || matchesRegNumber;
+            }
+            
+            const matchesMethod = paymentMethodFilter === 'all' || pay.paymentMethod === paymentMethodFilter;
+            const matchesDate = isWithinDateRange(pay.paymentDate, paymentDateFilter);
+            
+            return matchesSearch && matchesMethod && matchesDate;
+        });
+
+        return filtered.sort((a, b) => {
+            let comparison = 0;
+            if (paymentSortKey === 'date') {
+                const dateA = new Date(a.paymentDate || 0).getTime();
+                const dateB = new Date(b.paymentDate || 0).getTime();
+                comparison = dateA - dateB;
+            } else if (paymentSortKey === 'clientName') {
+                const invA = invoices.find(i => i.id === a.invoiceId);
+                const invB = invoices.find(i => i.id === b.invoiceId);
+                const nameA = invA?.clientName || 'Valued Customer';
+                const nameB = invB?.clientName || 'Valued Customer';
+                comparison = nameA.localeCompare(nameB);
+            } else if (paymentSortKey === 'amount') {
+                comparison = a.amount - b.amount;
+            } else if (paymentSortKey === 'method') {
+                comparison = a.paymentMethod.localeCompare(b.paymentMethod);
+            }
+            return paymentSortOrder === 'asc' ? comparison : -comparison;
+        });
+    }, [payments, invoices, searchQuery, paymentMethodFilter, paymentDateFilter, paymentSortKey, paymentSortOrder]);
+
+    const paymentMethods = useMemo(() => {
+        const methods = new Set<string>();
+        payments.forEach(p => {
+            if (p.paymentMethod) methods.add(p.paymentMethod);
+        });
+        return Array.from(methods);
+    }, [payments]);
+
+    const paginatedInvoices = useMemo(() => {
+        const startIndex = (invoicePage - 1) * itemsPerPage;
+        return sortedFilteredInvoices.slice(startIndex, startIndex + itemsPerPage);
+    }, [sortedFilteredInvoices, invoicePage, itemsPerPage]);
+
+    const paginatedPayments = useMemo(() => {
+        const startIndex = (paymentPage - 1) * itemsPerPage;
+        return sortedFilteredPayments.slice(startIndex, startIndex + itemsPerPage);
+    }, [sortedFilteredPayments, paymentPage, itemsPerPage]);
+
+    const totalInvoicePages = Math.ceil(sortedFilteredInvoices.length / itemsPerPage);
+    const totalPaymentPages = Math.ceil(sortedFilteredPayments.length / itemsPerPage);
+
+    const filteredInvoices = sortedFilteredInvoices; 
+    const filteredPayments = sortedFilteredPayments; 
+
+    const outstandingInvoices = useMemo(() => {
+        return sortedFilteredInvoices.filter(inv => inv.status !== 'fully_paid' && inv.status !== 'cancelled');
+    }, [sortedFilteredInvoices]);
 
     const stats = useMemo(() => {
         const totalSales = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
@@ -323,6 +448,140 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                     </div>
                 </div>
 
+                {/* Filters & Sorting Panel */}
+                <div className="px-8 py-4 bg-slate-50/50 dark:bg-slate-900/10 border-b border-slate-50 dark:border-slate-700 flex flex-wrap items-center gap-6">
+                    {activeTab === 'invoices' ? (
+                        <>
+                            {/* Invoice Status Filter */}
+                            <div className="flex items-center gap-2">
+                                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Status:</span>
+                                <select
+                                    value={invoiceStatusFilter}
+                                    onChange={(e) => {
+                                        setInvoiceStatusFilter(e.target.value as any);
+                                        setInvoicePage(1);
+                                    }}
+                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-[10px] font-bold text-slate-650 dark:text-slate-350 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    <option value="all">ALL STATUSES</option>
+                                    <option value="pending">PENDING</option>
+                                    <option value="partially_paid">PARTIALLY PAID</option>
+                                    <option value="fully_paid">FULLY PAID</option>
+                                    <option value="cancelled">CANCELLED</option>
+                                </select>
+                            </div>
+
+                            {/* Invoice Date Filter */}
+                            <div className="flex items-center gap-2">
+                                <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Period:</span>
+                                <select
+                                    value={invoiceDateFilter}
+                                    onChange={(e) => {
+                                        setInvoiceDateFilter(e.target.value as any);
+                                        setInvoicePage(1);
+                                    }}
+                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-[10px] font-bold text-slate-655 dark:text-slate-350 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    <option value="all">ALL TIME</option>
+                                    <option value="7days">LAST 7 DAYS</option>
+                                    <option value="30days">LAST 30 DAYS</option>
+                                    <option value="thisMonth">THIS MONTH</option>
+                                    <option value="thisYear">THIS YEAR</option>
+                                </select>
+                            </div>
+
+                            {/* Invoice Sort */}
+                            <div className="flex items-center gap-2">
+                                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Sort By:</span>
+                                <select
+                                    value={`${invoiceSortKey}-${invoiceSortOrder}`}
+                                    onChange={(e) => {
+                                        const [key, order] = e.target.value.split('-');
+                                        setInvoiceSortKey(key as any);
+                                        setInvoiceSortOrder(order as any);
+                                    }}
+                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-[10px] font-bold text-slate-655 dark:text-slate-350 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    <option value="date-desc">DATE (NEWEST FIRST)</option>
+                                    <option value="date-asc">DATE (OLDEST FIRST)</option>
+                                    <option value="clientName-asc">CLIENT NAME (A-Z)</option>
+                                    <option value="clientName-desc">CLIENT NAME (Z-A)</option>
+                                    <option value="amount-desc">AMOUNT (HIGH TO LOW)</option>
+                                    <option value="amount-asc">AMOUNT (LOW TO HIGH)</option>
+                                    <option value="status-asc">STATUS</option>
+                                </select>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* Payment Method Filter */}
+                            <div className="flex items-center gap-2">
+                                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Method:</span>
+                                <select
+                                    value={paymentMethodFilter}
+                                    onChange={(e) => {
+                                        setPaymentMethodFilter(e.target.value);
+                                        setPaymentPage(1);
+                                    }}
+                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-[10px] font-bold text-slate-655 dark:text-slate-350 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    <option value="all">ALL METHODS</option>
+                                    {paymentMethods.map(m => (
+                                        <option key={m} value={m}>{m.toUpperCase()}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Payment Date Filter */}
+                            <div className="flex items-center gap-2">
+                                <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Period:</span>
+                                <select
+                                    value={paymentDateFilter}
+                                    onChange={(e) => {
+                                        setPaymentDateFilter(e.target.value as any);
+                                        setPaymentPage(1);
+                                    }}
+                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-[10px] font-bold text-slate-655 dark:text-slate-350 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    <option value="all">ALL TIME</option>
+                                    <option value="7days">LAST 7 DAYS</option>
+                                    <option value="30days">LAST 30 DAYS</option>
+                                    <option value="thisMonth">THIS MONTH</option>
+                                    <option value="thisYear">THIS YEAR</option>
+                                </select>
+                            </div>
+
+                            {/* Payment Sort */}
+                            <div className="flex items-center gap-2">
+                                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Sort By:</span>
+                                <select
+                                    value={`${paymentSortKey}-${paymentSortOrder}`}
+                                    onChange={(e) => {
+                                        const [key, order] = e.target.value.split('-');
+                                        setPaymentSortKey(key as any);
+                                        setPaymentSortOrder(order as any);
+                                    }}
+                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-[10px] font-bold text-slate-655 dark:text-slate-350 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    <option value="date-desc">DATE (NEWEST FIRST)</option>
+                                    <option value="date-asc">DATE (OLDEST FIRST)</option>
+                                    <option value="clientName-asc">CUSTOMER NAME (A-Z)</option>
+                                    <option value="clientName-desc">CUSTOMER NAME (Z-A)</option>
+                                    <option value="amount-desc">AMOUNT (HIGH TO LOW)</option>
+                                    <option value="amount-asc">AMOUNT (LOW TO HIGH)</option>
+                                    <option value="method-asc">PAYMENT METHOD</option>
+                                </select>
+                            </div>
+                        </>
+                    )}
+                </div>
+
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
@@ -361,7 +620,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                             {activeTab === 'invoices' ? (
-                                filteredInvoices.map(inv => {
+                                paginatedInvoices.map(inv => {
                                     const listing = listings.find(l => l.id === inv.listingId);
                                     return (
                                         <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
@@ -486,7 +745,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                     );
                                 })
                             ) : (
-                                filteredPayments.map(pay => {
+                                paginatedPayments.map(pay => {
                                     const inv = invoices.find(i => i.id === pay.invoiceId);
                                     return (
                                         <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
@@ -578,7 +837,91 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                     </table>
                 </div>
 
-                {(activeTab === 'invoices' ? filteredInvoices : filteredPayments).length === 0 && (
+                {/* Pagination Footer */}
+                {((activeTab === 'invoices' ? sortedFilteredInvoices : sortedFilteredPayments).length > 0) && (
+                    <div className="px-8 py-5 bg-white dark:bg-slate-800 border-t border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        {/* Entry info */}
+                        <div className="flex items-center gap-4">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                Showing {activeTab === 'invoices' 
+                                    ? `${Math.min(sortedFilteredInvoices.length, (invoicePage - 1) * itemsPerPage + 1)} to ${Math.min(sortedFilteredInvoices.length, invoicePage * itemsPerPage)} of ${sortedFilteredInvoices.length}`
+                                    : `${Math.min(sortedFilteredPayments.length, (paymentPage - 1) * itemsPerPage + 1)} to ${Math.min(sortedFilteredPayments.length, paymentPage * itemsPerPage)} of ${sortedFilteredPayments.length}`
+                                } entries
+                            </span>
+                            
+                            {/* Page size selector */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Per Page:</span>
+                                <select
+                                    value={itemsPerPage}
+                                    onChange={(e) => {
+                                        setItemsPerPage(Number(e.target.value));
+                                        setInvoicePage(1);
+                                        setPaymentPage(1);
+                                    }}
+                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1 text-[10px] font-bold text-slate-600 dark:text-slate-350 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                    <option value={50}>50</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Page Buttons */}
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                onClick={() => activeTab === 'invoices' ? setInvoicePage(p => Math.max(1, p - 1)) : setPaymentPage(p => Math.max(1, p - 1))}
+                                disabled={activeTab === 'invoices' ? invoicePage === 1 : paymentPage === 1}
+                                className="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-400 transition-all cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+
+                            {/* Render page numbers */}
+                            {Array.from({ length: activeTab === 'invoices' ? totalInvoicePages : totalPaymentPages }, (_, i) => i + 1)
+                                .filter(p => {
+                                    const currPage = activeTab === 'invoices' ? invoicePage : paymentPage;
+                                    const total = activeTab === 'invoices' ? totalInvoicePages : totalPaymentPages;
+                                    return p === 1 || p === total || Math.abs(p - currPage) <= 1;
+                                })
+                                .map((p, index, array) => {
+                                    const currPage = activeTab === 'invoices' ? invoicePage : paymentPage;
+                                    const prevVal = array[index - 1];
+                                    
+                                    return (
+                                        <React.Fragment key={p}>
+                                            {prevVal && p - prevVal > 1 && (
+                                                <span className="text-xs text-slate-400 px-1 font-bold">...</span>
+                                            )}
+                                            <button
+                                                onClick={() => activeTab === 'invoices' ? setInvoicePage(p) : setPaymentPage(p)}
+                                                className={`w-8 h-8 rounded-xl text-[10px] font-black tracking-widest transition-all ${
+                                                    currPage === p
+                                                        ? 'bg-indigo-600 text-white shadow-md'
+                                                        : 'bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-indigo-600 border border-slate-200 dark:border-slate-700'
+                                                }`}
+                                            >
+                                                {p}
+                                            </button>
+                                        </React.Fragment>
+                                    );
+                                })
+                            }
+
+                            <button
+                                onClick={() => activeTab === 'invoices' ? setInvoicePage(p => Math.min(totalInvoicePages, p + 1)) : setPaymentPage(p => Math.min(totalPaymentPages, p + 1))}
+                                disabled={activeTab === 'invoices' ? invoicePage === totalInvoicePages : paymentPage === totalPaymentPages}
+                                className="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 disabled:opacity-40 disabled:hover:text-slate-400 transition-all cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {(activeTab === 'invoices' ? sortedFilteredInvoices : sortedFilteredPayments).length === 0 && (
                     <div className="py-24 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50">
                         <Coins className="w-16 h-16 text-slate-200 mb-4" />
                         <h3 className="text-xl font-black text-slate-400 uppercase tracking-tighter italic">No records found</h3>
