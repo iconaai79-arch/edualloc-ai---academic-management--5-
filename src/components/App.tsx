@@ -3974,7 +3974,7 @@ export const App: React.FC = () => {
                 });
             }
 
-            await loadData();
+            await loadData(false, true);
         },
         onAddCarPayment: async (data: Partial<CarPayment>) => {
             const instId = activeInstitution?.id || currentUser?.institutionId;
@@ -4016,11 +4016,11 @@ export const App: React.FC = () => {
                 }
 
                 // Scan existing car payments for the highest number suffix
-                const instPayments = carPayments.filter(pay => pay.institutionId === instId);
+                const dbPayments = await apiService.fetchCarPayments();
                 let maxNumber = startingNumber - 1;
                 const escapedPrefix = prefix.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
                 const regex = new RegExp(`^${escapedPrefix}[-/]?(\\d+)$`);
-                instPayments.forEach(pay => {
+                dbPayments.forEach(pay => {
                     if (pay.receiptNumber) {
                         const match = pay.receiptNumber.match(regex);
                         if (match) {
@@ -4044,10 +4044,43 @@ export const App: React.FC = () => {
                 institutionId: instId || '' 
             });
 
+            // Update the associated invoice balance/status in the database
+            if (data.invoiceId) {
+                const dbInvoices = await apiService.fetchCarInvoices();
+                const invoice = dbInvoices.find(i => i.id === data.invoiceId);
+                if (invoice) {
+                    let amountDiff = Number(data.amount) || 0;
+                    if (data.id) {
+                        const dbPayments = await apiService.fetchCarPayments();
+                        const existingPayment = dbPayments.find(p => p.id === data.id);
+                        if (existingPayment) {
+                            amountDiff = (Number(data.amount) || 0) - (Number(existingPayment.amount) || 0);
+                        }
+                    }
+                    
+                    const newPaid = Math.max(0, (invoice.paidAmount || 0) + amountDiff);
+                    const newBalance = invoice.totalAmount - newPaid;
+                    let newStatus = 'pending';
+                    if (newPaid >= invoice.totalAmount && invoice.totalAmount > 0) {
+                        newStatus = 'fully_paid';
+                    } else if (newPaid > 0 && newPaid < invoice.totalAmount) {
+                        newStatus = 'partially_paid';
+                    }
+
+                    await apiService.saveCarInvoice({
+                        ...invoice,
+                        paidAmount: newPaid,
+                        balanceAmount: newBalance,
+                        status: newStatus as any
+                    });
+                }
+            }
+
             // Send payment confirmation SMS
             const isNewPayment = !data.id;
             if (isNewPayment && data.invoiceId) {
-                const invoice = carInvoices.find(i => i.id === data.invoiceId);
+                const dbInvoices = await apiService.fetchCarInvoices();
+                const invoice = dbInvoices.find(i => i.id === data.invoiceId);
                 if (invoice && invoice.clientPhone) {
                     const smsCfg = activeInstitution?.smsConfig || companyDetails.smsConfig;
                     const message = `Hello ${invoice.clientName}, we have received your payment of KES ${Number(data.amount).toLocaleString()} for invoice #${invoice.invoiceNumber}. Receipt #${receiptNumber || data.receiptNumber || 'N/A'}. Thank you for your payment!`;
@@ -4057,7 +4090,7 @@ export const App: React.FC = () => {
                 }
             }
 
-            await loadData();
+            await loadData(false, true);
         },
         onDeleteCarInvoice: async (invoiceId: string) => {
             try {
@@ -4068,31 +4101,38 @@ export const App: React.FC = () => {
                     });
                 }
                 await apiService.deleteModuleRecord('car_sales_invoices', invoiceId);
-                await loadData();
+                await loadData(false, true);
             } catch (err) {
                 console.error("Failed to delete car invoice:", err);
             }
         },
         onDeleteCarPayment: async (paymentId: string) => {
             try {
-                const payment = carPayments.find(p => p.id === paymentId);
+                const dbPayments = await apiService.fetchCarPayments();
+                const payment = dbPayments.find(p => p.id === paymentId);
                 if (payment && payment.invoiceId) {
-                    const invoice = carInvoices.find(i => i.id === payment.invoiceId);
+                    const dbInvoices = await apiService.fetchCarInvoices();
+                    const invoice = dbInvoices.find(i => i.id === payment.invoiceId);
                     if (invoice) {
                         const newPaid = Math.max(0, (invoice.paidAmount || 0) - payment.amount);
                         const newBalance = invoice.totalAmount - newPaid;
-                        const newStatus = newPaid === 0 ? 'pending' : (newPaid >= invoice.totalAmount ? 'fully_paid' : 'partially_paid');
+                        let newStatus = 'pending';
+                        if (newPaid >= invoice.totalAmount && invoice.totalAmount > 0) {
+                            newStatus = 'fully_paid';
+                        } else if (newPaid > 0 && newPaid < invoice.totalAmount) {
+                            newStatus = 'partially_paid';
+                        }
                         
                         await apiService.saveCarInvoice({
                             ...invoice,
                             paidAmount: newPaid,
                             balanceAmount: newBalance,
-                            status: newStatus
+                            status: newStatus as any
                         });
                     }
                 }
                 await apiService.deleteModuleRecord('car_sales_payments', paymentId);
-                await loadData();
+                await loadData(false, true);
             } catch (err) {
                 console.error("Failed to delete car payment:", err);
             }
