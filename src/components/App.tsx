@@ -3882,6 +3882,48 @@ export const App: React.FC = () => {
                     .replace('{NUMBER}', nextNumber.toString());
             }
 
+            // Automatically save customer data to system on customer tab if not already registered
+            if (data.clientName) {
+                const clientName = data.clientName.trim();
+                const clientEmail = data.clientEmail?.trim().toLowerCase();
+                const clientPhone = data.clientPhone?.trim();
+
+                const existingCustomer = users.find(u => {
+                    const sameInst = u.institutionId === instId;
+                    if (!sameInst) return false;
+                    
+                    if (clientEmail && u.email && u.email.toLowerCase() === clientEmail) {
+                        return true;
+                    }
+                    if (clientPhone && u.phoneNumber) {
+                        const norm1 = clientPhone.replace(/\D/g, '');
+                        const norm2 = u.phoneNumber.replace(/\D/g, '');
+                        if (norm1 && norm1 === norm2) return true;
+                    }
+                    return false;
+                });
+
+                if (!existingCustomer) {
+                    const domain = activeInstitution?.email?.split('@')[1] || 'customer.eduai.io';
+                    const safeName = clientName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const generatedEmail = clientEmail || `${safeName}.${Date.now()}@${domain}`;
+                    
+                    try {
+                        await apiService.registerUser({
+                            id: generateUserId(),
+                            name: clientName,
+                            email: generatedEmail,
+                            phoneNumber: clientPhone || '',
+                            role: 'customer',
+                            roles: ['customer'],
+                            institutionId: instId || ''
+                        }, activeInstitution?.name);
+                    } catch (err) {
+                        console.error("Failed to automatically register customer on invoice generation:", err);
+                    }
+                }
+            }
+
             await apiService.saveCarInvoice({ 
                 ...data, 
                 id: data.id || `inv_${Date.now()}`, 
