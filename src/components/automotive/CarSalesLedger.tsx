@@ -344,9 +344,9 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Name</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Car Registration Number</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice Number</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction Reference</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
-                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                     </>
                                 )}
                             </tr>
@@ -473,7 +473,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                     {inv?.clientName || 'Valued Customer'}
                                                 </p>
                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">
-                                                    Ref: {pay.transactionReference || 'CASH'}
+                                                    Method: {pay.paymentMethod}
                                                 </p>
                                             </td>
                                             {/* Car Registration Number */}
@@ -486,7 +486,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                         <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">
                                                             {inv?.registrationNumber || 'N/A'}
                                                         </p>
-                                                        <p className="text-[9px] font-bold text-slate-455 dark:text-slate-500 uppercase tracking-widest mt-1 italic">
+                                                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 italic">
                                                             {new Date(pay.paymentDate).toLocaleDateString()}
                                                         </p>
                                                     </div>
@@ -497,8 +497,11 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                 <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
                                                     #{inv?.invoiceNumber || 'N/A'}
                                                 </p>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                                                    Method: {pay.paymentMethod}
+                                            </td>
+                                            {/* Transaction Reference */}
+                                            <td className="px-8 py-6">
+                                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">
+                                                    {pay.transactionReference || 'CASH / DIRECT'}
                                                 </p>
                                             </td>
                                             {/* Amount */}
@@ -507,7 +510,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                     KES {pay.amount.toLocaleString()}
                                                 </p>
                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                                                    Confirmed
+                                                    Paid
                                                 </p>
                                             </td>
                                             {/* Status */}
@@ -515,27 +518,6 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                 <span className="px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-widest">
                                                     Completed
                                                 </span>
-                                            </td>
-                                            {/* Actions */}
-                                            <td className="px-8 py-6 text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    {onEditPayment && (
-                                                        <button 
-                                                            onClick={() => onEditPayment(pay)}
-                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
-                                                            title="Edit Payment"
-                                                        >
-                                                            <Edit className="w-4 h-4" />
-                                                        </button>
-                                                    )}
-                                                    <button 
-                                                        onClick={() => onPrintReceipt(pay)}
-                                                        className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
-                                                        title="Print Receipt"
-                                                    >
-                                                        <Printer className="w-4 h-4" />
-                                                    </button>
-                                                </div>
                                             </td>
                                         </tr>
                                     );
