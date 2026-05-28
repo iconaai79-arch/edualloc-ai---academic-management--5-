@@ -3819,12 +3819,34 @@ export const App: React.FC = () => {
         },
         onAddCarInvoice: async (data: Partial<CarInvoice>) => {
             const instId = activeInstitution?.id || currentUser?.institutionId;
+            
+            // If editing, preserve the existing invoice number and paid amount from memory if not provided
+            let invoiceNumber = data.invoiceNumber;
+            let paid = Number(data.paidAmount) || 0;
+            let currentStatus = data.status || 'pending';
+            
+            if (data.id) {
+                const existing = carInvoices.find(inv => inv.id === data.id);
+                if (existing) {
+                    if (!invoiceNumber) invoiceNumber = existing.invoiceNumber;
+                    if (data.paidAmount === undefined) paid = Number(existing.paidAmount) || 0;
+                    currentStatus = existing.status || 'pending';
+                }
+            }
+            
             const total = Number(data.totalAmount) || 0;
-            const paid = Number(data.paidAmount) || 0;
             const balance = total - paid;
             
+            // Recalculate status based on financials
+            if (paid >= total && total > 0) {
+                currentStatus = 'fully_paid';
+            } else if (paid > 0 && paid < total) {
+                currentStatus = 'partially_paid';
+            } else if (paid === 0) {
+                currentStatus = 'pending';
+            }
+            
             // Generate invoice sequence number based on settings
-            let invoiceNumber = data.invoiceNumber;
             if (!invoiceNumber) {
                 let prefix = 'INV-CAR-';
                 let startingNumber = 1001;
@@ -3930,6 +3952,7 @@ export const App: React.FC = () => {
                 invoiceNumber,
                 paidAmount: paid,
                 balanceAmount: balance,
+                status: currentStatus as any,
                 institutionId: instId || '' 
             });
             if (data.listingId) {

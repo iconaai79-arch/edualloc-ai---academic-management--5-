@@ -2808,6 +2808,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         }}
                         onSave={async (data) => {
                             await props.onAddCarInvoice!(data);
+                            setIsAddCarInvoiceModalOpen(false);
                             setSelectedInvoiceForEdit(null);
                         }}
                         listings={props.carListings || []}
