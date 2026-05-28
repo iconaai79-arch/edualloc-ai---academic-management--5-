@@ -403,13 +403,36 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                 defaultSub = 'Class B';
             }
 
+            const targetSub = formData.licenseTypeInterested || defaultSub;
+            let matchedFee = 15000;
+            if (settings?.licenseCategories) {
+                const matchedCat = settings.licenseCategories.find((c: any) => c.code === targetSub);
+                if (matchedCat) {
+                    matchedFee = matchedCat.baseFee || 15000;
+                }
+            }
+
+            if (targetSub) {
+                const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const matchedFS = settings?.feeStructures?.find(fs => {
+                    if (!fs.className) return false;
+                    const normFS = normalizeName(fs.className);
+                    const normSub = normalizeName(targetSub);
+                    return normFS === normSub || normFS.includes(normSub) || normSub.includes(normFS);
+                });
+                if (matchedFS && typeof matchedFS.totalAmount === 'number') {
+                    matchedFee = matchedFS.totalAmount;
+                }
+            }
+
             setFormData((prev: any) => ({
                 ...prev,
                 licenseCategory: initialParent,
-                licenseTypeInterested: prev.licenseTypeInterested || defaultSub
+                licenseTypeInterested: prev.licenseTypeInterested || defaultSub,
+                quotedAmount: type === 'lead' && (prev.quotedAmount === undefined || prev.quotedAmount === 15000 || prev.quotedAmount === 0) ? matchedFee : prev.quotedAmount
             }));
         }
-    }, [type, categoryGroups, settings?.licenseCategories, formData.licenseCategory, formData.licenseTypeInterested]);
+    }, [type, categoryGroups, settings?.licenseCategories, settings?.feeStructures, formData.licenseCategory, formData.licenseTypeInterested]);
 
     // Prefill invoice based on the selected student's class category
     useEffect(() => {
@@ -720,9 +743,19 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
                                     >
                                         <option value="">Select Subcategory</option>
-                                        {filteredSubcategories.map(cat => (
-                                            <option key={cat.id} value={cat.code}>{cat.code} - {cat.name} (KES {Number(cat.baseFee || 0).toLocaleString()})</option>
-                                        ))}
+                                        {filteredSubcategories.map(cat => {
+                                            const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                            const matchedFS = settings?.feeStructures?.find(fs => {
+                                                if (!fs.className) return false;
+                                                const normFS = normalizeName(fs.className);
+                                                const normSub = normalizeName(cat.code || '');
+                                                return normFS === normSub || normFS.includes(normSub) || normSub.includes(normFS);
+                                            });
+                                            const displayFee = matchedFS && typeof matchedFS.totalAmount === 'number' ? matchedFS.totalAmount : (cat.baseFee || 0);
+                                            return (
+                                                <option key={cat.id} value={cat.code}>{cat.code} - {cat.name} (KES {Number(displayFee).toLocaleString()})</option>
+                                            );
+                                        })}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
