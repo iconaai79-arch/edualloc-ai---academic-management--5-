@@ -99,10 +99,20 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
         inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const filteredPayments = payments.filter(pay => 
-        pay.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        pay.invoiceId.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredPayments = payments.filter(pay => {
+        const query = searchQuery.toLowerCase().trim();
+        if (!query) return true;
+
+        const matchesPaymentId = pay.id.toLowerCase().includes(query);
+        const matchesRef = pay.transactionReference?.toLowerCase().includes(query);
+        
+        const inv = invoices.find(i => i.id === pay.invoiceId);
+        const matchesClient = inv?.clientName?.toLowerCase().includes(query);
+        const matchesInvNumber = inv?.invoiceNumber?.toLowerCase().includes(query);
+        const matchesRegNumber = inv?.registrationNumber?.toLowerCase().includes(query);
+
+        return matchesPaymentId || matchesRef || matchesClient || matchesInvNumber || matchesRegNumber;
+    });
 
     const stats = useMemo(() => {
         const totalSales = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
@@ -312,22 +322,33 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50 dark:bg-slate-900/50">
-                                {activeTab === 'invoices' && (
-                                    <th className="pl-8 py-6 w-12">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={isAllSelected}
-                                            onChange={handleSelectAll}
-                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-white dark:bg-slate-900 cursor-pointer"
-                                            disabled={outstandingInvoices.length === 0}
-                                        />
-                                    </th>
+                                {activeTab === 'invoices' ? (
+                                    <>
+                                        <th className="pl-8 py-6 w-12">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={isAllSelected}
+                                                onChange={handleSelectAll}
+                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-white dark:bg-slate-900 cursor-pointer"
+                                                disabled={outstandingInvoices.length === 0}
+                                            />
+                                        </th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Details</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vehicle / Reference</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Financials</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                    </>
+                                ) : (
+                                    <>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Name</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Car Registration Number</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice Number</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                    </>
                                 )}
-                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Details</th>
-                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vehicle / Reference</th>
-                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Financials</th>
-                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
-                                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -442,54 +463,83 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                     );
                                 })
                             ) : (
-                                filteredPayments.map(pay => (
-                                    <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
-                                        <td className="px-8 py-6">
-                                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{pay.paymentMethod}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Reference: {pay.transactionReference || 'CASH'}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-emerald-50 dark:bg-slate-900 rounded-xl flex items-center justify-center text-emerald-600">
-                                                    <CheckCircle className="w-5 h-5" />
+                                filteredPayments.map(pay => {
+                                    const inv = invoices.find(i => i.id === pay.invoiceId);
+                                    return (
+                                        <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
+                                            {/* Customer Name */}
+                                            <td className="px-8 py-6">
+                                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                    {inv?.clientName || 'Valued Customer'}
+                                                </p>
+                                                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">
+                                                    Ref: {pay.transactionReference || 'CASH'}
+                                                </p>
+                                            </td>
+                                            {/* Car Registration Number */}
+                                            <td className="px-8 py-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 bg-slate-100 dark:bg-slate-900 rounded-xl flex items-center justify-center text-slate-500">
+                                                        <ArrowLeftRight className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">
+                                                            {inv?.registrationNumber || 'N/A'}
+                                                        </p>
+                                                        <p className="text-[9px] font-bold text-slate-455 dark:text-slate-500 uppercase tracking-widest mt-1 italic">
+                                                            {new Date(pay.paymentDate).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">Settlement #{pay.invoiceId}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">{new Date(pay.paymentDate).toLocaleDateString()}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <p className="text-sm font-black text-emerald-600 italic">KES {pay.amount.toLocaleString()}</p>
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Confirmed</p>
-                                        </td>
-                                        <td className="px-8 py-6 text-center">
-                                            <span className="px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-widest">
-                                                Completed
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                {onEditPayment && (
+                                            </td>
+                                            {/* Invoice Number */}
+                                            <td className="px-8 py-6">
+                                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                    #{inv?.invoiceNumber || 'N/A'}
+                                                </p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                                    Method: {pay.paymentMethod}
+                                                </p>
+                                            </td>
+                                            {/* Amount */}
+                                            <td className="px-8 py-6 text-right">
+                                                <p className="text-sm font-black text-emerald-600 italic">
+                                                    KES {pay.amount.toLocaleString()}
+                                                </p>
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                                    Confirmed
+                                                </p>
+                                            </td>
+                                            {/* Status */}
+                                            <td className="px-8 py-6 text-center">
+                                                <span className="px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-widest">
+                                                    Completed
+                                                </span>
+                                            </td>
+                                            {/* Actions */}
+                                            <td className="px-8 py-6 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    {onEditPayment && (
+                                                        <button 
+                                                            onClick={() => onEditPayment(pay)}
+                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
+                                                            title="Edit Payment"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                     <button 
-                                                        onClick={() => onEditPayment(pay)}
+                                                        onClick={() => onPrintReceipt(pay)}
                                                         className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
-                                                        title="Edit Payment"
+                                                        title="Print Receipt"
                                                     >
-                                                        <Edit className="w-4 h-4" />
+                                                        <Printer className="w-4 h-4" />
                                                     </button>
-                                                )}
-                                                <button 
-                                                    onClick={() => onPrintReceipt(pay)}
-                                                    className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
-                                                    title="Print Receipt"
-                                                >
-                                                    <Printer className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
