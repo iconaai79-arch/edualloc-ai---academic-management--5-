@@ -404,6 +404,8 @@ export interface AdminViewProps {
     onAddCarListing?: (data: Partial<CarListing>) => Promise<void>;
     onAddCarInvoice?: (data: Partial<CarInvoice>) => Promise<void>;
     onAddCarPayment?: (data: Partial<CarPayment>) => Promise<void>;
+    onDeleteCarInvoice?: (invoiceId: string) => Promise<void>;
+    onDeleteCarPayment?: (paymentId: string) => Promise<void>;
     onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
     onAddCarAppraisal?: (data: Partial<CarAppraisal>) => Promise<void>;
     onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
@@ -2596,6 +2598,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         setSelectedInvoiceForPayment(inv);
                                         setIsAddCarPaymentModalOpen(true);
                                     }}
+                                    onDeleteInvoice={props.onDeleteCarInvoice}
+                                    onDeletePayment={props.onDeleteCarPayment}
                                 />
                             ) : autoSubTab === 'bank_feeds' ? (
                                 <BankFeedsManager

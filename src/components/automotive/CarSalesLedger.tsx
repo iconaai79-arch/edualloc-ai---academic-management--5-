@@ -18,7 +18,8 @@ import {
     Smartphone,
     Sparkles,
     Copy,
-    Edit
+    Edit,
+    Trash2
 } from 'lucide-react';
 import { apiService } from '../../services/apiService';
 
@@ -33,6 +34,8 @@ interface CarSalesLedgerProps {
     onPrintAgreement?: (invoice: CarInvoice) => void;
     onEditInvoice?: (invoice: CarInvoice) => void;
     onEditPayment?: (payment: CarPayment) => void;
+    onDeleteInvoice?: (invoiceId: string) => Promise<void>;
+    onDeletePayment?: (paymentId: string) => Promise<void>;
     institutionId?: string;
 }
 
@@ -47,6 +50,8 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
     onPrintAgreement,
     onEditInvoice,
     onEditPayment,
+    onDeleteInvoice,
+    onDeletePayment,
     institutionId
 }) => {
     const [activeTab, setActiveTab] = useState<'invoices' | 'payments'>('invoices');
@@ -347,6 +352,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction Reference</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                     </>
                                 )}
                             </tr>
@@ -404,6 +410,19 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                             title="Edit Invoice"
                                                         >
                                                             <Edit className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {onDeleteInvoice && (
+                                                        <button 
+                                                            onClick={async () => {
+                                                                if (window.confirm("Are you sure you want to delete this invoice?")) {
+                                                                    await onDeleteInvoice(inv.id);
+                                                                }
+                                                            }}
+                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-red-600 transition-all"
+                                                            title="Delete Invoice"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
                                                         </button>
                                                     )}
                                                     <button 
@@ -518,6 +537,33 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                 <span className="px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-widest">
                                                     Completed
                                                 </span>
+                                            </td>
+                                            {/* Actions */}
+                                            <td className="px-8 py-6 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    {onEditPayment && (
+                                                        <button 
+                                                            onClick={() => onEditPayment(pay)}
+                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
+                                                            title="Edit Payment"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {onDeletePayment && (
+                                                        <button 
+                                                            onClick={async () => {
+                                                                if (window.confirm("Are you sure you want to delete this payment?")) {
+                                                                    await onDeletePayment(pay.id);
+                                                                }
+                                                            }}
+                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-red-600 transition-all"
+                                                            title="Delete Payment"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

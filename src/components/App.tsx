@@ -3941,6 +3941,16 @@ export const App: React.FC = () => {
                     console.error("Failed to automatically mark car as sold:", err);
                 }
             }
+
+            const isNew = !data.id;
+            if (isNew && data.clientPhone) {
+                const smsCfg = activeInstitution?.smsConfig || companyDetails.smsConfig;
+                const message = `Hello ${data.clientName}, your invoice #${invoiceNumber} for KES ${total.toLocaleString()} has been recorded. Due date: ${data.dueDate ? new Date(data.dueDate).toLocaleDateString() : 'N/A'}. Thank you for your business!`;
+                apiService.sendSms(data.clientPhone, message, smsCfg, 1, instId).catch(e => {
+                    console.error("Failed to send invoice SMS notification:", e);
+                });
+            }
+
             await loadData();
         },
         onAddCarPayment: async (data: Partial<CarPayment>) => {
@@ -4010,7 +4020,59 @@ export const App: React.FC = () => {
                 receiptNumber,
                 institutionId: instId || '' 
             });
+
+            // Send payment confirmation SMS
+            const isNewPayment = !data.id;
+            if (isNewPayment && data.invoiceId) {
+                const invoice = carInvoices.find(i => i.id === data.invoiceId);
+                if (invoice && invoice.clientPhone) {
+                    const smsCfg = activeInstitution?.smsConfig || companyDetails.smsConfig;
+                    const message = `Hello ${invoice.clientName}, we have received your payment of KES ${Number(data.amount).toLocaleString()} for invoice #${invoice.invoiceNumber}. Receipt #${receiptNumber || data.receiptNumber || 'N/A'}. Thank you for your payment!`;
+                    apiService.sendSms(invoice.clientPhone, message, smsCfg, 1, instId).catch(e => {
+                        console.error("Failed to send payment confirmation SMS:", e);
+                    });
+                }
+            }
+
             await loadData();
+        },
+        onDeleteCarInvoice: async (invoiceId: string) => {
+            try {
+                const inv = carInvoices.find(i => i.id === invoiceId);
+                if (inv && inv.listingId) {
+                    await apiService.updateModuleRecord('car_sales_listings', inv.listingId, {
+                        status: 'active'
+                    });
+                }
+                await apiService.deleteModuleRecord('car_sales_invoices', invoiceId);
+                await loadData();
+            } catch (err) {
+                console.error("Failed to delete car invoice:", err);
+            }
+        },
+        onDeleteCarPayment: async (paymentId: string) => {
+            try {
+                const payment = carPayments.find(p => p.id === paymentId);
+                if (payment && payment.invoiceId) {
+                    const invoice = carInvoices.find(i => i.id === payment.invoiceId);
+                    if (invoice) {
+                        const newPaid = Math.max(0, (invoice.paidAmount || 0) - payment.amount);
+                        const newBalance = invoice.totalAmount - newPaid;
+                        const newStatus = newPaid === 0 ? 'pending' : (newPaid >= invoice.totalAmount ? 'fully_paid' : 'partially_paid');
+                        
+                        await apiService.saveCarInvoice({
+                            ...invoice,
+                            paidAmount: newPaid,
+                            balanceAmount: newBalance,
+                            status: newStatus
+                        });
+                    }
+                }
+                await apiService.deleteModuleRecord('car_sales_payments', paymentId);
+                await loadData();
+            } catch (err) {
+                console.error("Failed to delete car payment:", err);
+            }
         },
         onAddCarListing: async (data: Partial<CarListing>) => {
             const instId = activeInstitution?.id || currentUser?.institutionId;

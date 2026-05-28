@@ -309,6 +309,8 @@ export interface SuperAdminViewProps {
     onAddCarAppraisal?: (data: Partial<CarAppraisal>) => Promise<void>;
     onAddCarInvoice?: (data: Partial<CarInvoice>) => Promise<void>;
     onAddCarPayment?: (data: Partial<CarPayment>) => Promise<void>;
+    onDeleteCarInvoice?: (invoiceId: string) => Promise<void>;
+    onDeleteCarPayment?: (paymentId: string) => Promise<void>;
     onReconcileBankTransaction?: (transactionId: string, invoiceId: string) => Promise<void>;
     onFetchBankFeeds?: () => Promise<void>;
 
@@ -3629,6 +3631,8 @@ Please change it after login.`;
                                             setSelectedInvoiceForPayment(inv);
                                             setIsAddCarPaymentModalOpen(true);
                                         }}
+                                        onDeleteInvoice={props.onDeleteCarInvoice}
+                                        onDeletePayment={props.onDeleteCarPayment}
                                     />
                                 </Suspense>
                             )}
