@@ -338,6 +338,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                 disabled={outstandingInvoices.length === 0}
                                             />
                                         </th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Details</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vehicle / Reference</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Financials</th>
@@ -346,6 +347,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                     </>
                                 ) : (
                                     <>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Name</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Car Registration Number</th>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice Number</th>
@@ -374,6 +376,9 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                     />
                                                 </td>
                                             )}
+                                            <td className="px-8 py-6 text-sm font-bold text-slate-600 dark:text-slate-400">
+                                                {new Date(inv.createdAt || Date.now()).toLocaleDateString()}
+                                            </td>
                                             <td className="px-8 py-6">
                                                 <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{inv.clientName}</p>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Invoice #{inv.invoiceNumber}</p>
@@ -385,7 +390,6 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                     </div>
                                                     <div>
                                                         <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">{listing ? `${listing.year} ${listing.make} ${listing.model}` : 'Special Order'}</p>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">{new Date(inv.createdAt || Date.now()).toLocaleDateString()}</p>
                                                     </div>
                                                 </div>
                                             </td>
@@ -486,6 +490,10 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                     const inv = invoices.find(i => i.id === pay.invoiceId);
                                     return (
                                         <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
+                                            {/* Date */}
+                                            <td className="px-8 py-6 text-sm font-bold text-slate-600 dark:text-slate-400">
+                                                {new Date(pay.paymentDate).toLocaleDateString()}
+                                            </td>
                                             {/* Customer Name */}
                                             <td className="px-8 py-6">
                                                 <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
@@ -504,9 +512,6 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                     <div>
                                                         <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">
                                                             {inv?.registrationNumber || 'N/A'}
-                                                        </p>
-                                                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 italic">
-                                                            {new Date(pay.paymentDate).toLocaleDateString()}
                                                         </p>
                                                     </div>
                                                 </div>
