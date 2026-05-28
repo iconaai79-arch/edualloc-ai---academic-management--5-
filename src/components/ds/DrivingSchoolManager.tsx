@@ -472,6 +472,20 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             matchedFee = 15000;
         }
 
+        // Try matching a configured fee structure for the default subcategory
+        if (defaultSub) {
+            const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const matchedFS = settings?.feeStructures?.find(fs => {
+                if (!fs.className) return false;
+                const normFS = normalizeName(fs.className);
+                const normSub = normalizeName(defaultSub);
+                return normFS === normSub || normFS.includes(normSub) || normSub.includes(normFS);
+            });
+            if (matchedFS && typeof matchedFS.totalAmount === 'number') {
+                matchedFee = matchedFS.totalAmount;
+            }
+        }
+
         setFormData((prev: any) => ({
             ...prev,
             licenseCategory: val,
@@ -687,7 +701,20 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         onChange={e => {
                                             const val = e.target.value;
                                             const matchedFee = (settings?.licenseCategories || []).find((c: any) => c.code === val);
-                                            const amt = matchedFee ? (matchedFee.baseFee || 0) : 15000;
+                                            let amt = matchedFee ? (matchedFee.baseFee || 0) : 15000;
+                                            
+                                            if (val) {
+                                                const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                                const matchedFS = settings?.feeStructures?.find(fs => {
+                                                    if (!fs.className) return false;
+                                                    const normFS = normalizeName(fs.className);
+                                                    const normSub = normalizeName(val);
+                                                    return normFS === normSub || normFS.includes(normSub) || normSub.includes(normFS);
+                                                });
+                                                if (matchedFS && typeof matchedFS.totalAmount === 'number') {
+                                                    amt = matchedFS.totalAmount;
+                                                }
+                                            }
                                             setFormData({...formData, licenseTypeInterested: val, quotedAmount: amt});
                                         }} 
                                         className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
@@ -2782,7 +2809,25 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                                             {filteredLeads.map(lead => {
                                                 const targetCategory = (settings?.licenseCategories || []).find((c: any) => c.code === lead.licenseTypeInterested || c.name === lead.licenseTypeInterested);
-                                                const baseFeeAmount = targetCategory ? (targetCategory.baseFee || 0) : (lead.quotedAmount || 0);
+                                                const baseFeeAmount = (() => {
+                                                    if (lead.quotedAmount) return lead.quotedAmount;
+                                                    
+                                                    const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                                    const searchVal = lead.licenseTypeInterested || '';
+                                                    if (searchVal) {
+                                                        const matchedFS = settings?.feeStructures?.find((fs: any) => {
+                                                            if (!fs.className) return false;
+                                                            const normFS = normalizeName(fs.className);
+                                                            const normSub = normalizeName(searchVal);
+                                                            return normFS === normSub || normFS.includes(normSub) || normSub.includes(normFS);
+                                                        });
+                                                        if (matchedFS && typeof matchedFS.totalAmount === 'number') {
+                                                            return matchedFS.totalAmount;
+                                                        }
+                                                    }
+                                                    
+                                                    return targetCategory ? (targetCategory.baseFee || 0) : 15000;
+                                                })();
                                                 
                                                 return (
                                                     <tr key={lead.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
