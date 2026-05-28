@@ -251,10 +251,6 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
         return { totalSales, totalCollected, outstanding };
     }, [invoices, payments]);
 
-    const outstandingInvoices = useMemo(() => {
-        return filteredInvoices.filter(inv => inv.status !== 'fully_paid' && inv.status !== 'cancelled');
-    }, [filteredInvoices]);
-
     const isAllSelected = useMemo(() => {
         if (outstandingInvoices.length === 0) return false;
         return outstandingInvoices.every(inv => selectedInvoiceIds.includes(inv.id));
