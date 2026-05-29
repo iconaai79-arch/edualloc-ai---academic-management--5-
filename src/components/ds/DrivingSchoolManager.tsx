@@ -29,7 +29,7 @@ import {
     PrinterIcon,
     DownloadIcon
 } from '../icons';
-import { generateDSPDF, generateDSThermalReceipt, generateDSSchedulePDF, generateDSStudentLogbookPDF } from '../../utils/dsPdfGenerator';
+import { generateDSPDF, generateDSThermalReceipt, generateDSSchedulePDF, generateDSStudentLogbookPDF, generateDSStudentDirectoryPDF } from '../../utils/dsPdfGenerator';
 import { useToast } from '../../services/ToastContext';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
@@ -1909,6 +1909,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [onscreenPreviewPdf, setOnscreenPreviewPdf] = useState<string | null>(null);
     const [previewStatusFilter, setPreviewStatusFilter] = useState<'enrolled' | 'graduated' | 'dropped' | 'all'>('all');
     const [previewSearchTerm, setPreviewSearchTerm] = useState('');
+    const [previewReportType, setPreviewReportType] = useState<'student_logbook' | 'all_students' | 'active_students' | 'ntsa_booked' | 'payment_behind'>('student_logbook');
     const [selectedReportInstructorId, setSelectedReportInstructorId] = useState<string>('all');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -2144,16 +2145,23 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     }, [currentInstitution?.id]);
 
     useEffect(() => {
-        if (!selectedPreviewStudent) {
-            setOnscreenPreviewPdf(null);
-            return;
-        }
         let active = true;
         const generate = async () => {
             try {
-                const doc = await generateDSStudentLogbookPDF(selectedPreviewStudent, lessons, instructors, currentInstitution, letterheadConfig);
-                if (active) {
-                    setOnscreenPreviewPdf(doc.output('datauristring'));
+                if (previewReportType === 'student_logbook') {
+                    if (!selectedPreviewStudent) {
+                        setOnscreenPreviewPdf(null);
+                        return;
+                    }
+                    const doc = await generateDSStudentLogbookPDF(selectedPreviewStudent, lessons, instructors, currentInstitution, letterheadConfig);
+                    if (active) {
+                        setOnscreenPreviewPdf(doc.output('datauristring'));
+                    }
+                } else {
+                    const doc = await generateDSStudentDirectoryPDF(previewReportType, students || [], lessons || [], invoices || [], settings || null, currentInstitution, letterheadConfig);
+                    if (active) {
+                        setOnscreenPreviewPdf(doc.output('datauristring'));
+                    }
                 }
             } catch (err) {
                 console.error("Failed to generate on-screen preview:", err);
@@ -2163,7 +2171,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         return () => {
             active = false;
         };
-    }, [selectedPreviewStudent, lessons, instructors, currentInstitution, letterheadConfig]);
+    }, [selectedPreviewStudent, previewReportType, students, lessons, instructors, invoices, settings, currentInstitution, letterheadConfig]);
 
     const handleAutoGenerateTomorrow = async () => {
         const sequence = settings?.schedulingRules?.dailySequence?.length 
@@ -2511,25 +2519,46 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             (s.idNumber || '').toLowerCase().includes(previewSearchTerm.toLowerCase())
         );
 
-        if (previewStatusFilter === 'enrolled') {
+        if (previewReportType === 'student_logbook') {
+            if (previewStatusFilter === 'enrolled') {
+                list = list.filter(s => !s.status || s.status === 'Enrolled');
+            } else if (previewStatusFilter === 'graduated') {
+                list = list.filter(s => s.status === 'Graduated');
+            } else if (previewStatusFilter === 'dropped') {
+                list = list.filter(s => s.status === 'Dropped');
+            }
+        } else if (previewReportType === 'active_students') {
             list = list.filter(s => !s.status || s.status === 'Enrolled');
-        } else if (previewStatusFilter === 'graduated') {
-            list = list.filter(s => s.status === 'Graduated');
-        } else if (previewStatusFilter === 'dropped') {
-            list = list.filter(s => s.status === 'Dropped');
+        } else if (previewReportType === 'ntsa_booked') {
+            list = list.filter(s => s.ntsaBookingStatus && s.ntsaBookingStatus !== 'None' && s.ntsaBookingStatus !== 'Eligible');
+        } else if (previewReportType === 'payment_behind') {
+            list = list.filter(s => {
+                const invoice = (invoices || []).find(inv => inv.studentId === s.id && inv.status !== 'Cancelled');
+                if (!invoice) return false;
+                const systemDays = (lessons || []).filter(l => l.studentId === s.id && l.status === 'Completed').length;
+                const priorDays = s.priorAttendedDays || 0;
+                const effectiveDays = systemDays + priorDays;
+                const courseDuration = s.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21;
+                const totalFee = invoice.totalAmount || 0;
+                const paidAmount = invoice.paidAmount || 0;
+                const nextSession = effectiveDays + 1;
+                const expectedByNextSession = totalFee > 0 ? Math.round((nextSession / courseDuration) * totalFee) : 0;
+                const shortfall = Math.max(0, expectedByNextSession - paidAmount);
+                return shortfall > 0;
+            });
         }
 
         return list;
-    }, [normalizedStudents, previewSearchTerm, previewStatusFilter]);
+    }, [normalizedStudents, previewSearchTerm, previewStatusFilter, previewReportType, lessons, invoices, settings]);
 
     useEffect(() => {
-        if (studentSubTab === 'preview' && filteredPreviewStudents.length > 0) {
+        if (studentSubTab === 'preview' && previewReportType === 'student_logbook' && filteredPreviewStudents.length > 0) {
             const isStillInList = selectedPreviewStudent && filteredPreviewStudents.some(s => s.id === selectedPreviewStudent.id);
             if (!isStillInList) {
                 setSelectedPreviewStudent(filteredPreviewStudents[0]);
             }
         }
-    }, [filteredPreviewStudents, studentSubTab, selectedPreviewStudent]);
+    }, [filteredPreviewStudents, studentSubTab, selectedPreviewStudent, previewReportType]);
 
 
     const filteredLessons = useMemo(() => 
@@ -3099,36 +3128,25 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 </>
                             ) : (
                                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 p-8 min-h-[600px]">
-                                    {/* Left Column: Student Selection Panel */}
+                                    {/* Left Column: Student Selection / Report Type Panel */}
                                     <div className="xl:col-span-1 bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] p-6 flex flex-col gap-6 border border-slate-100 dark:border-slate-800/60 max-h-[700px] overflow-hidden">
                                         <div className="space-y-4">
-                                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Candidate</h4>
-                                            {/* Search Input */}
-                                            <div className="relative">
-                                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Search query..." 
-                                                    value={previewSearchTerm}
-                                                    onChange={(e) => {
-                                                        setPreviewSearchTerm(e.target.value);
-                                                    }}
-                                                    className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-900 dark:text-slate-100"
-                                                />
-                                            </div>
-                                            {/* Status Filter Dropdown */}
+                                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Report Type</h4>
+                                            
+                                            {/* Report Type Selector */}
                                             <div className="relative">
                                                 <select
-                                                    value={previewStatusFilter}
+                                                    value={previewReportType}
                                                     onChange={(e) => {
-                                                        setPreviewStatusFilter(e.target.value as any);
+                                                        setPreviewReportType(e.target.value as any);
                                                     }}
-                                                    className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-700 dark:text-slate-200 appearance-none cursor-pointer"
+                                                    className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-indigo-600 dark:text-indigo-400 appearance-none cursor-pointer"
                                                 >
-                                                    <option value="all">Status: All</option>
-                                                    <option value="enrolled">Status: Active</option>
-                                                    <option value="graduated">Status: Graduated</option>
-                                                    <option value="dropped">Status: Dropped</option>
+                                                    <option value="student_logbook">NTSA Logbook (Individual Student)</option>
+                                                    <option value="all_students">All Students Directory Report</option>
+                                                    <option value="active_students">Active Students Directory</option>
+                                                    <option value="ntsa_booked">NTSA Booked Candidates</option>
+                                                    <option value="payment_behind">Behind Schedule (Shortfalls)</option>
                                                 </select>
                                                 <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3136,6 +3154,49 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     </svg>
                                                 </div>
                                             </div>
+
+                                            <div className="h-px bg-slate-150 dark:bg-slate-800/60 my-2" />
+
+                                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                                                {previewReportType === 'student_logbook' ? 'Select Candidate' : 'Candidates List'}
+                                            </h4>
+
+                                            {/* Search Input */}
+                                            <div className="relative">
+                                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Search candidate..." 
+                                                    value={previewSearchTerm}
+                                                    onChange={(e) => {
+                                                        setPreviewSearchTerm(e.target.value);
+                                                    }}
+                                                    className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-900 dark:text-slate-100"
+                                                />
+                                            </div>
+
+                                            {/* Status Filter Dropdown - Only show for individual logbook report */}
+                                            {previewReportType === 'student_logbook' && (
+                                                <div className="relative">
+                                                    <select
+                                                        value={previewStatusFilter}
+                                                        onChange={(e) => {
+                                                            setPreviewStatusFilter(e.target.value as any);
+                                                        }}
+                                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-700 dark:text-slate-200 appearance-none cursor-pointer"
+                                                    >
+                                                        <option value="all">Status: All</option>
+                                                        <option value="enrolled">Status: Active</option>
+                                                        <option value="graduated">Status: Graduated</option>
+                                                        <option value="dropped">Status: Dropped</option>
+                                                    </select>
+                                                    <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Scrollable list of students */}
@@ -3146,15 +3207,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 </div>
                                             ) : (
                                                 filteredPreviewStudents.map(student => {
-                                                    const isSelected = selectedPreviewStudent?.id === student.id;
+                                                    const isSelected = selectedPreviewStudent?.id === student.id && previewReportType === 'student_logbook';
                                                     return (
                                                         <button
                                                             key={student.id}
+                                                            disabled={previewReportType !== 'student_logbook'}
                                                             onClick={() => setSelectedPreviewStudent(student)}
-                                                            className={`w-full text-left p-4 rounded-2xl transition-all border flex items-center gap-3 hover:translate-x-1 ${
+                                                            className={`w-full text-left p-4 rounded-2xl transition-all border flex items-center gap-3 ${
+                                                                previewReportType === 'student_logbook' ? 'hover:translate-x-1 cursor-pointer' : 'cursor-default'
+                                                            } ${
                                                                 isSelected
                                                                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-600/10'
-                                                                : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-100 dark:hover:border-indigo-900/30'
+                                                                : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100'
                                                             }`}
                                                         >
                                                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
@@ -3177,15 +3241,19 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                     {/* Right Column: Live PDF Iframe */}
                                     <div className="xl:col-span-2 bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800/60 min-h-[500px] xl:min-h-[600px] flex flex-col">
-                                        {selectedPreviewStudent ? (
+                                        {(previewReportType !== 'student_logbook' || selectedPreviewStudent) ? (
                                             <div className="flex-1 flex flex-col gap-4">
                                                 <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800">
                                                     <div>
                                                         <h4 className="font-black text-slate-950 dark:text-white uppercase tracking-tight text-sm">
-                                                            {selectedPreviewStudent.fullName}
+                                                            {previewReportType === 'student_logbook' ? selectedPreviewStudent?.fullName : 
+                                                             previewReportType === 'all_students' ? 'All Students Directory Report' :
+                                                             previewReportType === 'active_students' ? 'Active Students Directory' :
+                                                             previewReportType === 'ntsa_booked' ? 'NTSA Booked Candidates Report' :
+                                                             'Behind Schedule (Shortfalls) Report'}
                                                         </h4>
                                                         <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">
-                                                            NTSA Training Logbook Preview
+                                                            {previewReportType === 'student_logbook' ? 'NTSA Training Logbook Preview' : 'Interactive Directory Document Preview'}
                                                         </p>
                                                     </div>
                                                     {onscreenPreviewPdf && (
@@ -3193,7 +3261,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             onClick={() => {
                                                                 const link = document.createElement('a');
                                                                 link.href = onscreenPreviewPdf;
-                                                                link.download = `Logbook_${selectedPreviewStudent.admissionNumber || selectedPreviewStudent.fullName.replace(/\s+/g, '_')}.pdf`;
+                                                                if (previewReportType === 'student_logbook') {
+                                                                    link.download = `Logbook_${selectedPreviewStudent?.admissionNumber || selectedPreviewStudent?.fullName.replace(/\s+/g, '_')}.pdf`;
+                                                                } else {
+                                                                    link.download = `${previewReportType}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+                                                                }
                                                                 link.click();
                                                             }}
                                                             className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-sm transition-all"
@@ -3208,12 +3280,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         <iframe 
                                                             src={onscreenPreviewPdf} 
                                                             className="w-full h-full border-none"
-                                                            title="NTSA Logbook Preview"
+                                                            title="On-Screen Report Preview"
                                                         />
                                                     ) : (
                                                         <div className="flex flex-col items-center gap-3">
                                                             <div className="animate-spin rounded-full h-8 w-8 border-4 border-indigo-600 border-t-transparent"></div>
-                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Generating PDF Logbook...</p>
+                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Generating PDF Report...</p>
                                                         </div>
                                                     )}
                                                 </div>

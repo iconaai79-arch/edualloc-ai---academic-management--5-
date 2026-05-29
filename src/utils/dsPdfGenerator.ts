@@ -643,3 +643,176 @@ export const generateDSStudentLogbookPDF = async (
 
     return doc;
 };
+
+export const generateDSStudentDirectoryPDF = async (
+    reportType: 'all_students' | 'active_students' | 'ntsa_booked' | 'payment_behind',
+    students: DSStudent[],
+    lessons: DSLesson[],
+    invoices: DSInvoice[],
+    settings: DSSettings | null,
+    institution: any,
+    letterheadConfig?: any
+) => {
+    const doc = new jsPDF() as any;
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
+    const letterheadUrl = letterheadConfig?.headerImageUrl || institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.letterheadUrl || (companyDetails as any)?.logoUrl;
+    const headerImg = await loadImage(letterheadUrl);
+
+    let currentY = 30;
+
+    if (headerImg) {
+        const imgWidth = pageWidth - (margin * 2);
+        const imgHeight = (headerImg.height * imgWidth) / headerImg.width;
+        const maxHeight = 45;
+
+        if (imgHeight > maxHeight) {
+            const finalHeight = maxHeight;
+            const finalWidth = (headerImg.width * finalHeight) / headerImg.height;
+            const xPos = (pageWidth - finalWidth) / 2;
+            doc.addImage(headerImg, 'JPEG', xPos, 15, finalWidth, finalHeight);
+            currentY = finalHeight + 25;
+        } else {
+            doc.addImage(headerImg, 'JPEG', margin, 15, imgWidth, imgHeight);
+            currentY = imgHeight + 25;
+        }
+    } else {
+        doc.setFontSize(22);
+        doc.setTextColor(79, 70, 229);
+        doc.text(institution?.name || 'Driving School Academy', margin, currentY);
+
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(institution?.address || 'Student Reports Directory', margin, currentY + 8);
+        doc.text(`Tel: ${institution?.phone || 'N/A'}`, margin, currentY + 13);
+        currentY += 25;
+    }
+
+    let titleText = 'STUDENT DIRECTORY REPORT';
+    let subtitleText = 'ALL REGISTERED STUDENTS';
+
+    if (reportType === 'active_students') {
+        titleText = 'ACTIVE STUDENTS ROSTER';
+        subtitleText = 'CURRENTLY ACTIVE ENROLLED CANDIDATES';
+    } else if (reportType === 'ntsa_booked') {
+        titleText = 'NTSA BOOKING ROSTER';
+        subtitleText = 'CANDIDATES WITH REGULATORY NTSA BOOKINGS';
+    } else if (reportType === 'payment_behind') {
+        titleText = 'PAYMENT SHORTFALL REPORT';
+        subtitleText = 'CANDIDATES BEHIND EXPECTED TUITION FEES';
+    }
+
+    doc.setFontSize(16);
+    doc.setTextColor(30, 41, 59);
+    doc.text(titleText, margin, currentY);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(subtitleText, margin, currentY + 5);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
+    currentY += 15;
+
+    // Filter students
+    let filteredList = [...students];
+    if (reportType === 'active_students') {
+        filteredList = filteredList.filter(s => !s.status || s.status === 'Enrolled');
+    } else if (reportType === 'ntsa_booked') {
+        filteredList = filteredList.filter(s => s.ntsaBookingStatus && s.ntsaBookingStatus !== 'None' && s.ntsaBookingStatus !== 'Eligible');
+    } else if (reportType === 'payment_behind') {
+        filteredList = filteredList.filter(s => {
+            const invoice = (invoices || []).find(inv => inv.studentId === s.id && inv.status !== 'Cancelled');
+            if (!invoice) return false;
+            const systemDays = (lessons || []).filter(l => l.studentId === s.id && l.status === 'Completed').length;
+            const priorDays = s.priorAttendedDays || 0;
+            const effectiveDays = systemDays + priorDays;
+            const courseDuration = s.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21;
+            const totalFee = invoice.totalAmount || 0;
+            const paidAmount = invoice.paidAmount || 0;
+            const nextSession = effectiveDays + 1;
+            const expectedByNextSession = totalFee > 0 ? Math.round((nextSession / courseDuration) * totalFee) : 0;
+            const shortfall = Math.max(0, expectedByNextSession - paidAmount);
+            return shortfall > 0;
+        });
+    }
+
+    // Build Table
+    const tableHead = ['Student', 'Contact', 'Category', 'Status', 'Progress', 'Fee Status'];
+    const tableData = filteredList.map(s => {
+        // Milestone shortfall calculation
+        const invoice = (invoices || []).find(inv => inv.studentId === s.id && inv.status !== 'Cancelled');
+        let paymentStatusStr = 'No Invoice';
+        if (invoice) {
+            const systemDays = (lessons || []).filter(l => l.studentId === s.id && l.status === 'Completed').length;
+            const priorDays = s.priorAttendedDays || 0;
+            const effectiveDays = systemDays + priorDays;
+            const courseDuration = s.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21;
+            const totalFee = invoice.totalAmount || 0;
+            const paidAmount = invoice.paidAmount || 0;
+            const nextSession = effectiveDays + 1;
+            const expectedByNextSession = totalFee > 0 ? Math.round((nextSession / courseDuration) * totalFee) : 0;
+            const shortfall = Math.max(0, expectedByNextSession - paidAmount);
+            
+            if (shortfall <= 0) {
+                paymentStatusStr = 'On Track';
+            } else {
+                paymentStatusStr = `KES ${shortfall.toLocaleString()} Behind`;
+            }
+        }
+
+        const progressStr = `${s.practicalProgressPercent || 0}%`;
+
+        return [
+            `${s.fullName}\n${s.admissionNumber || ''}`,
+            `${s.phone || ''}\n${s.email || ''}`,
+            s.licenseTypeInterested || 'Class B',
+            s.status || 'Enrolled',
+            progressStr,
+            paymentStatusStr
+        ];
+    });
+
+    if (tableData.length === 0) {
+        tableData.push(['No students match this report criteria', '-', '-', '-', '-', '-']);
+    }
+
+    autoTable(doc, {
+        startY: currentY,
+        head: [tableHead],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 4 },
+        margin: { left: margin, right: margin }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY || currentY + 50;
+
+    // Footer asset if present
+    const footerUrl = letterheadConfig?.footerImageUrl || institution?.letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl;
+    const footerImg = await loadImage(footerUrl);
+
+    if (footerImg) {
+        const fWidth = pageWidth - (margin * 2);
+        const fHeight = (footerImg.height * fWidth) / footerImg.width;
+        const maxFHeight = 25;
+        const renderedHeight = fHeight > maxFHeight ? maxFHeight : fHeight;
+        const renderedWidth = (footerImg.width * renderedHeight) / footerImg.height;
+        const fX = (pageWidth - renderedWidth) / 2;
+        
+        if (finalY + renderedHeight + 15 > doc.internal.pageSize.getHeight()) {
+            doc.addPage();
+            doc.addImage(footerImg, 'JPEG', fX, doc.internal.pageSize.getHeight() - renderedHeight - 15, renderedWidth, renderedHeight);
+        } else {
+            doc.addImage(footerImg, 'JPEG', fX, doc.internal.pageSize.getHeight() - renderedHeight - 15, renderedWidth, renderedHeight);
+        }
+    } else {
+        doc.setFontSize(9);
+        doc.setTextColor(150);
+        doc.text('Official Student Directory Report • Generated by Driving School Management', pageWidth / 2, doc.internal.pageSize.getHeight() - 15, { align: 'center' });
+    }
+
+    return doc;
+};
+
