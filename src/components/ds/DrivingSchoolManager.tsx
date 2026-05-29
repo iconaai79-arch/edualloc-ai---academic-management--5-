@@ -1006,13 +1006,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <select value={formData.instructorType || 'Driving Instructor'} onChange={e => setFormData({...formData, instructorType: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="Driving Instructor">Driving Instructor (Practical)</option>
                                         <option value="Theory Trainer">Theory Trainer (Classroom)</option>
+                                        <option value="Both">Both (Theory & Practical)</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Number</label>
                                     <input type="text" value={formData.licenseNumber || ''} onChange={e => setFormData({...formData, licenseNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100" placeholder="DL-XXXXXX" />
                                 </div>
-                                {formData.instructorType === 'Driving Instructor' && (
+                                {(formData.instructorType === 'Driving Instructor' || formData.instructorType === 'Both') && (
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assigned Vehicle</label>
                                         <select value={formData.assignedVehicleId || ''} onChange={e => setFormData({...formData, assignedVehicleId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
@@ -1021,13 +1022,6 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         </select>
                                     </div>
                                 )}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Department</label>
-                                    <select required value={formData.departmentId || ''} onChange={e => setFormData({...formData, departmentId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
-                                        <option value="">Select Department</option>
-                                        {(departments || []).map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                                    </select>
-                                </div>
                             </>
                         )}
 

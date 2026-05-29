@@ -3808,7 +3808,7 @@ export interface DSInstructor {
     phone?: string;
     licenseNumber?: string;
     specialization?: string;
-    instructorType?: 'Driving Instructor' | 'Theory Trainer';
+    instructorType?: 'Driving Instructor' | 'Theory Trainer' | 'Both';
     status: 'Active' | 'Inactive' | 'On Leave';
     rating: number;
     assignedVehicleId?: string;
