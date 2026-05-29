@@ -1960,7 +1960,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         sendLessonNotification
     } = useDrivingSchool();
     
-    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase'>(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            if (tabParam && ['dashboard', 'students', 'leads', 'lessons', 'fleet', 'instructors', 'finance', 'broadcaster', 'settings', 'reports', 'portal', 'showcase'].includes(tabParam)) {
+                return tabParam as any;
+            }
+        } catch (e) {}
+        return 'dashboard';
+    });
     
     const rolesList = useMemo(() => [
         (currentUser?.role || '').toLowerCase(),
@@ -2055,7 +2064,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [paymentSearch, setPaymentSearch] = useState('');
     const [invoicePage, setInvoicePage] = useState(1);
     const [paymentPage, setPaymentPage] = useState(1);
-    const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots' | 'groups'>('categories');
+    const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots' | 'groups' | 'kiosk'>('categories');
     const [newDSGroupForm, setNewDSGroupForm] = useState('');
     const [editingDSGroupOriginalName, setEditingDSGroupOriginalName] = useState<string | null>(null);
     const [editingDSGroupForm, setEditingDSGroupForm] = useState('');
@@ -2085,7 +2094,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [portalEndTime, setPortalEndTime] = useState<string>('10:00');
     const [portalLessonType, setPortalLessonType] = useState<string>('Practical');
     const [isSendingReminders, setIsSendingReminders] = useState(false);
-    const [kioskTab, setKioskTab] = useState<'booking' | 'checkin'>('booking');
+    const [kioskTab, setKioskTab] = useState<'booking' | 'checkin'>(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const k = params.get('kiosk');
+            if (k === 'checkin' || k === 'booking') return k;
+        } catch (e) {}
+        return 'booking';
+    });
     const [kioskAdmissionNo, setKioskAdmissionNo] = useState('');
     const [kioskMessage, setKioskMessage] = useState<{ status: 'success' | 'error'; text: string; details?: string } | null>(null);
     const [newCategoryInput, setNewCategoryInput] = useState({ code: '', name: '', description: '', baseFee: 0, isActive: true, parentCategory: '' });
@@ -5099,7 +5115,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         { id: 'rules', label: 'Scheduling Rules', icon: ClipboardListIcon },
                                         { id: 'numbering', label: 'Document Numbering', icon: ListIcon },
                                         { id: 'fees', label: 'Fee Structures', icon: CreditCardIcon },
-                                        { id: 'slots', label: 'Lesson Hours', icon: ClockIcon }
+                                        { id: 'slots', label: 'Lesson Hours', icon: ClockIcon },
+                                        { id: 'kiosk', label: 'Kiosk & QR Code', icon: PrinterIcon }
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
@@ -6401,6 +6418,102 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         </div>
                                     </div>
                                 )}
+
+                                {settingsSubTab === 'kiosk' && (() => {
+                                    const kioskLink = `${window.location.origin}${window.location.pathname}?view=ds&tab=portal&kiosk=checkin`;
+                                    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(kioskLink)}`;
+                                    
+                                    return (
+                                        <div className="space-y-10 animate-fade-in max-w-2xl mx-auto">
+                                            <div>
+                                                <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Check-in Kiosk & QR Setup</h4>
+                                                <p className="text-xs font-medium text-slate-400">Share or display a dedicated link and print check-in QR codes for students to scan on their smartphones.</p>
+                                            </div>
+
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 p-6 md:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 flex flex-col items-center text-center space-y-6">
+                                                <div className="p-4 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                                    <img 
+                                                        src={qrUrl} 
+                                                        alt="Check-in QR Code" 
+                                                        className="w-48 h-48 block"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2 max-w-md">
+                                                    <h5 className="text-sm font-bold text-slate-900 dark:text-white">Attendance Check-in Link</h5>
+                                                    <p className="text-[11px] text-slate-500 font-medium">Use this link to load the kiosk on shared tablets at reception or map it to your custom domain.</p>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 w-full max-w-md bg-white dark:bg-slate-900 px-4 py-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                    <input 
+                                                        type="text" 
+                                                        readOnly
+                                                        value={kioskLink}
+                                                        className="flex-1 bg-transparent border-none text-xs font-bold text-slate-600 dark:text-slate-300 focus:ring-0 truncate"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(kioskLink);
+                                                            success("Check-in link copied to clipboard!");
+                                                        }}
+                                                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:scale-105 transition-all"
+                                                    >
+                                                        Copy
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center justify-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800/60 w-full">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const printWindow = window.open('', '_blank');
+                                                            if (printWindow) {
+                                                                printWindow.document.write(`
+                                                                    <html>
+                                                                    <head>
+                                                                        <title>Driving School Check-in Kiosk Signboard</title>
+                                                                        <style>
+                                                                            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;900&display=swap');
+                                                                            body { font-family: 'Outfit', sans-serif; text-align: center; padding: 40px; color: #0f172a; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 90vh; }
+                                                                            .card { border: 12px double #4f46e5; border-radius: 40px; padding: 60px; max-width: 600px; margin: auto; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+                                                                            h1 { font-size: 36px; font-weight: 900; margin-bottom: 10px; text-transform: uppercase; color: #4f46e5; letter-spacing: -0.02em; }
+                                                                            p.sub { font-size: 18px; font-weight: 500; color: #64748b; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 0.1em; }
+                                                                            img.qr { width: 300px; height: 300px; margin: 20px auto; display: block; border: 6px solid #f1f5f9; border-radius: 30px; padding: 15px; }
+                                                                            p.info { font-size: 16px; font-weight: 700; color: #334155; margin-top: 30px; line-height: 1.5; }
+                                                                            .footer { font-size: 11px; font-weight: 900; color: #94a3b8; margin-top: 50px; text-transform: uppercase; letter-spacing: 0.2em; border-t: 2px dashed #e2e8f0; pt-20; }
+                                                                        </style>
+                                                                    </head>
+                                                                    <body>
+                                                                        <div class="card">
+                                                                            <h1>${currentInstitution?.name || 'Driving School'}</h1>
+                                                                            <p class="sub">Self-Service Attendance Kiosk</p>
+                                                                            <img class="qr" src="${qrUrl}" alt="Check-In QR Code" />
+                                                                            <p class="info">Scan this QR Code to verify your status & log lesson check-in attendance.</p>
+                                                                            <p style="font-size: 13px; font-weight: 500; color: #64748b; margin-top: 10px;">Please wait for the clearance screen confirmation before starting.</p>
+                                                                            <div class="footer">Clearance check active. Powered by EduAlloc AI</div>
+                                                                        </div>
+                                                                        <script>
+                                                                            window.onload = function() { 
+                                                                                setTimeout(function() { window.print(); }, 500); 
+                                                                            }
+                                                                        </script>
+                                                                    </body>
+                                                                    </html>
+                                                                `);
+                                                                printWindow.document.close();
+                                                            }
+                                                        }}
+                                                        className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                                                    >
+                                                        <PrinterIcon className="w-4 h-4" />
+                                                        <span>Print QR Signboard</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     )}
