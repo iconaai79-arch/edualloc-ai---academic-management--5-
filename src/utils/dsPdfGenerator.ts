@@ -719,7 +719,7 @@ export const generateDSStudentDirectoryPDF = async (
     if (reportType === 'active_students') {
         filteredList = filteredList.filter(s => !s.status || s.status === 'Enrolled');
     } else if (reportType === 'ntsa_booked') {
-        filteredList = filteredList.filter(s => s.ntsaBookingStatus && s.ntsaBookingStatus !== 'None' && s.ntsaBookingStatus !== 'Eligible');
+        filteredList = filteredList.filter(s => s.ntsaBookingStatus && s.ntsaBookingStatus !== 'Not Booked' && s.ntsaBookingStatus !== 'Eligible');
     } else if (reportType === 'payment_behind') {
         filteredList = filteredList.filter(s => {
             const invoice = (invoices || []).find(inv => inv.studentId === s.id && inv.status !== 'Cancelled');
