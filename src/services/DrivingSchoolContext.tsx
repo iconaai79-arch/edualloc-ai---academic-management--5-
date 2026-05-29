@@ -408,7 +408,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
 
                     const portalUrl = window.location.origin;
-                    const smsMsg = `Welcome to ${portalTitle}! Your Driving School account is ready.\nPortal: ${portalUrl}\nUser ID: ${admNumber}\nTemp Password: ${generatedPassword}`;
+                    const smsMsg = `Welcome to ${portalTitle}! Your Driving School account is ready.\nPortal: ${portalUrl}\nUser ID: ${data.phone}\nTemp Password: ${generatedPassword}`;
                     
                     await apiService.sendSms(data.phone, smsMsg, activeSmsConfig, 1, institutionId);
                     console.log("[DS Automation] Welcome credentials SMS dispatched to student:", data.phone);
