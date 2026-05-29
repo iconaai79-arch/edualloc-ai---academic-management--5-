@@ -690,6 +690,49 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <input type="text" value={formData.idNumber || ''} onChange={e => setFormData({...formData, idNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100" placeholder="e.g. 12345678" />
                                 </div>
                                 <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Passport Photo</label>
+                                    <div className="flex items-center gap-4">
+                                        {formData.passportPhoto ? (
+                                            <div className="w-16 h-16 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
+                                                <img src={formData.passportPhoto} className="w-full h-full object-cover" alt="Passport" />
+                                            </div>
+                                        ) : (
+                                            <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 shrink-0 font-bold text-xs uppercase text-center p-1">
+                                                No Photo
+                                            </div>
+                                        )}
+                                        <div className="flex-1">
+                                            <label className="inline-flex items-center justify-center px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 font-black uppercase text-[10px] tracking-widest rounded-xl cursor-pointer transition-colors">
+                                                Upload Photo
+                                                <input 
+                                                    type="file" 
+                                                    className="hidden" 
+                                                    accept="image/*" 
+                                                    onChange={e => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            const reader = new FileReader();
+                                                            reader.onloadend = () => {
+                                                                setFormData({...formData, passportPhoto: reader.result as string});
+                                                            };
+                                                            reader.readAsDataURL(file);
+                                                        }
+                                                    }} 
+                                                />
+                                            </label>
+                                            {formData.passportPhoto && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setFormData({...formData, passportPhoto: ''})}
+                                                    className="ml-2 inline-flex items-center justify-center px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 text-rose-600 dark:text-rose-400 font-black uppercase text-[10px] tracking-widest rounded-xl transition-colors"
+                                                >
+                                                    Remove
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
                                     <select 
                                         value={formData.licenseCategory || ''} 
@@ -3043,8 +3086,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                                                         <td className="px-10 py-8">
                                                             <div className="flex items-center gap-4">
-                                                                <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center font-black text-indigo-600">
-                                                                    {student.fullName.charAt(0)}
+                                                                <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center font-black text-indigo-600 overflow-hidden">
+                                                                    {student.passportPhoto ? (
+                                                                        <img src={student.passportPhoto} className="w-full h-full object-cover" alt="Student Passport" />
+                                                                    ) : (
+                                                                        student.fullName.charAt(0)
+                                                                    )}
                                                                 </div>
                                                                 <div>
                                                                     <p className="font-bold text-slate-900 dark:text-white">{student.fullName}</p>
@@ -3331,10 +3378,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100'
                                                             }`}
                                                         >
-                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs shrink-0 overflow-hidden ${
                                                                 isSelected ? 'bg-white/20 text-white' : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400'
                                                             }`}>
-                                                                {student.fullName.charAt(0)}
+                                                                {student.passportPhoto ? (
+                                                                    <img src={student.passportPhoto} className="w-full h-full object-cover" alt="Passport" />
+                                                                ) : (
+                                                                    student.fullName.charAt(0)
+                                                                )}
                                                             </div>
                                                             <div className="min-w-0 flex-1">
                                                                 <p className="font-bold text-xs truncate">{student.fullName}</p>
@@ -4491,8 +4542,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             {/* Candidate Fast Overview */}
                                             <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs uppercase">
-                                                        {selectedStudent?.fullName.charAt(0)}
+                                                    <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs uppercase overflow-hidden">
+                                                        {selectedStudent?.passportPhoto ? (
+                                                            <img src={selectedStudent.passportPhoto} className="w-full h-full object-cover" alt="Passport" />
+                                                        ) : (
+                                                            selectedStudent?.fullName.charAt(0)
+                                                        )}
                                                     </div>
                                                     <div>
                                                         <h5 className="text-xs font-bold text-slate-900 dark:text-white">{selectedStudent?.fullName}</h5>
