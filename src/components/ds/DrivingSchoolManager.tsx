@@ -685,6 +685,44 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                 <option value="Failed">Failed NTSA Test</option>
                                             </select>
                                         </div>
+
+                                        {/* ── Legacy Attendance Backfill ── */}
+                                        <div className="md:col-span-2">
+                                            <div className="p-5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-2xl space-y-4">
+                                                <div className="flex items-start gap-3">
+                                                    <span className="text-lg">📋</span>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-amber-900 dark:text-amber-300 uppercase tracking-widest">Legacy Attendance Backfill</p>
+                                                        <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5 font-medium">For students enrolled before this system was set up — enter the number of sessions they attended prior to system tracking. This ensures payment milestones and remaining days are calculated correctly.</p>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest ml-1">Prior Attended Days (Before System)</label>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max={formData.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21}
+                                                            value={formData.priorAttendedDays ?? 0}
+                                                            onChange={e => setFormData({ ...formData, priorAttendedDays: Math.max(0, parseInt(e.target.value) || 0) })}
+                                                            className="w-full px-6 py-4 bg-white dark:bg-slate-900 border-2 border-amber-300 dark:border-amber-600 rounded-2xl focus:ring-2 focus:ring-amber-500 font-bold text-slate-900 dark:text-slate-100"
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest ml-1">Effective Total (Live Preview)</label>
+                                                        <div className="w-full px-6 py-4 bg-amber-100/60 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-2xl">
+                                                            <p className="text-xs font-black text-amber-900 dark:text-amber-200">
+                                                                {(formData.priorAttendedDays || 0)} prior + {(lessons || []).filter((l: DSLesson) => l.studentId === formData.id && l.status === 'Completed').length} system = <span className="text-indigo-600 dark:text-indigo-400">{(formData.priorAttendedDays || 0) + (lessons || []).filter((l: DSLesson) => l.studentId === formData.id && l.status === 'Completed').length} days attended</span>
+                                                            </p>
+                                                            <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 font-bold">
+                                                                {Math.max(0, (formData.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21) - ((formData.priorAttendedDays || 0) + (lessons || []).filter((l: DSLesson) => l.studentId === formData.id && l.status === 'Completed').length))} days remaining of {formData.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </>
                                 )}
                             </>
@@ -1061,17 +1099,59 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                 </div>
                                             )}
 
-                                            {totalOwed > 0 && (
-                                                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/80 rounded-2xl flex items-start gap-3 animate-fade-in">
-                                                    <span className="text-base font-black text-blue-600 shrink-0">ℹ️</span>
-                                                    <div>
-                                                        <p className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Milestone Installment Lockout Check</p>
-                                                        <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">
-                                                            Student has an outstanding fee balance of <strong>KES {(totalOwed ?? 0).toLocaleString()}</strong>. Ensure compliance with your minimum deposit policies prior to highway deployment.
-                                                        </p>
+                                            {(() => {
+                                                if (!formData.studentId) return null;
+                                                const _student = (students || []).find(s => s.id === formData.studentId);
+                                                const _invoice = (invoices || []).find(inv => inv.studentId === formData.studentId && inv.status !== 'Cancelled');
+                                                if (!_invoice || !_student) return totalOwed > 0 ? (
+                                                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/80 rounded-2xl flex items-start gap-3 animate-fade-in">
+                                                        <span className="text-base font-black text-blue-600 shrink-0">ℹ️</span>
+                                                        <div>
+                                                            <p className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Outstanding Balance</p>
+                                                            <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">Student has an outstanding fee balance of <strong>KES {(totalOwed ?? 0).toLocaleString()}</strong>.</p>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                ) : null;
+                                                const _systemDays = (lessons || []).filter(l => l.studentId === formData.studentId && l.status === 'Completed').length;
+                                                const _priorDays = _student.priorAttendedDays || 0;
+                                                const _effectiveDays = _systemDays + _priorDays;
+                                                const _courseDuration = _student.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21;
+                                                const _nextSession = _effectiveDays + 1;
+                                                const _expected = _invoice.totalAmount > 0 ? Math.round((_nextSession / _courseDuration) * _invoice.totalAmount) : 0;
+                                                const _paid = _invoice.paidAmount || 0;
+                                                const _shortfall = Math.max(0, _expected - _paid);
+                                                return _shortfall > 0 ? (
+                                                    <div className="p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/80 rounded-2xl flex items-start gap-3 animate-fade-in">
+                                                        <ExclamationTriangleIcon className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                                                        <div className="w-full">
+                                                            <p className="text-xs font-black text-rose-900 dark:text-rose-200 uppercase tracking-tight">Payment Milestone Not Met — Session {_nextSession} of {_courseDuration}</p>
+                                                            <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                                                                <div className="bg-white dark:bg-slate-900 rounded-xl p-2 border border-rose-100 dark:border-rose-800">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Expected by Day {_nextSession}</p>
+                                                                    <p className="text-xs font-black text-rose-700 dark:text-rose-300 mt-0.5">KES {_expected.toLocaleString()}</p>
+                                                                </div>
+                                                                <div className="bg-white dark:bg-slate-900 rounded-xl p-2 border border-rose-100 dark:border-rose-800">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid So Far</p>
+                                                                    <p className="text-xs font-black text-emerald-600 mt-0.5">KES {_paid.toLocaleString()}</p>
+                                                                </div>
+                                                                <div className="bg-white dark:bg-slate-900 rounded-xl p-2 border border-rose-100 dark:border-rose-800">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Shortfall</p>
+                                                                    <p className="text-xs font-black text-rose-700 dark:text-rose-300 mt-0.5">KES {_shortfall.toLocaleString()}</p>
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-[9px] text-rose-600 dark:text-rose-400 mt-2 font-bold">{_priorDays > 0 ? `(${_priorDays} prior + ${_systemDays} system = ${_effectiveDays} effective days attended)` : `${_systemDays} sessions recorded in system`}</p>
+                                                        </div>
+                                                    </div>
+                                                ) : _paid > 0 ? (
+                                                    <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/80 rounded-2xl flex items-start gap-3 animate-fade-in">
+                                                        <span className="text-base shrink-0">✅</span>
+                                                        <div>
+                                                            <p className="text-xs font-black text-emerald-900 dark:text-emerald-200 uppercase tracking-tight">Payment On Track — Session {_nextSession} of {_courseDuration}</p>
+                                                            <p className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">Expected: KES {_expected.toLocaleString()} · Paid: KES {_paid.toLocaleString()} · Cleared ✓</p>
+                                                        </div>
+                                                    </div>
+                                                ) : null;
+                                            })()}
                                         </div>
                                     );
                                 })()}
@@ -1822,11 +1902,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [editingDSGroupForm, setEditingDSGroupForm] = useState('');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
     const [leadStatusFilter, setLeadStatusFilter] = useState<string>('All');
+    const [studentSubTab, setStudentSubTab] = useState<'enrolled' | 'graduated' | 'dropped' | 'all'>('enrolled');
+    const [studentSortBy, setStudentSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc' | 'progress_desc' | 'progress_asc'>('name_asc');
     const [selectedReportInstructorId, setSelectedReportInstructorId] = useState<string>('all');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [previewPdf, setPreviewPdf] = useState<string | null>(null);
     const [scoringStudent, setScoringStudent] = useState<DSStudent | null>(null);
+    const [pendingAttendanceOverride, setPendingAttendanceOverride] = useState<{ lesson: DSLesson; ms: any } | null>(null);
     
     // Portal states
     const [portalStudentId, setPortalStudentId] = useState<string>('');
@@ -1853,6 +1936,38 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     }, [settings]);
     const activeSettings = settingsDraft || settings || {};
     const hasUnsavedChanges = settings && settingsDraft && JSON.stringify(settingsDraft) !== JSON.stringify(settings);
+
+    // ─── Payment Milestone Helper ────────────────────────────────────────────
+    const getStudentMilestoneStatus = (studentId: string) => {
+        const student = (students || []).find(s => s.id === studentId);
+        if (!student) return null;
+        const invoice = (invoices || []).find(inv => inv.studentId === studentId && inv.status !== 'Cancelled');
+        if (!invoice) return { noInvoice: true, isCleared: true };
+        const systemDays = (lessons || []).filter(l => l.studentId === studentId && l.status === 'Completed').length;
+        const priorDays = student.priorAttendedDays || 0;
+        const effectiveDays = systemDays + priorDays;
+        const courseDuration = student.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21;
+        const totalFee = invoice.totalAmount || 0;
+        const paidAmount = invoice.paidAmount || 0;
+        const nextSession = effectiveDays + 1;
+        const expectedByNextSession = totalFee > 0 ? Math.round((nextSession / courseDuration) * totalFee) : 0;
+        const shortfall = Math.max(0, expectedByNextSession - paidAmount);
+        return {
+            noInvoice: false,
+            systemDays,
+            priorDays,
+            effectiveDays,
+            courseDuration,
+            totalFee,
+            paidAmount,
+            nextSession,
+            expectedByNextSession,
+            shortfall,
+            isCleared: shortfall <= 0,
+            remainingDays: Math.max(0, courseDuration - effectiveDays),
+        };
+    };
+    // ────────────────────────────────────────────────────────────────────────
 
     const handleSendBulkReminders = async () => {
         // Filter out pending invoices with balance > 0
@@ -2318,13 +2433,49 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         name: i.name || (i as any).full_name || (i as any).fullName || '(No Name)',
     })), [instructors]);
 
-    const filteredStudents = useMemo(() => 
-        (normalizedStudents || []).filter(s => 
+    const filteredStudents = useMemo(() => {
+        let list = (normalizedStudents || []).filter(s => 
             (s.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (s.admissionNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (s.idNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
-        ),
-    [normalizedStudents, searchTerm]);
+        );
+
+        // Filter by status subtab
+        if (studentSubTab === 'enrolled') {
+            list = list.filter(s => !s.status || s.status === 'Enrolled');
+        } else if (studentSubTab === 'graduated') {
+            list = list.filter(s => s.status === 'Graduated');
+        } else if (studentSubTab === 'dropped') {
+            list = list.filter(s => s.status === 'Dropped');
+        }
+
+        // Apply sorting
+        return list.sort((a, b) => {
+            if (studentSortBy === 'name_asc') {
+                return (a.fullName || '').localeCompare(b.fullName || '');
+            }
+            if (studentSortBy === 'name_desc') {
+                return (b.fullName || '').localeCompare(a.fullName || '');
+            }
+            if (studentSortBy === 'date_desc') {
+                const dateA = a.enrollmentDate ? new Date(a.enrollmentDate).getTime() : 0;
+                const dateB = b.enrollmentDate ? new Date(b.enrollmentDate).getTime() : 0;
+                return dateB - dateA;
+            }
+            if (studentSortBy === 'date_asc') {
+                const dateA = a.enrollmentDate ? new Date(a.enrollmentDate).getTime() : 0;
+                const dateB = b.enrollmentDate ? new Date(b.enrollmentDate).getTime() : 0;
+                return dateA - dateB;
+            }
+            if (studentSortBy === 'progress_desc') {
+                return (b.practicalProgressPercent || 0) - (a.practicalProgressPercent || 0);
+            }
+            if (studentSortBy === 'progress_asc') {
+                return (a.practicalProgressPercent || 0) - (b.practicalProgressPercent || 0);
+            }
+            return 0;
+        });
+    }, [normalizedStudents, searchTerm, studentSubTab, studentSortBy]);
 
     const filteredLessons = useMemo(() => 
         (lessons || []).filter(l => {
@@ -2612,16 +2763,57 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     {activeTab === 'students' && (
                         <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
-                            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <div className="relative flex-1 max-w-md">
-                                    <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search students..." 
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-16 pr-8 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm"
-                                    />
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                                <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-[2rem] w-full lg:w-auto overflow-x-auto scrollbar-hide">
+                                    {[
+                                        { id: 'enrolled', label: 'Active Students' },
+                                        { id: 'graduated', label: 'Graduated' },
+                                        { id: 'dropped', label: 'Dropped' },
+                                        { id: 'all', label: 'All Students' }
+                                    ].map(sub => (
+                                        <button
+                                            key={sub.id}
+                                            onClick={() => setStudentSubTab(sub.id as any)}
+                                            className={`px-6 py-2.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-1 lg:flex-initial text-center ${
+                                                studentSubTab === sub.id 
+                                                ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' 
+                                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            {sub.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+                                    <div className="relative flex-1 sm:w-80 w-full">
+                                        <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search students..." 
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="w-full pl-16 pr-8 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-slate-900 dark:text-slate-100"
+                                        />
+                                    </div>
+                                    <div className="relative sm:w-56 w-full">
+                                        <select
+                                            value={studentSortBy}
+                                            onChange={(e) => setStudentSortBy(e.target.value as any)}
+                                            className="w-full px-6 pl-6 pr-12 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-slate-700 dark:text-slate-200 appearance-none cursor-pointer"
+                                        >
+                                            <option value="name_asc">Sort: A-Z</option>
+                                            <option value="name_desc">Sort: Z-A</option>
+                                            <option value="date_desc">Newest Enrolled</option>
+                                            <option value="date_asc">Oldest Enrolled</option>
+                                            <option value="progress_desc">Progress: High to Low</option>
+                                            <option value="progress_asc">Progress: Low to High</option>
+                                        </select>
+                                        <div className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 text-slate-400">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div className="overflow-x-auto">
@@ -2633,6 +2825,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <th className="px-10 py-8">Category</th>
                                             <th className="px-10 py-8">Preferred Hours</th>
                                             <th className="px-10 py-8">Status</th>
+                                            <th className="px-10 py-8">Fee Status</th>
                                             <th className="px-10 py-8 text-right">Progress</th>
                                             <th className="px-10 py-8 text-right">Test Scores</th>
                                             <th className="px-10 py-8 text-right">Actions</th>
@@ -2676,9 +2869,36 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     </span>
                                                 </td>
                                                 <td className="px-10 py-8">
-                                                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${student.status === 'Graduated' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
-                                                        {student.status}
+                                                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                                        student.status === 'Graduated' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' :
+                                                        student.status === 'Dropped' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400' :
+                                                        'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400'
+                                                    }`}>
+                                                        {student.status || 'Enrolled'}
                                                     </span>
+                                                </td>
+                                                <td className="px-10 py-8">
+                                                    {(() => {
+                                                        const ms = getStudentMilestoneStatus(student.id);
+                                                        if (!ms) return <span className="text-[9px] text-slate-300 font-bold">—</span>;
+                                                        if (ms.noInvoice) return (
+                                                            <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-50 text-amber-600 border border-amber-200">No Invoice</span>
+                                                        );
+                                                        return (
+                                                            <div className="space-y-1.5">
+                                                                {ms.isCleared ? (
+                                                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>On Track
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-rose-50 text-rose-700 border border-rose-200 w-fit">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>KES {ms.shortfall.toLocaleString()} Behind
+                                                                    </span>
+                                                                )}
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Day {ms.effectiveDays}/{ms.courseDuration} · {ms.remainingDays} left{ms.priorDays > 0 ? ` (${ms.priorDays} prior)` : ''}</p>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-10 py-8 text-right">
                                                     <div className="w-24 bg-slate-100 dark:bg-slate-800 h-2 rounded-full ml-auto overflow-hidden">
@@ -3178,7 +3398,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             {lesson.status !== 'Completed' && (
                                                                 <div className="flex gap-1 mt-0.5 print:hidden">
                                                                     <button 
-                                                                        onClick={() => onUpdateLesson?.({ ...lesson, status: 'Completed' })}
+                                                                        onClick={() => {
+                                                                            const ms = getStudentMilestoneStatus(lesson.studentId);
+                                                                            if (ms && !ms.noInvoice && !ms.isCleared) {
+                                                                                if (!isDirector) {
+                                                                                    toastError(`⛔ Payment Required: Student must pay KES ${ms.shortfall.toLocaleString()} before Session ${ms.nextSession}. Expected: KES ${ms.expectedByNextSession.toLocaleString()}, Paid: KES ${ms.paidAmount.toLocaleString()}. Contact the director to override.`);
+                                                                                    return;
+                                                                                }
+                                                                                setPendingAttendanceOverride({ lesson, ms });
+                                                                                return;
+                                                                            }
+                                                                            onUpdateLesson?.({ ...lesson, status: 'Completed' });
+                                                                        }}
                                                                         className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 rounded text-[8px] font-black uppercase tracking-wider transition-all"
                                                                         title="One-Click Validate Attendance"
                                                                     >
@@ -5097,6 +5328,122 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     </div>
                                                 )}
                                             </div>
+
+                                            {/* Payment Milestone SMS Reminders */}
+                                            <div className="p-8 bg-rose-50/40 dark:bg-rose-900/10 rounded-[2.5rem] border border-rose-100 dark:border-rose-900/30 space-y-6">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="max-w-md">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-sm">💳</span>
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">Payment Milestone Reminders</p>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 font-medium">Auto-send SMS to students whose attendance has exceeded the expected payment limit before their next lesson. Only students with a fee shortfall are targeted.</p>
+                                                    </div>
+                                                    <label className="relative inline-flex items-center cursor-pointer scale-125">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="sr-only peer"
+                                                            checked={activeSettings?.schedulingRules?.enablePaymentMilestoneReminders || false}
+                                                            onChange={e => setSettingsDraft({
+                                                                ...activeSettings,
+                                                                schedulingRules: {
+                                                                    ...(activeSettings?.schedulingRules || {}),
+                                                                    enablePaymentMilestoneReminders: e.target.checked
+                                                                }
+                                                            })}
+                                                        />
+                                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-rose-500"></div>
+                                                    </label>
+                                                </div>
+
+                                                {activeSettings?.schedulingRules?.enablePaymentMilestoneReminders && (
+                                                    <div className="grid grid-cols-1 gap-6 pt-4 border-t border-rose-100 dark:border-rose-900/30 animate-fade-in">
+                                                        <div className="grid grid-cols-2 gap-6">
+                                                            <div className="space-y-3">
+                                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Minimum Shortfall to Trigger (KES)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    value={activeSettings?.schedulingRules?.paymentReminderMinShortfall ?? 0}
+                                                                    onChange={e => setSettingsDraft({
+                                                                        ...activeSettings,
+                                                                        schedulingRules: {
+                                                                            ...(activeSettings?.schedulingRules || {}),
+                                                                            paymentReminderMinShortfall: parseInt(e.target.value) || 0
+                                                                        }
+                                                                    })}
+                                                                    className="w-full px-8 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-rose-500 font-bold text-slate-900 dark:text-slate-100"
+                                                                    placeholder="e.g. 500"
+                                                                />
+                                                                <p className="text-[9px] text-slate-400 ml-1 font-medium">Set 0 to remind all students with any shortfall.</p>
+                                                            </div>
+                                                            <div className="space-y-3">
+                                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Currently Qualifying</label>
+                                                                <div className="px-8 py-4 bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800 rounded-2xl flex flex-col justify-center min-h-[72px]">
+                                                                    {(() => {
+                                                                        const minShortfall = activeSettings?.schedulingRules?.paymentReminderMinShortfall ?? 0;
+                                                                        const qualifying = (students || []).filter(s => {
+                                                                            const ms = getStudentMilestoneStatus(s.id);
+                                                                            return ms && !ms.noInvoice && !ms.isCleared && ms.shortfall >= minShortfall;
+                                                                        });
+                                                                        return (
+                                                                            <>
+                                                                                <p className="text-2xl font-black text-rose-600">{qualifying.length}</p>
+                                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">students in arrears</p>
+                                                                            </>
+                                                                        );
+                                                                    })()}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-3">
+                                                            <div className="flex justify-between items-center ml-1">
+                                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Reminder SMS Template</label>
+                                                                <span className="text-[8px] text-rose-500 font-bold uppercase tracking-widest">Tags: {"{student}"} {"{shortfall}"} {"{expected}"} {"{paid}"} {"{session}"} {"{totalDays}"} {"{school}"}</span>
+                                                            </div>
+                                                            <textarea
+                                                                value={activeSettings?.schedulingRules?.paymentReminderSmsTemplate || ''}
+                                                                onChange={e => setSettingsDraft({
+                                                                    ...activeSettings,
+                                                                    schedulingRules: {
+                                                                        ...(activeSettings?.schedulingRules || {}),
+                                                                        paymentReminderSmsTemplate: e.target.value
+                                                                    }
+                                                                })}
+                                                                className="w-full px-8 py-4 min-h-[110px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-rose-500 font-bold text-slate-900 dark:text-slate-100 text-xs"
+                                                                placeholder={`Hello {student}, you have attended Session {session}/{totalDays} at {school}. Expected by this session: KES {expected}. Paid: KES {paid}. Balance: KES {shortfall}. Please settle to avoid lesson interruption.`}
+                                                            />
+                                                            <div className="p-5 bg-rose-50 dark:bg-rose-900/20 rounded-2xl border border-rose-100 dark:border-rose-800">
+                                                                <p className="text-[9px] font-black text-rose-700 dark:text-rose-400 uppercase tracking-widest mb-2">📱 Live Preview (sample values)</p>
+                                                                <p className="text-[10px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed italic">
+                                                                    {(activeSettings?.schedulingRules?.paymentReminderSmsTemplate ||
+                                                                        `Hello {student}, you have attended Session {session}/{totalDays} at {school}. Expected by this session: KES {expected}. Paid: KES {paid}. Balance: KES {shortfall}. Please settle to avoid lesson interruption.`)
+                                                                        .replace('{student}', 'John')
+                                                                        .replace('{session}', '8')
+                                                                        .replace('{totalDays}', String(activeSettings?.schedulingRules?.requiredDaysToComplete || 21))
+                                                                        .replace('{school}', currentInstitution?.name || 'Our Driving School')
+                                                                        .replace('{expected}', '11,429')
+                                                                        .replace('{paid}', '8,000')
+                                                                        .replace('{shortfall}', '3,429')
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center justify-between gap-4 pt-2">
+                                                            <p className="text-[9px] text-slate-400 font-medium">Broadcasts to all students currently above the shortfall threshold. Deducted from your SMS balance.</p>
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleSendPaymentMilestoneReminders}
+                                                                disabled={isSendingReminders}
+                                                                className="shrink-0 px-8 py-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 hover:scale-[1.02] shadow-lg shadow-rose-600/20 flex items-center gap-2"
+                                                            >
+                                                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 11a19.79 19.79 0 01-3.07-8.67A2 2 0 012 .18h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+                                                                {isSendingReminders ? 'Sending...' : 'Send Reminders Now'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -5671,6 +6018,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             <button
                                 onClick={async () => {
                                     const lessonToComplete = selectedQRLesson;
+                                    const ms = getStudentMilestoneStatus(lessonToComplete.studentId);
+                                    if (ms && !ms.noInvoice && !ms.isCleared) {
+                                        setSelectedQRLesson(null);
+                                        toastError(`⚠️ QR Check-In Blocked: ${normalizedStudents.find(s => s.id === lessonToComplete.studentId)?.fullName || 'Student'} has an unpaid balance of KES ${ms.shortfall.toLocaleString()} for Session ${ms.nextSession}. Expected: KES ${ms.expectedByNextSession.toLocaleString()} · Paid: KES ${ms.paidAmount.toLocaleString()}. Admin action required before attendance can be confirmed.`);
+                                        return;
+                                    }
                                     setSelectedQRLesson(null);
                                     await onUpdateLesson?.({ ...lessonToComplete, status: 'Completed' });
                                     success?.("QR Check-In Verified! Attendance marked automatically.");
@@ -5801,6 +6154,71 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             >
                                 <DownloadIcon className="w-4 h-4" /> Download PDF
                             </a>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Director Attendance Override Modal */}
+            {pendingAttendanceOverride && (
+                <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
+                        {/* Header */}
+                        <div className="p-8 pb-0">
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center shrink-0">
+                                    <ExclamationTriangleIcon className="w-6 h-6 text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-amber-600 uppercase tracking-[0.3em]">Director Override Required</p>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mt-0.5">Payment Shortfall</h3>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                                        {(normalizedStudents.find(s => s.id === pendingAttendanceOverride.lesson.studentId)?.fullName) || 'This student'} has not met the payment milestone for Session {pendingAttendanceOverride.ms.nextSession}.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Milestone Details */}
+                        <div className="px-8 py-6">
+                            <div className="grid grid-cols-3 gap-3 text-center">
+                                <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Expected</p>
+                                    <p className="text-sm font-black text-rose-600 mt-1">KES {pendingAttendanceOverride.ms.expectedByNextSession.toLocaleString()}</p>
+                                    <p className="text-[9px] text-slate-400 mt-0.5">by Day {pendingAttendanceOverride.ms.nextSession}</p>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</p>
+                                    <p className="text-sm font-black text-emerald-600 mt-1">KES {pendingAttendanceOverride.ms.paidAmount.toLocaleString()}</p>
+                                    <p className="text-[9px] text-slate-400 mt-0.5">so far</p>
+                                </div>
+                                <div className="bg-rose-50 dark:bg-rose-900/30 rounded-2xl p-4 border border-rose-200 dark:border-rose-800">
+                                    <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Shortfall</p>
+                                    <p className="text-sm font-black text-rose-700 dark:text-rose-300 mt-1">KES {pendingAttendanceOverride.ms.shortfall.toLocaleString()}</p>
+                                    <p className="text-[9px] text-rose-500 mt-0.5">unpaid</p>
+                                </div>
+                            </div>
+                            {pendingAttendanceOverride.ms.priorDays > 0 && (
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-3 text-center">{pendingAttendanceOverride.ms.priorDays} prior + {pendingAttendanceOverride.ms.systemDays} system = {pendingAttendanceOverride.ms.effectiveDays} effective days attended</p>
+                            )}
+                        </div>
+                        {/* Action Buttons */}
+                        <div className="px-8 pb-8 grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => setPendingAttendanceOverride(null)}
+                                className="py-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95"
+                            >
+                                ✕ Deny Override
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    const { lesson } = pendingAttendanceOverride;
+                                    setPendingAttendanceOverride(null);
+                                    await onUpdateLesson?.({ ...lesson, status: 'Completed' });
+                                    success?.(`Director override: Attendance confirmed for Session ${pendingAttendanceOverride.ms.nextSession} despite payment shortfall.`);
+                                }}
+                                className="py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all active:scale-95 hover:scale-[1.02]"
+                            >
+                                ✔ Allow Attendance
+                            </button>
                         </div>
                     </div>
                 </div>

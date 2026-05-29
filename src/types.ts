@@ -3867,6 +3867,7 @@ export interface DSStudent {
     enrollmentDate: string;
     courseDurationDays?: number;
     remainingDays?: number;
+    priorAttendedDays?: number; // Days attended before system tracking began (legacy backfill for old students)
     preferredLessonHours?: 'Morning' | 'Noon' | 'Evening';
     theoryTestScore?: number;
     practicalTestScore?: number;
