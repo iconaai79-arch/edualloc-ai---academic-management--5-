@@ -1904,6 +1904,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [leadStatusFilter, setLeadStatusFilter] = useState<string>('All');
     const [studentSubTab, setStudentSubTab] = useState<'enrolled' | 'graduated' | 'dropped' | 'all'>('enrolled');
     const [studentSortBy, setStudentSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc' | 'progress_desc' | 'progress_asc'>('name_asc');
+    const [studentPage, setStudentPage] = useState(1);
     const [selectedReportInstructorId, setSelectedReportInstructorId] = useState<string>('all');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -2514,6 +2515,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     const itemsPerPage = 10;
 
+    const totalStudentPages = Math.max(1, Math.ceil(filteredStudents.length / itemsPerPage));
+    const activeStudentPage = studentPage > totalStudentPages ? 1 : studentPage;
+    const paginatedStudents = useMemo(() => {
+        const page = studentPage > totalStudentPages ? 1 : studentPage;
+        return filteredStudents.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+    }, [filteredStudents, studentPage, totalStudentPages]);
+
     const totalInvoicePages = Math.max(1, Math.ceil(filteredInvoices.length / itemsPerPage));
     const activeInvoicePage = invoicePage > totalInvoicePages ? 1 : invoicePage;
     const paginatedInvoices = useMemo(() => {
@@ -2773,7 +2781,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     ].map(sub => (
                                         <button
                                             key={sub.id}
-                                            onClick={() => setStudentSubTab(sub.id as any)}
+                                            onClick={() => { setStudentSubTab(sub.id as any); setStudentPage(1); }}
                                             className={`px-6 py-2.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-1 lg:flex-initial text-center ${
                                                 studentSubTab === sub.id 
                                                 ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' 
@@ -2791,14 +2799,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             type="text" 
                                             placeholder="Search students..." 
                                             value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            onChange={(e) => { setSearchTerm(e.target.value); setStudentPage(1); }}
                                             className="w-full pl-16 pr-8 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-slate-900 dark:text-slate-100"
                                         />
                                     </div>
                                     <div className="relative sm:w-56 w-full">
                                         <select
                                             value={studentSortBy}
-                                            onChange={(e) => setStudentSortBy(e.target.value as any)}
+                                            onChange={(e) => { setStudentSortBy(e.target.value as any); setStudentPage(1); }}
                                             className="w-full px-6 pl-6 pr-12 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-slate-700 dark:text-slate-200 appearance-none cursor-pointer"
                                         >
                                             <option value="name_asc">Sort: A-Z</option>
@@ -2817,7 +2825,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 </div>
                             </div>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left">
+                                <table className="w-full text-left min-w-[1200px]">
                                     <thead>
                                         <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
                                             <th className="px-10 py-8">Student</th>
@@ -2828,11 +2836,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <th className="px-10 py-8">Fee Status</th>
                                             <th className="px-10 py-8 text-right">Progress</th>
                                             <th className="px-10 py-8 text-right">Test Scores</th>
-                                            <th className="px-10 py-8 text-right">Actions</th>
+                                            <th className="px-10 py-8 text-right min-w-[245px]">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                        {filteredStudents.map(student => (
+                                        {paginatedStudents.map(student => (
                                             <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                                                 <td className="px-10 py-8">
                                                     <div className="flex items-center gap-4">
@@ -2930,7 +2938,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-10 py-8 text-right">
+                                                <td className="px-10 py-8 text-right min-w-[245px]">
                                                     <div className="flex justify-end gap-2">
                                                         <button 
                                                             onClick={async () => {
@@ -3234,6 +3242,29 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             })}
                                         </tbody>
                                     </table>
+                                    {totalStudentPages > 1 && (
+                                        <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                Page {activeStudentPage} of {totalStudentPages} · Showing {paginatedStudents.length} of {filteredStudents.length} students
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setStudentPage(prev => Math.max(1, prev - 1))}
+                                                    disabled={activeStudentPage === 1}
+                                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                                >
+                                                    Previous
+                                                </button>
+                                                <button
+                                                    onClick={() => setStudentPage(prev => Math.min(totalStudentPages, prev + 1))}
+                                                    disabled={activeStudentPage === totalStudentPages}
+                                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                                >
+                                                    Next
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
