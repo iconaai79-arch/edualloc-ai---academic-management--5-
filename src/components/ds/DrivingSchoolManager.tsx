@@ -1982,6 +1982,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         role.includes('super-admin') || 
         role.includes('reseller')
     ), [rolesList]);
+    const isSuperAdmin = useMemo(() => rolesList.some(role =>
+        ['super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin'].some(r => role === r) ||
+        role.includes('super')
+    ), [rolesList]);
 
     const [reasonModal, setReasonModal] = useState<{
         isOpen: boolean;
@@ -3238,6 +3242,31 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 >
                                                                     <PencilIcon className="w-4 h-4" />
                                                                 </button>
+                                                                {isSuperAdmin && getStudentMilestoneStatus(student.id)?.noInvoice && student.status !== 'Graduated' && (
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            if (window.confirm(`Are you sure you want to mark ${student.fullName} as Graduated (No Invoice)?`)) {
+                                                                                setIsActionLoading(true);
+                                                                                try {
+                                                                                    await onUpdateStudent({
+                                                                                        ...student,
+                                                                                        status: 'Graduated'
+                                                                                    });
+                                                                                    success(`${student.fullName} marked as Graduated successfully!`);
+                                                                                } catch (err) {
+                                                                                    console.error(err);
+                                                                                    toastError("Failed to update student status.");
+                                                                                } finally {
+                                                                                    setIsActionLoading(false);
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 transition-colors"
+                                                                        title="Graduate Student (No Invoice)"
+                                                                    >
+                                                                        <AcademicCapIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
                                                                 <button 
                                                                     onClick={() => setScoringStudent(student)}
                                                                     className="p-2 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg text-slate-400 hover:text-amber-600 transition-colors"
