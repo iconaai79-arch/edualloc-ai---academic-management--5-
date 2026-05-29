@@ -870,7 +870,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             // 2. Guaranteed Automated SMS Notification
             if (student.phone) {
                 try {
-                    const shortUrl = publicUrl ? `\nDownload: ${publicUrl}` : '';
+                    const finalUrl = publicUrl ? await apiService.shortenUrl(publicUrl) : '';
+                    const shortUrl = finalUrl ? `\nDownload: ${finalUrl}` : '';
                     const smsMessage = `Hello ${student.fullName}, your ${inst.name} ${docTypeName} #${docNumber} of ${amountStr} is ready.${shortUrl}`;
                     
                     await apiService.sendSms(student.phone, smsMessage, activeSmsConfig, 1, institutionId);
