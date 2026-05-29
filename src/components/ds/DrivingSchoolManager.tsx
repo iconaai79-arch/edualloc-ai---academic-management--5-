@@ -58,7 +58,7 @@ import * as pdfService from '../../services/pdfService';
 interface DrivingSchoolManagerProps {
     currentUser: User;
     currentInstitution: any;
-    externalTab?: 'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster' | 'reports';
+    externalTab?: 'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster' | 'reports' | 'portal' | 'showcase';
     onRefreshData?: () => Promise<void>;
     departments?: any[];
     rooms?: any[];
@@ -3044,10 +3044,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         <div className="flex items-center gap-2 min-w-max">
                         {[
                             { id: 'dashboard', label: 'Dashboard', icon: ClipboardListIcon },
+                            { id: 'portal', label: 'Student Portal', icon: SparklesIcon, highlight: true },
                             { id: 'students', label: 'Students', icon: UsersIcon },
                             { id: 'leads', label: 'Enquiries', icon: SparklesIcon },
                             { id: 'lessons', label: 'Lessons', icon: CalendarDaysIcon },
-                            { id: 'portal', label: 'Student Portal', icon: SparklesIcon },
                             { id: 'fleet', label: 'Fleet', icon: TruckIcon },
                             { id: 'instructors', label: 'Instructors', icon: AcademicCapIcon },
                             { id: 'finance', label: 'Finance', icon: CurrencyIcon },
@@ -3059,7 +3059,15 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as any)}
-                                className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                                className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                    activeTab === tab.id
+                                        ? (tab as any).highlight
+                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 scale-105'
+                                            : 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105'
+                                        : (tab as any).highlight
+                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+                                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                }`}
                             >
                                 <tab.icon className="w-4 h-4" />
                                 {tab.label}
