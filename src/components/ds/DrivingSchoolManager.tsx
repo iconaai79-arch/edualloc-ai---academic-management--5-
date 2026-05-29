@@ -29,7 +29,15 @@ import {
     PrinterIcon,
     DownloadIcon
 } from '../icons';
-import { generateDSPDF, generateDSThermalReceipt, generateDSSchedulePDF, generateDSStudentLogbookPDF, generateDSStudentDirectoryPDF } from '../../utils/dsPdfGenerator';
+import { 
+    generateDSPDF, 
+    generateDSThermalReceipt, 
+    generateDSSchedulePDF, 
+    generateDSStudentLogbookPDF, 
+    generateDSStudentDirectoryPDF,
+    generateDSLeavingCertificatePDF,
+    generateDSCompletionCertificatePDF
+} from '../../utils/dsPdfGenerator';
 import { useToast } from '../../services/ToastContext';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
@@ -3235,6 +3243,48 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 >
                                                                     <SparklesIcon className="w-4 h-4" />
                                                                 </button>
+                                                                {student.status === 'Graduated' && (
+                                                                    <>
+                                                                        <button 
+                                                                            onClick={async () => {
+                                                                                setIsActionLoading(true);
+                                                                                try {
+                                                                                    const doc = await generateDSLeavingCertificatePDF(student, currentInstitution, letterheadConfig);
+                                                                                    setPreviewPdf(doc.output('datauristring'));
+                                                                                    success("Leaving Certificate preview loaded!");
+                                                                                } catch (err) {
+                                                                                    console.error(err);
+                                                                                    toastError("Failed to generate leaving certificate preview.");
+                                                                                } finally {
+                                                                                    setIsActionLoading(false);
+                                                                                }
+                                                                            }}
+                                                                            className="p-2 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg text-amber-500 hover:text-amber-600 transition-colors"
+                                                                            title="Leaving Certificate"
+                                                                        >
+                                                                            <BriefcaseIcon className="w-4 h-4" />
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={async () => {
+                                                                                setIsActionLoading(true);
+                                                                                try {
+                                                                                    const doc = await generateDSCompletionCertificatePDF(student, currentInstitution, letterheadConfig);
+                                                                                    setPreviewPdf(doc.output('datauristring'));
+                                                                                    success("Completion Certificate preview loaded!");
+                                                                                } catch (err) {
+                                                                                    console.error(err);
+                                                                                    toastError("Failed to generate completion certificate preview.");
+                                                                                } finally {
+                                                                                    setIsActionLoading(false);
+                                                                                }
+                                                                            }}
+                                                                            className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg text-emerald-500 hover:text-emerald-600 transition-colors"
+                                                                            title="Completion Certificate"
+                                                                        >
+                                                                            <AcademicCapIcon className="w-4 h-4" />
+                                                                        </button>
+                                                                    </>
+                                                                )}
                                                                 <button 
                                                                     onClick={() => setActionModal({ type: 'student', initialData: student })}
                                                                     className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"

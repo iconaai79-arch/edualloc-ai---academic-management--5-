@@ -816,3 +816,289 @@ export const generateDSStudentDirectoryPDF = async (
     return doc;
 };
 
+export const generateDSLeavingCertificatePDF = async (
+    student: DSStudent,
+    institution: any,
+    letterheadConfig?: any
+) => {
+    // Landscape A4 size: 297mm x 210mm
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+    }) as any;
+
+    const pageWidth = doc.internal.pageSize.getWidth(); // 297
+    const pageHeight = doc.internal.pageSize.getHeight(); // 210
+
+    // Fetch system-wide default company settings to support global letterhead fallback
+    const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
+
+    // Header image
+    const letterheadUrl = letterheadConfig?.headerImageUrl || institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.letterheadUrl || (companyDetails as any)?.logoUrl;
+    const headerImg = await loadImage(letterheadUrl);
+
+    // 1. Draw elegant certificate borders (Double border)
+    doc.setDrawColor(79, 70, 229); // Indigo border
+    doc.setLineWidth(1.5);
+    doc.rect(8, 8, pageWidth - 16, pageHeight - 16);
+
+    doc.setDrawColor(30, 41, 59); // Slate inner border
+    doc.setLineWidth(0.5);
+    doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
+
+    // Corner decorative details
+    doc.setFillColor(79, 70, 229);
+    doc.rect(8, 8, 6, 6, 'F');
+    doc.rect(pageWidth - 14, 8, 6, 6, 'F');
+    doc.rect(8, pageHeight - 14, 6, 6, 'F');
+    doc.rect(pageWidth - 14, pageHeight - 14, 6, 6, 'F');
+
+    let currentY = 20;
+
+    // 2. Render Header/Logo
+    if (headerImg) {
+        const imgWidth = 80;
+        const imgHeight = (headerImg.height * imgWidth) / headerImg.width;
+        const xPos = (pageWidth - imgWidth) / 2;
+        doc.addImage(headerImg, 'JPEG', xPos, currentY, imgWidth, imgHeight);
+        currentY += imgHeight + 10;
+    } else {
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(79, 70, 229);
+        const instName = (institution?.name || 'DRIVING SCHOOL ACADEMY').toUpperCase();
+        doc.text(instName, pageWidth / 2, currentY, { align: 'center' });
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        doc.text(institution?.address || 'Official Training Campus', pageWidth / 2, currentY + 6, { align: 'center' });
+        doc.text(`Tel: ${institution?.phone || 'N/A'} | Email: ${institution?.email || 'N/A'}`, pageWidth / 2, currentY + 11, { align: 'center' });
+        currentY += 20;
+    }
+
+    // 3. Certificate Title
+    doc.setFontSize(26);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('SCHOOL LEAVING CERTIFICATE', pageWidth / 2, currentY, { align: 'center' });
+    
+    // Gold/Yellow accent bar under title
+    doc.setDrawColor(245, 158, 11);
+    doc.setLineWidth(1);
+    doc.line(pageWidth / 2 - 40, currentY + 4, pageWidth / 2 + 40, currentY + 4);
+    currentY += 16;
+
+    // 4. Main Body Text
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('This is to certify that candidate:', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 10;
+
+    // Student Name (Large and bold)
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(79, 70, 229);
+    doc.text(student.fullName.toUpperCase(), pageWidth / 2, currentY, { align: 'center' });
+    currentY += 10;
+
+    // Details paragraph
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+
+    const categoryText = student.licenseTypeInterested || student.licenseCategory || 'CLASS B';
+    const admissionNo = student.admissionNumber || 'N/A';
+    const enrollDate = student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'N/A';
+    const gradDate = new Date().toLocaleDateString();
+
+    const certText = `bearing Admission No. ${admissionNo} has been a student of our academy, training under the ${categoryText} licensing category.\n` +
+                     `The student was enrolled on ${enrollDate} and successfully completed the training syllabus on ${gradDate}.`;
+    
+    doc.text(certText, pageWidth / 2, currentY, { align: 'center', lineHeightFactor: 1.5 });
+    currentY += 22;
+
+    // Conduct and performance review
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(10.5);
+    doc.setTextColor(100);
+    const conductText = `During the training period, the candidate demonstrated commendable conduct and satisfactory progress in road safety, traffic rules, and practical driving skills.`;
+    doc.text(conductText, pageWidth / 2, currentY, { align: 'center' });
+    currentY += 15;
+
+    // Official Sign-off declaration
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text('This leaving certificate is officially issued without erasure or alteration.', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 20;
+
+    // 5. Signature Lines (placed at bottom)
+    const sigY = pageHeight - 35;
+    
+    doc.setDrawColor(150);
+    doc.setLineWidth(0.5);
+    
+    // Left Signature
+    doc.line(40, sigY, 110, sigY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Chief Instructor Signature', 75, sigY + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text('Training & Assessment Dept.', 75, sigY + 9, { align: 'center' });
+
+    // Right Signature
+    doc.line(pageWidth - 110, sigY, pageWidth - 40, sigY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('Director / School Manager', pageWidth - 75, sigY + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text('Official Seal & Date Stamp', pageWidth - 75, sigY + 9, { align: 'center' });
+
+    return doc;
+};
+
+export const generateDSCompletionCertificatePDF = async (
+    student: DSStudent,
+    institution: any,
+    letterheadConfig?: any
+) => {
+    // Landscape A4 size: 297mm x 210mm
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+    }) as any;
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
+
+    const letterheadUrl = letterheadConfig?.headerImageUrl || institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.letterheadUrl || (companyDetails as any)?.logoUrl;
+    const headerImg = await loadImage(letterheadUrl);
+
+    // 1. Draw elegant border (triple line effect with gold borders)
+    doc.setDrawColor(245, 158, 11); // Gold outer border
+    doc.setLineWidth(2);
+    doc.rect(8, 8, pageWidth - 16, pageHeight - 16);
+
+    doc.setDrawColor(30, 41, 59); // Dark blue-grey middle border
+    doc.setLineWidth(0.5);
+    doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
+
+    doc.setDrawColor(245, 158, 11); // Gold thin inner border
+    doc.setLineWidth(0.5);
+    doc.rect(11.5, 11.5, pageWidth - 23, pageHeight - 23);
+
+    // Corner decorative details
+    doc.setFillColor(245, 158, 11);
+    doc.circle(10, 10, 3, 'F');
+    doc.circle(pageWidth - 10, 10, 3, 'F');
+    doc.circle(10, pageHeight - 10, 3, 'F');
+    doc.circle(pageWidth - 10, pageHeight - 10, 3, 'F');
+
+    let currentY = 22;
+
+    // 2. Render Header/Logo
+    if (headerImg) {
+        const imgWidth = 70;
+        const imgHeight = (headerImg.height * imgWidth) / headerImg.width;
+        const xPos = (pageWidth - imgWidth) / 2;
+        doc.addImage(headerImg, 'JPEG', xPos, currentY, imgWidth, imgHeight);
+        currentY += imgHeight + 10;
+    } else {
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        const instName = (institution?.name || 'DRIVING SCHOOL ACADEMY').toUpperCase();
+        doc.text(instName, pageWidth / 2, currentY, { align: 'center' });
+        currentY += 15;
+    }
+
+    // 3. Certificate Title
+    doc.setFontSize(28);
+    doc.setFont('times', 'bolditalic');
+    doc.setTextColor(180, 83, 9); // Gold/Bronze hue
+    doc.text('Certificate of Course Completion', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 15;
+
+    // 4. Main Body Text
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text('PROUDLY AWARDED TO', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 10;
+
+    // Student Name (Large and elegant)
+    doc.setFontSize(24);
+    doc.setFont('times', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text(student.fullName, pageWidth / 2, currentY, { align: 'center' });
+    
+    // Thin separator line
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(pageWidth / 2 - 60, currentY + 3, pageWidth / 2 + 60, currentY + 3);
+    currentY += 13;
+
+    // Description text
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    
+    const category = student.licenseTypeInterested || student.licenseCategory || 'CLASS B';
+    const descText = `for successfully satisfying the national training curriculum and safety requirements for:\n` +
+                     `MOTOR VEHICLE DRIVING COURSE (CATEGORY: ${category.toUpperCase()})`;
+    doc.text(descText, pageWidth / 2, currentY, { align: 'center', lineHeightFactor: 1.4 });
+    currentY += 18;
+
+    // 5. Test Scores / Metrics Box
+    const theoryScore = student.theoryTestScore !== undefined && student.theoryTestScore !== null ? `${student.theoryTestScore}%` : 'N/A';
+    const practicalScore = student.practicalTestScore !== undefined && student.practicalTestScore !== null ? `${student.practicalTestScore}%` : 'N/A';
+
+    // Outer score container
+    doc.setFillColor(254, 252, 243); // Cream background
+    doc.setDrawColor(254, 243, 199); // Soft gold border
+    doc.setLineWidth(0.5);
+    doc.rect(pageWidth / 2 - 70, currentY, 140, 20, 'FD');
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(180, 83, 9);
+    doc.text(`Internal Theory Assessment: ${theoryScore}`, pageWidth / 2 - 60, currentY + 11.5);
+    doc.text(`Internal Practical Drive Score: ${practicalScore}`, pageWidth / 2 + 5, currentY + 11.5);
+    currentY += 32;
+
+    // 6. Signatures (placed at bottom)
+    const sigY = pageHeight - 35;
+    doc.setDrawColor(150);
+    doc.setLineWidth(0.5);
+
+    // Left Signature
+    doc.line(40, sigY, 110, sigY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Chief Instructor Signature', 75, sigY + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Training Verification Stamp', 75, sigY + 9, { align: 'center' });
+
+    // Right Signature
+    doc.line(pageWidth - 110, sigY, pageWidth - 40, sigY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text('Director / School Principal', pageWidth - 75, sigY + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text(`Date of Issue: ${new Date().toLocaleDateString()}`, pageWidth - 75, sigY + 9, { align: 'center' });
+
+    return doc;
+};
+
+
