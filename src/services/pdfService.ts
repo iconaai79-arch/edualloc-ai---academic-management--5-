@@ -735,6 +735,69 @@ export const downloadInvoicePdf = async (invoice: Invoice, institution: Institut
     link.click();
 };
 
+export const generateQuotePdfDataUri = async (
+    quote: Invoice,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'QUOTATION', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Quotation Details
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('QUOTATION #:', pageWidth - margin - 40, margin + 55);
+    doc.text('ISSUE DATE:', pageWidth - margin - 40, margin + 60);
+    doc.text('VALID UNTIL:', pageWidth - margin - 40, margin + 65);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(quote.invoiceNumber, pageWidth - margin, margin + 55, { align: 'right' });
+    doc.text(new Date(quote.issueDate).toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
+    const validUntil = new Date(quote.issueDate);
+    validUntil.setDate(validUntil.getDate() + 30);
+    doc.text(validUntil.toLocaleDateString(), pageWidth - margin, margin + 65, { align: 'right' });
+
+    const head = [['#', 'DESCRIPTION', 'QTY', 'UNIT PRICE', 'AMOUNT (KES)']];
+    const body = (quote.items || []).map((item, index) => [
+        index + 1,
+        item.description,
+        item.quantity,
+        item.unitPrice.toLocaleString(),
+        item.amount.toLocaleString()
+    ]);
+
+    doc.autoTable({
+        head: head,
+        body: body,
+        startY: tableStartY,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        didDrawPage: (data: any) => {
+            const finalY = data.cursor.y;
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('TOTAL ESTIMATED:', pageWidth - margin - 50, finalY + 10);
+            doc.text(`KES ${quote.totalAmount.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
+        }
+    });
+
+    return doc.output('datauristring');
+};
+
+export const downloadQuotePdf = async (quote: Invoice, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null) => {
+    const dataUri = await generateQuotePdfDataUri(quote, institution, companyDetails, logoUrl);
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = `Quotation-${quote.invoiceNumber}.pdf`;
+    link.click();
+};
+
 export const downloadReceiptPdf = async (receipt: Receipt, transaction: MpesaTransaction, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null) => {
     const dataUri = await generateReceiptPdfDataUri(receipt, transaction, institution, companyDetails, logoUrl);
     const link = document.createElement('a');

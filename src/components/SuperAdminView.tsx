@@ -350,6 +350,7 @@ export interface SuperAdminViewProps {
     onSwitchPerspective?: (role: Role) => void;
     onWithdrawRequestStatus?: (id: string) => Promise<void>;
     onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
+    onUpdateInvoiceStatus?: (invoiceId: string, status: string) => Promise<void>;
     onUpdateCompanyDetails?: (data: Partial<CompanyDetails>) => Promise<void>;
     onAddInstitution?: (data: Omit<Institution, 'id'>) => Promise<void>;
     onDeleteInstitution?: (institutionId: string) => void;
@@ -2140,6 +2141,7 @@ Please change it after login.`;
                                     companyDetails={companyDetails}
                                     logoUrl={logoUrl || null}
                                     onCreateInvoice={props.onManualInvoice || (() => {})}
+                                    onUpdateInvoiceStatus={props.onUpdateInvoiceStatus}
                                 />
                             </div>
                         )}

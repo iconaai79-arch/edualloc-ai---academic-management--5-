@@ -3693,6 +3693,30 @@ export const App: React.FC = () => {
         finalTimetableUrl: null,
         themeColor: activeBranding.primaryColor,
         invoices,
+        onManualInvoice: async (institutionId: string, items: any[], totalAmount: number, dueDate: string) => {
+            const invoiceNumber = `INV-${Date.now()}`;
+            const newInvoice = {
+                id: `inv_${Date.now()}`,
+                invoiceNumber,
+                institutionId,
+                items,
+                totalAmount,
+                dueDate,
+                issueDate: new Date().toISOString(),
+                status: 'pending',
+                createdAt: new Date().toISOString(),
+            };
+            await apiService.saveModuleRecord('invoices', newInvoice);
+            await handleLogAction(`Super Admin generated invoice ${invoiceNumber} for institution ${institutionId}`);
+            await loadData(false, false);
+        },
+        onUpdateInvoiceStatus: async (invoiceId: string, status: string) => {
+            const inv = invoices.find((i: any) => i.id === invoiceId);
+            if (inv) {
+                await apiService.saveModuleRecord('invoices', { ...inv, status });
+                await loadData(false, false);
+            }
+        },
         extensionRequests,
         voteHeads,
         onUpdateVoteHeads: handleUpdateVoteHeads,
