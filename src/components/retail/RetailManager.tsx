@@ -17,6 +17,7 @@ import { CafeMenuManager } from '../hybrid/CafeMenuManager';
 import { RetailLogisticsManager } from './RetailLogisticsManager';
 import { RetailUserDirectory } from './RetailUserDirectory';
 import { RetailReportsDashboard } from './RetailReportsDashboard';
+import { StoreConfigManager } from './StoreConfigManager';
 import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition, Course } from '../../types';
 import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
 import { StoreIcon as Store } from '../icons/StoreIcon';
@@ -34,6 +35,7 @@ import { TruckIcon as TruckIcon } from '../icons/TruckIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { BarChart3Icon as BarChart3 } from '../icons/BarChart3Icon';
+import { SettingsIcon as Cog } from '../icons/SettingsIcon';
 
 interface RetailManagerProps {
     institutionId: string;
@@ -54,7 +56,7 @@ interface RetailManagerProps {
 
 export function RetailManager(props: RetailManagerProps) {
     const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution } = props;
-    const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'students' | 'reports'>('dashboard');
+    const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'students' | 'reports' | 'config'>('dashboard');
     const [selectedUserForPOS, setSelectedUserForPOS] = useState<User | null>(null);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
@@ -127,7 +129,8 @@ export function RetailManager(props: RetailManagerProps) {
         { id: 'expenses', label: 'Expenses', icon: Receipt },
         { id: 'requisitions', label: 'Requests', icon: FileText },
         { id: 'vendors', label: 'Suppliers', icon: BuildingIcon },
-        { id: 'transfers', label: 'Transfers', icon: Truck }
+        { id: 'transfers', label: 'Transfers', icon: Truck },
+        { id: 'config', label: 'Config', icon: Cog },
     ] : [
         { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
         { id: 'inventory', label: 'Catalog', icon: Package },
@@ -288,6 +291,13 @@ export function RetailManager(props: RetailManagerProps) {
                     />
                 )}
                 {activeView === 'cafe_menu' && <CafeMenuManager institutionId={institutionId} />}
+                {activeView === 'config' && (
+                    <StoreConfigManager
+                        institutionId={institutionId}
+                        currentUser={currentUser}
+                        currentInstitution={currentInstitution}
+                    />
+                )}
             </div>
         </div>
     );

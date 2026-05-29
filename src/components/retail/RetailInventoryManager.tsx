@@ -49,18 +49,23 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [pdfIncludeSku, setPdfIncludeSku] = useState(true);
     const [pdfCategoryFilter, setPdfCategoryFilter] = useState('all');
 
-    // Electronics Categories
-    const categories = [
-        'Smartphones',
-        'Laptops',
-        'Computing',
-        'Audio & Sound Systems',
-        'Home Appliances',
-        'Cameras',
-        'Gaming',
-        'Accessories',
-        'Other'
+    // Default fallback categories (used if none saved in DB)
+    const DEFAULT_CATEGORIES = [
+        'Stationery', 'Textbooks', 'Uniforms', 'Sports Equipment',
+        'Lab Supplies', 'Cleaning Supplies', 'Electronics', 'Furniture', 'Other'
     ];
+    const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+
+    useEffect(() => {
+        apiService.fetchModuleRecords('store_categories', institutionId)
+            .then((data: any[]) => {
+                if (data && data.length > 0) {
+                    const sorted = data.sort((a, b) => a.sortOrder - b.sortOrder);
+                    setCategories(sorted.map((c: any) => c.name));
+                }
+            })
+            .catch(() => { /* keep defaults */ });
+    }, [institutionId]);
 
     // Form state
     const [formData, setFormData] = useState<Partial<RetailInventoryItem>>({
