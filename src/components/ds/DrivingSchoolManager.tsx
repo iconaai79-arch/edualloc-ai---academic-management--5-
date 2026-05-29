@@ -2085,6 +2085,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [portalEndTime, setPortalEndTime] = useState<string>('10:00');
     const [portalLessonType, setPortalLessonType] = useState<string>('Practical');
     const [isSendingReminders, setIsSendingReminders] = useState(false);
+    const [kioskTab, setKioskTab] = useState<'booking' | 'checkin'>('booking');
+    const [kioskAdmissionNo, setKioskAdmissionNo] = useState('');
+    const [kioskMessage, setKioskMessage] = useState<{ status: 'success' | 'error'; text: string; details?: string } | null>(null);
     const [newCategoryInput, setNewCategoryInput] = useState({ code: '', name: '', description: '', baseFee: 0, isActive: true, parentCategory: '' });
     const [newVoteInput, setNewVoteInput] = useState({ voteName: '', defaultAmount: 0, isMandatory: false });
     const [bulkVotesEntries, setBulkVotesEntries] = useState<Array<{ voteName: string; defaultAmount: number; isMandatory: boolean }>>([
@@ -2131,6 +2134,104 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             isCleared: shortfall <= 0,
             remainingDays: Math.max(0, courseDuration - effectiveDays),
         };
+    };
+
+    const handleKioskCheckIn = async () => {
+        if (!kioskAdmissionNo.trim()) {
+            setKioskMessage({ status: 'error', text: 'Please enter a student identifier.' });
+            return;
+        }
+
+        const input = kioskAdmissionNo.trim().toLowerCase();
+        // Find matching student
+        const student = (normalizedStudents || []).find(s => 
+            (s.admissionNumber || '').toLowerCase() === input ||
+            (s.phone || '').toLowerCase() === input ||
+            ((s as any).phoneNumber || '').toLowerCase() === input ||
+            (s.idNumber || '').toLowerCase() === input ||
+            (s.id || '').toLowerCase() === input
+        );
+
+        if (!student) {
+            setKioskMessage({
+                status: 'error',
+                text: 'Access Denied: Invalid Student Credentials',
+                details: `No active student found matching identifier: "${kioskAdmissionNo}".`
+            });
+            // Auto-reset after 12 seconds
+            setTimeout(() => {
+                setKioskMessage(null);
+                setKioskAdmissionNo('');
+            }, 12000);
+            return;
+        }
+
+        // Get milestone status
+        const milestone = getStudentMilestoneStatus(student.id);
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        // Find scheduled lessons for today
+        const todayLessons = (lessons || []).filter(l => 
+            l.studentId === student.id && 
+            l.lessonDate === todayStr && 
+            l.status !== 'Cancelled'
+        );
+
+        if (milestone && !milestone.isCleared) {
+            // Red block
+            setKioskMessage({
+                status: 'error',
+                text: 'Clearance Denied!',
+                details: `Candidate: ${student.fullName}. Pro-rata shortfall of KES ${milestone.shortfall.toLocaleString()} detected. Please visit the reception desk or settle via M-Pesa to resume training.`
+            });
+            // Auto-reset after 12 seconds
+            setTimeout(() => {
+                setKioskMessage(null);
+                setKioskAdmissionNo('');
+            }, 12000);
+        } else {
+            // Green clearance
+            try {
+                // If there's a scheduled lesson today, mark it completed
+                let updatedInfo = '';
+                if (todayLessons.length > 0) {
+                    for (const lesson of todayLessons) {
+                        if (lesson.status === 'Scheduled') {
+                            await onUpdateLesson({
+                                ...lesson,
+                                status: 'Completed',
+                                notes: (lesson.notes || '') + ' [Auto-checked-in via Reception Kiosk]'
+                            });
+                        }
+                    }
+                    updatedInfo = `Attendance marked for ${todayLessons.length} scheduled session(s).`;
+                } else {
+                    updatedInfo = 'No lessons scheduled for today, but payment clearance is approved.';
+                }
+
+                setKioskMessage({
+                    status: 'success',
+                    text: 'Clearance Approved!',
+                    details: `Welcome, ${student.fullName}. ${updatedInfo}`
+                });
+
+                if (onRefreshDataProp) await onRefreshDataProp();
+                refreshData();
+            } catch (err) {
+                console.error("Kiosk check-in execution failure:", err);
+                setKioskMessage({
+                    status: 'error',
+                    text: 'System Error during check-in processing.',
+                    details: 'Please contact the system administrator.'
+                });
+            }
+
+            // Auto-reset after 6 seconds
+            setTimeout(() => {
+                setKioskMessage(null);
+                setKioskAdmissionNo('');
+            }, 6000);
+        }
     };
     // ────────────────────────────────────────────────────────────────────────
 
@@ -4544,257 +4645,425 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     {activeTab === 'portal' && (
                         <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
-                            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
-                                <div className="relative z-10">
-                                    <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-100">Self-Service Kiosk</span>
-                                    <h3 className="text-2xl font-black tracking-tight mt-3">Candidate Booking Portal</h3>
-                                    <p className="text-xs text-indigo-100 mt-1 max-w-xl">
-                                        Empower active candidates to view scheduling capacity, review live balance statuses, and seamlessly book individual theory or practical instructional slots.
-                                    </p>
+                            {/* Horizontal Sub-navigation Bar for Portal/Kiosk */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-3 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide w-full md:w-auto">
+                                    <button 
+                                        onClick={() => { setKioskTab('booking'); setKioskMessage(null); }}
+                                        className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                                            kioskTab === 'booking' 
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                                                : 'bg-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                        }`}
+                                    >
+                                        <CalendarDaysIcon className="w-4 h-4" />
+                                        <span>Booking Portal</span>
+                                    </button>
+                                    <button 
+                                        onClick={() => { setKioskTab('checkin'); setKioskMessage(null); }}
+                                        className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                                            kioskTab === 'checkin' 
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                                                : 'bg-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                        }`}
+                                    >
+                                        <ClockIcon className="w-4 h-4" />
+                                        <span>Reception Kiosk Check-In</span>
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 p-8 md:p-10 shadow-sm space-y-8">
-                                {/* Step 1: Select Candidate */}
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">1. Identify Candidate Profile *</label>
-                                    <select
-                                        value={portalStudentId}
-                                        onChange={(e) => {
-                                            const sid = e.target.value;
-                                            setPortalStudentId(sid);
-                                            // Pre-select preferred instructor or default values if available
-                                            const stud = (students || []).find(s => s.id === sid);
-                                            if (stud && stud.preferredInstructorId) {
-                                                setPortalInstructorId(stud.preferredInstructorId);
-                                            }
-                                        }}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 px-5 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
-                                    >
-                                        <option value="">-- Choose Candidate Account --</option>
-                                        {(normalizedStudents || []).map(s => (
-                                            <option key={s.id} value={s.id}>
-                                                {s.fullName} ({s.admissionNumber || 'N/A'}) - {s.status}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                            {kioskTab === 'booking' ? (
+                                <>
+                                    <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
+                                        <div className="relative z-10">
+                                            <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-100">Self-Service Booking</span>
+                                            <h3 className="text-2xl font-black tracking-tight mt-3">Candidate Booking Portal</h3>
+                                            <p className="text-xs text-indigo-100 mt-1 max-w-xl">
+                                                Empower active candidates to view scheduling capacity, review live balance statuses, and seamlessly book individual theory or practical instructional slots.
+                                            </p>
+                                        </div>
+                                    </div>
 
-                                {portalStudentId ? (() => {
-                                    const selectedStudent = (normalizedStudents || []).find(s => s.id === portalStudentId);
-                                    // Calculate financials
-                                    const studentInvoices = (invoices || []).filter(inv => inv.studentId === portalStudentId && inv.status !== 'Fully Paid');
-                                    const totalOwed = studentInvoices.reduce((sum, inv) => sum + (Number(inv.balance) || 0), 0);
-                                    const hasFinancialLockout = totalOwed > 0;
+                                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 p-8 md:p-10 shadow-sm space-y-8">
+                                        {/* Step 1: Select Candidate */}
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">1. Identify Candidate Profile *</label>
+                                            <select
+                                                value={portalStudentId}
+                                                onChange={(e) => {
+                                                    const sid = e.target.value;
+                                                    setPortalStudentId(sid);
+                                                    // Pre-select preferred instructor or default values if available
+                                                    const stud = (students || []).find(s => s.id === sid);
+                                                    if (stud && stud.preferredInstructorId) {
+                                                        setPortalInstructorId(stud.preferredInstructorId);
+                                                    }
+                                                }}
+                                                className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 px-5 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+                                            >
+                                                <option value="">-- Choose Candidate Account --</option>
+                                                {(normalizedStudents || []).map(s => (
+                                                    <option key={s.id} value={s.id}>
+                                                        {s.fullName} ({s.admissionNumber || 'N/A'}) - {s.status}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
 
-                                    // Detect Overlaps
-                                    const activeLessonsOnDate = (lessons || []).filter(l => 
-                                        l.lessonDate && 
-                                        l.status !== 'Cancelled' && 
-                                        new Date(l.lessonDate).toISOString().split('T')[0] === portalLessonDate
-                                    );
+                                        {portalStudentId ? (() => {
+                                            const selectedStudent = (normalizedStudents || []).find(s => s.id === portalStudentId);
+                                            // Calculate financials
+                                            const studentInvoices = (invoices || []).filter(inv => inv.studentId === portalStudentId && inv.status !== 'Fully Paid');
+                                            const totalOwed = studentInvoices.reduce((sum, inv) => sum + (Number(inv.balance) || 0), 0);
+                                            const hasFinancialLockout = totalOwed > 0;
 
-                                    const isOverlapping = (start1: string, end1: string, start2: string, end2: string) => {
-                                        if (!start1 || !end1 || !start2 || !end2) return false;
-                                        return start1 < end2 && start2 < end1;
-                                    };
+                                            // Detect Overlaps
+                                            const activeLessonsOnDate = (lessons || []).filter(l => 
+                                                l.lessonDate && 
+                                                l.status !== 'Cancelled' && 
+                                                new Date(l.lessonDate).toISOString().split('T')[0] === portalLessonDate
+                                            );
 
-                                    const instructorConflict = portalInstructorId ? activeLessonsOnDate.find(l => 
-                                        l.instructorId === portalInstructorId && 
-                                        isOverlapping(portalStartTime, portalEndTime, l.startTime, l.endTime)
-                                    ) : null;
+                                            const isOverlapping = (start1: string, end1: string, start2: string, end2: string) => {
+                                                if (!start1 || !end1 || !start2 || !end2) return false;
+                                                return start1 < end2 && start2 < end1;
+                                            };
 
-                                    const vehicleConflict = (portalLessonType !== 'Theory' && portalVehicleId) ? activeLessonsOnDate.find(l => 
-                                        l.vehicleId === portalVehicleId && 
-                                        isOverlapping(portalStartTime, portalEndTime, l.startTime, l.endTime)
-                                    ) : null;
+                                            const instructorConflict = portalInstructorId ? activeLessonsOnDate.find(l => 
+                                                l.instructorId === portalInstructorId && 
+                                                isOverlapping(portalStartTime, portalEndTime, l.startTime, l.endTime)
+                                            ) : null;
 
-                                    return (
-                                        <div className="space-y-8 animate-fade-in">
-                                            {/* Candidate Fast Overview */}
-                                            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs uppercase overflow-hidden">
-                                                        {selectedStudent?.passportPhoto ? (
-                                                            <img src={selectedStudent.passportPhoto} className="w-full h-full object-cover" alt="Passport" />
+                                            const vehicleConflict = (portalLessonType !== 'Theory' && portalVehicleId) ? activeLessonsOnDate.find(l => 
+                                                l.vehicleId === portalVehicleId && 
+                                                isOverlapping(portalStartTime, portalEndTime, l.startTime, l.endTime)
+                                            ) : null;
+
+                                            return (
+                                                <div className="space-y-8 animate-fade-in">
+                                                    {/* Candidate Fast Overview */}
+                                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs uppercase overflow-hidden">
+                                                                {selectedStudent?.passportPhoto ? (
+                                                                    <img src={selectedStudent.passportPhoto} className="w-full h-full object-cover" alt="Passport" />
+                                                                ) : (
+                                                                    selectedStudent?.fullName.charAt(0)
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <h5 className="text-xs font-bold text-slate-900 dark:text-white">{selectedStudent?.fullName}</h5>
+                                                                <p className="text-[10px] text-slate-400 font-medium">Category: <span className="text-indigo-600 font-bold">{selectedStudent?.licenseCategory || 'Standard'}</span></p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Fee Balance</span>
+                                                            <span className={`text-xs font-black ${totalOwed > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                                KES {(totalOwed ?? 0).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Financial Lockout Alert Banner */}
+                                                    {hasFinancialLockout && (
+                                                        <div className="p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-2xl flex items-start gap-3">
+                                                            <SparklesIcon className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                                                            <div className="space-y-1">
+                                                                <h6 className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Financial Milestone Guidance Active</h6>
+                                                                <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                                                                    Your account carries an outstanding cumulative balance of <b>KES {(totalOwed ?? 0).toLocaleString()}</b>. Institutional protocols encourage prompt deposits before scheduling subsequent continuous advanced coaching blocks.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Reservation Fields Grid */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                        <div className="space-y-2">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Session Target Type</label>
+                                                            <select
+                                                                value={portalLessonType}
+                                                                onChange={(e) => setPortalLessonType(e.target.value)}
+                                                                className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                            >
+                                                                <option value="Practical">Practical Driver Coaching</option>
+                                                                <option value="Theory">Theory & Signage Mastery</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Preferred Date</label>
+                                                            <input
+                                                                type="date"
+                                                                value={portalLessonDate}
+                                                                min={new Date().toISOString().split('T')[0]}
+                                                                onChange={(e) => setPortalLessonDate(e.target.value)}
+                                                                className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                            />
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time Interval</label>
+                                                            <input
+                                                                type="time"
+                                                                value={portalStartTime}
+                                                                onChange={(e) => setPortalStartTime(e.target.value)}
+                                                                className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                            />
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Time Interval</label>
+                                                            <input
+                                                                type="time"
+                                                                value={portalEndTime}
+                                                                onChange={(e) => setPortalEndTime(e.target.value)}
+                                                                className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                            />
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assign Coach / Instructor *</label>
+                                                            <select
+                                                                value={portalInstructorId}
+                                                                onChange={(e) => setPortalInstructorId(e.target.value)}
+                                                                className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                            >
+                                                                <option value="">-- Select Available Instructor --</option>
+                                                                {(normalizedInstructors || []).filter(i => i.status === 'Active').map(i => (
+                                                                    <option key={i.id} value={i.id}>{i.name} ({i.specialization || 'Master'})</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        {portalLessonType !== 'Theory' ? (
+                                                            <div className="space-y-2">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Allocate Operational Vehicle *</label>
+                                                                <select
+                                                                    value={portalVehicleId}
+                                                                    onChange={(e) => setPortalVehicleId(e.target.value)}
+                                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                                >
+                                                                    <option value="">-- Select Active Fleet --</option>
+                                                                    {(vehicles || []).filter(v => v.status === 'Operational').map(v => (
+                                                                        <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
                                                         ) : (
-                                                            selectedStudent?.fullName.charAt(0)
+                                                            <div className="space-y-2">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Designated Room / Location</label>
+                                                                <input
+                                                                    type="text"
+                                                                    readOnly
+                                                                    value="Main Theory Center Class"
+                                                                    className="w-full bg-slate-100 dark:bg-slate-800/40 text-slate-400 border-none rounded-xl py-3 px-4 text-xs font-bold cursor-not-allowed"
+                                                                />
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    <div>
-                                                        <h5 className="text-xs font-bold text-slate-900 dark:text-white">{selectedStudent?.fullName}</h5>
-                                                        <p className="text-[10px] text-slate-400 font-medium">Category: <span className="text-indigo-600 font-bold">{selectedStudent?.licenseCategory || 'Standard'}</span></p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Fee Balance</span>
-                                                    <span className={`text-xs font-black ${totalOwed > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                                        KES {(totalOwed ?? 0).toLocaleString()}
-                                                    </span>
-                                                </div>
-                                            </div>
 
-                                            {/* Financial Lockout Alert Banner */}
-                                            {hasFinancialLockout && (
-                                                <div className="p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-2xl flex items-start gap-3">
-                                                    <SparklesIcon className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-                                                    <div className="space-y-1">
-                                                        <h6 className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Financial Milestone Guidance Active</h6>
-                                                        <p className="text-[11px] text-blue-700 dark:text-blue-300">
-                                                            Your account carries an outstanding cumulative balance of <b>KES {(totalOwed ?? 0).toLocaleString()}</b>. Institutional protocols encourage prompt deposits before scheduling subsequent continuous advanced coaching blocks.
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            )}
+                                                    {/* Instant Overlap Warning State Display */}
+                                                    {instructorConflict && (
+                                                        <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-center gap-3 text-rose-600 animate-shake">
+                                                            <span className="font-black text-xs">⚠️</span>
+                                                            <p className="text-[11px] font-medium">
+                                                                <b>Instructor Collision Detected:</b> The selected coach is already leading a session from {instructorConflict.startTime} to {instructorConflict.endTime}.
+                                                            </p>
+                                                        </div>
+                                                    )}
 
-                                            {/* Reservation Fields Grid */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="space-y-2">
-                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Session Target Type</label>
-                                                    <select
-                                                        value={portalLessonType}
-                                                        onChange={(e) => setPortalLessonType(e.target.value)}
-                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
-                                                    >
-                                                        <option value="Practical">Practical Driver Coaching</option>
-                                                        <option value="Theory">Theory & Signage Mastery</option>
-                                                    </select>
-                                                </div>
+                                                    {vehicleConflict && (
+                                                        <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-xl flex items-center gap-3 text-amber-700 animate-shake">
+                                                            <span className="font-black text-xs">🚗</span>
+                                                            <p className="text-[11px] font-medium">
+                                                                <b>Vehicle Collision Detected:</b> This fleet vehicle is checked out for practical coaching from {vehicleConflict.startTime} to {vehicleConflict.endTime}.
+                                                            </p>
+                                                        </div>
+                                                    )}
 
-                                                <div className="space-y-2">
-                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Preferred Date</label>
-                                                    <input
-                                                        type="date"
-                                                        value={portalLessonDate}
-                                                        min={new Date().toISOString().split('T')[0]}
-                                                        onChange={(e) => setPortalLessonDate(e.target.value)}
-                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
-                                                    />
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time Interval</label>
-                                                    <input
-                                                        type="time"
-                                                        value={portalStartTime}
-                                                        onChange={(e) => setPortalStartTime(e.target.value)}
-                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
-                                                    />
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Time Interval</label>
-                                                    <input
-                                                        type="time"
-                                                        value={portalEndTime}
-                                                        onChange={(e) => setPortalEndTime(e.target.value)}
-                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
-                                                    />
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assign Coach / Instructor *</label>
-                                                    <select
-                                                        value={portalInstructorId}
-                                                        onChange={(e) => setPortalInstructorId(e.target.value)}
-                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
-                                                    >
-                                                        <option value="">-- Select Available Instructor --</option>
-                                                        {(normalizedInstructors || []).filter(i => i.status === 'Active').map(i => (
-                                                            <option key={i.id} value={i.id}>{i.name} ({i.specialization || 'Master'})</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-
-                                                {portalLessonType !== 'Theory' ? (
-                                                    <div className="space-y-2">
-                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Allocate Operational Vehicle *</label>
-                                                        <select
-                                                            value={portalVehicleId}
-                                                            onChange={(e) => setPortalVehicleId(e.target.value)}
-                                                            className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                    {/* Submit Reservation Button */}
+                                                    <div className="pt-4 border-t border-slate-50 dark:border-slate-800 flex justify-end">
+                                                        <button
+                                                            type="button"
+                                                            disabled={!portalInstructorId || (portalLessonType !== 'Theory' && !portalVehicleId) || !!instructorConflict || !!vehicleConflict}
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const payload = {
+                                                                        id: `lsn_${Date.now()}`,
+                                                                        institutionId: currentInstitution?.id || 'inst',
+                                                                        studentId: portalStudentId,
+                                                                        instructorId: portalInstructorId,
+                                                                        vehicleId: portalLessonType !== 'Theory' ? portalVehicleId : undefined,
+                                                                        lessonDate: portalLessonDate,
+                                                                        startTime: portalStartTime,
+                                                                        endTime: portalEndTime,
+                                                                        status: 'Scheduled',
+                                                                        lessonType: portalLessonType,
+                                                                        notes: 'Self-Service Direct Reservation'
+                                                                    };
+                                                                    await onAddLesson(payload);
+                                                                    success?.("Successfully secured reservation slot!");
+                                                                    setPortalStudentId('');
+                                                                } catch (err) {
+                                                                    toastError?.("System error during self-service confirmation allocation.");
+                                                                }
+                                                            }}
+                                                            className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none disabled:scale-100 flex items-center gap-2"
                                                         >
-                                                            <option value="">-- Select Active Fleet --</option>
-                                                            {(vehicles || []).filter(v => v.status === 'Operational').map(v => (
-                                                                <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>
-                                                            ))}
-                                                        </select>
+                                                            <span>Confirm & Secure Reservation</span>
+                                                            <CheckCircleIcon className="w-4 h-4" />
+                                                        </button>
                                                     </div>
-                                                ) : (
-                                                    <div className="space-y-2">
-                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Designated Room / Location</label>
-                                                        <input
-                                                            type="text"
-                                                            readOnly
-                                                            value="Main Theory Center Class"
-                                                            className="w-full bg-slate-100 dark:bg-slate-800/40 text-slate-400 border-none rounded-xl py-3 px-4 text-xs font-bold cursor-not-allowed"
-                                                        />
-                                                    </div>
-                                                )}
+                                                </div>
+                                            );
+                                        })() : (
+                                            <div className="py-12 text-center">
+                                                <p className="text-xs font-bold text-slate-400">Please choose a candidate identity from the roster above to initiate resource verification controls.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                /* Reception Kiosk Tab */
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-8 animate-fade-in">
+                                    {/* Left side: Kiosk Display / Status Banner */}
+                                    <div className="md:col-span-3 flex flex-col justify-center items-center bg-slate-900 rounded-[3rem] p-8 md:p-10 text-white relative overflow-hidden border border-slate-800 shadow-2xl min-h-[400px]">
+                                        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+                                        
+                                        {!kioskMessage ? (
+                                            <div className="text-center space-y-6 z-10 flex flex-col items-center">
+                                                <div className="w-20 h-20 rounded-full bg-slate-800/80 flex items-center justify-center border border-slate-700 animate-pulse">
+                                                    <UsersIcon className="w-10 h-10 text-indigo-400" />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <h3 className="text-xl font-black tracking-tight">Kiosk Check-In Portal</h3>
+                                                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                                                        Enter your Admission Number, Mobile Phone, National ID or System Student ID using the keypad or key in via keyboard.
+                                                    </p>
+                                                </div>
+                                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-950/40 border border-indigo-900/50 rounded-xl">
+                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Ready for Scan / Input</span>
+                                                </div>
+                                            </div>
+                                        ) : kioskMessage.status === 'success' ? (
+                                            <div className="text-center space-y-6 z-10 flex flex-col items-center animate-scale-up">
+                                                <div className="w-24 h-24 rounded-full bg-emerald-500/10 flex items-center justify-center border-4 border-emerald-500/30">
+                                                    <CheckCircleIcon className="w-12 h-12 text-emerald-400" />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <h3 className="text-2xl font-black text-emerald-400 tracking-tight">{kioskMessage.text}</h3>
+                                                    <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
+                                                        {kioskMessage.details}
+                                                    </p>
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                                                    <span className="animate-spin text-slate-400">⏳</span> Auto-resetting in 6 seconds...
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center space-y-6 z-10 flex flex-col items-center animate-shake">
+                                                <div className="w-24 h-24 rounded-full bg-rose-500/10 flex items-center justify-center border-4 border-rose-500/30">
+                                                    <ExclamationTriangleIcon className="w-12 h-12 text-rose-400" />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <h3 className="text-2xl font-black text-rose-400 tracking-tight">{kioskMessage.text}</h3>
+                                                    <p className="text-xs text-rose-300/80 max-w-sm mx-auto leading-relaxed">
+                                                        {kioskMessage.details}
+                                                    </p>
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                                                    <span className="animate-pulse text-slate-400">⏳</span> Auto-resetting in 12 seconds...
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Right side: Keypad Input Area */}
+                                    <div className="md:col-span-2 bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-lg flex flex-col justify-between">
+                                        <form 
+                                            onSubmit={(e) => {
+                                                e.preventDefault();
+                                                handleKioskCheckIn();
+                                            }}
+                                            className="space-y-6"
+                                        >
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Student Identifier</label>
+                                                <div className="relative">
+                                                    <input 
+                                                        type="text"
+                                                        value={kioskAdmissionNo}
+                                                        onChange={(e) => setKioskAdmissionNo(e.target.value)}
+                                                        placeholder="Enter number..."
+                                                        className="w-full text-center text-xl font-black tracking-widest py-4 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                                                    />
+                                                    {kioskAdmissionNo && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setKioskAdmissionNo('')}
+                                                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 rounded-full"
+                                                        >
+                                                            <XIcon className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
 
-                                            {/* Instant Overlap Warning State Display */}
-                                            {instructorConflict && (
-                                                <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-center gap-3 text-rose-600 animate-shake">
-                                                    <span className="font-black text-xs">⚠️</span>
-                                                    <p className="text-[11px] font-medium">
-                                                        <b>Instructor Collision Detected:</b> The selected coach is already leading a session from {instructorConflict.startTime} to {instructorConflict.endTime}.
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {vehicleConflict && (
-                                                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-xl flex items-center gap-3 text-amber-700 animate-shake">
-                                                    <span className="font-black text-xs">🚗</span>
-                                                    <p className="text-[11px] font-medium">
-                                                        <b>Vehicle Collision Detected:</b> This fleet vehicle is checked out for practical coaching from {vehicleConflict.startTime} to {vehicleConflict.endTime}.
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {/* Submit Request Button */}
-                                            <div className="pt-4 border-t border-slate-50 dark:border-slate-800 flex justify-end">
+                                            {/* Numeric Grid Keypad */}
+                                            <div className="grid grid-cols-3 gap-3 max-w-[280px] mx-auto">
+                                                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                                                    <button
+                                                        key={num}
+                                                        type="button"
+                                                        onClick={() => setKioskAdmissionNo(prev => prev + num)}
+                                                        className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-800 text-lg font-black text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center shadow-sm"
+                                                    >
+                                                        {num}
+                                                    </button>
+                                                ))}
+                                                
                                                 <button
                                                     type="button"
-                                                    disabled={!portalInstructorId || (portalLessonType !== 'Theory' && !portalVehicleId) || !!instructorConflict || !!vehicleConflict}
-                                                    onClick={async () => {
-                                                        try {
-                                                            const payload = {
-                                                                id: `lsn_${Date.now()}`,
-                                                                institutionId: currentInstitution?.id || 'inst',
-                                                                studentId: portalStudentId,
-                                                                instructorId: portalInstructorId,
-                                                                vehicleId: portalLessonType !== 'Theory' ? portalVehicleId : undefined,
-                                                                lessonDate: portalLessonDate,
-                                                                startTime: portalStartTime,
-                                                                endTime: portalEndTime,
-                                                                status: 'Scheduled',
-                                                                lessonType: portalLessonType,
-                                                                notes: 'Self-Service Direct Reservation'
-                                                            };
-                                                            await onAddLesson(payload);
-                                                            success?.("Successfully secured reservation slot!");
-                                                            // Clear state parameters slightly to show confirmation refresh
-                                                            setPortalStudentId('');
-                                                        } catch (err) {
-                                                            toastError?.("System error during self-service confirmation allocation.");
-                                                        }
-                                                    }}
-                                                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none disabled:scale-100 flex items-center gap-2"
+                                                    onClick={() => setKioskAdmissionNo('')}
+                                                    className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/20 text-[10px] font-black uppercase tracking-wider text-rose-600 hover:bg-rose-100/60 transition-all flex items-center justify-center"
                                                 >
-                                                    <span>Confirm & Secure Reservation</span>
+                                                    Clear
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setKioskAdmissionNo(prev => prev + '0')}
+                                                    className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-800 text-lg font-black text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center shadow-sm"
+                                                >
+                                                    0
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setKioskAdmissionNo(prev => prev.slice(0, -1))}
+                                                    className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/20 text-lg font-black text-amber-600 hover:bg-amber-100/60 transition-all flex items-center justify-center"
+                                                >
+                                                    ⌫
+                                                </button>
+                                            </div>
+
+                                            <div className="pt-4 border-t border-slate-50 dark:border-slate-800">
+                                                <button
+                                                    type="submit"
+                                                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <span>Verify & Check In</span>
                                                     <CheckCircleIcon className="w-4 h-4" />
                                                 </button>
                                             </div>
-                                        </div>
-                                    );
-                                })() : (
-                                    <div className="py-12 text-center">
-                                        <p className="text-xs font-bold text-slate-400">Please choose a candidate identity from the roster above to initiate resource verification controls.</p>
+                                        </form>
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
