@@ -1902,9 +1902,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [editingDSGroupForm, setEditingDSGroupForm] = useState('');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
     const [leadStatusFilter, setLeadStatusFilter] = useState<string>('All');
-    const [studentSubTab, setStudentSubTab] = useState<'enrolled' | 'graduated' | 'dropped' | 'all'>('enrolled');
+    const [studentSubTab, setStudentSubTab] = useState<'enrolled' | 'graduated' | 'dropped' | 'all' | 'preview'>('enrolled');
     const [studentSortBy, setStudentSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc' | 'progress_desc' | 'progress_asc'>('name_asc');
     const [studentPage, setStudentPage] = useState(1);
+    const [selectedPreviewStudent, setSelectedPreviewStudent] = useState<DSStudent | null>(null);
+    const [onscreenPreviewPdf, setOnscreenPreviewPdf] = useState<string | null>(null);
+    const [previewStatusFilter, setPreviewStatusFilter] = useState<'enrolled' | 'graduated' | 'dropped' | 'all'>('all');
+    const [previewSearchTerm, setPreviewSearchTerm] = useState('');
     const [selectedReportInstructorId, setSelectedReportInstructorId] = useState<string>('all');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -2138,6 +2142,28 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             });
         }
     }, [currentInstitution?.id]);
+
+    useEffect(() => {
+        if (!selectedPreviewStudent) {
+            setOnscreenPreviewPdf(null);
+            return;
+        }
+        let active = true;
+        const generate = async () => {
+            try {
+                const doc = await generateDSStudentLogbookPDF(selectedPreviewStudent, lessons, instructors, currentInstitution, letterheadConfig);
+                if (active) {
+                    setOnscreenPreviewPdf(doc.output('datauristring'));
+                }
+            } catch (err) {
+                console.error("Failed to generate on-screen preview:", err);
+            }
+        };
+        generate();
+        return () => {
+            active = false;
+        };
+    }, [selectedPreviewStudent, lessons, instructors, currentInstitution, letterheadConfig]);
 
     const handleAutoGenerateTomorrow = async () => {
         const sequence = settings?.schedulingRules?.dailySequence?.length 
@@ -2478,6 +2504,34 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         });
     }, [normalizedStudents, searchTerm, studentSubTab, studentSortBy]);
 
+    const filteredPreviewStudents = useMemo(() => {
+        let list = (normalizedStudents || []).filter(s => 
+            (s.fullName || '').toLowerCase().includes(previewSearchTerm.toLowerCase()) ||
+            (s.admissionNumber || '').toLowerCase().includes(previewSearchTerm.toLowerCase()) ||
+            (s.idNumber || '').toLowerCase().includes(previewSearchTerm.toLowerCase())
+        );
+
+        if (previewStatusFilter === 'enrolled') {
+            list = list.filter(s => !s.status || s.status === 'Enrolled');
+        } else if (previewStatusFilter === 'graduated') {
+            list = list.filter(s => s.status === 'Graduated');
+        } else if (previewStatusFilter === 'dropped') {
+            list = list.filter(s => s.status === 'Dropped');
+        }
+
+        return list;
+    }, [normalizedStudents, previewSearchTerm, previewStatusFilter]);
+
+    useEffect(() => {
+        if (studentSubTab === 'preview' && filteredPreviewStudents.length > 0) {
+            const isStillInList = selectedPreviewStudent && filteredPreviewStudents.some(s => s.id === selectedPreviewStudent.id);
+            if (!isStillInList) {
+                setSelectedPreviewStudent(filteredPreviewStudents[0]);
+            }
+        }
+    }, [filteredPreviewStudents, studentSubTab, selectedPreviewStudent]);
+
+
     const filteredLessons = useMemo(() => 
         (lessons || []).filter(l => {
             const student = (normalizedStudents || []).find(s => s.id === l.studentId);
@@ -2777,7 +2831,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         { id: 'enrolled', label: 'Active Students' },
                                         { id: 'graduated', label: 'Graduated' },
                                         { id: 'dropped', label: 'Dropped' },
-                                        { id: 'all', label: 'All Students' }
+                                        { id: 'all', label: 'All Students' },
+                                        { id: 'preview', label: 'On-Screen Preview' }
                                     ].map(sub => (
                                         <button
                                             key={sub.id}
@@ -2792,227 +2847,391 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         </button>
                                     ))}
                                 </div>
-                                <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
-                                    <div className="relative flex-1 sm:w-80 w-full">
-                                        <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Search students..." 
-                                            value={searchTerm}
-                                            onChange={(e) => { setSearchTerm(e.target.value); setStudentPage(1); }}
-                                            className="w-full pl-16 pr-8 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-slate-900 dark:text-slate-100"
-                                        />
-                                    </div>
-                                    <div className="relative sm:w-56 w-full">
-                                        <select
-                                            value={studentSortBy}
-                                            onChange={(e) => { setStudentSortBy(e.target.value as any); setStudentPage(1); }}
-                                            className="w-full px-6 pl-6 pr-12 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-slate-700 dark:text-slate-200 appearance-none cursor-pointer"
-                                        >
-                                            <option value="name_asc">Sort: A-Z</option>
-                                            <option value="name_desc">Sort: Z-A</option>
-                                            <option value="date_desc">Newest Enrolled</option>
-                                            <option value="date_asc">Oldest Enrolled</option>
-                                            <option value="progress_desc">Progress: High to Low</option>
-                                            <option value="progress_asc">Progress: Low to High</option>
-                                        </select>
-                                        <div className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 text-slate-400">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                            </svg>
+                                {studentSubTab !== 'preview' && (
+                                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+                                        <div className="relative flex-1 sm:w-80 w-full">
+                                            <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search students..." 
+                                                value={searchTerm}
+                                                onChange={(e) => { setSearchTerm(e.target.value); setStudentPage(1); }}
+                                                className="w-full pl-16 pr-8 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-slate-900 dark:text-slate-100"
+                                            />
+                                        </div>
+                                        <div className="relative sm:w-56 w-full">
+                                            <select
+                                                value={studentSortBy}
+                                                onChange={(e) => { setStudentSortBy(e.target.value as any); setStudentPage(1); }}
+                                                className="w-full px-6 pl-6 pr-12 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm text-slate-700 dark:text-slate-200 appearance-none cursor-pointer"
+                                            >
+                                                <option value="name_asc">Sort: A-Z</option>
+                                                <option value="name_desc">Sort: Z-A</option>
+                                                <option value="date_desc">Newest Enrolled</option>
+                                                <option value="date_asc">Oldest Enrolled</option>
+                                                <option value="progress_desc">Progress: High to Low</option>
+                                                <option value="progress_asc">Progress: Low to High</option>
+                                            </select>
+                                            <div className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 text-slate-400">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left min-w-[1200px]">
-                                    <thead>
-                                        <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
-                                            <th className="px-10 py-8">Student</th>
-                                            <th className="px-10 py-8">Contact</th>
-                                            <th className="px-10 py-8">Category</th>
-                                            <th className="px-10 py-8">Preferred Hours</th>
-                                            <th className="px-10 py-8">Status</th>
-                                            <th className="px-10 py-8">Fee Status</th>
-                                            <th className="px-10 py-8 text-right">Progress</th>
-                                            <th className="px-10 py-8 text-right">Test Scores</th>
-                                            <th className="px-10 py-8 text-right min-w-[245px]">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                        {paginatedStudents.map(student => (
-                                            <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                                                <td className="px-10 py-8">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center font-black text-indigo-600">
-                                                            {student.fullName.charAt(0)}
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-bold text-slate-900 dark:text-white">{student.fullName}</p>
-                                                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">
-                                                                {student.admissionNumber || `REF: ${student.id.split('_')[1]}`}
-                                                            </p>
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
-                                                                {student.idNumber ? `ID: ${student.idNumber}` : student.passportNumber ? `PASS: ${student.passportNumber}` : ''}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-10 py-8">
-                                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{student.phone}</p>
-                                                    <p className="text-[10px] font-medium text-slate-400 mt-1">{student.email}</p>
-                                                </td>
-                                                <td className="px-10 py-8">
-                                                    <span className="text-[10px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg">{student.licenseTypeInterested || 'Class B'}</span>
-                                                    <p className="text-[10px] font-medium text-slate-400 mt-1">{student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'No Date'}</p>
-                                                </td>
-                                                <td className="px-10 py-8">
-                                                    <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg ${
-                                                        student.preferredLessonHours === 'Morning' ? 'bg-amber-50 text-amber-600' :
-                                                        student.preferredLessonHours === 'Noon' ? 'bg-indigo-50 text-indigo-600' :
-                                                        student.preferredLessonHours === 'Evening' ? 'bg-emerald-50 text-emerald-600' :
-                                                        'bg-slate-50 text-slate-400'
-                                                    }`}>
-                                                        {student.preferredLessonHours || 'Not Set'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-10 py-8">
-                                                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                                                        student.status === 'Graduated' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' :
-                                                        student.status === 'Dropped' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400' :
-                                                        'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400'
-                                                    }`}>
-                                                        {student.status || 'Enrolled'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-10 py-8">
-                                                    {(() => {
-                                                        const ms = getStudentMilestoneStatus(student.id);
-                                                        if (!ms) return <span className="text-[9px] text-slate-300 font-bold">—</span>;
-                                                        if (ms.noInvoice) return (
-                                                            <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-50 text-amber-600 border border-amber-200">No Invoice</span>
-                                                        );
-                                                        return (
-                                                            <div className="space-y-1.5">
-                                                                {ms.isCleared ? (
-                                                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
-                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>On Track
+
+                            {studentSubTab !== 'preview' ? (
+                                <>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left min-w-[1200px]">
+                                            <thead>
+                                                <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                    <th className="px-10 py-8">Student</th>
+                                                    <th className="px-10 py-8">Contact</th>
+                                                    <th className="px-10 py-8">Category</th>
+                                                    <th className="px-10 py-8">Preferred Hours</th>
+                                                    <th className="px-10 py-8">Status</th>
+                                                    <th className="px-10 py-8">Fee Status</th>
+                                                    <th className="px-10 py-8 text-right">Progress</th>
+                                                    <th className="px-10 py-8 text-right">Test Scores</th>
+                                                    <th className="px-10 py-8 text-right min-w-[245px]">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                                {paginatedStudents.map(student => (
+                                                    <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                                                        <td className="px-10 py-8">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center font-black text-indigo-600">
+                                                                    {student.fullName.charAt(0)}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-slate-900 dark:text-white">{student.fullName}</p>
+                                                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">
+                                                                        {student.admissionNumber || `REF: ${student.id.split('_')[1]}`}
+                                                                    </p>
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                                                        {student.idNumber ? `ID: ${student.idNumber}` : student.passportNumber ? `PASS: ${student.passportNumber}` : ''}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{student.phone}</p>
+                                                            <p className="text-[10px] font-medium text-slate-400 mt-1">{student.email}</p>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            <span className="text-[10px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg">{student.licenseTypeInterested || 'Class B'}</span>
+                                                            <p className="text-[10px] font-medium text-slate-400 mt-1">{student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'No Date'}</p>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg ${
+                                                                student.preferredLessonHours === 'Morning' ? 'bg-amber-50 text-amber-600' :
+                                                                student.preferredLessonHours === 'Noon' ? 'bg-indigo-50 text-indigo-600' :
+                                                                student.preferredLessonHours === 'Evening' ? 'bg-emerald-50 text-emerald-600' :
+                                                                'bg-slate-50 text-slate-400'
+                                                            }`}>
+                                                                {student.preferredLessonHours || 'Not Set'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                                                student.status === 'Graduated' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' :
+                                                                student.status === 'Dropped' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400' :
+                                                                'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400'
+                                                            }`}>
+                                                                {student.status || 'Enrolled'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            {(() => {
+                                                                const ms = getStudentMilestoneStatus(student.id);
+                                                                if (!ms) return <span className="text-[9px] text-slate-300 font-bold">—</span>;
+                                                                if (ms.noInvoice) return (
+                                                                    <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-50 text-amber-600 border border-amber-200">No Invoice</span>
+                                                                );
+                                                                return (
+                                                                    <div className="space-y-1.5">
+                                                                        {ms.isCleared ? (
+                                                                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>On Track
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-rose-50 text-rose-700 border border-rose-200 w-fit">
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>KES {ms.shortfall.toLocaleString()} Behind
+                                                                            </span>
+                                                                        )}
+                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Day {ms.effectiveDays}/{ms.courseDuration} · {ms.remainingDays} left{ms.priorDays > 0 ? ` (${ms.priorDays} prior)` : ''}</p>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </td>
+                                                        <td className="px-10 py-8 text-right">
+                                                            <div className="w-24 bg-slate-100 dark:bg-slate-800 h-2 rounded-full ml-auto overflow-hidden">
+                                                                <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${(student.practicalProgressPercent || 0)}%` }}></div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-10 py-8 text-right">
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                                    Theory: <span className={student.theoryTestScore !== undefined && student.theoryTestScore !== null ? "text-indigo-600 font-black" : "text-slate-400 italic"}>
+                                                                        {student.theoryTestScore !== undefined && student.theoryTestScore !== null ? `${student.theoryTestScore}%` : 'N/A'}
                                                                     </span>
-                                                                ) : (
-                                                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-rose-50 text-rose-700 border border-rose-200 w-fit">
-                                                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>KES {ms.shortfall.toLocaleString()} Behind
+                                                                </div>
+                                                                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                                    Practical: <span className={student.practicalTestScore !== undefined && student.practicalTestScore !== null ? "text-emerald-600 font-black" : "text-slate-400 italic"}>
+                                                                        {student.practicalTestScore !== undefined && student.practicalTestScore !== null ? `${student.practicalTestScore}%` : 'N/A'}
+                                                                    </span>
+                                                                </div>
+                                                                {student.ntsaBookingStatus && (
+                                                                    <span className={`mt-1 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
+                                                                        student.ntsaBookingStatus === 'Passed' ? 'bg-green-50 text-green-600 border border-green-200' :
+                                                                        student.ntsaBookingStatus === 'Booked' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' :
+                                                                        student.ntsaBookingStatus === 'Eligible' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
+                                                                        student.ntsaBookingStatus === 'Failed' ? 'bg-red-50 text-red-600 border border-red-200' :
+                                                                        'bg-slate-50 text-slate-400 border border-slate-200'
+                                                                    }`}>
+                                                                        NTSA: {student.ntsaBookingStatus}
                                                                     </span>
                                                                 )}
-                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Day {ms.effectiveDays}/{ms.courseDuration} · {ms.remainingDays} left{ms.priorDays > 0 ? ` (${ms.priorDays} prior)` : ''}</p>
                                                             </div>
-                                                        );
-                                                    })()}
-                                                </td>
-                                                <td className="px-10 py-8 text-right">
-                                                    <div className="w-24 bg-slate-100 dark:bg-slate-800 h-2 rounded-full ml-auto overflow-hidden">
-                                                        <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${(student.practicalProgressPercent || 0)}%` }}></div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-10 py-8 text-right">
-                                                    <div className="flex flex-col items-end gap-1">
-                                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                            Theory: <span className={student.theoryTestScore !== undefined && student.theoryTestScore !== null ? "text-indigo-600 font-black" : "text-slate-400 italic"}>
-                                                                {student.theoryTestScore !== undefined && student.theoryTestScore !== null ? `${student.theoryTestScore}%` : 'N/A'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                            Practical: <span className={student.practicalTestScore !== undefined && student.practicalTestScore !== null ? "text-emerald-600 font-black" : "text-slate-400 italic"}>
-                                                                {student.practicalTestScore !== undefined && student.practicalTestScore !== null ? `${student.practicalTestScore}%` : 'N/A'}
-                                                            </span>
-                                                        </div>
-                                                        {student.ntsaBookingStatus && (
-                                                            <span className={`mt-1 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
-                                                                student.ntsaBookingStatus === 'Passed' ? 'bg-green-50 text-green-600 border border-green-200' :
-                                                                student.ntsaBookingStatus === 'Booked' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' :
-                                                                student.ntsaBookingStatus === 'Eligible' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
-                                                                student.ntsaBookingStatus === 'Failed' ? 'bg-red-50 text-red-600 border border-red-200' :
-                                                                'bg-slate-50 text-slate-400 border border-slate-200'
+                                                        </td>
+                                                        <td className="px-10 py-8 text-right min-w-[245px]">
+                                                            <div className="flex justify-end gap-2">
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        setIsActionLoading(true);
+                                                                        try {
+                                                                            const doc = await generateDSStudentLogbookPDF(student, lessons, instructors, currentInstitution, letterheadConfig);
+                                                                            setPreviewPdf(doc.output('datauristring'));
+                                                                            success("Logbook PDF preview loaded!");
+                                                                        } catch (err) {
+                                                                            console.error(err);
+                                                                            toastError("Failed to generate student logbook preview.");
+                                                                        } finally {
+                                                                            setIsActionLoading(false);
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                    title="Preview NTSA Training Logbook"
+                                                                >
+                                                                    <EyeIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        setIsActionLoading(true);
+                                                                        try {
+                                                                            const doc = await generateDSStudentLogbookPDF(student, lessons, instructors, currentInstitution, letterheadConfig);
+                                                                            doc.save(`Logbook_${student.admissionNumber || student.fullName.replace(/\s+/g, '_')}.pdf`);
+                                                                            success("Logbook PDF downloaded successfully!");
+                                                                        } catch (err) {
+                                                                            console.error(err);
+                                                                            toastError("Failed to generate student logbook PDF.");
+                                                                        } finally {
+                                                                            setIsActionLoading(false);
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg text-slate-400 hover:text-emerald-600 transition-colors"
+                                                                    title="Print NTSA Training Logbook"
+                                                                >
+                                                                    <PrinterIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleAutoScheduleSingleStudent(student.id)}
+                                                                    className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                    title="Auto Schedule Lessons"
+                                                                >
+                                                                    <SparklesIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => setActionModal({ type: 'student', initialData: student })}
+                                                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                    title="Edit Student"
+                                                                >
+                                                                    <PencilIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => setScoringStudent(student)}
+                                                                    className="p-2 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg text-slate-400 hover:text-amber-600 transition-colors"
+                                                                    title="Conduct Test & Assessment"
+                                                                >
+                                                                    <ClipboardListIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => onDeleteStudent(student.id)}
+                                                                    className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                                                                    title="Remove Student"
+                                                                >
+                                                                    <TrashIcon className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {totalStudentPages > 1 && (
+                                        <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                Page {activeStudentPage} of {totalStudentPages} · Showing {paginatedStudents.length} of {filteredStudents.length} students
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setStudentPage(prev => Math.max(1, prev - 1))}
+                                                    disabled={activeStudentPage === 1}
+                                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                                >
+                                                    Previous
+                                                </button>
+                                                <button
+                                                    onClick={() => setStudentPage(prev => Math.min(totalStudentPages, prev + 1))}
+                                                    disabled={activeStudentPage === totalStudentPages}
+                                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                                >
+                                                    Next
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 p-8 min-h-[600px]">
+                                    {/* Left Column: Student Selection Panel */}
+                                    <div className="xl:col-span-1 bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] p-6 flex flex-col gap-6 border border-slate-100 dark:border-slate-800/60 max-h-[700px] overflow-hidden">
+                                        <div className="space-y-4">
+                                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Select Candidate</h4>
+                                            {/* Search Input */}
+                                            <div className="relative">
+                                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Search query..." 
+                                                    value={previewSearchTerm}
+                                                    onChange={(e) => {
+                                                        setPreviewSearchTerm(e.target.value);
+                                                    }}
+                                                    className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-900 dark:text-slate-100"
+                                                />
+                                            </div>
+                                            {/* Status Filter Dropdown */}
+                                            <div className="relative">
+                                                <select
+                                                    value={previewStatusFilter}
+                                                    onChange={(e) => {
+                                                        setPreviewStatusFilter(e.target.value as any);
+                                                    }}
+                                                    className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs text-slate-700 dark:text-slate-200 appearance-none cursor-pointer"
+                                                >
+                                                    <option value="all">Status: All</option>
+                                                    <option value="enrolled">Status: Active</option>
+                                                    <option value="graduated">Status: Graduated</option>
+                                                    <option value="dropped">Status: Dropped</option>
+                                                </select>
+                                                <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Scrollable list of students */}
+                                        <div className="flex-1 overflow-y-auto pr-1 space-y-2.5 custom-scrollbar">
+                                            {filteredPreviewStudents.length === 0 ? (
+                                                <div className="text-center py-12 text-slate-400 text-xs font-bold">
+                                                    No matching students found
+                                                </div>
+                                            ) : (
+                                                filteredPreviewStudents.map(student => {
+                                                    const isSelected = selectedPreviewStudent?.id === student.id;
+                                                    return (
+                                                        <button
+                                                            key={student.id}
+                                                            onClick={() => setSelectedPreviewStudent(student)}
+                                                            className={`w-full text-left p-4 rounded-2xl transition-all border flex items-center gap-3 hover:translate-x-1 ${
+                                                                isSelected
+                                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-600/10'
+                                                                : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 hover:border-indigo-100 dark:hover:border-indigo-900/30'
+                                                            }`}
+                                                        >
+                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                                                                isSelected ? 'bg-white/20 text-white' : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400'
                                                             }`}>
-                                                                NTSA: {student.ntsaBookingStatus}
-                                                            </span>
-                                                        )}
+                                                                {student.fullName.charAt(0)}
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="font-bold text-xs truncate">{student.fullName}</p>
+                                                                <p className={`text-[9px] font-black uppercase tracking-widest mt-0.5 ${isSelected ? 'text-indigo-200' : 'text-indigo-600'}`}>
+                                                                    {student.admissionNumber || `REF: ${student.id.split('_')[1]}`}
+                                                                </p>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Right Column: Live PDF Iframe */}
+                                    <div className="xl:col-span-2 bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800/60 min-h-[500px] xl:min-h-[600px] flex flex-col">
+                                        {selectedPreviewStudent ? (
+                                            <div className="flex-1 flex flex-col gap-4">
+                                                <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800">
+                                                    <div>
+                                                        <h4 className="font-black text-slate-950 dark:text-white uppercase tracking-tight text-sm">
+                                                            {selectedPreviewStudent.fullName}
+                                                        </h4>
+                                                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">
+                                                            NTSA Training Logbook Preview
+                                                        </p>
                                                     </div>
-                                                </td>
-                                                <td className="px-10 py-8 text-right min-w-[245px]">
-                                                    <div className="flex justify-end gap-2">
-                                                        <button 
-                                                            onClick={async () => {
-                                                                setIsActionLoading(true);
-                                                                try {
-                                                                    const doc = await generateDSStudentLogbookPDF(student, lessons, instructors, currentInstitution, letterheadConfig);
-                                                                    setPreviewPdf(doc.output('datauristring'));
-                                                                    success("Logbook PDF preview loaded!");
-                                                                } catch (err) {
-                                                                    console.error(err);
-                                                                    toastError("Failed to generate student logbook preview.");
-                                                                } finally {
-                                                                    setIsActionLoading(false);
-                                                                }
+                                                    {onscreenPreviewPdf && (
+                                                        <button
+                                                            onClick={() => {
+                                                                const link = document.createElement('a');
+                                                                link.href = onscreenPreviewPdf;
+                                                                link.download = `Logbook_${selectedPreviewStudent.admissionNumber || selectedPreviewStudent.fullName.replace(/\s+/g, '_')}.pdf`;
+                                                                link.click();
                                                             }}
-                                                            className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
-                                                            title="Preview NTSA Training Logbook"
+                                                            className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-sm transition-all"
                                                         >
-                                                            <EyeIcon className="w-4 h-4" />
+                                                            <DownloadIcon className="w-4.5 h-4.5" /> Download PDF
                                                         </button>
-                                                        <button 
-                                                            onClick={async () => {
-                                                                setIsActionLoading(true);
-                                                                try {
-                                                                    const doc = await generateDSStudentLogbookPDF(student, lessons, instructors, currentInstitution, letterheadConfig);
-                                                                    doc.save(`Logbook_${student.admissionNumber || student.fullName.replace(/\s+/g, '_')}.pdf`);
-                                                                    success("Logbook PDF downloaded successfully!");
-                                                                } catch (err) {
-                                                                    console.error(err);
-                                                                    toastError("Failed to generate student logbook PDF.");
-                                                                } finally {
-                                                                    setIsActionLoading(false);
-                                                                }
-                                                            }}
-                                                            className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg text-slate-400 hover:text-emerald-600 transition-colors"
-                                                            title="Print NTSA Training Logbook"
-                                                        >
-                                                            <PrinterIcon className="w-4 h-4" />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleAutoScheduleSingleStudent(student.id)}
-                                                            className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
-                                                            title="Auto Schedule Lessons"
-                                                        >
-                                                            <SparklesIcon className="w-4 h-4" />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => setActionModal({ type: 'student', initialData: student })}
-                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
-                                                            title="Edit Student"
-                                                        >
-                                                            <PencilIcon className="w-4 h-4" />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => setScoringStudent(student)}
-                                                            className="p-2 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg text-slate-400 hover:text-amber-600 transition-colors"
-                                                            title="Conduct Test & Assessment"
-                                                        >
-                                                            <ClipboardListIcon className="w-4 h-4" />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => onDeleteStudent(student.id)}
-                                                            className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
-                                                            title="Remove Student"
-                                                        >
-                                                            <TrashIcon className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                    )}
+                                                </div>
+                                                
+                                                <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden min-h-[450px] relative flex items-center justify-center">
+                                                    {onscreenPreviewPdf ? (
+                                                        <iframe 
+                                                            src={onscreenPreviewPdf} 
+                                                            className="w-full h-full border-none"
+                                                            title="NTSA Logbook Preview"
+                                                        />
+                                                    ) : (
+                                                        <div className="flex flex-col items-center gap-3">
+                                                            <div className="animate-spin rounded-full h-8 w-8 border-4 border-indigo-600 border-t-transparent"></div>
+                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Generating PDF Logbook...</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
+                                                <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-3xl flex items-center justify-center mb-4 text-slate-400 border border-slate-100 dark:border-slate-800 shadow-sm">
+                                                    <EyeIcon className="w-8 h-8 text-slate-300" />
+                                                </div>
+                                                <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">No Candidate Selected</h4>
+                                                <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                                                    Select a student from the candidate panel to render their live NTSA Training Logbook PDF.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -3242,29 +3461,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             })}
                                         </tbody>
                                     </table>
-                                    {totalStudentPages > 1 && (
-                                        <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                Page {activeStudentPage} of {totalStudentPages} · Showing {paginatedStudents.length} of {filteredStudents.length} students
-                                            </p>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => setStudentPage(prev => Math.max(1, prev - 1))}
-                                                    disabled={activeStudentPage === 1}
-                                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
-                                                >
-                                                    Previous
-                                                </button>
-                                                <button
-                                                    onClick={() => setStudentPage(prev => Math.min(totalStudentPages, prev + 1))}
-                                                    disabled={activeStudentPage === totalStudentPages}
-                                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
-                                                >
-                                                    Next
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             )}
                         </div>
