@@ -60,19 +60,60 @@ interface DrivingSchoolManagerProps {
 const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data: any[]) => Promise<void> }> = ({ onClose, onImport }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
-    const { error: toastError } = useToast();
+    const [step, setStep] = useState<'upload' | 'map'>('upload');
+    const { error: toastError, success: toastSuccess } = useToast();
+
+    // Mock detected headers from the uploaded spreadsheet
+    const detectedHeaders = ['Name', 'Email Address', 'Phone Number', 'National ID', 'License Category', 'Date Enrolled'];
+
+    // State to hold user field mappings
+    const [mappings, setMappings] = useState<Record<string, string>>({
+        fullName: 'Name',
+        email: 'Email Address',
+        phone: 'Phone Number',
+        idNumber: 'National ID',
+        licenseTypeInterested: 'License Category',
+        enrollmentDate: 'Date Enrolled'
+    });
+
+    // Mock spreadsheet row values based on detectedHeaders
+    const mockRows = [
+        ['John Doe', 'john@example.com', '0711223344', '33445566', 'Class C1', '2026-05-20'],
+        ['Jane Smith', 'jane@example.com', '0722334455', '88776655', 'Class B', '2026-05-22']
+    ];
+
+    // Compute preview data dynamically based on active mappings
+    const previewData = useMemo(() => {
+        return mockRows.map(row => {
+            const mappedRecord: any = {};
+            const keys = ['fullName', 'email', 'phone', 'idNumber', 'licenseTypeInterested', 'enrollmentDate'];
+            keys.forEach(key => {
+                const mappedHeaderName = mappings[key];
+                const headerIndex = detectedHeaders.indexOf(mappedHeaderName);
+                mappedRecord[key] = headerIndex !== -1 ? row[headerIndex] : '—';
+            });
+            return mappedRecord;
+        });
+    }, [mappings]);
 
     const handleImport = async () => {
         if (!file) return;
         setIsProcessing(true);
         try {
-            // Simulate parsing excel and mapping fields
             await new Promise(resolve => setTimeout(resolve, 1500));
-            const mockData = [
-                { fullName: "John Doe", email: "john@example.com", phone: "0711223344", licenseTypeInterested: "Class C1", enrollmentDate: new Date().toISOString().split('T')[0] },
-                { fullName: "Jane Smith", email: "jane@example.com", phone: "0722334455", licenseTypeInterested: "Class B", enrollmentDate: new Date().toISOString().split('T')[0] }
-            ];
-            await onImport(mockData);
+            // Build the final dataset based on the user's mapped choices
+            const finalData = mockRows.map(row => {
+                const record: any = {};
+                const keys = ['fullName', 'email', 'phone', 'idNumber', 'licenseTypeInterested', 'enrollmentDate'];
+                keys.forEach(key => {
+                    const mappedHeaderName = mappings[key];
+                    const headerIndex = detectedHeaders.indexOf(mappedHeaderName);
+                    record[key] = headerIndex !== -1 ? row[headerIndex] : '';
+                });
+                return record;
+            });
+            await onImport(finalData);
+            toastSuccess("Students imported successfully!");
             onClose();
         } catch (err) {
             console.error("Import failed:", err);
@@ -82,28 +123,37 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
         }
     };
 
+    const handleFileSelect = (selectedFile: File) => {
+        setFile(selectedFile);
+        setStep('map');
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-scale-in border border-white/20">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-scale-in border border-white/20">
                 <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                     <div>
                         <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Smart Student Importer</h3>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Bulk onboard students from Excel/CSV</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                            {step === 'upload' ? 'Bulk onboard students from Excel/CSV' : 'Map fields and columns'}
+                        </p>
                     </div>
                     <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 transition-colors">
                         <XIcon className="w-5 h-5 text-slate-500" />
                     </button>
                 </div>
                 
-                <div className="p-12 text-center">
-                    {!file ? (
-                        <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer">
+                <div className="p-8">
+                    {step === 'upload' ? (
+                        <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer text-center">
                             <input 
                                 type="file" 
                                 accept=".xlsx,.xls,.csv" 
                                 className="hidden" 
                                 id="excel-upload"
-                                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                onChange={(e) => {
+                                    if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                                }}
                             />
                             <label htmlFor="excel-upload" className="cursor-pointer">
                                 <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
@@ -114,34 +164,94 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
                             </label>
                         </div>
                     ) : (
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
-                            <div className="flex items-center gap-4 text-left">
-                                <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-2xl">
-                                    <SparklesIcon className="w-6 h-6 text-green-600" />
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-4 text-left bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/60 animate-fade-in">
+                                <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-xl">
+                                    <SparklesIcon className="w-5 h-5 text-green-600" />
                                 </div>
                                 <div className="flex-1">
-                                    <h4 className="font-black text-slate-900 dark:text-white uppercase text-sm tracking-tight">{file.name}</h4>
-                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{(file.size / 1024).toFixed(1)} KB • Ready to map fields</p>
+                                    <h4 className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">{file?.name}</h4>
+                                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{(file ? file.size / 1024 : 0).toFixed(1)} KB • Mapping Headers</p>
                                 </div>
-                                <button onClick={() => setFile(null)} className="text-xs font-black text-red-500 uppercase tracking-widest">Change</button>
+                                <button onClick={() => { setFile(null); setStep('upload'); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest">Change</button>
                             </div>
 
-                            <div className="mt-8 space-y-4">
+                            {/* Mapping Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-1">
+                                {[
+                                    { key: 'fullName', label: 'Full Name *', desc: 'Candidate legal name' },
+                                    { key: 'phone', label: 'Phone Number *', desc: 'Primary SMS target' },
+                                    { key: 'email', label: 'Email Address', desc: 'Tuition receipt copy destination' },
+                                    { key: 'idNumber', label: 'National ID / Passport', desc: 'NTSA compliance lookup' },
+                                    { key: 'licenseTypeInterested', label: 'License Class', desc: 'Enrolled category' },
+                                    { key: 'enrollmentDate', label: 'Enrollment Date', desc: 'Admission date' }
+                                ].map(field => (
+                                    <div key={field.key} className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/40 flex flex-col gap-2">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">{field.label}</label>
+                                                <p className="text-[9px] text-slate-400 font-medium mt-0.5">{field.desc}</p>
+                                            </div>
+                                        </div>
+                                        <div className="relative">
+                                            <select
+                                                value={mappings[field.key] || ''}
+                                                onChange={(e) => setMappings(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                                className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg focus:ring-1 focus:ring-indigo-500 font-bold text-xs appearance-none cursor-pointer text-slate-700 dark:text-slate-200"
+                                            >
+                                                <option value="">-- Ignore Field --</option>
+                                                {detectedHeaders.map(h => (
+                                                    <option key={h} value={h}>{h}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* real-time preview table */}
+                            <div className="space-y-2">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Real-time Mapped Row Preview</h4>
+                                <div className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50 dark:bg-slate-900">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-100 dark:bg-slate-800/50 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                <th className="p-3">Full Name</th>
+                                                <th className="p-3">Phone</th>
+                                                <th className="p-3">ID / Pass</th>
+                                                <th className="p-3">Category</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {previewData.map((row, idx) => (
+                                                <tr key={idx} className="text-slate-700 dark:text-slate-300">
+                                                    <td className="p-3 font-semibold">{row.fullName}</td>
+                                                    <td className="p-3">{row.phone}</td>
+                                                    <td className="p-3">{row.idNumber}</td>
+                                                    <td className="p-3 font-bold text-indigo-600 dark:text-indigo-400">{row.licenseTypeInterested}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="pt-2">
                                 <button 
                                     onClick={handleImport}
-                                    disabled={isProcessing}
-                                    className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-3"
+                                    disabled={isProcessing || !mappings.fullName || !mappings.phone}
+                                    className="w-full py-4.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
                                 >
-                                    {isProcessing ? 'Processing...' : 'Run Smart Importer'}
+                                    {isProcessing ? 'Processing Mapped Data...' : 'Run Smart Importer'}
                                 </button>
                             </div>
                         </div>
                     )}
                 </div>
                 
-                <div className="p-8 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Supported: .xlsx, .csv, .xls</p>
-                    <button onClick={onClose} className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">Cancel</button>
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Supported formats: .xlsx, .csv, .xls</p>
+                    <button onClick={onClose} className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 dark:hover:text-slate-100 transition-colors">Cancel</button>
                 </div>
             </div>
         </div>
