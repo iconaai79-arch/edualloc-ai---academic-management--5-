@@ -2308,7 +2308,68 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     }
                     updatedInfo = `Attendance marked for ${todayLessons.length} scheduled session(s).`;
                 } else {
-                    updatedInfo = 'No lessons scheduled for today, but payment clearance is approved.';
+                    // First come first serve auto-assign logic:
+                    const theoryPct = student.theoryProgressPercent || 0;
+                    const practicalPct = student.practicalProgressPercent || 0;
+                    const lessonType = (theoryPct <= practicalPct && theoryPct < 100) ? 'Theory' : 'Practical';
+                    
+                    let instructor = (instructors || []).find(i => i.id === student.preferredInstructorId && i.status === 'Active');
+                    if (!instructor) {
+                        instructor = (instructors || []).find(i => i.status === 'Active');
+                    }
+                    
+                    let vehicle = null;
+                    if (lessonType === 'Practical') {
+                        if (instructor?.assignedVehicleId) {
+                            vehicle = (vehicles || []).find(v => v.id === instructor.assignedVehicleId && v.status === 'Operational');
+                        }
+                        if (!vehicle) {
+                            vehicle = (vehicles || []).find(v => v.status === 'Operational');
+                        }
+                    }
+                    
+                    const nowTime = new Date();
+                    const startHr = String(nowTime.getHours()).padStart(2, '0');
+                    const endHr = String((nowTime.getHours() + 1) % 24).padStart(2, '0');
+                    const startTime = `${startHr}:00`;
+                    const endTime = `${endHr}:00`;
+                    
+                    const newLessonId = `less_${Date.now()}`;
+                    const newLesson = {
+                        id: newLessonId,
+                        institutionId: currentInstitution?.id,
+                        studentId: student.id,
+                        instructorId: instructor?.id || null,
+                        vehicleId: vehicle?.id || null,
+                        lessonDate: todayStr,
+                        startTime,
+                        endTime,
+                        lessonType,
+                        status: 'Completed',
+                        confirmationStatus: 'Confirmed',
+                        notes: `[Auto-scheduled & Checked-in first-come first-serve via Kiosk]`,
+                        createdAt: new Date().toISOString()
+                    };
+                    
+                    // Save the completed lesson
+                    await apiService.saveModuleRecord('ds_lessons', newLesson);
+                    
+                    // Update student progress directly
+                    const durationDays = student.courseDurationDays || 21;
+                    const increment = Math.max(5, Math.round(100 / durationDays));
+                    const nextTheory = lessonType === 'Theory' ? Math.min(100, theoryPct + increment) : theoryPct;
+                    const nextPractical = lessonType === 'Practical' ? Math.min(100, practicalPct + increment) : practicalPct;
+                    const currentRemaining = student.remainingDays ?? student.courseDurationDays ?? 0;
+                    
+                    await apiService.saveModuleRecord('ds_students', {
+                        ...student,
+                        remainingDays: Math.max(0, currentRemaining - 1),
+                        theoryProgressPercent: nextTheory,
+                        practicalProgressPercent: nextPractical,
+                        updatedAt: new Date().toISOString()
+                    });
+                    
+                    updatedInfo = `Auto-assigned & marked attendance for a new ${lessonType} Session with ${instructor?.name || 'available instructor'}.`;
                 }
 
                 setKioskMessage({
