@@ -531,9 +531,9 @@ GRANT ALL ON public.his_broadcasts TO anon, authenticated, service_role;
                 <div className="flex flex-wrap gap-4">
                     <button
                         onClick={async () => {
-                            if (window.confirm('This will fix the Tasks table schema and ensure institution IDs are correctly assigned. Proceed?')) {
+                            if (window.confirm('This will fix the Tasks table schema, events custom subdomain column, and ensure database structures are correct. Proceed?')) {
                                 setIsMigrating(true);
-                                setMigrationMsg('Repairing tasks schema...');
+                                setMigrationMsg('Repairing schemas...');
                                 try {
                                     const repairSql = `
 -- Fix tasks table schema
@@ -557,10 +557,13 @@ DROP POLICY IF EXISTS "Institutional tasks access" ON tasks;
 CREATE POLICY "User personal tasks" ON tasks FOR ALL USING (auth.uid()::text = user_id::text OR 'u_' || auth.uid()::text = user_id::text OR auth.jwt() ->> 'email' = 'super@app.com') WITH CHECK (auth.uid()::text = user_id::text OR 'u_' || auth.uid()::text = user_id::text OR auth.jwt() ->> 'email' = 'super@app.com');
 CREATE POLICY "Institutional tasks access" ON tasks FOR SELECT USING (institution_id::text = public.get_curr_user_inst_id() AND public.get_curr_user_role() IN ('admin', 'super_admin', 'head_teacher'));
 GRANT ALL ON public.tasks TO anon, authenticated, service_role;
-                                    `;
+
+-- Ensure custom_subdomain column exists on events table
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS custom_subdomain TEXT;
+`;
                                     const result = await apiService.runMigration(repairSql);
                                     if (result.success) {
-                                        alert("System repair completed successfully.");
+                                        alert("System schema repair completed successfully.");
                                     } else {
                                         alert("Repair failed: " + result.message);
                                     }

@@ -1971,9 +1971,13 @@ CREATE TABLE IF NOT EXISTS events (
     status TEXT NOT NULL DEFAULT 'planning',
     logo_url TEXT,
     banner_url TEXT,
+    custom_subdomain TEXT,
     created_at TEXT NOT NULL DEFAULT (to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')),
     updated_at TEXT
 );
+
+-- Ensure custom_subdomain column exists for backward compatibility
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS custom_subdomain TEXT;
 
 CREATE TABLE IF NOT EXISTS event_categories (
     id TEXT PRIMARY KEY,
