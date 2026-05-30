@@ -4928,60 +4928,62 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     {activeTab === 'portal' && (
                         <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
                             {/* Horizontal Sub-navigation Bar for Portal/Kiosk */}
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-3 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-                                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide w-full md:w-auto">
-                                    <button 
-                                        onClick={() => { setKioskTab('booking'); setKioskMessage(null); }}
-                                        className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                                            kioskTab === 'booking' 
-                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
-                                                : 'bg-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                                        }`}
-                                    >
-                                        <CalendarDaysIcon className="w-4 h-4" />
-                                        <span>Booking Portal</span>
-                                    </button>
-                                    <button 
-                                        onClick={() => { setKioskTab('checkin'); setKioskMessage(null); }}
-                                        className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                                            kioskTab === 'checkin' 
-                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
-                                                : 'bg-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                                        }`}
-                                    >
-                                        <ClockIcon className="w-4 h-4" />
-                                        <span>Reception Kiosk Check-In</span>
-                                    </button>
-                                </div>
-                                {currentUser && (
-                                    <div className="flex items-center gap-2 px-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const link = `${window.location.origin}${window.location.pathname}?view=ds&tab=portal&kiosk=checkin`;
-                                                navigator.clipboard.writeText(link);
-                                                success("Check-in Kiosk URL copied!");
-                                            }}
-                                            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all border border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-900/40 dark:text-indigo-400 active:scale-95"
+                            {kioskTab !== 'checkin' && (
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-3 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide w-full md:w-auto">
+                                        <button 
+                                            onClick={() => { setKioskTab('booking'); setKioskMessage(null); }}
+                                            className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                                                kioskTab === 'booking' 
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                                                    : 'bg-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                            }`}
                                         >
-                                            <ClipboardListIcon className="w-3.5 h-3.5" />
-                                            <span>Copy Kiosk URL</span>
+                                            <CalendarDaysIcon className="w-4 h-4" />
+                                            <span>Booking Portal</span>
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const link = `${window.location.origin}${window.location.pathname}?view=ds&tab=portal&kiosk=booking`;
-                                                navigator.clipboard.writeText(link);
-                                                success("Booking Portal URL copied!");
-                                            }}
-                                            className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 active:scale-95"
+                                        <button 
+                                            onClick={() => { setKioskTab('checkin'); setKioskMessage(null); }}
+                                            className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                                                kioskTab === 'checkin' 
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                                                    : 'bg-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                            }`}
                                         >
-                                            <ClipboardListIcon className="w-3.5 h-3.5" />
-                                            <span>Copy Booking URL</span>
+                                            <ClockIcon className="w-4 h-4" />
+                                            <span>Reception Kiosk Check-In</span>
                                         </button>
                                     </div>
-                                )}
-                            </div>
+                                    {currentUser && (
+                                        <div className="flex items-center gap-2 px-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const link = `${window.location.origin}${window.location.pathname}?view=ds&tab=portal&kiosk=checkin`;
+                                                    navigator.clipboard.writeText(link);
+                                                    success("Check-in Kiosk URL copied!");
+                                                }}
+                                                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all border border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-900/40 dark:text-indigo-400 active:scale-95"
+                                            >
+                                                <ClipboardListIcon className="w-3.5 h-3.5" />
+                                                <span>Copy Kiosk URL</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const link = `${window.location.origin}${window.location.pathname}?view=ds&tab=portal&kiosk=booking`;
+                                                    navigator.clipboard.writeText(link);
+                                                    success("Booking Portal URL copied!");
+                                                }}
+                                                className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all border border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 active:scale-95"
+                                            >
+                                                <ClipboardListIcon className="w-3.5 h-3.5" />
+                                                <span>Copy Booking URL</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {kioskTab === 'booking' ? (
                                 <>
@@ -5246,10 +5248,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         {!kioskMessage ? (
                                             isEnteringKioskPassword ? (
                                                 <div className="w-full flex flex-col items-center justify-center space-y-6 z-10 relative animate-fade-in">
-                                                    <div className="w-20 h-20 rounded-full bg-indigo-500/10 flex items-center justify-center border border-indigo-500/30 animate-pulse">
-                                                        <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                                        </svg>
+                                                    <div className="w-24 h-24 rounded-full bg-indigo-500/10 flex items-center justify-center border-2 border-indigo-500/30 overflow-hidden shrink-0 shadow-lg">
+                                                        {(matchedStudentForCheckIn as any)?.passportPhoto ? (
+                                                            <img src={(matchedStudentForCheckIn as any).passportPhoto} className="w-full h-full object-cover" alt="Student Passport" />
+                                                        ) : (
+                                                            <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                            </svg>
+                                                        )}
                                                     </div>
                                                     <div className="text-center space-y-2">
                                                         <h3 className="text-xl font-black tracking-tight text-white">Secure Verification</h3>
@@ -5296,7 +5302,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsKioskScanning(false)}
-                                                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all border border-slate-700 active:scale-95"
+                                                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-350 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all border border-slate-700 active:scale-95"
                                                     >
                                                         Use Keypad / Type Instead
                                                     </button>
@@ -5330,8 +5336,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             )
                                         ) : kioskMessage.status === 'success' ? (
                                             <div className="text-center space-y-6 z-10 flex flex-col items-center animate-scale-up">
-                                                <div className="w-24 h-24 rounded-full bg-emerald-500/10 flex items-center justify-center border-4 border-emerald-500/30">
-                                                    <CheckCircleIcon className="w-12 h-12 text-emerald-400" />
+                                                <div className="w-24 h-24 rounded-full bg-emerald-500/10 flex items-center justify-center border-4 border-emerald-500/30 overflow-hidden shadow-lg">
+                                                    {(matchedStudentForCheckIn as any)?.passportPhoto ? (
+                                                        <img src={(matchedStudentForCheckIn as any).passportPhoto} className="w-full h-full object-cover" alt="Student Passport" />
+                                                    ) : (
+                                                        <CheckCircleIcon className="w-12 h-12 text-emerald-400" />
+                                                    )}
                                                 </div>
                                                 <div className="space-y-2">
                                                     <h3 className="text-2xl font-black text-emerald-400 tracking-tight">{kioskMessage.text}</h3>
@@ -5345,8 +5355,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             </div>
                                         ) : (
                                             <div className="text-center space-y-6 z-10 flex flex-col items-center animate-shake">
-                                                <div className="w-24 h-24 rounded-full bg-rose-500/10 flex items-center justify-center border-4 border-rose-500/30">
-                                                    <ExclamationTriangleIcon className="w-12 h-12 text-rose-400" />
+                                                <div className="w-24 h-24 rounded-full bg-rose-500/10 flex items-center justify-center border-4 border-rose-500/30 overflow-hidden shadow-lg">
+                                                    {(matchedStudentForCheckIn as any)?.passportPhoto ? (
+                                                        <img src={(matchedStudentForCheckIn as any).passportPhoto} className="w-full h-full object-cover" alt="Student Passport" />
+                                                    ) : (
+                                                        <ExclamationTriangleIcon className="w-12 h-12 text-rose-400" />
+                                                    )}
                                                 </div>
                                                 <div className="space-y-2">
                                                     <h3 className="text-2xl font-black text-rose-400 tracking-tight">{kioskMessage.text}</h3>
