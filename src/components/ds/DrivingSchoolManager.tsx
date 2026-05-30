@@ -2104,6 +2104,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         return 'booking';
     });
     const [kioskAdmissionNo, setKioskAdmissionNo] = useState('');
+    const [kioskPassword, setKioskPassword] = useState('');
+    const [isEnteringKioskPassword, setIsEnteringKioskPassword] = useState(false);
+    const [matchedStudentForCheckIn, setMatchedStudentForCheckIn] = useState<DSStudent | null>(null);
     const [kioskMessage, setKioskMessage] = useState<{ status: 'success' | 'error'; text: string; details?: string } | null>(null);
     const [isKioskScanning, setIsKioskScanning] = useState(true);
     const kioskWebcamRef = useRef<any>(null);
@@ -2764,6 +2767,33 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             return;
         }
 
+        // Student identity matched. Prompt for password verification
+        setMatchedStudentForCheckIn(student);
+        setIsEnteringKioskPassword(true);
+        setKioskPassword('');
+        setKioskMessage(null);
+    }
+
+    async function handleKioskPasswordSubmit() {
+        if (!matchedStudentForCheckIn) return;
+        const assocUser = (users || []).find(u => u.id === matchedStudentForCheckIn.userId || u.email === matchedStudentForCheckIn.email || u.phoneNumber === matchedStudentForCheckIn.phone);
+        const expectedPassword = assocUser?.password || 'student123';
+        
+        if (kioskPassword.trim() !== expectedPassword) {
+            setKioskMessage({
+                status: 'error',
+                text: 'Invalid Password',
+                details: 'The password entered is incorrect. Please try again.'
+            });
+            setKioskPassword('');
+            return;
+        }
+
+        // Password matched! Proceed to checkout
+        await executeKioskCheckIn(matchedStudentForCheckIn);
+    }
+
+    async function executeKioskCheckIn(student: DSStudent) {
         // Get milestone status
         const milestone = getStudentMilestoneStatus(student.id);
         const todayStr = new Date().toISOString().split('T')[0];
@@ -2786,6 +2816,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             setTimeout(() => {
                 setKioskMessage(null);
                 setKioskAdmissionNo('');
+                setIsEnteringKioskPassword(false);
+                setMatchedStudentForCheckIn(null);
+                setKioskPassword('');
             }, 12000);
         } else {
             // Green clearance
@@ -2814,6 +2847,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         setTimeout(() => {
                             setKioskMessage(null);
                             setKioskAdmissionNo('');
+                            setIsEnteringKioskPassword(false);
+                            setMatchedStudentForCheckIn(null);
+                            setKioskPassword('');
                         }, 12000);
                         return;
                     }
@@ -2856,6 +2892,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         setTimeout(() => {
                             setKioskMessage(null);
                             setKioskAdmissionNo('');
+                            setIsEnteringKioskPassword(false);
+                            setMatchedStudentForCheckIn(null);
+                            setKioskPassword('');
                         }, 12000);
                         return;
                     }
@@ -2925,6 +2964,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     details: `Welcome, ${student.fullName}. ${updatedInfo}`
                 });
 
+                // Clear fields
+                setKioskAdmissionNo('');
+                setIsEnteringKioskPassword(false);
+                setMatchedStudentForCheckIn(null);
+                setKioskPassword('');
+
                 if (onRefreshDataProp) await onRefreshDataProp();
                 refreshData();
             } catch (err) {
@@ -2940,6 +2985,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             setTimeout(() => {
                 setKioskMessage(null);
                 setKioskAdmissionNo('');
+                setIsEnteringKioskPassword(false);
+                setMatchedStudentForCheckIn(null);
+                setKioskPassword('');
             }, 6000);
         }
     }
@@ -5196,7 +5244,36 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
                                         
                                         {!kioskMessage ? (
-                                            isKioskScanning ? (
+                                            isEnteringKioskPassword ? (
+                                                <div className="w-full flex flex-col items-center justify-center space-y-6 z-10 relative animate-fade-in">
+                                                    <div className="w-20 h-20 rounded-full bg-indigo-500/10 flex items-center justify-center border border-indigo-500/30 animate-pulse">
+                                                        <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div className="text-center space-y-2">
+                                                        <h3 className="text-xl font-black tracking-tight text-white">Secure Verification</h3>
+                                                        <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
+                                                            Match identified for <span className="text-indigo-400 font-extrabold">{matchedStudentForCheckIn?.fullName}</span> ({matchedStudentForCheckIn?.admissionNumber}).
+                                                        </p>
+                                                        <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+                                                            Please enter your portal account password on the right keypad/keyboard to authorize this check-in.
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setIsEnteringKioskPassword(false);
+                                                            setMatchedStudentForCheckIn(null);
+                                                            setKioskPassword('');
+                                                        }}
+                                                        className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-350 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-slate-700 active:scale-95 flex items-center gap-2"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                                                        Cancel / Go Back
+                                                    </button>
+                                                </div>
+                                            ) : isKioskScanning ? (
                                                 <div className="w-full flex flex-col items-center justify-center space-y-4 z-10 relative">
                                                     <div className="relative w-full max-w-sm aspect-video bg-black rounded-2xl overflow-hidden border-2 border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.2)]">
                                                         <Webcam
@@ -5289,24 +5366,42 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         <form 
                                             onSubmit={(e) => {
                                                 e.preventDefault();
-                                                handleKioskCheckIn();
+                                                if (isEnteringKioskPassword) {
+                                                    handleKioskPasswordSubmit();
+                                                } else {
+                                                    handleKioskCheckIn();
+                                                }
                                             }}
                                             className="space-y-6"
                                         >
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Student Identifier</label>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                                                    {isEnteringKioskPassword ? "Account Password" : "Student Identifier"}
+                                                </label>
                                                 <div className="relative">
                                                     <input 
-                                                        type="text"
-                                                        value={kioskAdmissionNo}
-                                                        onChange={(e) => setKioskAdmissionNo(e.target.value)}
-                                                        placeholder="Enter number..."
+                                                        type={isEnteringKioskPassword ? "password" : "text"}
+                                                        value={isEnteringKioskPassword ? kioskPassword : kioskAdmissionNo}
+                                                        onChange={(e) => {
+                                                            if (isEnteringKioskPassword) {
+                                                                setKioskPassword(e.target.value);
+                                                            } else {
+                                                                setKioskAdmissionNo(e.target.value);
+                                                            }
+                                                        }}
+                                                        placeholder={isEnteringKioskPassword ? "Enter password..." : "Enter number..."}
                                                         className="w-full text-center text-xl font-black tracking-widest py-4 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
                                                     />
-                                                    {kioskAdmissionNo && (
+                                                    {(isEnteringKioskPassword ? kioskPassword : kioskAdmissionNo) && (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setKioskAdmissionNo('')}
+                                                            onClick={() => {
+                                                                if (isEnteringKioskPassword) {
+                                                                    setKioskPassword('');
+                                                                } else {
+                                                                    setKioskAdmissionNo('');
+                                                                }
+                                                            }}
                                                             className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-600 rounded-full"
                                                         >
                                                             <XIcon className="w-4 h-4" />
@@ -5321,7 +5416,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     <button
                                                         key={num}
                                                         type="button"
-                                                        onClick={() => setKioskAdmissionNo(prev => prev + num)}
+                                                        onClick={() => {
+                                                            if (isEnteringKioskPassword) {
+                                                                setKioskPassword(prev => prev + num);
+                                                            } else {
+                                                                setKioskAdmissionNo(prev => prev + num);
+                                                            }
+                                                        }}
                                                         className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-800 text-lg font-black text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center shadow-sm"
                                                     >
                                                         {num}
@@ -5330,7 +5431,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 
                                                 <button
                                                     type="button"
-                                                    onClick={() => setKioskAdmissionNo('')}
+                                                    onClick={() => {
+                                                        if (isEnteringKioskPassword) {
+                                                            setKioskPassword('');
+                                                        } else {
+                                                            setKioskAdmissionNo('');
+                                                        }
+                                                    }}
                                                     className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/20 text-[10px] font-black uppercase tracking-wider text-rose-600 hover:bg-rose-100/60 transition-all flex items-center justify-center"
                                                 >
                                                     Clear
@@ -5338,7 +5445,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                                 <button
                                                     type="button"
-                                                    onClick={() => setKioskAdmissionNo(prev => prev + '0')}
+                                                    onClick={() => {
+                                                        if (isEnteringKioskPassword) {
+                                                            setKioskPassword(prev => prev + '0');
+                                                        } else {
+                                                            setKioskAdmissionNo(prev => prev + '0');
+                                                        }
+                                                    }}
                                                     className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-800 text-lg font-black text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center shadow-sm"
                                                 >
                                                     0
@@ -5346,7 +5459,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                                 <button
                                                     type="button"
-                                                    onClick={() => setKioskAdmissionNo(prev => prev.slice(0, -1))}
+                                                    onClick={() => {
+                                                        if (isEnteringKioskPassword) {
+                                                            setKioskPassword(prev => prev.slice(0, -1));
+                                                        } else {
+                                                            setKioskAdmissionNo(prev => prev.slice(0, -1));
+                                                        }
+                                                    }}
                                                     className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/20 text-lg font-black text-amber-600 hover:bg-amber-100/60 transition-all flex items-center justify-center"
                                                 >
                                                     ⌫
@@ -5358,7 +5477,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     type="submit"
                                                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                                                 >
-                                                    <span>Verify & Check In</span>
+                                                    <span>{isEnteringKioskPassword ? "Authenticate & Check In" : "Verify & Check In"}</span>
                                                     <CheckCircleIcon className="w-4 h-4" />
                                                 </button>
                                             </div>
