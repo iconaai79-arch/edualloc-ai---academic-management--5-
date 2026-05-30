@@ -350,16 +350,29 @@ export const App: React.FC = () => {
         }
     });
 
-    const [showDrivingSchoolPortal, setShowDrivingSchoolPortal] = useState(() => {
+    const [activeStoreTenantId, setActiveStoreTenantId] = useState<string | null>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            const view = params.get('view');
-            const hostname = window.location.hostname;
-            return view === 'ds' || view === 'driving' || hostname === 'drivingschool.eduai.co.ke' || hostname.includes('drivingschool');
+            const shop = params.get('shop') || params.get('showroom') || params.get('id') || params.get('kiosk');
+            if (shop) return shop;
+
+            const host = window.location.hostname.toLowerCase();
+            const parts = host.split('.');
+            if (parts.length >= 2) {
+                const sub = parts[0];
+                const reserved = ['www', 'app', 'marketplace', 'showcase', 'marketing', 'api', 'localhost', '127', 'alumni', 'alumnae', 'almamater', 'portal', 'drivingschool', 'driving', 'transport', 'shuttle', 'community', 'social', 'showroom', 'carshowroom'];
+                const isReserved = reserved.includes(sub) || sub.includes('portal') || sub.includes('admin') || sub.includes('alma') || sub.includes('driving') || sub.includes('shuttle') || sub.includes('showroom');
+                
+                if (!isReserved) {
+                    return sub; // Return custom subdomain as tenant key
+                }
+            }
+            return null;
         } catch (e) {
-            return false;
+            return null;
         }
     });
+
     const [showPublicEventRegistration, setShowPublicEventRegistration] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -369,31 +382,18 @@ export const App: React.FC = () => {
         }
     });
 
-    const [activeStoreTenantId, setActiveStoreTenantId] = useState<string | null>(() => {
+    const [showDrivingSchoolPortal, setShowDrivingSchoolPortal] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            const shop = params.get('shop') || params.get('showroom') || params.get('id');
-            if (shop) return shop;
-
-            // Subdomain discovery: e.g. agrovent.eduai.co.ke
-            const host = window.location.hostname.toLowerCase();
-            const parts = host.split('.');
-            // Check for valid tenant subdomain (e.g. tenant.domain.com or tenant.eduai.co.ke)
-            if (parts.length >= 2) {
-                const sub = parts[0];
-                const reserved = ['www', 'app', 'marketplace', 'showcase', 'marketing', 'api', 'localhost', '127', 'alumni', 'alumnae', 'almamater', 'portal', 'drivingschool', 'driving', 'transport', 'shuttle', 'community', 'social', 'showroom', 'carshowroom'];
-                const isReserved = reserved.includes(sub) || sub.includes('portal') || sub.includes('admin') || sub.includes('alma') || sub.includes('driving') || sub.includes('shuttle') || sub.includes('showroom');
-                
-                if (!isReserved) {
-                    return sub; // Return as slug
-                }
-            }
-            return null;
+            const view = params.get('view');
+            const hostname = window.location.hostname;
+            const hasKioskParam = params.has('kiosk') || params.get('view') === 'kiosk';
+            return view === 'ds' || view === 'driving' || hasKioskParam || hostname === 'drivingschool.eduai.co.ke' || hostname.includes('drivingschool');
         } catch (e) {
-            return null;
+            return false;
         }
     });
-    const [showTenantStore, setShowTenantStore] = useState(!!activeStoreTenantId);
+    const [showTenantStore, setShowTenantStore] = useState(!!activeStoreTenantId && !showDrivingSchoolPortal);
     const [loginInitialView, setLoginInitialView] = useState<'login' | 'register' | 'reset_password'>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -505,11 +505,11 @@ export const App: React.FC = () => {
         // Support showroom/school context for SuperAdmins via URL param
         const targetId = activeStoreTenantId || (currentUser.role === 'super_admin' ? null : currentUser.institutionId);
         if (targetId) {
-            const found = institutions.find(i => i && (i.id === targetId || i.slug === targetId));
+            const found = institutions.find(i => i && (i.id === targetId || i.slug === targetId || (i.useSubdomain && i.customSubdomain === targetId)));
             if (found) return mergeModules(found);
 
             // Fallback to registry if not onboarded
-            const registryEntry = schoolRegistry.find(s => s.id === targetId || s.institutionId === targetId || s.slug === targetId);
+            const registryEntry = schoolRegistry.find(s => s.id === targetId || s.institutionId === targetId || s.slug === targetId || s.customSubdomain === targetId);
             if (registryEntry) {
                 return mergeModules({
                     id: targetId,
@@ -584,12 +584,12 @@ export const App: React.FC = () => {
 
         if (showDrivingSchoolPortal) {
             return {
-                primaryColor: '#0ea5e9', // Sky blue
+                primaryColor: activeInstitution?.themeColor || '#0ea5e9', // Fallback to sky blue
                 secondaryColor: '#0f172a',
-                logoUrl: '/driving_school_logo_3d.png',
+                logoUrl: activeInstitution?.logoUrl || '/driving_school_logo_3d.png',
                 motto: 'Safety First, Success Always',
-                website: 'https://drivingschool.eduai.co.ke',
-                displayName: 'Driving School Portal'
+                website: activeInstitution?.kioskUrl || 'https://drivingschool.eduai.co.ke',
+                displayName: activeInstitution?.name || 'Driving School Portal'
             };
         }
 
@@ -5178,17 +5178,15 @@ export const App: React.FC = () => {
                     <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                         {showTenantStore && activeStoreTenantId ? (
                             (() => {
-                                const targetInst = institutions.find(inst => inst.id === activeStoreTenantId || inst.slug === activeStoreTenantId);
+                                const targetInst = institutions.find(inst => inst.id === activeStoreTenantId || inst.slug === activeStoreTenantId || (inst.useSubdomain && inst.customSubdomain === activeStoreTenantId));
                                  if (targetInst?.institutionType === 'Hospitality') {
-                                    return <HospitalityStorefront institutionId={activeStoreTenantId} />;
+                                    return <HospitalityStorefront institutionId={targetInst.id} />;
                                 } else if (targetInst?.institutionType === 'Construction') {
-                                    return <ConstructionProjectView institutionId={activeStoreTenantId} />;
+                                    return <ConstructionProjectView institutionId={targetInst.id} />;
                                 } else if (targetInst?.institutionType === 'Education' || targetInst?.institutionType === 'Primary' || targetInst?.institutionType === 'Secondary') {
-                                    return <SchoolStorefrontView institutionId={activeStoreTenantId} onEnrollmentClick={() => setShowAlumnaeRegister(true)} />;
-                                } else if (targetInst?.institutionType === 'Political Campaign') {
-                                    return <CampaignJoinPage campaignId={activeStoreTenantId} onBack={() => setShowTenantStore(false)} />;
+                                    return <SchoolStorefrontView institutionId={targetInst.id} onEnrollmentClick={() => setShowAlumnaeRegister(true)} />;
                                 }
-                                return <TenantStorefrontView institutionId={activeStoreTenantId} />;
+                                return <TenantStorefrontView institutionId={targetInst ? targetInst.id : activeStoreTenantId} />;
                             })()
                          ) : showCommunityHub ? (
                             <CommunityHubView 
