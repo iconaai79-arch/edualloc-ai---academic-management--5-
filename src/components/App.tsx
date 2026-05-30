@@ -1387,7 +1387,7 @@ export const App: React.FC = () => {
             const mockAlumna = {
                 id: `sa_alumna_${Date.now()}`,
                 fullName: `Super Admin (${school.name})`,
-                email: currentUser?.email || 'admin@edualloc.com',
+                email: currentUser?.email || 'admin@eduai.co.ke',
                 phone: currentUser?.phoneNumber || '',
                 institutionId: school.institutionId || 'GLOBAL',
                 registryId: school.id,

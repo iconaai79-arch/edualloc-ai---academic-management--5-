@@ -3508,7 +3508,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     />
                                                     <div>
                                                         <label htmlFor="use-subdomain" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">Enable Custom Subdomain</label>
-                                                        <p className="text-[10px] text-slate-400">Map your institution to a custom subdomain (e.g. schoolname.edualloc.com)</p>
+                                                        <p className="text-[10px] text-slate-400">Map your institution to a custom subdomain (e.g. schoolname.eduai.co.ke)</p>
                                                     </div>
                                                 </div>
 
@@ -3526,7 +3526,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                 }}
                                                                 className="form-input pr-32 font-mono text-xs font-bold"
                                                             />
-                                                            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 font-mono text-[10px] uppercase">.edualloc.com</div>
+                                                            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 font-mono text-[10px] uppercase">.eduai.co.ke</div>
                                                         </div>
                                                     </div>
                                                 )}
@@ -3540,7 +3540,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </p>
                                                 <p className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 truncate">
                                                     {instProfile.useSubdomain && instProfile.customSubdomain 
-                                                        ? `https://${instProfile.customSubdomain}.edualloc.com` 
+                                                        ? `https://${instProfile.customSubdomain}.eduai.co.ke` 
                                                         : `${window.location.origin}/?shop=${instProfile.slug || props.currentInstitution?.id}`}
                                                 </p>
                                             </div>
@@ -3549,7 +3549,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     type="button"
                                                     onClick={() => {
                                                         const url = instProfile.useSubdomain && instProfile.customSubdomain 
-                                                            ? `https://${instProfile.customSubdomain}.edualloc.com` 
+                                                            ? `https://${instProfile.customSubdomain}.eduai.co.ke` 
                                                             : `${window.location.origin}/?shop=${instProfile.slug || props.currentInstitution?.id}`;
                                                         navigator.clipboard.writeText(url);
                                                         alert(isCampaign ? 'Campaign link copied to clipboard!' : 'Storefront link copied to clipboard!');
@@ -3562,7 +3562,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     type="button"
                                                     onClick={() => {
                                                         const url = instProfile.useSubdomain && instProfile.customSubdomain 
-                                                            ? `https://${instProfile.customSubdomain}.edualloc.com` 
+                                                            ? `https://${instProfile.customSubdomain}.eduai.co.ke` 
                                                             : `${window.location.origin}/?shop=${instProfile.slug || props.currentInstitution?.id}`;
                                                         window.open(url, '_blank');
                                                     }}

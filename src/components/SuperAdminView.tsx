@@ -3020,7 +3020,7 @@ Please change it after login.`;
                             <div className="animate-fade-in-up">
                                 <ExternalModuleView 
                                     title="Institution Registry & Deployment Services"
-                                    url="https://registry.edualloc.com"
+                                    url="https://registry.eduai.co.ke"
                                     description="Manage cloud deployments, database migrations, and institutional infrastructure at scale."
                                 />
                             </div>
@@ -3882,7 +3882,7 @@ Please change it after login.`;
                     <div className="animate-fade-in-up">
                         <ExternalModuleView
                             title="EduAI Advanced Analytics & Support Portal"
-                            url="https://support.edualloc.com"
+                            url="https://support.eduai.co.ke"
                             description="Independent portal for system-wide analytics, support tickets, and advanced platform configuration."
                         />
                     </div>

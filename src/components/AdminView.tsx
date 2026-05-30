@@ -2334,7 +2334,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     <div className="animate-fade-in-up">
                         <ExternalModuleView
                             title="EduAI Support & Analytics Hub"
-                            url="https://support.edualloc.com"
+                            url="https://support.eduai.co.ke"
                             description="Access system guides, analytics dashboard and priority support."
                         />
                     </div>
