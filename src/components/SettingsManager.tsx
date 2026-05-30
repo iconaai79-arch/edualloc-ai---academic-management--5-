@@ -295,7 +295,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
         storeHoursEnforced: props.currentInstitution?.storeHoursEnforced ?? false,
         storeOpenTime: props.currentInstitution?.storeOpenTime || '08:00',
-        storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00'
+        storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00',
+        kioskUrl: props.currentInstitution?.kioskUrl || '',
+        customSubdomain: props.currentInstitution?.customSubdomain || '',
+        useSubdomain: props.currentInstitution?.useSubdomain ?? false
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -320,7 +323,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 googleDriveConfig: props.currentInstitution.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
                 storeHoursEnforced: props.currentInstitution.storeHoursEnforced ?? false,
                 storeOpenTime: props.currentInstitution.storeOpenTime || '08:00',
-                storeCloseTime: props.currentInstitution.storeCloseTime || '17:00'
+                storeCloseTime: props.currentInstitution.storeCloseTime || '17:00',
+                kioskUrl: props.currentInstitution.kioskUrl || '',
+                customSubdomain: props.currentInstitution.customSubdomain || '',
+                useSubdomain: props.currentInstitution.useSubdomain ?? false
             });
         }
     }, [props.currentInstitution]);
@@ -3457,7 +3463,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 <div className="mt-10 pt-10 border-t border-slate-100 dark:border-slate-800">
                                     <h4 className="font-bold text-lg mb-6 flex items-center gap-2"><StoreIcon className="w-5 h-5 text-indigo-500" /> {isCampaign ? 'Campaign Public Presence' : 'Storefront & Digital Identity'}</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                                        <div className="space-y-4">
+                                        <div className="space-y-6">
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Custom Store URL Slug</label>
                                                 <div className="relative group">
@@ -3475,6 +3481,53 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </div>
                                                 <p className="text-[9px] text-slate-400 font-bold uppercase mt-2 ml-1">Lowercase alphanumeric and hyphens only.</p>
                                             </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Kiosk URL</label>
+                                                <input 
+                                                    type="url" 
+                                                    placeholder="https://kiosk.yourdomain.com"
+                                                    value={instProfile.kioskUrl || ''}
+                                                    onChange={(e) => setInstProfile({ ...instProfile, kioskUrl: e.target.value })}
+                                                    className="form-input font-mono text-xs font-bold"
+                                                />
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase mt-2 ml-1">Kiosk display site configuration link</p>
+                                            </div>
+
+                                            <div className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700/60 space-y-4">
+                                                <div className="flex items-center gap-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="use-subdomain"
+                                                        checked={instProfile.useSubdomain || false}
+                                                        onChange={(e) => setInstProfile({ ...instProfile, useSubdomain: e.target.checked })}
+                                                        className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                    />
+                                                    <div>
+                                                        <label htmlFor="use-subdomain" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">Enable Custom Subdomain</label>
+                                                        <p className="text-[10px] text-slate-400">Map your institution to a custom subdomain (e.g. schoolname.edualloc.com)</p>
+                                                    </div>
+                                                </div>
+
+                                                {(instProfile.useSubdomain || false) && (
+                                                    <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-fade-in">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 ml-1">Subdomain Name</label>
+                                                        <div className="relative">
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="subdomain"
+                                                                value={instProfile.customSubdomain || ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                                                                    setInstProfile({ ...instProfile, customSubdomain: val });
+                                                                }}
+                                                                className="form-input pr-32 font-mono text-xs font-bold"
+                                                            />
+                                                            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 font-mono text-[10px] uppercase">.edualloc.com</div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                         
                                         <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-700 flex flex-col justify-between">
@@ -3483,14 +3536,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     {props.currentInstitution?.institutionType === 'Hospitality' ? 'Public Booking Portal' : isCampaign ? 'Join Campaign Link' : 'Public Storefront Link'}
                                                 </p>
                                                 <p className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 truncate">
-                                                    {window.location.origin}/?shop={instProfile.slug || props.currentInstitution?.id}
+                                                    {instProfile.useSubdomain && instProfile.customSubdomain 
+                                                        ? `https://${instProfile.customSubdomain}.edualloc.com` 
+                                                        : `${window.location.origin}/?shop=${instProfile.slug || props.currentInstitution?.id}`}
                                                 </p>
                                             </div>
                                             <div className="flex gap-2 mt-4">
                                                 <button 
                                                     type="button"
                                                     onClick={() => {
-                                                        const url = `${window.location.origin}/?shop=${instProfile.slug || props.currentInstitution?.id}`;
+                                                        const url = instProfile.useSubdomain && instProfile.customSubdomain 
+                                                            ? `https://${instProfile.customSubdomain}.edualloc.com` 
+                                                            : `${window.location.origin}/?shop=${instProfile.slug || props.currentInstitution?.id}`;
                                                         navigator.clipboard.writeText(url);
                                                         alert(isCampaign ? 'Campaign link copied to clipboard!' : 'Storefront link copied to clipboard!');
                                                     }}
@@ -3500,7 +3557,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </button>
                                                 <button 
                                                     type="button"
-                                                    onClick={() => window.open(`/?shop=${instProfile.slug || props.currentInstitution?.id}`, '_blank')}
+                                                    onClick={() => {
+                                                        const url = instProfile.useSubdomain && instProfile.customSubdomain 
+                                                            ? `https://${instProfile.customSubdomain}.edualloc.com` 
+                                                            : `${window.location.origin}/?shop=${instProfile.slug || props.currentInstitution?.id}`;
+                                                        window.open(url, '_blank');
+                                                    }}
                                                     className="bg-indigo-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-colors shadow-md"
                                                 >
                                                     Preview

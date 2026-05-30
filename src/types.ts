@@ -447,6 +447,9 @@ export interface Institution {
     storeHoursEnforced?: boolean;
     storeOpenTime?: string;
     storeCloseTime?: string;
+    kioskUrl?: string;
+    customSubdomain?: string;
+    useSubdomain?: boolean;
 }
 
 export interface SchoolGallery {

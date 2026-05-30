@@ -6454,7 +6454,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 )}
 
                                 {settingsSubTab === 'kiosk' && (() => {
-                                    const kioskLink = `${window.location.origin}${window.location.pathname}?view=ds&tab=portal&kiosk=checkin`;
+                                    const kioskLink = currentInstitution?.kioskUrl || 
+                                        (currentInstitution?.useSubdomain && currentInstitution?.customSubdomain
+                                            ? `https://${currentInstitution.customSubdomain}.edualloc.com/kiosk`
+                                            : `${window.location.origin}${window.location.pathname}?view=ds&tab=portal&kiosk=checkin`);
                                     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(kioskLink)}`;
                                     
                                     return (
