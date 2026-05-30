@@ -2125,12 +2125,25 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const getStudentMilestoneStatus = (studentId: string) => {
         const student = (students || []).find(s => s.id === studentId);
         if (!student) return null;
-        const invoice = (invoices || []).find(inv => inv.studentId === studentId && inv.status !== 'Cancelled');
-        if (!invoice) return { noInvoice: true, isCleared: true };
         const systemDays = (lessons || []).filter(l => l.studentId === studentId && l.status === 'Completed').length;
         const priorDays = student.priorAttendedDays || 0;
         const effectiveDays = systemDays + priorDays;
         const courseDuration = student.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21;
+        const invoice = (invoices || []).find(inv => inv.studentId === studentId && inv.status !== 'Cancelled');
+        if (!invoice) return {
+            noInvoice: true,
+            isCleared: true,
+            shortfall: 0,
+            expectedByNextSession: 0,
+            paidAmount: 0,
+            totalFee: 0,
+            nextSession: 1,
+            remainingDays: Math.max(0, courseDuration - effectiveDays),
+            systemDays,
+            priorDays,
+            effectiveDays,
+            courseDuration
+        };
         const totalFee = invoice.totalAmount || 0;
         const paidAmount = invoice.paidAmount || 0;
         const nextSession = effectiveDays + 1;
@@ -2737,6 +2750,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const normalizedStudents = useMemo(() => (students || []).map(s => ({
         ...s,
         fullName: s.fullName || (s as any).full_name || (s as any).name || '(No Name)',
+        admissionNumber: s.admissionNumber || (s as any).admission_number || '',
+        idNumber: s.idNumber || (s as any).id_number || '',
+        phone: s.phone || (s as any).phoneNumber || (s as any).phone_number || '',
     })), [students]);
 
     const normalizedInstructors = useMemo(() => (instructors || []).map(i => ({
