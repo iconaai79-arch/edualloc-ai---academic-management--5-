@@ -2173,13 +2173,32 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
         const input = kioskAdmissionNo.trim().toLowerCase();
         // Find matching student
-        const student = (normalizedStudents || []).find(s => 
-            (s.admissionNumber || '').toLowerCase() === input ||
-            (s.phone || '').toLowerCase() === input ||
-            ((s as any).phoneNumber || '').toLowerCase() === input ||
-            (s.idNumber || '').toLowerCase() === input ||
-            (s.id || '').toLowerCase() === input
-        );
+        const student = (normalizedStudents || []).find(s => {
+            const adm = (s.admissionNumber || '').toLowerCase();
+            const phone = (s.phone || '').toLowerCase();
+            const idNo = (s.idNumber || '').toLowerCase();
+            const sId = (s.id || '').toLowerCase();
+            
+            // Exact matches
+            if (adm === input || phone === input || idNo === input || sId === input) return true;
+            
+            // Match without prefix (e.g. input "1207" matches stored "adm-1207")
+            const prefix = (settings?.studentIdPrefix || 'ADM-').toLowerCase().trim();
+            if (prefix && adm.startsWith(prefix)) {
+                const admWithoutPrefix = adm.slice(prefix.length).trim();
+                if (admWithoutPrefix === input) return true;
+            }
+            
+            // Fallback: if input is numeric and stored admission number ends with it (e.g., input "1207" matches "ADM-1207")
+            if (/^\d+$/.test(input) && adm.endsWith(input)) {
+                const prefixIndex = adm.length - input.length;
+                if (prefixIndex === 0 || !/\d/.test(adm[prefixIndex - 1])) {
+                    return true;
+                }
+            }
+            
+            return false;
+        });
 
         if (!student) {
             setKioskMessage({
