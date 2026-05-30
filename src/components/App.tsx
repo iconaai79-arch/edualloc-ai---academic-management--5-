@@ -72,6 +72,8 @@ const CampaignSocialPortal = lazy(() => import('./CampaignSocialPortal').then(m 
 const CampaignLoginView = lazy(() => import('./CampaignLoginView').then(m => ({ default: m.CampaignLoginView })));
 const PublicCarInvoicePayment = lazy(() => import('./automotive/PublicCarInvoicePayment').then(m => ({ default: m.PublicCarInvoicePayment })));
 const PublicEventRegistration = lazy(() => import('./events/PublicEventRegistration').then(m => ({ default: m.PublicEventRegistration })));
+const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
+const PublicInvoiceView = lazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m.PublicInvoiceView })));
 
 
 import { apiService, initSupabaseClient } from '../services/apiService';
@@ -495,15 +497,15 @@ export const App: React.FC = () => {
     const getInstitutionById = useCallback((id: string) => (Array.isArray(institutions) ? institutions : []).find(i => i && i.id === id), [institutions]);
 
     const activeInstitution = useMemo(() => {
-        if (!currentUser || !Array.isArray(institutions)) return null;
+        if (!Array.isArray(institutions)) return null;
 
         const mergeModules = (inst: Institution) => ({
             ...inst,
             moduleStates: (institutionModuleStates || []).filter(m => m.institutionId === inst.id)
         });
 
-        // Support showroom/school context for SuperAdmins via URL param
-        const targetId = activeStoreTenantId || (currentUser.role === 'super_admin' ? null : currentUser.institutionId);
+        // Support showroom/school context via URL param or subdomain (even if not logged in)
+        const targetId = activeStoreTenantId || (currentUser && currentUser.role !== 'super_admin' ? currentUser.institutionId : null);
         if (targetId) {
             const found = institutions.find(i => i && (i.id === targetId || i.slug === targetId || (i.useSubdomain && i.customSubdomain === targetId)));
             if (found) return mergeModules(found);
@@ -522,8 +524,10 @@ export const App: React.FC = () => {
             }
         }
 
-        const found = institutions.find(i => i && i.id === currentUser.institutionId);
-        if (found) return mergeModules(found);
+        if (currentUser) {
+            const found = institutions.find(i => i && i.id === currentUser.institutionId);
+            if (found) return mergeModules(found);
+        }
 
         return null;
     }, [currentUser, institutions, schoolRegistry, activeStoreTenantId, institutionModuleStates]);
@@ -4418,6 +4422,32 @@ export const App: React.FC = () => {
     );
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
     
+    // ── EARLY ESCAPE: Public/Unauthenticated Kiosk View ──
+    const searchParams = new URLSearchParams(window.location.search);
+    const isKioskView = searchParams.has('kiosk') || searchParams.get('view') === 'kiosk' || window.location.pathname.includes('/kiosk') || window.location.pathname.endsWith('/kiosk');
+    if (!currentUser && isKioskView) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <style dangerouslySetInnerHTML={{ __html: `
+                    :root {
+                        --brand-primary: ${activeBranding.primaryColor};
+                        --brand-secondary: ${activeBranding.secondaryColor};
+                    }
+                `}} />
+                <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans flex flex-col p-4 md:p-8">
+                        <DrivingSchoolManager
+                            currentUser={undefined as any}
+                            currentInstitution={activeInstitution}
+                            externalTab="portal"
+                            onRefreshData={loadData}
+                        />
+                    </div>
+                </DrivingSchoolProvider>
+            </Suspense>
+        );
+    }
+    
     // Safety guard: ensure activeInstitution is loaded for institution-dependent roles
     const isInstitutionRole = currentUser && !['super_admin', 'county_admin'].includes(activeRole || '') && !activeRole?.startsWith('county_');
 
@@ -5220,6 +5250,12 @@ export const App: React.FC = () => {
                           ) : new URLSearchParams(window.location.search).get('view') === 'pay-car-invoice' ? (
                              <Suspense fallback={<SystemPulseLoader message="Loading Payment Gateway..." />}>
                                  <PublicCarInvoicePayment 
+                                     invoiceId={new URLSearchParams(window.location.search).get('id') || ''} 
+                                 />
+                             </Suspense>
+                          ) : (new URLSearchParams(window.location.search).get('view') === 'pay-ds-invoice' || new URLSearchParams(window.location.search).get('view') === 'ds-invoice') ? (
+                             <Suspense fallback={<SystemPulseLoader message="Loading Invoice Portal..." />}>
+                                 <PublicInvoiceView 
                                      invoiceId={new URLSearchParams(window.location.search).get('id') || ''} 
                                  />
                              </Suspense>
