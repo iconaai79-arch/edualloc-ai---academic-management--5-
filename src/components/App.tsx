@@ -388,7 +388,7 @@ export const App: React.FC = () => {
             const view = params.get('view');
             const hostname = window.location.hostname;
             const hasKioskParam = params.has('kiosk') || params.get('view') === 'kiosk';
-            return view === 'ds' || view === 'driving' || hasKioskParam || hostname === 'drivingschool.eduai.co.ke' || hostname.includes('drivingschool');
+             return view === 'ds' || view === 'driving' || hasKioskParam || hostname === 'drivingschool.eduai.co.ke' || hostname === 'urbands.eduai.co.ke' || hostname.includes('drivingschool') || hostname.includes('urbands');
         } catch (e) {
             return false;
         }
@@ -400,7 +400,7 @@ export const App: React.FC = () => {
             if (params.get('resetToken')) return 'reset_password';
             
             const hostname = window.location.hostname;
-            const isSpecializedSubdomain = hostname.includes('drivingschool') || hostname.includes('transport') || hostname.includes('shuttle') || hostname.includes('community') || hostname.includes('showroom');
+             const isSpecializedSubdomain = hostname.includes('drivingschool') || hostname.includes('urbands') || hostname.includes('transport') || hostname.includes('shuttle') || hostname.includes('community') || hostname.includes('showroom');
             if (isSpecializedSubdomain && !currentUser) return 'register';
             
             return 'login';
@@ -414,7 +414,7 @@ export const App: React.FC = () => {
             const mod = params.get('module');
             if (mod) return mod;
             const hostname = window.location.hostname;
-            if (hostname === 'drivingschool.eduai.co.ke' || hostname.includes('drivingschool')) return 'ds';
+             if (hostname === 'drivingschool.eduai.co.ke' || hostname === 'urbands.eduai.co.ke' || hostname.includes('drivingschool') || hostname.includes('urbands')) return 'ds';
             if (hostname === 'transport.eduai.co.ke' || hostname.includes('shuttle')) return 'logistics';
             if (hostname.includes('community')) return 'community';
             if (hostname.includes('showroom')) return 'showroom';
@@ -588,7 +588,7 @@ export const App: React.FC = () => {
                 secondaryColor: '#0f172a',
                 logoUrl: activeInstitution?.logoUrl || '/driving_school_logo_3d.png',
                 motto: 'Safety First, Success Always',
-                website: activeInstitution?.kioskUrl || 'https://drivingschool.eduai.co.ke',
+                 website: activeInstitution?.kioskUrl || 'https://urbands.eduai.co.ke',
                 displayName: activeInstitution?.name || 'Driving School Portal'
             };
         }
