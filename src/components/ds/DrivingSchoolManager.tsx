@@ -2108,55 +2108,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [isKioskScanning, setIsKioskScanning] = useState(true);
     const kioskWebcamRef = useRef<any>(null);
 
-    // Load jsQR script dynamically
-    useEffect(() => {
-        if (kioskTab !== 'checkin') return;
-        const script = document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
-        script.async = true;
-        document.body.appendChild(script);
-        return () => {
-            if (document.body.contains(script)) {
-                document.body.removeChild(script);
-            }
-        };
-    }, [kioskTab]);
 
-    // Interval for QR code decoding
-    useEffect(() => {
-        if (kioskTab !== 'checkin' || !isKioskScanning) return;
-        
-        const interval = setInterval(() => {
-            if (!kioskWebcamRef.current) return;
-            const video = kioskWebcamRef.current.video;
-            if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-                const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    // @ts-ignore
-                    if (window.jsQR) {
-                        // @ts-ignore
-                        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
-                            inversionAttempts: "dontInvert",
-                        });
-                        if (code && code.data) {
-                            const scannedText = code.data.trim();
-                            if (scannedText) {
-                                setKioskAdmissionNo(scannedText);
-                                handleKioskCheckIn(scannedText);
-                            }
-                        }
-                    }
-                }
-            }
-        }, 400);
-
-        return () => clearInterval(interval);
-    }, [kioskTab, isKioskScanning, normalizedStudents]);
     const [newCategoryInput, setNewCategoryInput] = useState({ code: '', name: '', description: '', baseFee: 0, isActive: true, parentCategory: '' });
     const [newVoteInput, setNewVoteInput] = useState({ voteName: '', defaultAmount: 0, isMandatory: false });
     const [bulkVotesEntries, setBulkVotesEntries] = useState<Array<{ voteName: string; defaultAmount: number; isMandatory: boolean }>>([
@@ -2218,184 +2170,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         };
     };
 
-    async function handleKioskCheckIn(overrideValue?: string) {
-        const valToUse = overrideValue || kioskAdmissionNo;
-        if (!valToUse.trim()) {
-            setKioskMessage({ status: 'error', text: 'Please enter a student identifier.' });
-            return;
-        }
 
-        const input = valToUse.trim().toLowerCase();
-        // Find matching student
-        const student = (normalizedStudents || []).find(s => {
-            const adm = (s.admissionNumber || '').toLowerCase();
-            const phone = (s.phone || '').toLowerCase();
-            const idNo = (s.idNumber || '').toLowerCase();
-            const sId = (s.id || '').toLowerCase();
-            
-            // Exact matches
-            if (adm === input || phone === input || idNo === input || sId === input) return true;
-            
-            // Match without prefix (e.g. input "1207" matches stored "adm-1207")
-            const prefix = (settings?.studentIdPrefix || 'ADM-').toLowerCase().trim();
-            if (prefix && adm.startsWith(prefix)) {
-                const admWithoutPrefix = adm.slice(prefix.length).trim();
-                if (admWithoutPrefix === input) return true;
-            }
-            
-            // Fallback: if input is numeric and stored admission number ends with it (e.g., input "1207" matches "ADM-1207")
-            if (/^\d+$/.test(input) && adm.endsWith(input)) {
-                const prefixIndex = adm.length - input.length;
-                if (prefixIndex === 0 || !/\d/.test(adm[prefixIndex - 1])) {
-                    return true;
-                }
-            }
-            
-            return false;
-        });
-
-        if (!student) {
-            setKioskMessage({
-                status: 'error',
-                text: 'Access Denied: Invalid Student Credentials',
-                details: `No active student found matching identifier: "${valToUse}".`
-            });
-            // Auto-reset after 12 seconds
-            setTimeout(() => {
-                setKioskMessage(null);
-                setKioskAdmissionNo('');
-            }, 12000);
-            return;
-        }
-
-        // Get milestone status
-        const milestone = getStudentMilestoneStatus(student.id);
-        const todayStr = new Date().toISOString().split('T')[0];
-        
-        // Find scheduled lessons for today
-        const todayLessons = (lessons || []).filter(l => 
-            l.studentId === student.id && 
-            l.lessonDate === todayStr && 
-            l.status !== 'Cancelled'
-        );
-
-        if (milestone && !milestone.isCleared) {
-            // Red block
-            setKioskMessage({
-                status: 'error',
-                text: 'Clearance Denied!',
-                details: `Candidate: ${student.fullName}. Pro-rata shortfall of KES ${milestone.shortfall.toLocaleString()} detected. Please visit the reception desk or settle via M-Pesa to resume training.`
-            });
-            // Auto-reset after 12 seconds
-            setTimeout(() => {
-                setKioskMessage(null);
-                setKioskAdmissionNo('');
-            }, 12000);
-        } else {
-            // Green clearance
-            try {
-                // If there's a scheduled lesson today, mark it completed
-                let updatedInfo = '';
-                if (todayLessons.length > 0) {
-                    for (const lesson of todayLessons) {
-                        if (lesson.status === 'Scheduled') {
-                            await onUpdateLesson({
-                                ...lesson,
-                                status: 'Completed',
-                                notes: (lesson.notes || '') + ' [Auto-checked-in via Reception Kiosk]'
-                            });
-                        }
-                    }
-                    updatedInfo = `Attendance marked for ${todayLessons.length} scheduled session(s).`;
-                } else {
-                    // First come first serve auto-assign logic:
-                    const theoryPct = student.theoryProgressPercent || 0;
-                    const practicalPct = student.practicalProgressPercent || 0;
-                    const lessonType = (theoryPct <= practicalPct && theoryPct < 100) ? 'Theory' : 'Practical';
-                    
-                    let instructor = (instructors || []).find(i => i.id === student.preferredInstructorId && i.status === 'Active');
-                    if (!instructor) {
-                        instructor = (instructors || []).find(i => i.status === 'Active');
-                    }
-                    
-                    let vehicle = null;
-                    if (lessonType === 'Practical') {
-                        if (instructor?.assignedVehicleId) {
-                            vehicle = (vehicles || []).find(v => v.id === instructor.assignedVehicleId && v.status === 'Operational');
-                        }
-                        if (!vehicle) {
-                            vehicle = (vehicles || []).find(v => v.status === 'Operational');
-                        }
-                    }
-                    
-                    const nowTime = new Date();
-                    const startHr = String(nowTime.getHours()).padStart(2, '0');
-                    const endHr = String((nowTime.getHours() + 1) % 24).padStart(2, '0');
-                    const startTime = `${startHr}:00`;
-                    const endTime = `${endHr}:00`;
-                    
-                    const newLessonId = `less_${Date.now()}`;
-                    const newLesson = {
-                        id: newLessonId,
-                        institutionId: currentInstitution?.id,
-                        studentId: student.id,
-                        instructorId: instructor?.id || null,
-                        vehicleId: vehicle?.id || null,
-                        lessonDate: todayStr,
-                        startTime,
-                        endTime,
-                        lessonType,
-                        status: 'Completed',
-                        confirmationStatus: 'Confirmed',
-                        notes: `[Auto-scheduled & Checked-in first-come first-serve via Kiosk]`,
-                        createdAt: new Date().toISOString()
-                    };
-                    
-                    // Save the completed lesson
-                    await apiService.saveModuleRecord('ds_lessons', newLesson);
-                    
-                    // Update student progress directly
-                    const durationDays = student.courseDurationDays || 21;
-                    const increment = Math.max(5, Math.round(100 / durationDays));
-                    const nextTheory = lessonType === 'Theory' ? Math.min(100, theoryPct + increment) : theoryPct;
-                    const nextPractical = lessonType === 'Practical' ? Math.min(100, practicalPct + increment) : practicalPct;
-                    const currentRemaining = student.remainingDays ?? student.courseDurationDays ?? 0;
-                    
-                    await apiService.saveModuleRecord('ds_students', {
-                        ...student,
-                        remainingDays: Math.max(0, currentRemaining - 1),
-                        theoryProgressPercent: nextTheory,
-                        practicalProgressPercent: nextPractical,
-                        updatedAt: new Date().toISOString()
-                    });
-                    
-                    updatedInfo = `Auto-assigned & marked attendance for a new ${lessonType} Session with ${instructor?.name || 'available instructor'}.`;
-                }
-
-                setKioskMessage({
-                    status: 'success',
-                    text: 'Clearance Approved!',
-                    details: `Welcome, ${student.fullName}. ${updatedInfo}`
-                });
-
-                if (onRefreshDataProp) await onRefreshDataProp();
-                refreshData();
-            } catch (err) {
-                console.error("Kiosk check-in execution failure:", err);
-                setKioskMessage({
-                    status: 'error',
-                    text: 'System Error during check-in processing.',
-                    details: 'Please contact the system administrator.'
-                });
-            }
-
-            // Auto-reset after 6 seconds
-            setTimeout(() => {
-                setKioskMessage(null);
-                setKioskAdmissionNo('');
-            }, 6000);
-        }
-    };
     // ────────────────────────────────────────────────────────────────────────
 
     const handleSendBulkReminders = async () => {
@@ -2937,6 +2712,236 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             return 0;
         });
     }, [normalizedStudents, searchTerm, studentSubTab, studentSortBy]);
+
+    // ─── Kiosk Check-In & Scanner Logic (Hoisted below memos to avoid Temporal Dead Zone ReferenceErrors) ───
+    async function handleKioskCheckIn(overrideValue?: string) {
+        const valToUse = overrideValue || kioskAdmissionNo;
+        if (!valToUse.trim()) {
+            setKioskMessage({ status: 'error', text: 'Please enter a student identifier.' });
+            return;
+        }
+
+        const input = valToUse.trim().toLowerCase();
+        // Find matching student
+        const student = (normalizedStudents || []).find(s => {
+            const adm = (s.admissionNumber || '').toLowerCase();
+            const phone = (s.phone || '').toLowerCase();
+            const idNo = (s.idNumber || '').toLowerCase();
+            const sId = (s.id || '').toLowerCase();
+            
+            // Exact matches
+            if (adm === input || phone === input || idNo === input || sId === input) return true;
+            
+            // Match without prefix (e.g. input "1207" matches stored "adm-1207")
+            const prefix = (settings?.studentIdPrefix || 'ADM-').toLowerCase().trim();
+            if (prefix && adm.startsWith(prefix)) {
+                const admWithoutPrefix = adm.slice(prefix.length).trim();
+                if (admWithoutPrefix === input) return true;
+            }
+            
+            // Fallback: if input is numeric and stored admission number ends with it (e.g., input "1207" matches "ADM-1207")
+            if (/^\d+$/.test(input) && adm.endsWith(input)) {
+                const prefixIndex = adm.length - input.length;
+                if (prefixIndex === 0 || !/\d/.test(adm[prefixIndex - 1])) {
+                    return true;
+                }
+            }
+            
+            return false;
+        });
+
+        if (!student) {
+            setKioskMessage({
+                status: 'error',
+                text: 'Access Denied: Invalid Student Credentials',
+                details: `No active student found matching identifier: "${valToUse}".`
+            });
+            // Auto-reset after 12 seconds
+            setTimeout(() => {
+                setKioskMessage(null);
+                setKioskAdmissionNo('');
+            }, 12000);
+            return;
+        }
+
+        // Get milestone status
+        const milestone = getStudentMilestoneStatus(student.id);
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        // Find scheduled lessons for today
+        const todayLessons = (lessons || []).filter(l => 
+            l.studentId === student.id && 
+            l.lessonDate === todayStr && 
+            l.status !== 'Cancelled'
+        );
+
+        if (milestone && !milestone.isCleared) {
+            // Red block
+            setKioskMessage({
+                status: 'error',
+                text: 'Clearance Denied!',
+                details: `Candidate: ${student.fullName}. Pro-rata shortfall of KES ${milestone.shortfall.toLocaleString()} detected. Please visit the reception desk or settle via M-Pesa to resume training.`
+            });
+            // Auto-reset after 12 seconds
+            setTimeout(() => {
+                setKioskMessage(null);
+                setKioskAdmissionNo('');
+            }, 12000);
+        } else {
+            // Green clearance
+            try {
+                // If there's a scheduled lesson today, mark it completed
+                let updatedInfo = '';
+                if (todayLessons.length > 0) {
+                    for (const lesson of todayLessons) {
+                        if (lesson.status === 'Scheduled') {
+                            await onUpdateLesson({
+                                ...lesson,
+                                status: 'Completed',
+                                notes: (lesson.notes || '') + ' [Auto-checked-in via Reception Kiosk]'
+                            });
+                        }
+                    }
+                    updatedInfo = `Attendance marked for ${todayLessons.length} scheduled session(s).`;
+                } else {
+                    // First come first serve auto-assign logic:
+                    const theoryPct = student.theoryProgressPercent || 0;
+                    const practicalPct = student.practicalProgressPercent || 0;
+                    const lessonType = (theoryPct <= practicalPct && theoryPct < 100) ? 'Theory' : 'Practical';
+                    
+                    let instructor = (instructors || []).find(i => i.id === student.preferredInstructorId && i.status === 'Active');
+                    if (!instructor) {
+                        instructor = (instructors || []).find(i => i.status === 'Active');
+                    }
+                    
+                    let vehicle = null;
+                    if (lessonType === 'Practical') {
+                        if (instructor?.assignedVehicleId) {
+                            vehicle = (vehicles || []).find(v => v.id === instructor.assignedVehicleId && v.status === 'Operational');
+                        }
+                        if (!vehicle) {
+                            vehicle = (vehicles || []).find(v => v.status === 'Operational');
+                        }
+                    }
+                    
+                    const nowTime = new Date();
+                    const startHr = String(nowTime.getHours()).padStart(2, '0');
+                    const endHr = String((nowTime.getHours() + 1) % 24).padStart(2, '0');
+                    const startTime = `${startHr}:00`;
+                    const endTime = `${endHr}:00`;
+                    
+                    const newLessonId = `less_${Date.now()}`;
+                    const newLesson = {
+                        id: newLessonId,
+                        institutionId: currentInstitution?.id,
+                        studentId: student.id,
+                        instructorId: instructor?.id || null,
+                        vehicleId: vehicle?.id || null,
+                        lessonDate: todayStr,
+                        startTime,
+                        endTime,
+                        lessonType,
+                        status: 'Completed',
+                        confirmationStatus: 'Confirmed',
+                        notes: `[Auto-scheduled & Checked-in first-come first-serve via Kiosk]`,
+                        createdAt: new Date().toISOString()
+                    };
+                    
+                    // Save the completed lesson
+                    await apiService.saveModuleRecord('ds_lessons', newLesson);
+                    
+                    // Update student progress directly
+                    const durationDays = student.courseDurationDays || 21;
+                    const increment = Math.max(5, Math.round(100 / durationDays));
+                    const nextTheory = lessonType === 'Theory' ? Math.min(100, theoryPct + increment) : theoryPct;
+                    const nextPractical = lessonType === 'Practical' ? Math.min(100, practicalPct + increment) : practicalPct;
+                    const currentRemaining = student.remainingDays ?? student.courseDurationDays ?? 0;
+                    
+                    await apiService.saveModuleRecord('ds_students', {
+                        ...student,
+                        remainingDays: Math.max(0, currentRemaining - 1),
+                        theoryProgressPercent: nextTheory,
+                        practicalProgressPercent: nextPractical,
+                        updatedAt: new Date().toISOString()
+                    });
+                    
+                    updatedInfo = `Auto-assigned & marked attendance for a new ${lessonType} Session with ${instructor?.name || 'available instructor'}.`;
+                }
+
+                setKioskMessage({
+                    status: 'success',
+                    text: 'Clearance Approved!',
+                    details: `Welcome, ${student.fullName}. ${updatedInfo}`
+                });
+
+                if (onRefreshDataProp) await onRefreshDataProp();
+                refreshData();
+            } catch (err) {
+                console.error("Kiosk check-in execution failure:", err);
+                setKioskMessage({
+                    status: 'error',
+                    text: 'System Error during check-in processing.',
+                    details: 'Please contact the system administrator.'
+                });
+            }
+
+            // Auto-reset after 6 seconds
+            setTimeout(() => {
+                setKioskMessage(null);
+                setKioskAdmissionNo('');
+            }, 6000);
+        }
+    }
+
+    // Load jsQR script dynamically
+    useEffect(() => {
+        if (kioskTab !== 'checkin') return;
+        const script = document.createElement('script');
+        script.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+        script.async = true;
+        document.body.appendChild(script);
+        return () => {
+            if (document.body.contains(script)) {
+                document.body.removeChild(script);
+            }
+        };
+    }, [kioskTab]);
+
+    // Interval for QR code decoding
+    useEffect(() => {
+        if (kioskTab !== 'checkin' || !isKioskScanning) return;
+        
+        const interval = setInterval(() => {
+            if (!kioskWebcamRef.current) return;
+            const video = kioskWebcamRef.current.video;
+            if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    // @ts-ignore
+                    if (window.jsQR) {
+                        // @ts-ignore
+                        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: "dontInvert",
+                        });
+                        if (code && code.data) {
+                            const scannedText = code.data.trim();
+                            if (scannedText) {
+                                setKioskAdmissionNo(scannedText);
+                                handleKioskCheckIn(scannedText);
+                            }
+                        }
+                    }
+                }
+            }
+        }, 400);
+
+        return () => clearInterval(interval);
+    }, [kioskTab, isKioskScanning, normalizedStudents]);
 
     const filteredPreviewStudents = useMemo(() => {
         let list = (normalizedStudents || []).filter(s => 
