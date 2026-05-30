@@ -2927,119 +2927,123 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         <AppErrorBoundary>
             <div className="space-y-10 animate-fade-in pb-20">
                 {/* Header Section */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-                    <div>
-                        {activeTab === 'dashboard' && (
-                            <>
-                                <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-4">
-                                    Driving <span className="text-indigo-600">School</span>
-                                    <div className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full">
-                                        <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Enterprise</span>
+                {activeTab !== 'portal' && (
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <div>
+                            {activeTab === 'dashboard' && (
+                                <>
+                                    <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-4">
+                                        Driving <span className="text-indigo-600">School</span>
+                                        <div className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full">
+                                            <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Enterprise</span>
+                                        </div>
+                                    </h1>
+                                    <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-2 ml-1">Fleet Management & Student Success</p>
+                                </>
+                            )}
+                            {activeTab !== 'dashboard' && (
+                                <div className="flex items-center gap-4">
+                                    <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                        {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+                                    </h1>
+                                    <div className="px-4 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DS Module</span>
                                     </div>
-                                </h1>
-                                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-2 ml-1">Fleet Management & Student Success</p>
-                            </>
-                        )}
-                        {activeTab !== 'dashboard' && (
-                            <div className="flex items-center gap-4">
-                                <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                    {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-                                </h1>
-                                <div className="px-4 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DS Module</span>
                                 </div>
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        {activeTab === 'broadcaster' && (
-                            <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                <div className={`w-2 h-2 rounded-full ${(currentInstitution?.smsBalance || 0) < 50 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SMS Units</span>
-                                    <span className="text-xs font-black text-slate-900 dark:text-white">{(currentInstitution?.smsBalance || 0).toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
+                        <div className="flex flex-wrap items-center gap-3">
+                            {activeTab === 'broadcaster' && (
+                                <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <div className={`w-2 h-2 rounded-full ${(currentInstitution?.smsBalance || 0) < 50 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SMS Units</span>
+                                        <span className="text-xs font-black text-slate-900 dark:text-white">{(currentInstitution?.smsBalance || 0).toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
+                                    </div>
+                                    <button 
+                                        onClick={() => setIsBuySMSModalOpen(true)}
+                                        className="ml-2 p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800 hover:bg-slate-50 transition-all"
+                                        title="Top Up Units"
+                                    >
+                                        <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                    </button>
                                 </div>
+                            )}
+
+                            {activeTab === 'lessons' && (
                                 <button 
-                                    onClick={() => setIsBuySMSModalOpen(true)}
-                                    className="ml-2 p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800 hover:bg-slate-50 transition-all"
-                                    title="Top Up Units"
+                                    onClick={handleAutoGenerateTomorrow}
+                                    disabled={isActionLoading}
+                                    className="px-6 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3 disabled:opacity-50"
                                 >
-                                    <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                    <SparklesIcon className="w-4 h-4" />
+                                    {isActionLoading ? 'Generating...' : 'Auto-Generate Tomorrow'}
                                 </button>
-                            </div>
-                        )}
+                            )}
 
-                        {activeTab === 'lessons' && (
-                            <button 
-                                onClick={handleAutoGenerateTomorrow}
-                                disabled={isActionLoading}
-                                className="px-6 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3 disabled:opacity-50"
-                            >
-                                <SparklesIcon className="w-4 h-4" />
-                                {isActionLoading ? 'Generating...' : 'Auto-Generate Tomorrow'}
-                            </button>
-                        )}
-
-                        {activeTab !== 'dashboard' && (
-                            <button 
-                                onClick={() => {
-                                    const typeMap: Record<string, any> = {
-                                        students: 'student',
-                                        leads: 'lead',
-                                        lessons: 'lesson',
-                                        fleet: 'vehicle',
-                                        instructors: 'instructor',
-                                        finance: 'invoice',
-                                        settings: 'fee_structure',
-                                        broadcaster: 'broadcast'
-                                    };
-                                    setActionModal({ type: typeMap[activeTab] || 'student' });
-                                }} 
-                                className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3"
-                            >
-                                <PlusIcon className="w-4 h-4" />
-                                {activeTab === 'students' ? 'Enroll Student' :
-                                 activeTab === 'leads' ? 'New Enquiry Lead' :
-                                 activeTab === 'lessons' ? 'Schedule Lesson' :
-                                 activeTab === 'fleet' ? 'Register Vehicle' :
-                                 activeTab === 'instructors' ? 'Add Instructor' :
-                                 activeTab === 'finance' ? 'Generate Invoice' :
-                                 activeTab === 'settings' ? 'Add Class Fee' :
-                                 activeTab === 'broadcaster' ? 'New Broadcast' : 'New Action'}
-                            </button>
-                        )}
-                        {activeTab === 'students' && (
-                            <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3">
-                                <ArrowUpTrayIcon className="w-4 h-4" />
-                                Bulk Import
-                            </button>
-                        )}
+                            {activeTab !== 'dashboard' && (
+                                <button 
+                                    onClick={() => {
+                                        const typeMap: Record<string, any> = {
+                                            students: 'student',
+                                            leads: 'lead',
+                                            lessons: 'lesson',
+                                            fleet: 'vehicle',
+                                            instructors: 'instructor',
+                                            finance: 'invoice',
+                                            settings: 'fee_structure',
+                                            broadcaster: 'broadcast'
+                                        };
+                                        setActionModal({ type: typeMap[activeTab] || 'student' });
+                                    }} 
+                                    className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    {activeTab === 'students' ? 'Enroll Student' :
+                                     activeTab === 'leads' ? 'New Enquiry Lead' :
+                                     activeTab === 'lessons' ? 'Schedule Lesson' :
+                                     activeTab === 'fleet' ? 'Register Vehicle' :
+                                     activeTab === 'instructors' ? 'Add Instructor' :
+                                     activeTab === 'finance' ? 'Generate Invoice' :
+                                     activeTab === 'settings' ? 'Add Class Fee' :
+                                     activeTab === 'broadcaster' ? 'New Broadcast' : 'New Action'}
+                                </button>
+                            )}
+                            {activeTab === 'students' && (
+                                <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3">
+                                    <ArrowUpTrayIcon className="w-4 h-4" />
+                                    Bulk Import
+                                </button>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {[
-                        { label: 'Total Students', value: stats.totalStudents, icon: UsersIcon, color: 'indigo' },
-                        { label: 'Active Fleet', value: stats.operationalVehicles, icon: TruckIcon, color: 'emerald' },
-                        { label: 'Instructors', value: stats.activeInstructors, icon: AcademicCapIcon, color: 'blue' },
-                        { label: 'Scheduled Lessons', value: stats.pendingLessons, icon: CalendarDaysIcon, color: 'amber' }
-                    ].map((stat, i) => (
-                        <div key={i} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm group hover:border-indigo-500 transition-all">
-                            <div className="flex items-center justify-between mb-6">
-                                <div className={`p-4 bg-${stat.color}-50 dark:bg-${stat.color}-900/30 rounded-2xl group-hover:scale-110 transition-transform`}>
-                                    <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
+                {activeTab !== 'portal' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {[
+                            { label: 'Total Students', value: stats.totalStudents, icon: UsersIcon, color: 'indigo' },
+                            { label: 'Active Fleet', value: stats.operationalVehicles, icon: TruckIcon, color: 'emerald' },
+                            { label: 'Instructors', value: stats.activeInstructors, icon: AcademicCapIcon, color: 'blue' },
+                            { label: 'Scheduled Lessons', value: stats.pendingLessons, icon: CalendarDaysIcon, color: 'amber' }
+                        ].map((stat, i) => (
+                            <div key={i} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm group hover:border-indigo-500 transition-all">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div className={`p-4 bg-${stat.color}-50 dark:bg-${stat.color}-900/30 rounded-2xl group-hover:scale-110 transition-transform`}>
+                                        <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
+                                    </div>
                                 </div>
+                                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{stat.value}</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{stat.label}</p>
                             </div>
-                            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{stat.value}</h3>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{stat.label}</p>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
 
                 {/* Main Navigation - Hidden if controlled externally */}
-                {!externalTab && (
+                {!externalTab && activeTab !== 'portal' && (
                     <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl md:rounded-3xl w-full overflow-x-auto scrollbar-hide pb-3 md:pb-2">
                         <div className="flex items-center gap-2 min-w-max">
                         {[
