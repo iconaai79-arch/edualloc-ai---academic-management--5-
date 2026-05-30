@@ -118,6 +118,7 @@ import { SchemaInitializationView } from './common/SchemaInitializationView';
 import { AppErrorBoundary } from './common/AppErrorBoundary';
 import { ToastProvider, useToast } from '../services/ToastContext';
 import { DrivingSchoolProvider } from '../services/DrivingSchoolContext';
+import { DSStudentPortal } from './ds/DSStudentPortal';
 import { ModuleOnboardingWizard } from './ModuleOnboardingWizard';
 
 
@@ -4795,6 +4796,14 @@ export const App: React.FC = () => {
                                         onAccessAlumnaPortal: handleAccessAlumnaPortal
                                     } as any}
                                     />
+                                ) : activeRole === 'student' && (activeInstitution?.institutionType === 'Driving School' || activeInstitution?.moduleStates?.some((m: any) => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'))) ? (
+                                    <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                                        <DSStudentPortal
+                                            currentUser={currentUser}
+                                            currentInstitution={activeInstitution!}
+                                            onLogout={() => { apiService.clearSession(); setCurrentUser(null); }}
+                                        />
+                                    </DrivingSchoolProvider>
                                 ) : activeRole === 'student' ? (
                                     <StudentView
                                         user={currentUser}
