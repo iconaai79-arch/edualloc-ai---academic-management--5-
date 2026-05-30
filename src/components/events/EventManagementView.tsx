@@ -47,7 +47,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     const [selectedEventId, setSelectedEventId] = useState<string>('');
 
     // New Event / Category Form States
-    const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '' });
+    const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '', customSubdomain: '' });
     const [categoryForm, setCategoryForm] = useState({ name: '', distanceKm: '', registrationFee: '', capacity: '', genderRestriction: 'any' as 'any' | 'male' | 'female', startTime: '' });
     const [managerForm, setManagerForm] = useState({ name: '', email: '', phone: '', staffId: '', gender: 'Male', password: '' });
 
@@ -242,6 +242,35 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     }, [pledges, activeEventParticipants, participants]);
 
     // Handlers
+    const getEventRegistrationLink = (event: SportEvent) => {
+        const origin = window.location.origin;
+        if (event.customSubdomain) {
+            try {
+                const url = new URL(origin);
+                url.hostname = `${event.customSubdomain}.${url.hostname}`;
+                return `${url.origin}/?view=event-register&id=${event.id}`;
+            } catch (e) {
+                return `${origin}/?view=event-register&id=${event.id}`;
+            }
+        }
+        return `${origin}/?view=event-register&id=${event.id}`;
+    };
+
+    const handleUpdateEventSubdomain = async (eventId: string, subdomain: string) => {
+        const ev = events.find(e => e.id === eventId);
+        if (!ev) return;
+        const updatedEvent = { ...ev, customSubdomain: subdomain || undefined };
+        try {
+            await apiService.saveModuleRecord('events', updatedEvent);
+            if (onLogAction) onLogAction('update_event_subdomain', `Updated subdomain for event ${ev.name} to ${subdomain}`);
+            await loadEventData();
+            alert('Custom subdomain updated successfully!');
+        } catch (err: any) {
+            alert('Failed to update subdomain: ' + (err.message || err));
+        }
+    };
+
+    // Handlers
     const handleAddEvent = async (e: React.FormEvent) => {
         e.preventDefault();
         const newEvent: SportEvent = {
@@ -252,12 +281,13 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             date: eventForm.date,
             location: eventForm.location,
             status: 'planning',
+            customSubdomain: eventForm.customSubdomain ? eventForm.customSubdomain.trim().toLowerCase() : undefined,
             createdAt: new Date().toISOString()
         };
 
         try {
             await apiService.saveModuleRecord('events', newEvent);
-            setEventForm({ name: '', description: '', date: '', location: '' });
+            setEventForm({ name: '', description: '', date: '', location: '', customSubdomain: '' });
             setIsAddEventOpen(false);
             if (onLogAction) onLogAction('create_event', `Created event: ${newEvent.name}`);
             await loadEventData();
@@ -578,7 +608,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                     {activeEvent && (
                         <button
                             onClick={() => {
-                                const link = `${window.location.origin}/?view=event-register&id=${activeEvent.id}`;
+                                const link = getEventRegistrationLink(activeEvent);
                                 navigator.clipboard.writeText(link);
                                 alert(`Public self-registration link copied to clipboard:\n${link}`);
                             }}
@@ -701,7 +731,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                             </div>
                                             <button
                                                 onClick={() => {
-                                                    const link = `${window.location.origin}/?view=event-register&id=${activeEvent.id}`;
+                                                    const link = getEventRegistrationLink(activeEvent);
                                                     navigator.clipboard.writeText(link);
                                                     alert(`Public self-registration link copied to clipboard:\n${link}`);
                                                 }}
@@ -721,6 +751,28 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                             <div>
                                                 <span className="block text-slate-400">Location</span>
                                                 <span className="font-bold text-slate-800 dark:text-white">{activeEvent.location}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 border-t border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Custom Subdomain (Registration Link)</span>
+                                                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                                        {activeEvent.customSubdomain ? `${activeEvent.customSubdomain}.[domain]` : 'Default Domain (Not configured)'}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        const sub = prompt("Enter custom subdomain for this event's registration link (e.g. marathon):", activeEvent.customSubdomain || "");
+                                                        if (sub !== null) {
+                                                            handleUpdateEventSubdomain(activeEvent.id, sub.trim().toLowerCase());
+                                                        }
+                                                    }}
+                                                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold rounded-lg text-[10px] uppercase tracking-widest transition-all"
+                                                >
+                                                    {activeEvent.customSubdomain ? "Edit" : "Configure"}
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -1283,6 +1335,16 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                         className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"
                                     />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Custom Subdomain (e.g. marathon)</label>
+                                <input
+                                    type="text"
+                                    value={eventForm.customSubdomain}
+                                    onChange={e => setEventForm({ ...eventForm, customSubdomain: e.target.value })}
+                                    placeholder="Optional subdomain"
+                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                />
                             </div>
                             <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md">Create Event</button>
                         </form>

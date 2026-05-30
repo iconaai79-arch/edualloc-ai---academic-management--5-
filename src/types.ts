@@ -5085,6 +5085,7 @@ export interface SportEvent {
     status: 'planning' | 'active' | 'completed' | 'cancelled';
     logoUrl?: string;
     bannerUrl?: string;
+    customSubdomain?: string;
     createdAt?: string;
     updatedAt?: string;
 }

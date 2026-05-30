@@ -4945,7 +4945,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         <button 
                                             onClick={() => { setKioskTab('checkin'); setKioskMessage(null); }}
                                             className={`px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
-                                                kioskTab === 'checkin' 
+                                                (kioskTab as string) === 'checkin' 
                                                     ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
                                                     : 'bg-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                                             }`}
