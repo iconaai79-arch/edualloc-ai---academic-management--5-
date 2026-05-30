@@ -2792,22 +2792,73 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             try {
                 // If there's a scheduled lesson today, mark it completed
                 let updatedInfo = '';
-                if (todayLessons.length > 0) {
-                    for (const lesson of todayLessons) {
-                        if (lesson.status === 'Scheduled') {
-                            await onUpdateLesson({
-                                ...lesson,
-                                status: 'Completed',
-                                notes: (lesson.notes || '') + ' [Auto-checked-in via Reception Kiosk]'
-                            });
-                        }
+                const hasScheduled = todayLessons.some(l => l.status === 'Scheduled');
+                
+                if (hasScheduled) {
+                    const scheduledLessons = todayLessons.filter(l => l.status === 'Scheduled');
+                    const completedTheoryToday = todayLessons.some(l => l.lessonType === 'Theory' && l.status === 'Completed');
+                    const completedPracticalToday = todayLessons.some(l => l.lessonType === 'Practical' && l.status === 'Completed');
+                    
+                    const validScheduledLessons = scheduledLessons.filter(l => {
+                        if (l.lessonType === 'Theory' && completedTheoryToday) return false;
+                        if (l.lessonType === 'Practical' && completedPracticalToday) return false;
+                        return true;
+                    });
+
+                    if (validScheduledLessons.length === 0) {
+                        setKioskMessage({
+                            status: 'error',
+                            text: 'Daily Session Limit Reached',
+                            details: `Candidate: ${student.fullName}. You have already completed a session of the scheduled type(s) today. (Limit: 1 Theory & 1 Practical daily).`
+                        });
+                        setTimeout(() => {
+                            setKioskMessage(null);
+                            setKioskAdmissionNo('');
+                        }, 12000);
+                        return;
                     }
-                    updatedInfo = `Attendance marked for ${todayLessons.length} scheduled session(s).`;
+
+                    for (const lesson of validScheduledLessons) {
+                        await onUpdateLesson({
+                            ...lesson,
+                            status: 'Completed',
+                            notes: (lesson.notes || '') + ' [Auto-checked-in via Reception Kiosk]'
+                        });
+                    }
+                    updatedInfo = `Attendance marked for ${validScheduledLessons.length} scheduled session(s).`;
                 } else {
                     // First come first serve auto-assign logic:
+                    const completedTheoryToday = todayLessons.some(l => l.lessonType === 'Theory' && l.status === 'Completed');
+                    const completedPracticalToday = todayLessons.some(l => l.lessonType === 'Practical' && l.status === 'Completed');
+                    
                     const theoryPct = student.theoryProgressPercent || 0;
                     const practicalPct = student.practicalProgressPercent || 0;
-                    const lessonType = (theoryPct <= practicalPct && theoryPct < 100) ? 'Theory' : 'Practical';
+                    
+                    let lessonType: 'Theory' | 'Practical' | null = null;
+                    if (!completedTheoryToday && theoryPct <= practicalPct && theoryPct < 100) {
+                        lessonType = 'Theory';
+                    } else if (!completedPracticalToday && practicalPct < 100) {
+                        lessonType = 'Practical';
+                    } else if (!completedTheoryToday && theoryPct < 100) {
+                        lessonType = 'Theory';
+                    } else if (!completedPracticalToday) {
+                        lessonType = 'Practical';
+                    } else if (!completedTheoryToday) {
+                        lessonType = 'Theory';
+                    }
+                    
+                    if (!lessonType) {
+                        setKioskMessage({
+                            status: 'error',
+                            text: 'Daily Session Limit Reached',
+                            details: `Candidate: ${student.fullName}. You have already completed one Theory session and one Practical session today. Daily restriction: 1 session per type.`
+                        });
+                        setTimeout(() => {
+                            setKioskMessage(null);
+                            setKioskAdmissionNo('');
+                        }, 12000);
+                        return;
+                    }
                     
                     let instructor = (instructors || []).find(i => i.id === student.preferredInstructorId && i.status === 'Active');
                     if (!instructor) {
