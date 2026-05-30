@@ -162,51 +162,39 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
         setStep(2);
     };
 
-    const handleMockPayment = async () => {
+    const handleManualPayment = async () => {
+        if (!mpesaRef.trim()) {
+            setErrorMsg('Please enter a valid transaction reference code.');
+            return;
+        }
         setPaymentStatus('sending');
         setErrorMsg('');
 
-        // Simulate STK Push delay
-        setTimeout(async () => {
-            setPaymentStatus('pending');
+        try {
+            const participant = await onRegister({
+                categoryId: formData.categoryId,
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                email: formData.email,
+                phone: formData.phone,
+                gender: formData.gender,
+                age: parseInt(formData.age),
+                tShirtSize: formData.tShirtSize,
+                waiverSigned: true,
+                paymentStatus: activeCategory && activeCategory.registrationFee > 0 ? 'paid' : 'pending',
+                mpesaReference: activeCategory && activeCategory.registrationFee > 0 ? mpesaRef.trim() : undefined,
+                emergencyContactName: formData.emergencyContactName,
+                emergencyContactPhone: formData.emergencyContactPhone,
+                status: 'registered'
+            });
 
-            setTimeout(async () => {
-                try {
-                    const generatedRef = 'MPK' + Math.floor(Math.random() * 900000 + 100000);
-                    setMpesaRef(generatedRef);
-
-                    const participant = await onRegister({
-                        categoryId: formData.categoryId,
-                        firstName: formData.firstName,
-                        lastName: formData.lastName,
-                        email: formData.email,
-                        phone: formData.phone,
-                        gender: formData.gender,
-                        age: parseInt(formData.age),
-                        tShirtSize: formData.tShirtSize,
-                        waiverSigned: true,
-                        paymentStatus: activeCategory && activeCategory.registrationFee > 0 ? 'paid' : 'pending',
-                        mpesaReference: activeCategory && activeCategory.registrationFee > 0 ? generatedRef : undefined,
-                        emergencyContactName: formData.emergencyContactName,
-                        emergencyContactPhone: formData.emergencyContactPhone,
-                        status: 'registered'
-                    });
-
-                    // If they have an initial pledge, we can register that as well
-                    const pledgeAmount = parseFloat(formData.initialPledge);
-                    if (pledgeAmount > 0) {
-                        // In execution we'll handle this in the main view or create it
-                    }
-
-                    setRegisteredParticipant(participant);
-                    setPaymentStatus('success');
-                    setStep(3);
-                } catch (err: any) {
-                    setErrorMsg(err.message || 'Registration failed');
-                    setPaymentStatus('failed');
-                }
-            }, 2000);
-        }, 1500);
+            setRegisteredParticipant(participant);
+            setPaymentStatus('success');
+            setStep(3);
+        } catch (err: any) {
+            setErrorMsg(err.message || 'Registration failed');
+            setPaymentStatus('failed');
+        }
     };
 
     return (
@@ -428,55 +416,47 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
 
                     {step === 2 && (
                         <div className="py-8 flex flex-col items-center max-w-sm mx-auto text-center">
-                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6">
-                                <MpesaIcon className="w-10 h-10 text-green-600" />
+                            <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-950/30 rounded-full flex items-center justify-center mb-6">
+                                <QrCodeIcon className="w-10 h-10 text-indigo-600 dark:text-indigo-450" />
                             </div>
-                            <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-2">M-PESA Express Payment</h4>
+                            <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Record Payment Reference</h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-                                Enter your M-PESA phone number below. A checkout prompt will be sent to your device to verify KES {(Number(activeCategory?.registrationFee || 0) + Number(formData.initialPledge || 0)).toLocaleString()}.
+                                Please enter the Bank Code or M-PESA Transaction Reference Code for KES {(Number(activeCategory?.registrationFee || 0) + Number(formData.initialPledge || 0)).toLocaleString()} below to complete registration.
                             </p>
 
                             <div className="w-full space-y-4">
                                 <div>
-                                    <label className="block text-left text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">M-PESA Phone Number</label>
+                                    <label className="block text-left text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Transaction Reference / Bank Code</label>
                                     <input
-                                        type="tel"
+                                        type="text"
                                         required
-                                        value={paymentPhone}
-                                        onChange={e => setPaymentPhone(e.target.value)}
-                                        disabled={paymentStatus === 'sending' || paymentStatus === 'pending'}
-                                        className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 font-bold"
-                                        placeholder="0712345678"
+                                        value={mpesaRef}
+                                        onChange={e => setMpesaRef(e.target.value.toUpperCase())}
+                                        disabled={paymentStatus === 'sending'}
+                                        className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 font-mono font-bold"
+                                        placeholder="e.g. AP38DE932"
                                     />
                                 </div>
 
                                 {paymentStatus === 'idle' && (
                                     <button
-                                        onClick={handleMockPayment}
-                                        className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-all shadow-md"
+                                        onClick={handleManualPayment}
+                                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md"
                                     >
-                                        Send STK Push
+                                        Complete Registration
                                     </button>
                                 )}
 
                                 {paymentStatus === 'sending' && (
                                     <div className="py-3 flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400 font-bold">
-                                        <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                                        Sending payment request...
-                                    </div>
-                                )}
-
-                                {paymentStatus === 'pending' && (
-                                    <div className="py-3 px-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl text-center space-y-2">
-                                        <div className="text-xs font-bold text-amber-800 dark:text-amber-400">STK Push Sent! Check your phone.</div>
-                                        <div className="text-[11px] text-slate-500">Please enter your M-PESA PIN to complete payment. Waiting for callback...</div>
-                                        <div className="mx-auto w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                                        <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                        Recording registration...
                                     </div>
                                 )}
 
                                 <button
                                     onClick={() => setStep(1)}
-                                    disabled={paymentStatus === 'sending' || paymentStatus === 'pending'}
+                                    disabled={paymentStatus === 'sending'}
                                     className="w-full py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 transition-all"
                                 >
                                     Go Back

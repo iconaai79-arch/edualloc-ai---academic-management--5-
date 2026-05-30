@@ -255,6 +255,10 @@ export const PublicEventRegistration: React.FC = () => {
     };
 
     const handleInitiatePayment = async () => {
+        if (!mpesaRef.trim()) {
+            setErrorMsg('Please enter a valid payment transaction reference or bank code.');
+            return;
+        }
         setPaymentStatus('sending');
         setErrorMsg('');
 
@@ -277,95 +281,12 @@ export const PublicEventRegistration: React.FC = () => {
             console.error('Error checking duplicate registration:', e);
         }
 
-        const fee = activeCategory ? Number(activeCategory.registrationFee) : 0;
-        const totalAmount = fee + Number(formData.initialPledge || 0);
-
-        if (totalAmount === 0) {
-            try {
-                await handleCompleteRegistration('FREE');
-            } catch (err: any) {
-                setErrorMsg(err.message || 'Registration failed');
-                setPaymentStatus('failed');
-            }
-            return;
+        try {
+            await handleCompleteRegistration(mpesaRef.trim().toUpperCase());
+        } catch (err: any) {
+            setErrorMsg(err.message || 'Registration failed');
+            setPaymentStatus('failed');
         }
-
-        // Live NCBA API check
-        if (ncbaConfig) {
-            try {
-                const reference = 'EVT' + Math.floor(Math.random() * 900000 + 100000);
-                
-                const res = await apiService.initiateNcbaPayment(
-                    totalAmount,
-                    paymentPhone,
-                    {
-                        type: 'event_registration',
-                        reference,
-                        eventId: eventId,
-                        categoryId: selectedCategoryId
-                    },
-                    ncbaConfig
-                );
-                
-                const checkoutRequestId = res.checkoutRequestId || res.checkoutRequestID || res.checkout_request_id || res.id || res.requestId || res.data?.CheckoutRequestID || res.data?.checkoutRequestId || res.CheckoutRequestID;
-                
-                if (res.success !== false && checkoutRequestId) {
-                    setPaymentStatus('pending');
-                    
-                    // Poll NCBA for payment confirmation status
-                    let attempts = 0;
-                    const maxAttempts = 30; // 60s
-                    
-                    const interval = setInterval(async () => {
-                        attempts++;
-                        if (attempts > maxAttempts) {
-                            clearInterval(interval);
-                            setErrorMsg('Payment verification timed out. If you already completed the payment, please contact support with reference: ' + reference);
-                            setPaymentStatus('failed');
-                            return;
-                        }
-                        
-                        try {
-                            const statusRes = await apiService.checkNcbaStatus(checkoutRequestId, ncbaConfig);
-                            if (statusRes && (statusRes.status === 'completed' || statusRes.status === 'success' || statusRes.status === 'paid')) {
-                                clearInterval(interval);
-                                setMpesaRef(reference);
-                                await handleCompleteRegistration(reference);
-                            } else if (statusRes && (statusRes.status === 'failed' || statusRes.status === 'cancelled')) {
-                                clearInterval(interval);
-                                setErrorMsg('Payment transaction failed or was cancelled by user.');
-                                setPaymentStatus('failed');
-                            }
-                        } catch (pollErr) {
-                            console.error('Polling error:', pollErr);
-                        }
-                    }, 2000);
-                } else {
-                    throw new Error(res.message || 'STK Push failed to initiate.');
-                }
-            } catch (err: any) {
-                console.error('[NCBA Payment Error]', err);
-                setErrorMsg(err.message || 'Payment request failed. Please check your phone number and try again.');
-                setPaymentStatus('failed');
-            }
-            return;
-        }
-
-        // Mock payment fallback
-        setTimeout(() => {
-            setPaymentStatus('pending');
-
-            setTimeout(async () => {
-                try {
-                    const generatedRef = 'MPK' + Math.floor(Math.random() * 900000 + 100000);
-                    setMpesaRef(generatedRef);
-                    await handleCompleteRegistration(generatedRef);
-                } catch (err: any) {
-                    setErrorMsg(err.message || 'Registration failed');
-                    setPaymentStatus('failed');
-                }
-            }, 2000);
-        }, 1500);
     };
 
     const totalFee = (activeCategory ? Number(activeCategory.registrationFee) : 0) + Number(formData.initialPledge || 0);
@@ -882,55 +803,47 @@ export const PublicEventRegistration: React.FC = () => {
                 {/* Step 3: Payment Simulation */}
                 {step === 3 && (
                     <div className="py-6 flex flex-col items-center max-w-md mx-auto text-center">
-                        <div className="w-16 h-16 bg-green-500/10 border border-green-500/30 rounded-full flex items-center justify-center mb-6">
-                            <MpesaIcon className="w-10 h-10 text-green-500" />
+                        <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-500/30 rounded-full flex items-center justify-center mb-6">
+                            <QrCodeIcon className="w-10 h-10 text-indigo-400" />
                         </div>
-                        <h4 className="text-lg font-bold text-white mb-2">Safaricom M-PESA Express Checkout</h4>
+                        <h4 className="text-lg font-bold text-white mb-2">Manual Payment Verification</h4>
                         <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-                            Confirm your Safaricom mobile phone number below. An STK push verification request will be initiated for KES {totalFee.toLocaleString()}.
+                            Please make payment of KES {totalFee.toLocaleString()} to the institution's bank account or M-PESA Till/Paybill, then enter the Transaction Reference Code or Bank Code below to complete your registration.
                         </p>
 
                         <div className="w-full space-y-4">
                             <div>
-                                <label className="block text-left text-xs font-bold text-slate-400 mb-1.5">M-PESA Phone Number</label>
+                                <label className="block text-left text-xs font-bold text-slate-400 mb-1.5">Transaction Reference / Bank Code</label>
                                 <input
-                                    type="tel"
+                                    type="text"
                                     required
-                                    value={paymentPhone}
-                                    onChange={e => setPaymentPhone(e.target.value)}
-                                    disabled={paymentStatus === 'sending' || paymentStatus === 'pending'}
-                                    className="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white text-center font-bold tracking-wide focus:ring-2 focus:ring-indigo-500/50"
-                                    placeholder="0712345678"
+                                    value={mpesaRef}
+                                    onChange={e => setMpesaRef(e.target.value.toUpperCase())}
+                                    disabled={paymentStatus === 'sending'}
+                                    className="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white text-center font-bold tracking-wide font-mono focus:ring-2 focus:ring-indigo-500/50"
+                                    placeholder="e.g. AP38DE932"
                                 />
                             </div>
 
                             {paymentStatus === 'idle' && (
                                 <button
                                     onClick={handleInitiatePayment}
-                                    className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-xs transition-all shadow-md"
+                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-md"
                                 >
-                                    Initiate STK Push
+                                    Complete Registration
                                 </button>
                             )}
 
                             {paymentStatus === 'sending' && (
                                 <div className="py-3 flex items-center justify-center gap-2 text-xs text-slate-450 font-bold">
                                     <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                                    Contacting Safaricom API Gateway...
-                                </div>
-                            )}
-
-                            {paymentStatus === 'pending' && (
-                                <div className="py-4 px-4 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl text-center space-y-2">
-                                    <div className="text-xs font-bold text-indigo-400">STK Push Sent! Check your phone.</div>
-                                    <div className="text-[10px] text-slate-400">Enter your Safaricom M-PESA PIN to approve payment. Waiting for confirmation callback...</div>
-                                    <div className="mx-auto w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mt-1"></div>
+                                    Recording registration and verifying...
                                 </div>
                             )}
 
                             {paymentStatus === 'failed' && (
                                 <div className="py-2.5 px-4 bg-red-950/20 border border-red-800/40 rounded-xl text-center">
-                                    <div className="text-xs font-bold text-red-400">Checkout failed or timed out. Please try again.</div>
+                                    <div className="text-xs font-bold text-red-400">Registration failed. Please try again.</div>
                                 </div>
                             )}
 
@@ -939,7 +852,7 @@ export const PublicEventRegistration: React.FC = () => {
                                     setPaymentStatus('idle');
                                     setStep(2);
                                 }}
-                                disabled={paymentStatus === 'sending' || paymentStatus === 'pending'}
+                                disabled={paymentStatus === 'sending'}
                                 className="w-full py-2.5 border border-slate-800 hover:bg-slate-900 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
                             >
                                 Change Details

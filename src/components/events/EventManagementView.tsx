@@ -185,51 +185,31 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
     const handleVerifyTransactionStatus = async (tx: any) => {
         try {
-            let currentConfig = null;
-            try {
-                const settings = await apiService.fetchCompanySettings();
-                if (settings && settings.ncbaConfig) {
-                    currentConfig = settings.ncbaConfig;
-                }
-            } catch (e) {
-                console.error("Failed to load company details", e);
-            }
+            const confirmed = window.confirm("Would you like to manually verify and reconcile this payment transaction?");
+            if (!confirmed) return;
 
-            const checkoutRequestId = tx.checkoutRequestId || tx.transactionId;
-            if (!checkoutRequestId) {
-                alert('No checkout request ID found for this transaction.');
-                return;
-            }
+            const reference = window.prompt("Confirm or enter the manual payment/bank code reference:", tx.transactionId || tx.checkoutRequestId || "");
+            if (reference === null) return; // cancelled prompt
 
-            const res = await apiService.checkNcbaStatus(checkoutRequestId, currentConfig);
+            const updatedTx = { ...tx, status: 'completed', transactionId: reference || tx.transactionId };
+            await apiService.saveModuleRecord('mpesa_transactions', updatedTx);
             
-            if (res && (res.status === 'completed' || res.status === 'success' || res.status === 'paid')) {
-                const updatedTx = { ...tx, status: 'completed' };
-                await apiService.saveModuleRecord('mpesa_transactions', updatedTx);
-                
-                // Find matching participant to update payment status
-                const meta = safeParseMetadata(tx.metadata);
-                if (meta && meta.eventId) {
-                    const allParts = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
-                    const matchedPart = allParts.find(p => p.email === tx.payerName || p.phone === tx.phoneNumber || (p.firstName && tx.payerName?.includes(p.firstName)));
-                    if (matchedPart) {
-                        const updatedPart = { ...matchedPart, paymentStatus: 'paid', mpesaReference: tx.transactionId };
-                        await apiService.saveModuleRecord('event_participants', updatedPart);
-                    }
+            // Find matching participant to update payment status
+            const meta = safeParseMetadata(tx.metadata);
+            if (meta && meta.eventId) {
+                const allParts = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
+                const matchedPart = allParts.find(p => p.email === tx.payerName || p.phone === tx.phoneNumber || (p.firstName && tx.payerName?.includes(p.firstName)));
+                if (matchedPart) {
+                    const updatedPart = { ...matchedPart, paymentStatus: 'paid', mpesaReference: reference || tx.transactionId };
+                    await apiService.saveModuleRecord('event_participants', updatedPart);
                 }
-                
-                alert('Payment verified and reconciled successfully!');
-                await loadEventData();
-            } else if (res && (res.status === 'failed' || res.status === 'cancelled')) {
-                const updatedTx = { ...tx, status: 'failed' };
-                await apiService.saveModuleRecord('mpesa_transactions', updatedTx);
-                alert('Payment transaction failed or was cancelled.');
-                await loadEventData();
-            } else {
-                alert('Payment is still pending on the gateway. Current status: ' + (res.status || 'pending'));
             }
+            
+            alert('Payment verified and reconciled successfully!');
+            await loadEventData();
         } catch (err: any) {
-            alert('Failed to verify payment: ' + (err.message || err));
+            console.error("Failed to manually verify transaction", err);
+            alert("Verification failed: " + (err.message || err));
         }
     };
 
