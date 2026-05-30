@@ -78,8 +78,50 @@ CREATE TABLE IF NOT EXISTS institutions (
     business_sub_type TEXT,
     marketplace_enabled BOOLEAN DEFAULT FALSE,
     listing_quota INTEGER DEFAULT 0,
-    kcb_config JSONB
+    kcb_config JSONB,
+    slug TEXT,
+    kiosk_url TEXT,
+    use_subdomain BOOLEAN DEFAULT FALSE,
+    custom_subdomain TEXT,
+    parent_absence_notifications_enabled BOOLEAN DEFAULT FALSE,
+    farmer_sms_billing_enabled BOOLEAN DEFAULT FALSE,
+    ai_model_tier TEXT DEFAULT 'premium',
+    google_drive_config JSONB DEFAULT '{"clientId": "", "clientSecret": "", "refreshToken": "", "isActive": false}'::jsonb,
+    store_hours_enforced BOOLEAN DEFAULT FALSE,
+    store_open_time TEXT DEFAULT '08:00',
+    store_close_time TEXT DEFAULT '17:00',
+    sms_config JSONB,
+    mpesa_config JSONB,
+    email_config JSONB,
+    ncba_config JSONB,
+    coop_config JSONB,
+    coop_settings JSONB,
+    stream_definitions TEXT[] DEFAULT '{}',
+    custom_module_pricing JSONB,
+    sms_balance INTEGER DEFAULT 0
 );
+
+-- Ensure all new columns exist on institutions table for backward compatibility
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS slug TEXT;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS kiosk_url TEXT;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS use_subdomain BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS custom_subdomain TEXT;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS parent_absence_notifications_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS farmer_sms_billing_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS ai_model_tier TEXT DEFAULT 'premium';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS google_drive_config JSONB DEFAULT '{"clientId": "", "clientSecret": "", "refreshToken": "", "isActive": false}'::jsonb;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS store_hours_enforced BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS store_open_time TEXT DEFAULT '08:00';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS store_close_time TEXT DEFAULT '17:00';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_config JSONB;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS mpesa_config JSONB;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS email_config JSONB;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS ncba_config JSONB;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS coop_config JSONB;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS coop_settings JSONB;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions TEXT[] DEFAULT '{}';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS custom_module_pricing JSONB;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_balance INTEGER DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS counties (
     id TEXT PRIMARY KEY,
