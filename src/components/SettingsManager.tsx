@@ -375,7 +375,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
             storeHoursEnforced: props.currentInstitution?.storeHoursEnforced ?? false,
             storeOpenTime: props.currentInstitution?.storeOpenTime || '08:00',
-            storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00'
+            storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00',
+            kioskUrl: props.currentInstitution?.kioskUrl || '',
+            customSubdomain: props.currentInstitution?.customSubdomain || '',
+            useSubdomain: props.currentInstitution?.useSubdomain ?? false
         });
         setLocalInstGoogleDriveConfig(props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     }, [props.currentInstitution]);
