@@ -2218,7 +2218,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         };
     };
 
-    const handleKioskCheckIn = async (overrideValue?: string) => {
+    async function handleKioskCheckIn(overrideValue?: string) {
         const valToUse = overrideValue || kioskAdmissionNo;
         if (!valToUse.trim()) {
             setKioskMessage({ status: 'error', text: 'Please enter a student identifier.' });
