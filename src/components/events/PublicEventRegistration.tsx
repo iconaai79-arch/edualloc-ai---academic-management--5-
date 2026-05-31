@@ -76,11 +76,11 @@ export const PublicEventRegistration: React.FC = () => {
                     if (parts.length >= 2) {
                         const sub = parts[0];
                         fetchedAllEvents = await apiService.fetchModuleRecords<SportEvent>('events');
-                        const found = fetchedAllEvents.find(e => 
-                            e.customSubdomain && 
-                            (e.customSubdomain.toLowerCase() === host || 
-                             e.customSubdomain.toLowerCase() === sub)
-                        );
+                        const found = fetchedAllEvents.find(e => {
+                            if (!e.customSubdomain) return false;
+                            const normalized = e.customSubdomain.toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+                            return normalized === host || normalized === sub || normalized.includes(host);
+                        });
                         if (found) {
                             targetEventId = found.id;
                             setEventId(found.id);

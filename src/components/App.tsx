@@ -404,11 +404,11 @@ export const App: React.FC = () => {
             const parts = host.split('.');
             if (parts.length < 2) return false;
             const sub = parts[0];
-            return events.some(e => 
-                e.customSubdomain && 
-                (e.customSubdomain.toLowerCase() === host || 
-                 e.customSubdomain.toLowerCase() === sub)
-            );
+            return events.some(e => {
+                if (!e.customSubdomain) return false;
+                const normalized = e.customSubdomain.toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+                return normalized === host || normalized === sub || normalized.includes(host);
+            });
         } catch (e) {
             return false;
         }
