@@ -47,7 +47,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     const [selectedEventId, setSelectedEventId] = useState<string>('');
 
     // New Event / Category Form States
-    const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '', customSubdomain: '' });
+    const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '' });
     const [categoryForm, setCategoryForm] = useState({ name: '', distanceKm: '', registrationFee: '', capacity: '', genderRestriction: 'any' as 'any' | 'male' | 'female', startTime: '' });
     const [managerForm, setManagerForm] = useState({ name: '', email: '', phone: '', staffId: '', gender: 'Male', password: '' });
 
@@ -270,6 +270,20 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
         }
     };
 
+    const handleUpdateEventPaymentInstructions = async (eventId: string, instructions: string) => {
+        const ev = events.find(e => e.id === eventId);
+        if (!ev) return;
+        const updatedEvent = { ...ev, paymentInstructions: instructions || undefined };
+        try {
+            await apiService.saveModuleRecord('events', updatedEvent);
+            if (onLogAction) onLogAction('update_event_payment_instructions', `Updated payment instructions for event ${ev.name}`);
+            await loadEventData();
+            alert('Payment instructions updated successfully!');
+        } catch (err: any) {
+            alert('Failed to update payment instructions: ' + (err.message || err));
+        }
+    };
+
     // Handlers
     const handleAddEvent = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -282,12 +296,13 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             location: eventForm.location,
             status: 'planning',
             customSubdomain: eventForm.customSubdomain ? eventForm.customSubdomain.trim().toLowerCase() : undefined,
+            paymentInstructions: eventForm.paymentInstructions ? eventForm.paymentInstructions.trim() : undefined,
             createdAt: new Date().toISOString()
         };
 
         try {
             await apiService.saveModuleRecord('events', newEvent);
-            setEventForm({ name: '', description: '', date: '', location: '', customSubdomain: '' });
+            setEventForm({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '' });
             setIsAddEventOpen(false);
             if (onLogAction) onLogAction('create_event', `Created event: ${newEvent.name}`);
             await loadEventData();
@@ -774,6 +789,25 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                                     {activeEvent.customSubdomain ? "Edit" : "Configure"}
                                                 </button>
                                             </div>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-4 border-t border-slate-100 dark:border-slate-700 pt-4">
+                                            <div>
+                                                <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Instructions</span>
+                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                    {activeEvent.paymentInstructions ? "Custom instructions configured" : "Default instructions"}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    const inst = prompt("Enter payment instructions (e.g. Bank details or Paybill):", activeEvent.paymentInstructions || "");
+                                                    if (inst !== null) {
+                                                        handleUpdateEventPaymentInstructions(activeEvent.id, inst.trim());
+                                                    }
+                                                }}
+                                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold rounded-lg text-[10px] uppercase tracking-widest transition-all"
+                                            >
+                                                {activeEvent.paymentInstructions ? "Edit" : "Configure"}
+                                            </button>
                                         </div>
                                     </div>
                                 ) : (
@@ -1311,6 +1345,15 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                     value={eventForm.description}
                                     onChange={e => setEventForm({ ...eventForm, description: e.target.value })}
                                     placeholder="Brief event outline..."
+                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Payment Instructions (Optional)</label>
+                                <textarea
+                                    value={eventForm.paymentInstructions}
+                                    onChange={e => setEventForm({ ...eventForm, paymentInstructions: e.target.value })}
+                                    placeholder="Enter bank account details, paybill, or till number..."
                                     className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"
                                 />
                             </div>

@@ -829,9 +829,18 @@ export const PublicEventRegistration: React.FC = () => {
                             <QrCodeIcon className="w-10 h-10 text-indigo-400" />
                         </div>
                         <h4 className="text-lg font-bold text-white mb-2">Manual Payment Verification</h4>
-                        <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-                            Please make payment of KES {totalFee.toLocaleString()} to the institution's bank account or M-PESA Till/Paybill, then enter the Transaction Reference Code or Bank Code below to complete your registration.
-                        </p>
+                        <div className="text-xs text-slate-400 mb-6 leading-relaxed bg-slate-900/50 p-4 rounded-xl border border-slate-800 text-left">
+                            {event.paymentInstructions ? (
+                                <div className="whitespace-pre-wrap font-medium text-slate-300">
+                                    {event.paymentInstructions}
+                                    <div className="mt-4 pt-4 border-t border-slate-800 text-slate-400">
+                                        Total Amount Due: <span className="text-white font-bold">KES {totalFee.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                `Please make payment of KES ${totalFee.toLocaleString()} to the institution's bank account or M-PESA Till/Paybill, then enter the Transaction Reference Code or Bank Code below to complete your registration.`
+                            )}
+                        </div>
 
                         <div className="w-full space-y-4">
                             <div>
