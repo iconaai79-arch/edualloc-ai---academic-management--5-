@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Institution, SportEvent, EventCategory, EventParticipant, EventSplit, EventMedicalLog, EventPledge } from '../../types';
 import { apiService } from '../../services/apiService';
 import { EventRegistrationModal } from './EventRegistrationModal';
@@ -45,6 +45,9 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
     // Active selected Event context
     const [selectedEventId, setSelectedEventId] = useState<string>('');
+    const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+    const detailsFileInputRef = useRef<HTMLInputElement>(null);
+    const formFileInputRef = useRef<HTMLInputElement>(null);
 
     // New Event / Category Form States
     const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '', bankIntegrationEnabled: false, bannerUrl: '' });
@@ -281,6 +284,34 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             alert('Payment instructions updated successfully!');
         } catch (err: any) {
             alert('Failed to update payment instructions: ' + (err.message || err));
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, eventId?: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploadingBanner(true);
+        try {
+            const ext = file.name.split('.').pop();
+            const path = `event_${Date.now()}.${ext}`;
+            const publicUrl = await apiService.uploadFile('public_assets', path, file);
+            
+            if (publicUrl) {
+                if (eventId) {
+                    await handleUpdateEventBanner(eventId, publicUrl);
+                } else {
+                    setEventForm(prev => ({ ...prev, bannerUrl: publicUrl }));
+                }
+            } else {
+                alert("Upload failed. Make sure 'public_assets' bucket exists and is public.");
+            }
+        } catch (err) {
+            console.error("Upload error:", err);
+            alert("Failed to upload image.");
+        } finally {
+            setIsUploadingBanner(false);
+            if (e.target) e.target.value = '';
         }
     };
 
@@ -771,11 +802,15 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                             <div className="w-full h-48 md:h-64 rounded-2xl overflow-hidden mb-6 relative group border border-slate-200 dark:border-slate-700 shadow-inner">
                                                 <img src={activeEvent.bannerUrl} alt={activeEvent.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-end p-4">
-                                                    <button onClick={() => {
-                                                        const url = prompt("Enter new banner image URL:", activeEvent.bannerUrl || "");
-                                                        if (url !== null) handleUpdateEventBanner(activeEvent.id, url.trim());
-                                                    }} className="px-4 py-2 bg-white/20 hover:bg-white/40 backdrop-blur-md text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-white/30">
-                                                        Change Banner
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*" 
+                                                        className="hidden" 
+                                                        ref={detailsFileInputRef} 
+                                                        onChange={(e) => handleFileUpload(e, activeEvent.id)} 
+                                                    />
+                                                    <button onClick={() => detailsFileInputRef.current?.click()} disabled={isUploadingBanner} className="px-4 py-2 bg-white/20 hover:bg-white/40 backdrop-blur-md text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-white/30">
+                                                        {isUploadingBanner ? 'Uploading...' : 'Change Banner'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -783,11 +818,15 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                             <div className="w-full h-32 rounded-2xl mb-6 relative overflow-hidden bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-dashed border-indigo-200 dark:border-indigo-500/30 flex flex-col items-center justify-center text-center p-6 group transition-all hover:bg-indigo-500/20">
                                                 <SparklesIcon className="w-8 h-8 text-indigo-400 mb-2 opacity-50 group-hover:opacity-100 transition-opacity" />
                                                 <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold mb-2">No Event Banner</p>
-                                                <button onClick={() => {
-                                                    const url = prompt("Enter banner image URL (e.g. https://example.com/banner.jpg):", "");
-                                                    if (url !== null) handleUpdateEventBanner(activeEvent.id, url.trim());
-                                                }} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95">
-                                                    Upload Banner
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    className="hidden" 
+                                                    ref={detailsFileInputRef} 
+                                                    onChange={(e) => handleFileUpload(e, activeEvent.id)} 
+                                                />
+                                                <button onClick={() => detailsFileInputRef.current?.click()} disabled={isUploadingBanner} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 disabled:bg-indigo-400">
+                                                    {isUploadingBanner ? 'Uploading...' : 'Upload Banner'}
                                                 </button>
                                             </div>
                                         )}
@@ -1406,14 +1445,31 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                 />
                             </div>
                             <div>
-                                <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Banner Image URL (Optional)</label>
-                                <input
-                                    type="url"
-                                    value={eventForm.bannerUrl}
-                                    onChange={e => setEventForm({ ...eventForm, bannerUrl: e.target.value })}
-                                    placeholder="https://example.com/banner.jpg"
-                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 mb-4"
-                                />
+                                <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Banner Image (Optional)</label>
+                                <div className="flex gap-2 mb-4">
+                                    <input
+                                        type="url"
+                                        value={eventForm.bannerUrl}
+                                        onChange={e => setEventForm({ ...eventForm, bannerUrl: e.target.value })}
+                                        placeholder="Banner URL or click Upload..."
+                                        className="flex-1 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        className="hidden" 
+                                        ref={formFileInputRef} 
+                                        onChange={(e) => handleFileUpload(e)} 
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={() => formFileInputRef.current?.click()} 
+                                        disabled={isUploadingBanner}
+                                        className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-all whitespace-nowrap disabled:opacity-50"
+                                    >
+                                        {isUploadingBanner ? 'Uploading...' : 'Upload'}
+                                    </button>
+                                </div>
                                 <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Description</label>
                                 <textarea
                                     value={eventForm.description}
