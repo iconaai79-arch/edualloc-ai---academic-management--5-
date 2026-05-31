@@ -293,22 +293,21 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
         setIsUploadingBanner(true);
         try {
-            const ext = file.name.split('.').pop();
-            const path = `event_${Date.now()}.${ext}`;
-            const publicUrl = await apiService.uploadFile('public_assets', path, file);
+            // Upload directly via the Super Admin Google Drive Configuration
+            const response = await apiService.uploadToGoogleDrive(file, 'Event_Banners', { useGlobalConfig: true });
             
-            if (publicUrl) {
+            if (response.success && response.url) {
                 if (eventId) {
-                    await handleUpdateEventBanner(eventId, publicUrl);
+                    await handleUpdateEventBanner(eventId, response.url);
                 } else {
-                    setEventForm(prev => ({ ...prev, bannerUrl: publicUrl }));
+                    setEventForm(prev => ({ ...prev, bannerUrl: response.url }));
                 }
             } else {
-                alert("Upload failed. Make sure 'public_assets' bucket exists and is public.");
+                alert(`Upload to Google Drive failed: ${response.error || 'Unknown error'}. Please check Super Admin Drive configuration.`);
             }
         } catch (err) {
             console.error("Upload error:", err);
-            alert("Failed to upload image.");
+            alert("Failed to upload image to Google Drive.");
         } finally {
             setIsUploadingBanner(false);
             if (e.target) e.target.value = '';
