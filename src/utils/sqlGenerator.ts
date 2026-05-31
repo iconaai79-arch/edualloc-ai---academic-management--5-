@@ -1979,6 +1979,7 @@ CREATE TABLE IF NOT EXISTS events (
 -- Ensure custom_subdomain column exists for backward compatibility
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS custom_subdomain TEXT;
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS payment_instructions TEXT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS bank_integration_enabled BOOLEAN DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS event_categories (
     id TEXT PRIMARY KEY,

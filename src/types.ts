@@ -5087,6 +5087,7 @@ export interface SportEvent {
     bannerUrl?: string;
     customSubdomain?: string;
     paymentInstructions?: string;
+    bankIntegrationEnabled?: boolean;
     createdAt?: string;
     updatedAt?: string;
 }

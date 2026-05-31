@@ -47,7 +47,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     const [selectedEventId, setSelectedEventId] = useState<string>('');
 
     // New Event / Category Form States
-    const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '' });
+    const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '', bankIntegrationEnabled: false });
     const [categoryForm, setCategoryForm] = useState({ name: '', distanceKm: '', registrationFee: '', capacity: '', genderRestriction: 'any' as 'any' | 'male' | 'female', startTime: '' });
     const [managerForm, setManagerForm] = useState({ name: '', email: '', phone: '', staffId: '', gender: 'Male', password: '' });
 
@@ -284,6 +284,19 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
         }
     };
 
+    const handleToggleBankIntegration = async (eventId: string, enabled: boolean) => {
+        const ev = events.find(e => e.id === eventId);
+        if (!ev) return;
+        const updatedEvent = { ...ev, bankIntegrationEnabled: enabled };
+        try {
+            await apiService.saveModuleRecord('events', updatedEvent);
+            if (onLogAction) onLogAction('toggle_bank_integration', `${enabled ? 'Enabled' : 'Disabled'} bank integration for event ${ev.name}`);
+            await loadEventData();
+        } catch (err: any) {
+            alert('Failed to update bank integration status: ' + (err.message || err));
+        }
+    };
+
     // Handlers
     const handleAddEvent = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -297,12 +310,13 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             status: 'planning',
             customSubdomain: eventForm.customSubdomain ? eventForm.customSubdomain.trim().toLowerCase() : undefined,
             paymentInstructions: eventForm.paymentInstructions ? eventForm.paymentInstructions.trim() : undefined,
+            bankIntegrationEnabled: eventForm.bankIntegrationEnabled,
             createdAt: new Date().toISOString()
         };
 
         try {
             await apiService.saveModuleRecord('events', newEvent);
-            setEventForm({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '' });
+            setEventForm({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '', bankIntegrationEnabled: false });
             setIsAddEventOpen(false);
             if (onLogAction) onLogAction('create_event', `Created event: ${newEvent.name}`);
             await loadEventData();
@@ -807,6 +821,20 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                                 className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold rounded-lg text-[10px] uppercase tracking-widest transition-all"
                                             >
                                                 {activeEvent.paymentInstructions ? "Edit" : "Configure"}
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-4 border-t border-slate-100 dark:border-slate-700 pt-4">
+                                            <div>
+                                                <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Bank / Payment Gateway Integration</span>
+                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                    {activeEvent.bankIntegrationEnabled ? "Enabled (Automated Collection)" : "Disabled (Manual Verification)"}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => handleToggleBankIntegration(activeEvent.id, !activeEvent.bankIntegrationEnabled)}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${activeEvent.bankIntegrationEnabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${activeEvent.bankIntegrationEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                                             </button>
                                         </div>
                                     </div>
@@ -1356,6 +1384,19 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                     placeholder="Enter bank account details, paybill, or till number..."
                                     className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500"
                                 />
+                            </div>
+                            <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl">
+                                <input
+                                    type="checkbox"
+                                    id="bankIntegrationEnabled"
+                                    checked={eventForm.bankIntegrationEnabled}
+                                    onChange={e => setEventForm({ ...eventForm, bankIntegrationEnabled: e.target.checked })}
+                                    className="mt-1 w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                                />
+                                <div>
+                                    <label htmlFor="bankIntegrationEnabled" className="block text-sm font-bold text-slate-800 dark:text-white">Enable Bank / Payment Gateway Integration</label>
+                                    <span className="text-xs text-slate-500 dark:text-slate-400 block mt-0.5">If checked, automated collection will be used when the integration is ready.</span>
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
