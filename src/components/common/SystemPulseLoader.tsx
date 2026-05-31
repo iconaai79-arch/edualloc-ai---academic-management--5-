@@ -29,7 +29,7 @@ export const SystemPulseLoader: React.FC<{ message: string; onRetry?: () => void
 
             <div className="text-center space-y-4">
                 <h2 className="text-white font-black uppercase tracking-[0.4em] text-lg text-glow">
-                    EduAi <span className="text-indigo-400">Automation</span>
+                    Powered by <span className="text-indigo-400">EduAI</span> Automation Network
                 </h2>
                 <div className="flex flex-col items-center gap-6">
                     <p className="text-indigo-200/60 text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse bg-indigo-500/10 px-4 py-1.5 rounded-full border border-indigo-500/20">
@@ -59,7 +59,7 @@ export const SystemPulseLoader: React.FC<{ message: string; onRetry?: () => void
 
         {/* Footer Branding */}
         <div className="absolute bottom-10 left-0 right-0 text-center">
-            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em]">Neural Registry Link Active</p>
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em]">Connecting to Automation Core</p>
         </div>
     </div>
 );

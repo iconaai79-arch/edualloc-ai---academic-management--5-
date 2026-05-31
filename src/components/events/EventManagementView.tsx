@@ -47,7 +47,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     const [selectedEventId, setSelectedEventId] = useState<string>('');
 
     // New Event / Category Form States
-    const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '', bankIntegrationEnabled: false });
+    const [eventForm, setEventForm] = useState({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '', bankIntegrationEnabled: false, bannerUrl: '' });
     const [categoryForm, setCategoryForm] = useState({ name: '', distanceKm: '', registrationFee: '', capacity: '', genderRestriction: 'any' as 'any' | 'male' | 'female', startTime: '' });
     const [managerForm, setManagerForm] = useState({ name: '', email: '', phone: '', staffId: '', gender: 'Male', password: '' });
 
@@ -284,6 +284,19 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
         }
     };
 
+    const handleUpdateEventBanner = async (eventId: string, url: string) => {
+        const ev = events.find(e => e.id === eventId);
+        if (!ev) return;
+        const updatedEvent = { ...ev, bannerUrl: url || undefined };
+        try {
+            await apiService.saveModuleRecord('events', updatedEvent);
+            if (onLogAction) onLogAction('update_event_banner', `Updated banner for event ${ev.name}`);
+            await loadEventData();
+        } catch (err: any) {
+            alert('Failed to update event banner: ' + (err.message || err));
+        }
+    };
+
     const handleToggleBankIntegration = async (eventId: string, enabled: boolean) => {
         const ev = events.find(e => e.id === eventId);
         if (!ev) return;
@@ -311,12 +324,13 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             customSubdomain: eventForm.customSubdomain ? eventForm.customSubdomain.trim().toLowerCase() : undefined,
             paymentInstructions: eventForm.paymentInstructions ? eventForm.paymentInstructions.trim() : undefined,
             bankIntegrationEnabled: eventForm.bankIntegrationEnabled,
+            bannerUrl: eventForm.bannerUrl ? eventForm.bannerUrl.trim() : undefined,
             createdAt: new Date().toISOString()
         };
 
         try {
             await apiService.saveModuleRecord('events', newEvent);
-            setEventForm({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '', bankIntegrationEnabled: false });
+            setEventForm({ name: '', description: '', date: '', location: '', customSubdomain: '', paymentInstructions: '', bankIntegrationEnabled: false, bannerUrl: '' });
             setIsAddEventOpen(false);
             if (onLogAction) onLogAction('create_event', `Created event: ${newEvent.name}`);
             await loadEventData();
@@ -753,6 +767,30 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             <div className="lg:col-span-2 space-y-6">
                                 {activeEvent ? (
                                     <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm relative overflow-hidden">
+                                        {activeEvent.bannerUrl ? (
+                                            <div className="w-full h-48 md:h-64 rounded-2xl overflow-hidden mb-6 relative group border border-slate-200 dark:border-slate-700 shadow-inner">
+                                                <img src={activeEvent.bannerUrl} alt={activeEvent.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-end p-4">
+                                                    <button onClick={() => {
+                                                        const url = prompt("Enter new banner image URL:", activeEvent.bannerUrl || "");
+                                                        if (url !== null) handleUpdateEventBanner(activeEvent.id, url.trim());
+                                                    }} className="px-4 py-2 bg-white/20 hover:bg-white/40 backdrop-blur-md text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-white/30">
+                                                        Change Banner
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="w-full h-32 rounded-2xl mb-6 relative overflow-hidden bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-dashed border-indigo-200 dark:border-indigo-500/30 flex flex-col items-center justify-center text-center p-6 group transition-all hover:bg-indigo-500/20">
+                                                <SparklesIcon className="w-8 h-8 text-indigo-400 mb-2 opacity-50 group-hover:opacity-100 transition-opacity" />
+                                                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold mb-2">No Event Banner</p>
+                                                <button onClick={() => {
+                                                    const url = prompt("Enter banner image URL (e.g. https://example.com/banner.jpg):", "");
+                                                    if (url !== null) handleUpdateEventBanner(activeEvent.id, url.trim());
+                                                }} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95">
+                                                    Upload Banner
+                                                </button>
+                                            </div>
+                                        )}
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">
                                                 <h4 className="text-lg font-bold text-slate-800 dark:text-white">{activeEvent.name}</h4>
@@ -1368,6 +1406,14 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                 />
                             </div>
                             <div>
+                                <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Banner Image URL (Optional)</label>
+                                <input
+                                    type="url"
+                                    value={eventForm.bannerUrl}
+                                    onChange={e => setEventForm({ ...eventForm, bannerUrl: e.target.value })}
+                                    placeholder="https://example.com/banner.jpg"
+                                    className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 mb-4"
+                                />
                                 <label className="block font-bold text-slate-500 dark:text-slate-400 mb-1">Description</label>
                                 <textarea
                                     value={eventForm.description}
