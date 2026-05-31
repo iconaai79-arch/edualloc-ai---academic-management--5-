@@ -29,7 +29,9 @@ import {
     Settings,
     CheckCircle2,
     CalendarCheck,
-    Download
+    Download,
+    Receipt,
+    TrendingUp
 } from 'lucide-react';
 
 interface CarShowroomReportsDashboardProps {
@@ -39,7 +41,7 @@ interface CarShowroomReportsDashboardProps {
 }
 
 export function CarShowroomReportsDashboard({ institutionId, users, companyDetails }: CarShowroomReportsDashboardProps) {
-    const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'sales' | 'reports'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'sales' | 'reports' | 'expenses' | 'pnl'>('overview');
     const [isLoading, setIsLoading] = useState(true);
     const [institution, setInstitution] = useState<Institution | null>(null);
 
@@ -76,6 +78,22 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
     const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
     const [isGeneratingInventoryPdf, setIsGeneratingInventoryPdf] = useState(false);
     const [isGeneratingSalesPdf, setIsGeneratingSalesPdf] = useState(false);
+
+    // Expense Report State
+    const [expenseStartDate, setExpenseStartDate] = useState(
+        new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+    );
+    const [expenseEndDate, setExpenseEndDate] = useState(
+        new Date().toISOString().split('T')[0]
+    );
+
+    // P&L Report State
+    const [pnlStartDate, setPnlStartDate] = useState(
+        new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+    );
+    const [pnlEndDate, setPnlEndDate] = useState(
+        new Date().toISOString().split('T')[0]
+    );
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -120,6 +138,92 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
 
     // Get list of clients who have invoices
     const invoiceClients = Array.from(new Set(invoices.map(inv => inv.clientName))).sort();
+
+    const flattenedExpenses = useMemo(() => {
+        const all: any[] = [];
+        listings.forEach(listing => {
+            if (listing.importExpenses && Array.isArray(listing.importExpenses)) {
+                listing.importExpenses.forEach((exp: any) => {
+                    all.push({
+                        ...exp,
+                        vehicleId: listing.id,
+                        vehicleName: `${listing.make} ${listing.model}`,
+                        registration: listing.registrationNumber || 'Pending',
+                        vehicleStatus: listing.status
+                    });
+                });
+            }
+        });
+        
+        // Filter by date
+        return all.filter(exp => {
+            const expDate = exp.expenseDate ? exp.expenseDate.split('T')[0] : '';
+            return (!expenseStartDate || expDate >= expenseStartDate) && (!expenseEndDate || expDate <= expenseEndDate);
+        }).sort((a, b) => new Date(b.expenseDate || 0).getTime() - new Date(a.expenseDate || 0).getTime());
+    }, [listings, expenseStartDate, expenseEndDate]);
+
+    const expenseTotals = useMemo(() => {
+        let totalKes = 0;
+        const byCategory: Record<string, number> = {};
+        
+        flattenedExpenses.forEach(exp => {
+            const amount = exp.amountInKes || 0;
+            totalKes += amount;
+            byCategory[exp.category] = (byCategory[exp.category] || 0) + amount;
+        });
+        
+        const topCategory = Object.keys(byCategory).length > 0 
+            ? Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0] 
+            : ['None', 0];
+            
+        return { totalKes, byCategory, topCategory };
+    }, [flattenedExpenses]);
+
+    const pnlData = useMemo(() => {
+        const soldVehicles = listings.filter(l => l.status === 'sold');
+        const vehicleProfits: any[] = [];
+        
+        let totalRevenue = 0;
+        let totalCogs = 0;
+
+        soldVehicles.forEach(vehicle => {
+            const vehicleInvoices = invoices.filter(inv => inv.registrationNumber === vehicle.registrationNumber && inv.status !== 'cancelled');
+            
+            const revenue = vehicleInvoices.length > 0 
+                ? vehicleInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0)
+                : vehicle.price || 0;
+                
+            const cogs = vehicle.totalLandedCost || vehicle.fobPrice || 0;
+            const grossProfit = revenue - cogs;
+            const marginPct = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+            
+            const saleDate = vehicleInvoices.length > 0 && vehicleInvoices[0].createdAt 
+                ? vehicleInvoices[0].createdAt.split('T')[0] 
+                : (vehicle.createdAt || '').split('T')[0];
+                
+            if ((!pnlStartDate || saleDate >= pnlStartDate) && (!pnlEndDate || saleDate <= pnlEndDate)) {
+                totalRevenue += revenue;
+                totalCogs += cogs;
+                vehicleProfits.push({
+                    vehicleId: vehicle.id,
+                    vehicleName: `${vehicle.make} ${vehicle.model}`,
+                    registration: vehicle.registrationNumber || 'N/A',
+                    saleDate,
+                    revenue,
+                    cogs,
+                    grossProfit,
+                    marginPct
+                });
+            }
+        });
+        
+        const grossProfit = totalRevenue - totalCogs;
+        const avgMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+        
+        vehicleProfits.sort((a, b) => new Date(b.saleDate || 0).getTime() - new Date(a.saleDate || 0).getTime());
+
+        return { totalRevenue, totalCogs, grossProfit, avgMargin, vehicleProfits };
+    }, [listings, invoices, pnlStartDate, pnlEndDate]);
 
     // Filters & Searches
     const filteredListings = listings.filter(item => {
@@ -376,6 +480,26 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                     }`}
                 >
                     <ClipboardList className="w-4 h-4" /> Statement Reports
+                </button>
+                <button
+                    onClick={() => setActiveTab('expenses')}
+                    className={`px-6 py-3.5 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${
+                        activeTab === 'expenses'
+                            ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                            : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                >
+                    <Receipt className="w-4 h-4" /> Expense Analysis
+                </button>
+                <button
+                    onClick={() => setActiveTab('pnl')}
+                    className={`px-6 py-3.5 text-xs font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${
+                        activeTab === 'pnl'
+                            ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                            : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                >
+                    <TrendingUp className="w-4 h-4" /> P&L Analysis
                 </button>
             </div>
 
@@ -884,6 +1008,211 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                             >
                                 {isGeneratingStatement ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download PDF Statement
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Expense Analysis Tab */}
+            {activeTab === 'expenses' && (
+                <div className="space-y-6">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm flex flex-col p-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white">Import Expense Analysis</h3>
+                                <p className="text-xs text-slate-400 font-bold mt-1">Aggregated logistics, duties, and overhead costs</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-2xl px-3 h-11">
+                                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">From</span>
+                                    <input
+                                        type="date"
+                                        value={expenseStartDate}
+                                        onChange={e => setExpenseStartDate(e.target.value)}
+                                        className="bg-transparent border-none p-0 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-0 w-28"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-2xl px-3 h-11">
+                                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">To</span>
+                                    <input
+                                        type="date"
+                                        value={expenseEndDate}
+                                        onChange={e => setExpenseEndDate(e.target.value)}
+                                        className="bg-transparent border-none p-0 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-0 w-28"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div className="p-5 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 rounded-2xl">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-rose-500 mb-1">Total Showroom Expenses</p>
+                                <h4 className="text-2xl font-black text-rose-600 dark:text-rose-400">KES {expenseTotals.totalKes.toLocaleString()}</h4>
+                            </div>
+                            <div className="p-5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-indigo-500 mb-1">Top Expense Category</p>
+                                <h4 className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">{expenseTotals.topCategory[0]}</h4>
+                                <p className="text-xs text-indigo-500/70 font-bold mt-1">KES {Number(expenseTotals.topCategory[1]).toLocaleString()}</p>
+                            </div>
+                            <div className="p-5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Expenses Logged</p>
+                                <h4 className="text-2xl font-black text-slate-700 dark:text-slate-300">{flattenedExpenses.length} Records</h4>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                            <table className="w-full text-left border-collapse min-w-[800px]">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        <th className="p-4">Date</th>
+                                        <th className="p-4">Vehicle</th>
+                                        <th className="p-4">Category</th>
+                                        <th className="p-4">Description</th>
+                                        <th className="p-4 text-right">Original Amount</th>
+                                        <th className="p-4 text-right">KES Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {flattenedExpenses.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-8 text-center text-slate-400 text-xs font-bold">No expenses found for the selected dates.</td>
+                                        </tr>
+                                    ) : (
+                                        flattenedExpenses.map((exp, idx) => (
+                                            <tr key={idx} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                                                <td className="p-4 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                                    {exp.expenseDate ? new Date(exp.expenseDate).toLocaleDateString() : 'N/A'}
+                                                </td>
+                                                <td className="p-4">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white">{exp.vehicleName}</p>
+                                                    <p className="text-[10px] font-mono text-slate-400">{exp.registration}</p>
+                                                </td>
+                                                <td className="p-4">
+                                                    <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider rounded-lg">
+                                                        {exp.category}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-xs text-slate-500 font-medium">
+                                                    {exp.description || '-'}
+                                                </td>
+                                                <td className="p-4 text-xs font-black text-slate-500 text-right">
+                                                    {exp.currency} {Number(exp.amount).toLocaleString()}
+                                                </td>
+                                                <td className="p-4 text-sm font-black text-rose-600 dark:text-rose-400 text-right">
+                                                    {Number(exp.amountInKes).toLocaleString()}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* P&L Analysis Tab */}
+            {activeTab === 'pnl' && (
+                <div className="space-y-6">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm flex flex-col p-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white">Profit & Loss Analysis</h3>
+                                <p className="text-xs text-slate-400 font-bold mt-1">Real-time unit economics and profit margins</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-2xl px-3 h-11">
+                                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">From</span>
+                                    <input
+                                        type="date"
+                                        value={pnlStartDate}
+                                        onChange={e => setPnlStartDate(e.target.value)}
+                                        className="bg-transparent border-none p-0 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-0 w-28"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-2xl px-3 h-11">
+                                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">To</span>
+                                    <input
+                                        type="date"
+                                        value={pnlEndDate}
+                                        onChange={e => setPnlEndDate(e.target.value)}
+                                        className="bg-transparent border-none p-0 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-0 w-28"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div className="p-5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 rounded-2xl">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600 mb-1">Gross Revenue</p>
+                                <h4 className="text-xl font-black text-emerald-700 dark:text-emerald-400">KES {pnlData.totalRevenue.toLocaleString()}</h4>
+                            </div>
+                            <div className="p-5 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 rounded-2xl">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-rose-600 mb-1">Cost of Goods (COGS)</p>
+                                <h4 className="text-xl font-black text-rose-700 dark:text-rose-400">KES {pnlData.totalCogs.toLocaleString()}</h4>
+                            </div>
+                            <div className="p-5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-indigo-600 mb-1">Gross Profit</p>
+                                <h4 className="text-xl font-black text-indigo-700 dark:text-indigo-400">KES {pnlData.grossProfit.toLocaleString()}</h4>
+                            </div>
+                            <div className="p-5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Avg Net Margin</p>
+                                <h4 className={`text-xl font-black ${pnlData.avgMargin >= 15 ? 'text-emerald-600 dark:text-emerald-400' : pnlData.avgMargin > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                    {pnlData.avgMargin.toFixed(1)}%
+                                </h4>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                            <table className="w-full text-left border-collapse min-w-[800px]">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        <th className="p-4">Sale Date</th>
+                                        <th className="p-4">Vehicle</th>
+                                        <th className="p-4 text-right">Revenue (Sale Price)</th>
+                                        <th className="p-4 text-right">COGS (Landed Cost)</th>
+                                        <th className="p-4 text-right">Gross Profit</th>
+                                        <th className="p-4 text-right">Margin</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {pnlData.vehicleProfits.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-8 text-center text-slate-400 text-xs font-bold">No sold vehicles found for the selected dates.</td>
+                                        </tr>
+                                    ) : (
+                                        pnlData.vehicleProfits.map((item: any, idx: number) => (
+                                            <tr key={idx} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                                                <td className="p-4 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                                    {item.saleDate ? new Date(item.saleDate).toLocaleDateString() : 'N/A'}
+                                                </td>
+                                                <td className="p-4">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white">{item.vehicleName}</p>
+                                                    <p className="text-[10px] font-mono text-slate-400">{item.registration}</p>
+                                                </td>
+                                                <td className="p-4 text-sm font-black text-slate-700 dark:text-slate-300 text-right">
+                                                    {Number(item.revenue).toLocaleString()}
+                                                </td>
+                                                <td className="p-4 text-sm font-black text-rose-600 dark:text-rose-400 text-right">
+                                                    {Number(item.cogs).toLocaleString()}
+                                                </td>
+                                                <td className="p-4 text-sm font-black text-emerald-600 dark:text-emerald-400 text-right">
+                                                    {Number(item.grossProfit).toLocaleString()}
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider ${
+                                                        item.marginPct >= 15 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' :
+                                                        item.marginPct > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400' :
+                                                        'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400'
+                                                    }`}>
+                                                        {item.marginPct.toFixed(1)}%
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
