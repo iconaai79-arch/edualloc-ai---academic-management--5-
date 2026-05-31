@@ -22,7 +22,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     currentInstitution,
     onLogAction
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'runners' | 'raceday' | 'medical' | 'fundraising' | 'leaderboard' | 'bankfeeds' | 'staff'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'runners' | 'raceday' | 'medical' | 'fundraising' | 'leaderboard' | 'bankfeeds' | 'staff' | 'reports'>('dashboard');
     const [isLoading, setIsLoading] = useState(true);
 
     // Module entities states
@@ -645,6 +645,61 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
         };
     }, [activeEventParticipants, categories]);
 
+    const eventInsights = useMemo(() => {
+        const total = activeEventParticipants.length;
+        if (total === 0) return null;
+
+        let maleCount = 0;
+        let femaleCount = 0;
+        let checkedInCount = 0;
+        let totalExpectedRevenue = 0;
+        let totalCollectedRevenue = 0;
+
+        const categoryStats: Record<string, { name: string, runners: number, checkedIn: number, revenue: number }> = {};
+
+        activeEventCategories.forEach(c => {
+            categoryStats[c.id] = { name: c.name, runners: 0, checkedIn: 0, revenue: 0 };
+        });
+
+        activeEventParticipants.forEach(p => {
+            if (p.gender === 'male') maleCount++;
+            if (p.gender === 'female') femaleCount++;
+            
+            const isCheckedIn = p.status === 'checked_in' || p.status === 'started' || p.status === 'completed';
+            if (isCheckedIn) checkedInCount++;
+
+            const cat = activeEventCategories.find(c => c.id === p.categoryId);
+            const fee = cat ? Number(cat.registrationFee || 0) : 0;
+            totalExpectedRevenue += fee;
+            
+            if (p.paymentStatus === 'paid') {
+                totalCollectedRevenue += fee;
+            }
+
+            if (categoryStats[p.categoryId]) {
+                categoryStats[p.categoryId].runners++;
+                if (isCheckedIn) categoryStats[p.categoryId].checkedIn++;
+                if (p.paymentStatus === 'paid') categoryStats[p.categoryId].revenue += fee;
+            }
+        });
+
+        const attendanceRate = (checkedInCount / total) * 100;
+        const malePct = (maleCount / total) * 100;
+        const femalePct = (femaleCount / total) * 100;
+        const medicalIncidentRate = (activeEventMedicalLogs.length / total) * 100;
+
+        return {
+            total,
+            malePct,
+            femalePct,
+            attendanceRate,
+            totalExpectedRevenue,
+            totalCollectedRevenue,
+            medicalIncidentRate,
+            categoryStats: Object.values(categoryStats).sort((a, b) => b.runners - a.runners)
+        };
+    }, [activeEventParticipants, activeEventCategories, activeEventMedicalLogs]);
+
     if (isLoading) {
         return (
             <div className="flex flex-col items-center justify-center p-12 space-y-4">
@@ -730,7 +785,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
             {/* Dashboard Sub Tabs */}
             <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto whitespace-nowrap scrollbar-hide py-1">
-                {(['dashboard', 'events', 'runners', 'raceday', 'medical', 'fundraising', 'leaderboard', 'bankfeeds', 'staff'] as const).map(tab => (
+                {(['dashboard', 'events', 'runners', 'raceday', 'medical', 'fundraising', 'leaderboard', 'bankfeeds', 'staff', 'reports'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -740,7 +795,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800'
                         }`}
                     >
-                        {tab === 'raceday' ? 'Race Day Control' : tab === 'bankfeeds' ? 'Bank Feeds' : tab === 'staff' ? 'Event Staff' : tab}
+                        {tab === 'raceday' ? 'Race Day Control' : tab === 'bankfeeds' ? 'Bank Feeds' : tab === 'staff' ? 'Event Staff' : tab === 'reports' ? 'Reports & Insights' : tab}
                     </button>
                 ))}
             </div>
@@ -1534,6 +1589,88 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md">Create Event</button>
                         </form>
                     </div>
+                </div>
+            )}
+
+            {activeTab === 'reports' && eventInsights && (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Collected Revenue</span>
+                            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">KES {eventInsights.totalCollectedRevenue.toLocaleString()}</div>
+                            <p className="text-xs text-slate-500 mt-2 font-medium">Out of KES {eventInsights.totalExpectedRevenue.toLocaleString()} Expected</p>
+                        </div>
+                        <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Total Registered</span>
+                            <div className="text-2xl font-black text-slate-800 dark:text-white mt-1">{eventInsights.total}</div>
+                            <div className="flex gap-2 mt-2">
+                                <span className="text-xs text-slate-500 font-medium">{eventInsights.malePct.toFixed(1)}% Male</span>
+                                <span className="text-xs text-slate-500 font-medium">&bull;</span>
+                                <span className="text-xs text-slate-500 font-medium">{eventInsights.femalePct.toFixed(1)}% Female</span>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Attendance Rate</span>
+                            <div className="text-2xl font-black text-slate-800 dark:text-white mt-1">{eventInsights.attendanceRate.toFixed(1)}%</div>
+                            <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-3 overflow-hidden">
+                                <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${eventInsights.attendanceRate}%` }}></div>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Medical Incidents</span>
+                            <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{activeEventMedicalLogs.length}</div>
+                            <p className="text-xs text-slate-500 mt-2 font-medium">{eventInsights.medicalIncidentRate.toFixed(2)}% incident rate</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white">Category Breakdown</h3>
+                            <p className="text-xs text-slate-500 font-medium mt-1">Detailed metrics across race divisions</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse min-w-[600px]">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        <th className="p-4 border-b border-slate-100 dark:border-slate-700">Category Name</th>
+                                        <th className="p-4 border-b border-slate-100 dark:border-slate-700 text-right">Runners</th>
+                                        <th className="p-4 border-b border-slate-100 dark:border-slate-700 text-right">Check-in Rate</th>
+                                        <th className="p-4 border-b border-slate-100 dark:border-slate-700 text-right">Collected Revenue</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {eventInsights.categoryStats.map((cat, i) => {
+                                        const checkInPct = cat.runners > 0 ? (cat.checkedIn / cat.runners) * 100 : 0;
+                                        return (
+                                            <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="p-4">
+                                                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{cat.name}</span>
+                                                </td>
+                                                <td className="p-4 text-right text-sm font-black text-slate-600 dark:text-slate-400">{cat.runners}</td>
+                                                <td className="p-4 text-right">
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{checkInPct.toFixed(1)}%</span>
+                                                        <div className="w-16 bg-slate-100 dark:bg-slate-700 h-1 rounded-full overflow-hidden">
+                                                            <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${checkInPct}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-right text-sm font-black text-emerald-600 dark:text-emerald-400">
+                                                    KES {cat.revenue.toLocaleString()}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {activeTab === 'reports' && !eventInsights && (
+                <div className="p-12 text-center text-slate-400 text-sm font-bold">
+                    No participants registered for this event yet to generate insights.
                 </div>
             )}
 
