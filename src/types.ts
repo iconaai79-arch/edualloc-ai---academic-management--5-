@@ -4102,6 +4102,18 @@ export interface HeritageAnnouncement {
 }
 
 
+export interface VehicleExpense {
+    id: string;
+    category: 'FOB' | 'Freight' | 'Insurance' | 'KRA Duties & Taxes' | 'CFS' | 'Port Charges' | 'Transport' | 'Prep' | 'Other';
+    currency: 'USD' | 'JPY' | 'GBP' | 'EUR' | 'KES';
+    amount: number;
+    exchangeRate: number;
+    kshAmount: number;
+    description?: string;
+    date: string;
+    documentUrl?: string;
+}
+
 export interface CarListing {
     id: string;
     institutionId: string;
@@ -4131,6 +4143,15 @@ export interface CarListing {
     status: 'draft' | 'active' | 'sold' | 'archived';
     viewCount: number;
     inquiryCount: number;
+    
+    // Landed Cost Tracking Fields
+    importStatus?: 'Local' | 'Purchased' | 'Shipped' | 'At Port' | 'Clearing' | 'In Showroom';
+    importExpenses?: VehicleExpense[];
+    fobPrice?: number;
+    totalLandedCost?: number;
+    targetMargin?: number;
+    floorPrice?: number;
+    
     createdAt?: string;
 }
 

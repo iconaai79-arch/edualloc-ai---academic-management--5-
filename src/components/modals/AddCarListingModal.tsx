@@ -15,7 +15,8 @@ import {
     Calendar,
     Gauge,
     Rotate3d,
-    ChevronDown
+    ChevronDown,
+    Ship, FileText, Calculator, Wallet, Banknote, UploadCloud
 } from 'lucide-react';
 import { CarListing, Institution } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -54,6 +55,87 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
 
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [activeTab, setActiveTab] = useState<'details' | 'logistics'>('details');
+
+    React.useEffect(() => {
+        if (formData.importExpenses) {
+            const fob = formData.importExpenses.find(e => e.category === 'FOB')?.kshAmount || 0;
+            const totalLanded = formData.importExpenses.reduce((sum, exp) => sum + (exp.amount * exp.exchangeRate), 0);
+            const targetMargin = totalLanded > 0 && formData.price ? ((formData.price - totalLanded) / totalLanded) * 100 : 0;
+            
+            // Only update if changed to avoid infinite loop
+            if (formData.fobPrice !== fob || formData.totalLandedCost !== totalLanded || formData.targetMargin !== targetMargin) {
+                setFormData(prev => ({
+                    ...prev,
+                    fobPrice: fob,
+                    totalLandedCost: totalLanded,
+                    floorPrice: totalLanded,
+                    targetMargin: targetMargin
+                }));
+            }
+        }
+    }, [formData.importExpenses, formData.price]);
+
+    const handleAddExpense = () => {
+        setFormData(prev => ({
+            ...prev,
+            importExpenses: [...(prev.importExpenses || []), {
+                id: Date.now().toString(),
+                category: 'Other',
+                currency: 'KES',
+                amount: 0,
+                exchangeRate: 1,
+                kshAmount: 0,
+                date: new Date().toISOString().split('T')[0],
+            }]
+        }));
+    };
+
+    const handleUpdateExpense = (id: string, field: string, value: any) => {
+        setFormData(prev => ({
+            ...prev,
+            importExpenses: prev.importExpenses?.map(exp => {
+                if (exp.id === id) {
+                    const updated = { ...exp, [field]: value };
+                    updated.kshAmount = updated.amount * updated.exchangeRate;
+                    return updated;
+                }
+                return exp;
+            })
+        }));
+    };
+
+    const handleRemoveExpense = (id: string) => {
+        setFormData(prev => ({
+            ...prev,
+            importExpenses: prev.importExpenses?.filter(exp => exp.id !== id)
+        }));
+    };
+
+    const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>, expenseId: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploading(true);
+        try {
+            const folderName = `Car_Marketplace_${institution.name.replace(/\\s+/g, '_')}`;
+            const res = await apiService.uploadToGoogleDrive(file, folderName, {
+                institutionId: institution.id,
+                useGlobalConfig: true
+            });
+            if (!res.success) throw new Error(res.error || 'Upload failed');
+            
+            setFormData(prev => ({
+                ...prev,
+                importExpenses: prev.importExpenses?.map(exp => 
+                    exp.id === expenseId ? { ...exp, documentUrl: res.fileUrl } : exp
+                )
+            }));
+        } catch (err: any) {
+            alert(`Document upload failed: ${err.message}`);
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, isMain: boolean = true) => {
         const files = e.target.files;
@@ -122,19 +204,25 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                             <Car className="w-6 h-6" />
                         </div>
                         <div>
-                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">
-                                {listing?.id ? 'Update' : 'New'} <span className="text-indigo-600">Vehicle Listing</span>
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white flex items-center gap-4">
+                                {listing?.id ? 'Update' : 'New'} <span className="text-indigo-600">Vehicle</span>
                             </h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Car Marketplace Management</p>
+                            <div className="flex gap-2 mt-2">
+                                <button onClick={() => setActiveTab('details')} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'details' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>Basic Details</button>
+                                <button onClick={() => setActiveTab('logistics')} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${activeTab === 'logistics' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                                    <Ship className="w-3 h-3" /> Landed Cost Tracker
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all self-start">
                         <X className="w-6 h-6 text-slate-400" />
                     </button>
                 </div>
 
                 {/* Body */}
                 <div className="p-8 overflow-y-auto space-y-10 custom-scrollbar flex-grow">
+                    {activeTab === 'details' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         {/* Left Side: Images */}
                         <div className="space-y-8">
@@ -397,6 +485,100 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                             </div>
                         </div>
                     </div>
+                    ) : (
+                        <div className="space-y-8">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1.5"><Ship className="w-3 h-3"/> FOB Price</p>
+                                    <p className="text-lg font-black text-slate-900 dark:text-white">KES {(formData.fobPrice || 0).toLocaleString()}</p>
+                                </div>
+                                <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800">
+                                    <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest mb-1 flex items-center gap-1.5"><Calculator className="w-3 h-3"/> Total Landed Cost</p>
+                                    <p className="text-lg font-black text-indigo-700 dark:text-indigo-400">KES {(formData.totalLandedCost || 0).toLocaleString()}</p>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1.5"><Wallet className="w-3 h-3"/> Floor Price (Break-Even)</p>
+                                    <p className="text-lg font-black text-slate-900 dark:text-white">KES {(formData.floorPrice || 0).toLocaleString()}</p>
+                                </div>
+                                <div className={`p-4 rounded-2xl border ${(formData.targetMargin || 0) >= 15 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800'}`}>
+                                    <p className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1.5 ${(formData.targetMargin || 0) >= 15 ? 'text-emerald-500' : 'text-amber-500'}`}><Banknote className="w-3 h-3"/> Est. Margin</p>
+                                    <p className={`text-lg font-black ${(formData.targetMargin || 0) >= 15 ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>{(formData.targetMargin || 0).toFixed(1)}%</p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex justify-between items-end mb-4">
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter">Import Logistics & Expenses</h4>
+                                    <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Multi-currency ledger & KRA document vault</p>
+                                </div>
+                                <button onClick={handleAddExpense} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md flex items-center gap-2 hover:bg-indigo-700 transition-all">
+                                    <Plus className="w-3 h-3" /> Add Expense Line
+                                </button>
+                            </div>
+                            
+                            <div className="space-y-3">
+                                {(!formData.importExpenses || formData.importExpenses.length === 0) ? (
+                                    <div className="p-10 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                                        <Ship className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                                        <p className="text-xs font-bold text-slate-500">No expenses logged yet.</p>
+                                    </div>
+                                ) : formData.importExpenses.map((exp: any, i: number) => (
+                                    <div key={exp.id} className="flex flex-wrap items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                        <div className="w-32">
+                                            <select value={exp.category} onChange={e => handleUpdateExpense(exp.id, 'category', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 outline-none">
+                                                <option value="FOB">FOB</option>
+                                                <option value="Freight">Freight</option>
+                                                <option value="Insurance">Insurance</option>
+                                                <option value="KRA Duties & Taxes">KRA Duties & Taxes</option>
+                                                <option value="CFS">CFS</option>
+                                                <option value="Port Charges">Port Charges</option>
+                                                <option value="Transport">Transport</option>
+                                                <option value="Prep">Prep</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div className="w-20">
+                                            <select value={exp.currency} onChange={e => handleUpdateExpense(exp.id, 'currency', e.target.value)} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 outline-none">
+                                                <option value="USD">USD</option>
+                                                <option value="JPY">JPY</option>
+                                                <option value="GBP">GBP</option>
+                                                <option value="EUR">EUR</option>
+                                                <option value="KES">KES</option>
+                                            </select>
+                                        </div>
+                                        <div className="w-28">
+                                            <input type="number" value={exp.amount} onChange={e => handleUpdateExpense(exp.id, 'amount', Number(e.target.value))} placeholder="Amount" className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none" />
+                                        </div>
+                                        <div className="w-24">
+                                            <input type="number" value={exp.exchangeRate} onChange={e => handleUpdateExpense(exp.id, 'exchangeRate', Number(e.target.value))} placeholder="FX Rate" className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none" title="Exchange Rate to KES" />
+                                        </div>
+                                        <div className="w-32 flex-grow">
+                                            <input type="text" value={exp.description || ''} onChange={e => handleUpdateExpense(exp.id, 'description', e.target.value)} placeholder="Description / PRN No." className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none" />
+                                        </div>
+                                        <div className="flex items-center gap-2 ml-auto">
+                                            <div className="text-right mr-4">
+                                                <p className="text-[9px] font-black uppercase text-slate-400">Total KES</p>
+                                                <p className="text-sm font-black text-indigo-600">{(exp.amount * exp.exchangeRate).toLocaleString()}</p>
+                                            </div>
+                                            {exp.documentUrl ? (
+                                                <a href={exp.documentUrl} target="_blank" rel="noreferrer" className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-100" title="View Document">
+                                                    <FileText className="w-4 h-4" />
+                                                </a>
+                                            ) : (
+                                                <label className="w-8 h-8 bg-slate-200 dark:bg-slate-700 text-slate-500 rounded-lg flex items-center justify-center hover:bg-slate-300 dark:hover:bg-slate-600 cursor-pointer" title="Upload Receipt/PRN">
+                                                    <UploadCloud className="w-4 h-4" />
+                                                    <input type="file" className="hidden" accept=".pdf,image/*" onChange={e => handleDocumentUpload(e, exp.id)} />
+                                                </label>
+                                            )}
+                                            <button onClick={() => handleRemoveExpense(exp.id)} className="w-8 h-8 bg-red-50 text-red-500 rounded-lg flex items-center justify-center hover:bg-red-100">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer */}

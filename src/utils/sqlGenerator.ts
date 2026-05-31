@@ -1773,6 +1773,12 @@ CREATE TABLE IF NOT EXISTS car_listings (
     status TEXT DEFAULT 'active',
     view_count INTEGER DEFAULT 0,
     inquiry_count INTEGER DEFAULT 0,
+    import_status TEXT,
+    import_expenses JSONB DEFAULT '[]'::jsonb,
+    fob_price DECIMAL(15, 2),
+    total_landed_cost DECIMAL(15, 2),
+    target_margin DECIMAL(5, 2),
+    floor_price DECIMAL(15, 2),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

@@ -376,7 +376,7 @@ export const PublicEventRegistration: React.FC = () => {
                 </div>
 
                 {/* Events list */}
-                <div className="max-w-4xl mx-auto px-6 py-12">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
                     <h2 className="text-xl font-black text-white mb-6 flex items-center gap-2">
                         <CalendarDaysIcon className="w-5 h-5 text-indigo-400" /> Upcoming Sports Events
                     </h2>
@@ -388,7 +388,7 @@ export const PublicEventRegistration: React.FC = () => {
                     )}
 
                     {activeEvents.length === 0 ? (
-                        <div className="p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-3xl">
+                        <div className="p-8 sm:p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-3xl">
                             <CalendarDaysIcon className="w-12 h-12 text-slate-700 mx-auto mb-4" />
                             <h3 className="text-base font-bold text-slate-400">No events currently scheduled</h3>
                             <p className="text-xs text-slate-500 max-w-xs mx-auto mt-1">
@@ -400,7 +400,7 @@ export const PublicEventRegistration: React.FC = () => {
                             {activeEvents.map(evt => (
                                 <div 
                                     key={evt.id} 
-                                    className="bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700/80 rounded-3xl p-6 shadow-lg transition-all duration-300 flex flex-col"
+                                    className="bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700/80 rounded-[1.5rem] p-4 sm:p-6 shadow-lg transition-all duration-300 flex flex-col"
                                 >
                                     {evt.bannerUrl && (
                                         <div className="w-full h-32 rounded-2xl overflow-hidden mb-4 bg-slate-800">
@@ -508,7 +508,7 @@ export const PublicEventRegistration: React.FC = () => {
             <div className="max-w-2xl mx-auto px-4 sm:px-6 mt-8">
                 
                 {/* Step indicator */}
-                <div className="mb-8 flex items-center justify-between text-[10px] sm:text-xs font-extrabold text-slate-500 border-b border-slate-900 pb-4">
+                <div className="mb-8 flex items-center justify-between text-[10px] sm:text-xs font-extrabold text-slate-500 border-b border-slate-900 pb-4 overflow-x-auto hide-scrollbar gap-4 whitespace-nowrap">
                     <div className={`flex items-center gap-1.5 ${step === 1 ? 'text-indigo-400' : step > 1 ? 'text-green-500' : ''}`}>
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] border ${step === 1 ? 'border-indigo-400 bg-indigo-500/10' : step > 1 ? 'border-green-500 bg-green-500/10' : 'border-slate-800'}`}>1</span>
                         <span>Selection</span>
@@ -540,7 +540,7 @@ export const PublicEventRegistration: React.FC = () => {
                 {step === 1 && (
                     <div className="space-y-6">
                         {/* Event Details Card */}
-                        <div className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 space-y-4">
+                        <div className="bg-slate-900/60 border border-slate-800/80 rounded-[1.5rem] p-4 sm:p-6 space-y-4">
                             <h2 className="text-2xl md:text-3xl font-black text-white">{event.name}</h2>
                             <p className="text-xs md:text-sm text-slate-400 leading-relaxed">{event.description || 'Welcome! Set your records in this sports event.'}</p>
                             
@@ -566,7 +566,7 @@ export const PublicEventRegistration: React.FC = () => {
                         <div>
                             <h3 className="text-sm font-black text-white uppercase tracking-wider mb-3">Select Race Distance</h3>
                             {categories.length === 0 ? (
-                                <div className="p-8 text-center bg-slate-900/40 border border-slate-800/60 rounded-3xl">
+                                <div className="p-5 sm:p-8 text-center bg-slate-900/40 border border-slate-800/60 rounded-[1.5rem]">
                                     <p className="text-xs text-slate-500 font-bold">No race categories configured for this event.</p>
                                 </div>
                             ) : (
@@ -904,7 +904,7 @@ export const PublicEventRegistration: React.FC = () => {
                         </p>
 
                         {/* Entry Ticket Card */}
-                        <div className="w-full max-w-md bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 relative overflow-hidden flex flex-col items-center">
+                        <div className="w-full max-w-md bg-slate-900/60 border border-slate-800/80 rounded-[1.5rem] p-4 sm:p-6 relative overflow-hidden flex flex-col items-center">
                             <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
                             
                             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">Entry Ticket Pass</span>
