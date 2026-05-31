@@ -201,6 +201,7 @@ export const App: React.FC = () => {
     });
     const [users, setUsers] = useState<User[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
+    const [events, setEvents] = useState<any[]>([]);
     const [isHealthSystemOpen, setIsHealthSystemOpen] = useState(false);
     const [isPharmacySystemOpen, setIsPharmacySystemOpen] = useState(false);
     const [counties, setCounties] = useState<County[]>([]);
@@ -397,14 +398,30 @@ export const App: React.FC = () => {
         }
     });
 
-    const [showPublicEventRegistration, setShowPublicEventRegistration] = useState(() => {
+    const isEventSubdomain = useMemo(() => {
         try {
-            const params = new URLSearchParams(window.location.search);
-            return params.get('view') === 'event-register';
+            const host = window.location.hostname.toLowerCase();
+            const parts = host.split('.');
+            if (parts.length < 2) return false;
+            const sub = parts[0];
+            return events.some(e => 
+                e.customSubdomain && 
+                (e.customSubdomain.toLowerCase() === host || 
+                 e.customSubdomain.toLowerCase() === sub)
+            );
         } catch (e) {
             return false;
         }
-    });
+    }, [events]);
+
+    const showPublicEventRegistration = useMemo(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'event-register' || isEventSubdomain;
+        } catch (e) {
+            return false;
+        }
+    }, [isEventSubdomain]);
 
     const [showDrivingSchoolPortal, setShowDrivingSchoolPortal] = useState(() => {
         try {
@@ -417,7 +434,7 @@ export const App: React.FC = () => {
             return false;
         }
     });
-    const [showTenantStore, setShowTenantStore] = useState(!!activeStoreTenantId && !showDrivingSchoolPortal);
+    const showTenantStore = !!activeStoreTenantId && !showDrivingSchoolPortal && !isEventSubdomain;
     const [loginInitialView, setLoginInitialView] = useState<'login' | 'register' | 'reset_password'>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -751,18 +768,20 @@ export const App: React.FC = () => {
             setLoadStatus("Synchronizing Identity...");
             
             // Critical identity fetch - needed for Phase 2 logic
-            const [insts, cnts, sett, u, reg, imsPhase1] = await Promise.all([
+            const [insts, cnts, sett, u, reg, imsPhase1, evts] = await Promise.all([
                 apiService.fetchInstitutions().catch(() => []),
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers(currentUser?.role === 'super_admin' ? undefined : currentUser?.institutionId).catch(() => []),
                 (isAlumnaeMode && !showAlumnaeRegister && !showInstitutionClaim) ? Promise.resolve([]) : apiService.fetchFullRegistry().catch(() => []),
                 apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
+                apiService.fetchModuleRecords<any>('events').catch(() => []),
             ]);
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
             setUsers(u || []);
             setInstitutions(insts || []);
+            setEvents(evts || []);
             if (cnts) setCounties(cnts);
             if (reg) setSchoolRegistry(reg);
             if (sett) setCompanyDetails(sett);
@@ -5751,7 +5770,6 @@ export const App: React.FC = () => {
                         setShowMarketplace(false);
                         setShowCommunityHub(false);
                         setShowTransportHub(false);
-                        setShowTenantStore(false);
                         setActiveStoreTenantId(null);
                         setShowAlumnaeRegister(false);
                         setShowAlumnaeActivation(false);

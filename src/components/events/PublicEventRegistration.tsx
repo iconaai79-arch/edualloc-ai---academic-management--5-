@@ -66,17 +66,39 @@ export const PublicEventRegistration: React.FC = () => {
             setLoading(true);
             setErrorMsg('');
             try {
-                if (eventId) {
+                let targetEventId = eventId;
+                let fetchedAllEvents: SportEvent[] | null = null;
+                
+                // If eventId is not set, try to find the event by custom subdomain
+                if (!targetEventId) {
+                    const host = window.location.hostname.toLowerCase();
+                    const parts = host.split('.');
+                    if (parts.length >= 2) {
+                        const sub = parts[0];
+                        fetchedAllEvents = await apiService.fetchModuleRecords<SportEvent>('events');
+                        const found = fetchedAllEvents.find(e => 
+                            e.customSubdomain && 
+                            (e.customSubdomain.toLowerCase() === host || 
+                             e.customSubdomain.toLowerCase() === sub)
+                        );
+                        if (found) {
+                            targetEventId = found.id;
+                            setEventId(found.id);
+                        }
+                    }
+                }
+
+                if (targetEventId) {
                     // Fetch specific event
                     const events = await apiService.fetchModuleRecords<SportEvent>('events', undefined, undefined, {
-                        filter: { id: eventId }
+                        filter: { id: targetEventId }
                     });
                     
                     if (events && events.length > 0) {
                         setEvent(events[0]);
                         // Fetch categories for this event
                         const cats = await apiService.fetchModuleRecords<EventCategory>('event_categories', undefined, undefined, {
-                            filter: { event_id: eventId }
+                            filter: { event_id: targetEventId }
                         });
                         // Deduplicate categories by ID
                         const uniqueCats = Array.from(new Map(cats.map(c => [c.id, c])).values());
@@ -90,7 +112,7 @@ export const PublicEventRegistration: React.FC = () => {
                     }
                 } else {
                     // Load all active events for selection
-                    const allEvents = await apiService.fetchModuleRecords<SportEvent>('events');
+                    const allEvents = fetchedAllEvents || await apiService.fetchModuleRecords<SportEvent>('events');
                     // Filter events that are active or planning and deduplicate by ID
                     const filtered = allEvents.filter(e => e.status === 'active' || e.status === 'planning');
                     const uniqueEvents = Array.from(new Map(filtered.map(e => [e.id, e])).values());

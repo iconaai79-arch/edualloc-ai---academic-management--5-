@@ -2112,7 +2112,42 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [isScanningKioskFace, setIsScanningKioskFace] = useState(false);
     const [kioskFaceVerificationStatus, setKioskFaceVerificationStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
     const [kioskFaceVerificationMsg, setKioskFaceVerificationMsg] = useState('');
-    const kioskWebcamRef = useRef<any>(null);
+    const kioskWebcamRef = useRef<HTMLVideoElement>(null);
+    const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
+    const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
+
+    useEffect(() => {
+        let activeStream: MediaStream | null = null;
+        if (isScanningKioskFace) {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+                .then((s) => {
+                    activeStream = s;
+                    setWebcamStream(s);
+                })
+                .catch((err) => {
+                    console.error("Error accessing webcam:", err);
+                    setKioskFaceVerificationStatus('error');
+                    setKioskFaceVerificationMsg('Failed to access webcam. Please ensure permissions are granted.');
+                });
+        } else {
+            setWebcamStream(prev => {
+                if (prev) prev.getTracks().forEach(track => track.stop());
+                return null;
+            });
+            setCapturedFrame(null);
+        }
+        return () => {
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [isScanningKioskFace]);
+
+    useEffect(() => {
+        if (kioskWebcamRef.current && webcamStream) {
+            kioskWebcamRef.current.srcObject = webcamStream;
+        }
+    }, [webcamStream, isScanningKioskFace]);
 
 
 
@@ -2808,6 +2843,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             return;
         }
 
+        // Capture frame from webcam
+        if (kioskWebcamRef.current && webcamStream) {
+            const canvas = document.createElement('canvas');
+            canvas.width = kioskWebcamRef.current.videoWidth;
+            canvas.height = kioskWebcamRef.current.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(kioskWebcamRef.current, 0, 0, canvas.width, canvas.height);
+                setCapturedFrame(canvas.toDataURL('image/jpeg', 0.8));
+            }
+        }
+
         setKioskFaceVerificationStatus('scanning');
         setKioskFaceVerificationMsg('Detecting face in frame...');
 
@@ -2829,6 +2876,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             setKioskFaceVerificationStatus('idle');
             setMatchedStudentForCheckIn(null);
             setKioskFaceVerificationMsg('');
+            setCapturedFrame(null);
             
             await executeKioskCheckIn(matchedStudentForCheckIn);
         } catch (e: any) {
@@ -5463,17 +5511,46 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     <div className="md:col-span-2 bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-lg flex flex-col justify-between">
                                         {isScanningKioskFace ? (
                                             <div className="space-y-6 flex flex-col justify-center items-center py-6 h-full my-auto animate-fade-in">
-                                                <div className="w-28 h-28 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center shadow-inner overflow-hidden">
-                                                    {(matchedStudentForCheckIn as any)?.passportPhoto ? (
-                                                        <img src={(matchedStudentForCheckIn as any).passportPhoto} className="w-full h-full object-cover shadow-md" alt="Target Passport" />
-                                                    ) : (
-                                                        <svg className="w-12 h-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                        </svg>
-                                                    )}
+                                                <div className="flex items-center gap-6">
+                                                    {/* Live Webcam Feed */}
+                                                    <div className="flex flex-col items-center space-y-2">
+                                                        <div className="w-28 h-28 rounded-full border-4 border-indigo-500/30 bg-slate-900 flex items-center justify-center shadow-inner overflow-hidden relative">
+                                                            {!capturedFrame && (
+                                                                <video 
+                                                                    ref={kioskWebcamRef} 
+                                                                    autoPlay 
+                                                                    playsInline 
+                                                                    muted 
+                                                                    className="w-full h-full object-cover scale-x-[-1]"
+                                                                />
+                                                            )}
+                                                            {capturedFrame && (
+                                                                <img src={capturedFrame} className="w-full h-full object-cover scale-x-[-1]" alt="Captured Frame" />
+                                                            )}
+                                                            {!webcamStream && !capturedFrame && (
+                                                                <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-400">
+                                                                    <svg className="w-8 h-8 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[9px] font-black uppercase text-indigo-400 tracking-widest">{capturedFrame ? "Captured" : "Live Feed"}</span>
+                                                    </div>
+
+                                                    {/* Target Passport */}
+                                                    <div className="flex flex-col items-center space-y-2">
+                                                        <div className="w-28 h-28 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center shadow-inner overflow-hidden">
+                                                            {(matchedStudentForCheckIn as any)?.passportPhoto ? (
+                                                                <img src={(matchedStudentForCheckIn as any).passportPhoto} className="w-full h-full object-cover shadow-md" alt="Target Passport" />
+                                                            ) : (
+                                                                <svg className="w-12 h-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                                </svg>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Registered</span>
+                                                    </div>
                                                 </div>
                                                 <div className="text-center space-y-2">
-                                                    <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Registered Passport</h4>
                                                     <p className="text-[10px] text-slate-500 leading-normal max-w-[200px] mx-auto">Comparing live frame vectors against registered profile image.</p>
                                                 </div>
                                                 
