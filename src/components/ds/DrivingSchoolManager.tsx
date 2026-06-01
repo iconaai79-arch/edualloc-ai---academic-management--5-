@@ -3733,7 +3733,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 </button>
                             )}
 
-                            {activeTab !== 'dashboard' && (
+                            {!['dashboard', 'dispatch', 'reports', 'showcase', 'portal'].includes(activeTab) && (
                                 <button 
                                     onClick={() => {
                                         const typeMap: Record<string, any> = {
