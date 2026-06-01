@@ -2242,8 +2242,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
 
         const currentBalance = currentInstitution?.smsBalance || 0;
-        if (currentBalance < targets.length) {
-            toastError(`Insufficient SMS Units! Required: ${targets.length}, Available: ${currentBalance}. Please top up.`);
+        const requiredUnits = targets.reduce((sum, t) => sum + (Math.ceil(t.message.length / 160) || 1), 0);
+        if (currentBalance < requiredUnits) {
+            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}. Please top up.`);
             return;
         }
 
@@ -2255,11 +2256,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         try {
             // Dispatch personalized SMS batches
             const tasks = targets.map(t => 
-                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, 1, currentInstitution?.id)
+                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, Math.ceil(t.message.length / 160) || 1, currentInstitution?.id)
             );
             await Promise.all(tasks);
             
-            const remainingBalance = Math.max(0, currentBalance - targets.length);
+            const remainingBalance = Math.max(0, currentBalance - requiredUnits);
             success(`Successfully dispatched fee reminders to ${targets.length} students! Remaining Units: ${remainingBalance}.`);
         } catch (err) {
             console.error("Bulk reminders failure:", err);
@@ -2300,8 +2301,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
 
         const currentBalance = currentInstitution?.smsBalance || 0;
-        if (currentBalance < targets.length) {
-            toastError(`Insufficient SMS Units! Required: ${targets.length}, Available: ${currentBalance}.`);
+        const requiredUnits = targets.reduce((sum, t) => sum + (Math.ceil(t.message.length / 160) || 1), 0);
+        if (currentBalance < requiredUnits) {
+            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
             return;
         }
 
@@ -2309,7 +2311,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
         setIsSendingReminders(true);
         try {
-            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, 1, currentInstitution?.id)));
+            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, Math.ceil(t.message.length / 160) || 1, currentInstitution?.id)));
             success(`Successfully dispatched PDL expiry alerts to ${targets.length} candidates!`);
         } catch (err) {
             toastError("Failed to dispatch some PDL alerts.");
@@ -2343,8 +2345,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
 
         const currentBalance = currentInstitution?.smsBalance || 0;
-        if (currentBalance < targets.length) {
-            toastError(`Insufficient SMS Units! Required: ${targets.length}, Available: ${currentBalance}.`);
+        const requiredUnits = targets.reduce((sum, t) => sum + (Math.ceil(t.message.length / 160) || 1), 0);
+        if (currentBalance < requiredUnits) {
+            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
             return;
         }
 
@@ -2352,7 +2355,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
         setIsSendingReminders(true);
         try {
-            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, 1, currentInstitution?.id)));
+            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, Math.ceil(t.message.length / 160) || 1, currentInstitution?.id)));
             success(`Successfully dispatched Test prep notifications to ${targets.length} candidates!`);
         } catch (err) {
             toastError("Failed to dispatch some test notifications.");
@@ -2616,11 +2619,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 success(`Password reset successfully.`);
                 
                 if (student.phone && currentInstitution?.smsConfig) {
+                    const msg = `CREDENTIAL RESET: Your Driving School portal password has been reset. Login: ${student.email || student.phone} New Password: ${newPassword}`;
                     await apiService.sendSms(
                         student.phone, 
-                        `CREDENTIAL RESET: Your Driving School portal password has been reset. Login: ${student.email || student.phone} New Password: ${newPassword}`,
+                        msg,
                         currentInstitution.smsConfig,
-                        1,
+                        Math.ceil(msg.length / 160) || 1,
                         currentInstitution.id
                     );
                 } else {
@@ -4289,7 +4293,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                             
                                                                             if (confirm(`Send Fee Quotation SMS to ${lead.fullName} (${lead.phone})?\n\nMessage payload:\n"${msg}"`)) {
                                                                                 // Ensure live SMS broadcast via gateway
-                                                                                const res = await apiService.sendSms(lead.phone, msg, currentInstitution?.smsConfig, 1, currentInstitution?.id);
+                                                                                const pages = Math.ceil(msg.length / 160) || 1;
+                                                                                const res = await apiService.sendSms(lead.phone, msg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
                                                                                 
                                                                                 await updateLead({ ...lead, status: 'Quotation Sent', quotedAmount: baseFeeAmount });
                                                                                 
@@ -7391,14 +7396,20 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     let smsResInfo: any = null;
                                     const currentBalance = currentInstitution?.smsBalance || 0;
 
+                                    let requiredUnits = 0;
+
                                     if (phones.length > 0) {
-                                        if (currentBalance < phones.length) {
-                                            toastError(`Insufficient SMS Units! Required: ${phones.length}, Available: ${currentBalance}. Please top up.`);
+                                        const fullMsg = `${priorityPrefix}${data.title}: ${data.message}`;
+                                        const pages = Math.ceil(fullMsg.length / 160) || 1;
+                                        requiredUnits = phones.length * pages;
+                                        
+                                        if (currentBalance < requiredUnits) {
+                                            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}. Please top up.`);
                                             setIsActionLoading(false);
                                             return;
                                         }
                                         // Await SMS dispatch to capture precise delivery metadata
-                                        smsResInfo = await apiService.sendSms(phones, `${priorityPrefix}${data.title}: ${data.message}`, currentInstitution?.smsConfig, 1, currentInstitution?.id);
+                                        smsResInfo = await apiService.sendSms(phones, fullMsg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
                                     }
 
                                     if (emails.length > 0) {
@@ -7410,7 +7421,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                     let deliverySummary = `Broadcast dispatched to ${targetUsers.length} recipients.`;
                                     if (phones.length > 0) {
-                                        const remainingBalance = Math.max(0, currentBalance - phones.length);
+                                        const remainingBalance = Math.max(0, currentBalance - requiredUnits);
                                         deliverySummary += ` SMS Delivery: dispatched to ${phones.length} destination numbers. Remaining Units: ${remainingBalance}.`;
                                         if (smsResInfo?.message) {
                                             deliverySummary += ` Gateway Status: ${smsResInfo.message}`;
