@@ -29,6 +29,12 @@ const MOCK_MESSAGES: Broadcast[] = [
     { id: 'b4', title: 'Theory Session', message: 'Defensive Driving theory session for Group B starts in 20 mins at Room 2.', type: 'Info', priority: 'Medium', timestamp: '1 hour ago' },
 ];
 
+const MOCK_SENT_MESSAGES: Broadcast[] = [
+    { id: 's1', title: 'Weather Advisory', message: 'Heavy rain expected. All practical lessons to proceed with caution.', type: 'Info', priority: 'High', timestamp: '2 hours ago' },
+    { id: 's2', title: 'System Maintenance', message: 'Student portal will be down for maintenance from midnight to 2 AM.', type: 'Info', priority: 'Medium', timestamp: '1 day ago' },
+    { id: 's3', title: 'Instructor Meeting', message: 'Weekly briefing at 8 AM tomorrow in the main hall.', type: 'Info', priority: 'Medium', timestamp: '2 days ago' },
+];
+
 export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroadcast }) => {
     const [activeTab, setActiveTab] = useState<'Live Feed' | 'Sent' | 'Outbox'>('Live Feed');
 
@@ -92,7 +98,7 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
                                     <p className="text-xs text-slate-400 mt-2">All scheduled and queued broadcasts have been dispatched.</p>
                                 </div>
                             ) : (
-                                MOCK_MESSAGES.map((msg, i) => (
+                                (activeTab === 'Sent' ? MOCK_SENT_MESSAGES : MOCK_MESSAGES).map((msg, i) => (
                                     <div key={i} className={`p-6 rounded-[2rem] border transition-all ${
                                         msg.type === 'Emergency' ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700'
                                     }`}>
