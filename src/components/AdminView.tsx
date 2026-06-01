@@ -1565,6 +1565,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 alert("The Alumnae Portal is currently inactive. Please activate it under Config -> Subscription to access these features.");
                                                 return;
                                             }
+                                            setActiveScope('academics');
                                             setActiveTab('alumni' as any);
                                         }}
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-pink-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
