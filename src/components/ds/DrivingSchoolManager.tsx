@@ -3389,12 +3389,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     if (practicalScheduled.length === 0) {
                         let pInstructor = (instructors || []).find(i => i.id === student.preferredInstructorId && i.status === 'Active');
                         if (!pInstructor) pInstructor = (instructors || []).find(i => i.status === 'Active');
-                        
-                        let pVehicle = null;
-                        if (pInstructor?.assignedVehicleId) {
-                            pVehicle = (vehicles || []).find(v => v.id === pInstructor.assignedVehicleId && v.status === 'Operational');
-                        }
-                        if (!pVehicle) pVehicle = (vehicles || []).find(v => v.status === 'Operational');
 
                         const nowTimeForTheoryEnd = new Date();
                         const theoryDurMins = (settings?.schedulingRules?.theoryDurationMinutes || 60);
