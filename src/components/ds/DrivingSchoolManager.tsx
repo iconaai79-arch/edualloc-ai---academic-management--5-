@@ -2860,7 +2860,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     async function handleKioskPasswordSubmit() {
         if (!matchedStudentForCheckIn) return;
-        const assocUser = (users || []).find(u => u.id === matchedStudentForCheckIn.userId || u.email === matchedStudentForCheckIn.email || u.phoneNumber === matchedStudentForCheckIn.phone);
+        
+        const assocUser = (users || []).find(u => {
+            if (matchedStudentForCheckIn.userId && u.id === matchedStudentForCheckIn.userId) return true;
+            if (matchedStudentForCheckIn.email && u.email === matchedStudentForCheckIn.email) return true;
+            if (matchedStudentForCheckIn.phone && u.phoneNumber === matchedStudentForCheckIn.phone) return true;
+            return false;
+        });
+        
         const expectedPassword = assocUser?.password || 'student123';
         
         if (kioskPassword.trim() !== expectedPassword) {
@@ -2918,7 +2925,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             
             setIsScanningKioskFace(false);
             setKioskFaceVerificationStatus('idle');
-            setMatchedStudentForCheckIn(null);
             setKioskFaceVerificationMsg('');
             setCapturedFrame(null);
             
