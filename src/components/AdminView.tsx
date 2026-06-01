@@ -65,6 +65,7 @@ const TransportManager = lazy(() => import('./TransportManager').then(m => ({ de
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 
+import { DocumentTextIcon } from './icons/DocumentTextIcon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
