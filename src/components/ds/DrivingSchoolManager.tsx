@@ -3867,15 +3867,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 >
                                                                     <KeyIconLucide className="w-4 h-4" />
                                                                 </button>
-                                                                {isSuperAdmin && (
-                                                                    <button 
-                                                                        onClick={() => handleViewStudentPassword(student)}
-                                                                        className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
-                                                                        title="View Password"
-                                                                    >
-                                                                        <EyeIcon className="w-4 h-4" />
-                                                                    </button>
-                                                                )}
+                                                                <button 
+                                                                    onClick={() => handleViewStudentPassword(student)}
+                                                                    className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                    title="View Portal Password"
+                                                                >
+                                                                    <EyeIcon className="w-4 h-4" />
+                                                                </button>
                                                                 {isSuperAdmin && getStudentMilestoneStatus(student.id)?.noInvoice && student.status !== 'Graduated' && (
                                                                     <button 
                                                                         onClick={async () => {
