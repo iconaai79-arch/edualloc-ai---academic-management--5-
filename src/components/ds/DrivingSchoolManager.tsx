@@ -5002,7 +5002,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         </div>
                     )}
 
-                    {internalTab === 'dispatch' && (
+                    {activeTab === 'dispatch' && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
                             {/* Pending Queue */}
                             <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm">
