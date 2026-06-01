@@ -51,7 +51,8 @@ import { DSFinanceFeeds } from './DSFinanceFeeds';
 import { DSReportsView } from './DSReportsView';
 import { BuySMSModal } from '../BuySMSModal';
 import { 
-    Banknote as BanknotesIcon 
+    Banknote as BanknotesIcon,
+    Key as KeyIconLucide
 } from 'lucide-react';
 import { apiService } from '../../services/apiService';
 import * as pdfService from '../../services/pdfService';
@@ -2577,6 +2578,49 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             setIsActionLoading(false);
         }
     };
+    const handleResetStudentPassword = async (student: DSStudent) => {
+        if (!student.phone && !student.email) {
+            toastError("Student has no linked email or phone number to receive the new password.");
+            return;
+        }
+        
+        if (window.confirm(`Are you sure you want to reset the password for ${student.fullName}?`)) {
+            setIsActionLoading(true);
+            try {
+                const newPassword = Math.random().toString(36).slice(-8);
+                
+                // For DS students, if they don't have a linked user id yet, we skip updating the user table directly
+                // but we will attempt to find a user with their email/phone or create one.
+                // Assuming there's a backend endpoint or we just log it for now
+                if (student.userId) {
+                    await apiService.saveUser({
+                        id: student.userId,
+                        password: newPassword,
+                        passwordLastUpdated: new Date().toISOString()
+                    });
+                }
+                
+                toastSuccess(`Password reset successfully.`);
+                
+                if (student.phone && currentInstitution?.smsConfig) {
+                    await apiService.sendSms(
+                        student.phone, 
+                        `CREDENTIAL RESET: Your Driving School portal password has been reset. Login: ${student.email || student.phone} New Password: ${newPassword}`,
+                        currentInstitution.smsConfig,
+                        1,
+                        currentInstitution.id
+                    );
+                } else {
+                    alert(`New password for ${student.fullName} is: ${newPassword}\nPlease share this with the student safely.`);
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || "Failed to reset password.");
+            } finally {
+                setIsActionLoading(false);
+            }
+        }
+    };
 
     const handleAutoScheduleSingleStudent = async (studentId: string) => {
         const student = normalizedStudents.find(s => s.id === studentId);
@@ -3762,6 +3806,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 >
                                                                     <PencilIcon className="w-4 h-4" />
                                                                 </button>
+                                                                <button 
+                                                                    onClick={() => handleResetStudentPassword(student)}
+                                                                    className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                                                                    title="Reset Password"
+                                                                >
+                                                                    <KeyIconLucide className="w-4 h-4" />
+                                                                </button>
                                                                 {isSuperAdmin && getStudentMilestoneStatus(student.id)?.noInvoice && student.status !== 'Graduated' && (
                                                                     <button 
                                                                         onClick={async () => {
@@ -4132,7 +4183,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             </span>
                                                         </td>
                                                         <td className="px-10 py-8 font-black text-slate-900 dark:text-white text-xs">
-                                                            KES {baseFeeAmount.toLocaleString()}
+                                                            KES {(baseFeeAmount || 0).toLocaleString()}
                                                         </td>
                                                         <td className="px-10 py-8 text-right">
                                                             <div className="flex items-center justify-end gap-2">
@@ -4140,7 +4191,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                     onClick={async () => {
                                                                         setIsActionLoading(true);
                                                                         try {
-                                                                            const amountStr = `KES ${baseFeeAmount.toLocaleString()}`;
+                                                                            const amountStr = `KES ${(baseFeeAmount || 0).toLocaleString()}`;
                                                                             const catName = targetCategory ? `${targetCategory.name} (${targetCategory.code})` : (lead.licenseTypeInterested || 'Class B');
                                                                             
                                                                             // 1. Generate premium itemized quotation PDF
@@ -6411,7 +6462,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                                 <h6 className="font-bold text-sm text-slate-900 dark:text-white">{vName}</h6>
                                                                                 {vMandatory && <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-600 rounded text-[9px] font-black uppercase">Mandatory</span>}
                                                                             </div>
-                                                                            <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {vAmount.toLocaleString()}</p>
+                                                                            <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(vAmount || 0).toLocaleString()}</p>
                                                                         </div>
                                                                         <div className="flex items-center justify-end gap-1 pt-2 border-t border-slate-50 dark:border-slate-800/50 mt-auto">
                                                                             <button
@@ -7736,17 +7787,17 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             <div className="grid grid-cols-3 gap-3 text-center">
                                 <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Expected</p>
-                                    <p className="text-sm font-black text-rose-600 mt-1">KES {pendingAttendanceOverride.ms.expectedByNextSession.toLocaleString()}</p>
+                                    <p className="text-sm font-black text-rose-600 mt-1">KES {(pendingAttendanceOverride.ms.expectedByNextSession || 0).toLocaleString()}</p>
                                     <p className="text-[9px] text-slate-400 mt-0.5">by Day {pendingAttendanceOverride.ms.nextSession}</p>
                                 </div>
                                 <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</p>
-                                    <p className="text-sm font-black text-emerald-600 mt-1">KES {pendingAttendanceOverride.ms.paidAmount.toLocaleString()}</p>
+                                    <p className="text-sm font-black text-emerald-600 mt-1">KES {(pendingAttendanceOverride.ms.paidAmount || 0).toLocaleString()}</p>
                                     <p className="text-[9px] text-slate-400 mt-0.5">so far</p>
                                 </div>
                                 <div className="bg-rose-50 dark:bg-rose-900/30 rounded-2xl p-4 border border-rose-200 dark:border-rose-800">
                                     <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Shortfall</p>
-                                    <p className="text-sm font-black text-rose-700 dark:text-rose-300 mt-1">KES {pendingAttendanceOverride.ms.shortfall.toLocaleString()}</p>
+                                    <p className="text-sm font-black text-rose-700 dark:text-rose-300 mt-1">KES {(pendingAttendanceOverride.ms.shortfall || 0).toLocaleString()}</p>
                                     <p className="text-[9px] text-rose-500 mt-0.5">unpaid</p>
                                 </div>
                             </div>

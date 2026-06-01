@@ -1744,7 +1744,7 @@ CREATE TABLE IF NOT EXISTS ds_payments (
 ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS student_id TEXT;
 
 -- 15. CAR SHOWROOM MODULE
-CREATE TABLE IF NOT EXISTS car_listings (
+CREATE TABLE IF NOT EXISTS car_sales_listings (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     seller_id TEXT,
@@ -1784,7 +1784,7 @@ CREATE TABLE IF NOT EXISTS car_listings (
 
 CREATE TABLE IF NOT EXISTS car_test_drive_bookings (
     id TEXT PRIMARY KEY,
-    listing_id TEXT NOT NULL REFERENCES car_listings(id) ON DELETE CASCADE,
+    listing_id TEXT NOT NULL REFERENCES car_sales_listings(id) ON DELETE CASCADE,
     buyer_id TEXT,
     buyer_name TEXT,
     buyer_phone TEXT,
@@ -1808,7 +1808,7 @@ CREATE TABLE IF NOT EXISTS car_appraisals (
 
 CREATE TABLE IF NOT EXISTS car_sales_invoices (
     id TEXT PRIMARY KEY,
-    listing_id TEXT NOT NULL REFERENCES car_listings(id) ON DELETE CASCADE,
+    listing_id TEXT NOT NULL REFERENCES car_sales_listings(id) ON DELETE CASCADE,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     client_name TEXT NOT NULL,
     client_email TEXT,
@@ -2167,7 +2167,7 @@ BEGIN
         'his_eye_prescriptions', 'his_medication_logs', 'his_financial_records',
         'his_broadcasts', 'institution_module_states',
         'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_settings', 'ds_fee_structures', 'ds_invoices', 'ds_payments', 'ds_license_categories', 'ds_votes',
-        'car_listings', 'car_test_drive_bookings', 'car_appraisals', 'car_sales_invoices', 'car_sales_payments', 'showroom_settings',
+        'car_sales_listings', 'car_test_drive_bookings', 'car_appraisals', 'car_sales_invoices', 'car_sales_payments', 'showroom_settings',
         'heritage_members', 'heritage_stories', 'heritage_galleries', 'heritage_announcements'
     ]) LOOP
         IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN

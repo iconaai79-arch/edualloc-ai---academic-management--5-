@@ -139,7 +139,7 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{listing.trim || 'Standard Edition'}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-lg font-black text-slate-900 dark:text-white italic leading-none">KES {listing.price.toLocaleString()}</p>
+                                    <p className="text-lg font-black text-slate-900 dark:text-white italic leading-none">KES {(listing.price || 0).toLocaleString()}</p>
                                     <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-1 italic">MSRP</p>
                                 </div>
                             </div>
@@ -149,7 +149,7 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
                                     <Gauge className="w-4 h-4 text-slate-400" />
                                     <div>
                                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Mileage</p>
-                                        <p className="text-[10px] font-black text-slate-900 dark:text-white">{listing.mileage.toLocaleString()} KM</p>
+                                        <p className="text-[10px] font-black text-slate-900 dark:text-white">{(listing.mileage || 0).toLocaleString()} KM</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-50 dark:border-slate-800">

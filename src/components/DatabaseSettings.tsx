@@ -649,6 +649,12 @@ GRANT ALL ON public.counties TO anon, authenticated, service_role;
 -- Car Marketplace Schema Repair
 ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS inspection_report_url TEXT;
 ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS inspection_score INTEGER DEFAULT 95;
+ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS import_status TEXT;
+ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS import_expenses JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS fob_price DECIMAL(15, 2);
+ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS total_landed_cost DECIMAL(15, 2);
+ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS target_margin DECIMAL(5, 2);
+ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS floor_price DECIMAL(15, 2);
 `;
                                     const result = await apiService.runMigration(carSql);
                                     if (result.success) {

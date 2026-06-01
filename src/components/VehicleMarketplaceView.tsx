@@ -119,7 +119,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                             {listing.make} <span className="text-indigo-600">{listing.model}</span>
                         </h3>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">
-                            {listing.mileage.toLocaleString()} KM • {listing.transmission}
+                            {(listing.mileage || 0).toLocaleString()} KM • {listing.transmission}
                         </p>
                     </div>
                     <div className="text-right">
@@ -127,7 +127,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                             ${(listing.price / 1000).toFixed(1)}k
                         </p>
                         <p className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest mt-1">
-                            KES {listing.price.toLocaleString()}
+                            KES {(listing.price || 0).toLocaleString()}
                         </p>
                     </div>
                 </div>
@@ -215,13 +215,13 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                             )}
                              <div className="flex gap-6 items-center">
                                 <div className="text-4xl font-black text-slate-900 leading-none">
-                                    KES {vehicle.price.toLocaleString()}
+                                    KES {(vehicle.price || 0).toLocaleString()}
                                 </div>
                                 <div className="h-8 w-px bg-slate-200" />
                                 <div className="flex flex-col">
                                     <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">Est. Financed</span>
                                     <span className="text-lg font-black text-slate-900">
-                                        KES {Math.round((vehicle.price * (1 - financeDownPayment / 100) * (1 + (interestRate/100) * (financeTenure/12))) / financeTenure).toLocaleString()}/mo
+                                        KES {Math.round(((vehicle.price || 0) * (1 - financeDownPayment / 100) * (1 + (interestRate/100) * (financeTenure/12))) / financeTenure).toLocaleString()}/mo
                                     </span>
                                 </div>
                             </div>
@@ -314,7 +314,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                             </button>
                             <button 
                                 onClick={() => {
-                                    const text = encodeURIComponent(`Hi, I'm interested in the ${vehicle.year} ${vehicle.make} ${vehicle.model} priced at KES ${vehicle.price.toLocaleString()}. Is it still available?`);
+                                    const text = encodeURIComponent(`Hi, I'm interested in the ${vehicle.year} ${vehicle.make} ${vehicle.model} priced at KES ${(vehicle.price || 0).toLocaleString()}. Is it still available?`);
                                     window.open(`https://wa.me/${currentInstitution?.phoneNumber?.replace(/\+/g, '')}?text=${text}`, '_blank');
                                 }}
                                 className="h-20 bg-emerald-500 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-[11px] shadow-xl shadow-emerald-100 hover:bg-emerald-600 transition-all flex items-center justify-center gap-4"
@@ -471,7 +471,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                                                     <img src={getGoogleDriveDirectUrl(item.mainImageUrl)} className="w-full h-full object-cover" />
                                                 </div>
                                                 <p className="text-lg font-black uppercase tracking-tighter">{item.make} {item.model}</p>
-                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">KES {item.price.toLocaleString()}</p>
+                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">KES {(item.price || 0).toLocaleString()}</p>
                                             </th>
                                         ))}
                                     </tr>
@@ -479,7 +479,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                                     {[
                                         { label: 'Year', key: 'year' },
-                                        { label: 'Mileage', key: 'mileage', format: (v: any) => `${v.toLocaleString()} KM` },
+                                        { label: 'Mileage', key: 'mileage', format: (v: any) => `${(v || 0).toLocaleString()} KM` },
                                         { label: 'Transmission', key: 'transmission' },
                                         { label: 'Fuel Type', key: 'fuelType' },
                                         { label: 'Body Type', key: 'bodyType' },
@@ -537,12 +537,12 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                                 {quoteData.breakdown.map((item: any, i: number) => (
                                     <div key={i} className="flex justify-between items-center py-3 border-b border-slate-50 dark:border-slate-800 last:border-0">
                                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{item.label}</span>
-                                        <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">KES {item.value.toLocaleString()}</span>
+                                        <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">KES {(item.value || 0).toLocaleString()}</span>
                                     </div>
                                 ))}
                                 <div className="flex justify-between items-center pt-6 mt-4 border-t border-slate-200 dark:border-slate-700">
                                     <span className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-[0.2em]">Total Amount</span>
-                                    <span className="text-3xl font-black text-indigo-600 tracking-tighter leading-none">KES {quoteData.total.toLocaleString()}</span>
+                                    <span className="text-3xl font-black text-indigo-600 tracking-tighter leading-none">KES {(quoteData.total || 0).toLocaleString()}</span>
                                 </div>
                             </div>
 
@@ -592,12 +592,12 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                         {quoteData.breakdown.map((item: any, i: number) => (
                             <div key={i} className="flex justify-between items-center py-4 border-b border-slate-50">
                                 <span className="text-xs font-black uppercase text-slate-500 tracking-widest">{item.label}</span>
-                                <span className="text-lg font-black text-slate-900 uppercase">KES {item.value.toLocaleString()}</span>
+                                <span className="text-lg font-black text-slate-900 uppercase">KES {(item.value || 0).toLocaleString()}</span>
                             </div>
                         ))}
                         <div className="flex justify-between items-center pt-10 mt-6 bg-slate-900 text-white p-10 rounded-[2.5rem]">
                             <span className="text-sm font-black uppercase tracking-[0.4em]">Total Net Amount</span>
-                            <span className="text-5xl font-black tracking-tighter">KES {quoteData.total.toLocaleString()}</span>
+                            <span className="text-5xl font-black tracking-tighter">KES {(quoteData.total || 0).toLocaleString()}</span>
                         </div>
                     </div>
 
