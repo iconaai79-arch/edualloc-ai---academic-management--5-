@@ -2815,9 +2815,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             const phone = (s.phone || '').toLowerCase();
             const idNo = (s.idNumber || '').toLowerCase();
             const sId = (s.id || '').toLowerCase();
+            const email = (s.email || '').toLowerCase();
             
             // Exact matches
-            if (adm === input || phone === input || idNo === input || sId === input) return true;
+            if (adm === input || phone === input || idNo === input || sId === input || email === input) return true;
             
             // Match without prefix (e.g. input "1207" matches stored "adm-1207")
             const prefix = (settings?.studentIdPrefix || 'ADM-').toLowerCase().trim();
@@ -2861,6 +2862,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     async function handleKioskPasswordSubmit() {
         if (!matchedStudentForCheckIn) return;
         
+        let isPasswordCorrect = false;
+        
         const assocUser = (users || []).find(u => {
             if (matchedStudentForCheckIn.userId && u.id === matchedStudentForCheckIn.userId) return true;
             if (matchedStudentForCheckIn.email && u.email === matchedStudentForCheckIn.email) return true;
@@ -2868,9 +2871,37 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             return false;
         });
         
-        const expectedPassword = assocUser?.password || 'student123';
+        if (assocUser) {
+            isPasswordCorrect = (kioskPassword.trim() === assocUser.password);
+        } else if (users && users.length > 0) {
+            isPasswordCorrect = (kioskPassword.trim() === 'student123');
+        } else {
+            // Online fallback when local users aren't available (e.g. unauthenticated kiosk)
+            try {
+                const payload = {
+                    action: 'login',
+                    email: matchedStudentForCheckIn.email || undefined,
+                    phone: !matchedStudentForCheckIn.email ? matchedStudentForCheckIn.phone : undefined,
+                    password: kioskPassword.trim(),
+                    role: 'student',
+                    institutionId: currentInstitution?.id
+                };
+                if (payload.email || payload.phone) {
+                    const res = await apiService.invokeIntegration(payload);
+                    if (res && res.user) {
+                        isPasswordCorrect = true;
+                    }
+                } else {
+                    isPasswordCorrect = (kioskPassword.trim() === 'student123');
+                }
+            } catch (err) {
+                if (kioskPassword.trim() === 'student123') {
+                    isPasswordCorrect = true;
+                }
+            }
+        }
         
-        if (kioskPassword.trim() !== expectedPassword) {
+        if (!isPasswordCorrect) {
             setKioskMessage({
                 status: 'error',
                 text: 'Invalid Password',
