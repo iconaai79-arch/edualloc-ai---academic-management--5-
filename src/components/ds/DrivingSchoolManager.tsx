@@ -3772,7 +3772,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 )}
 
                 {/* Stats Grid */}
-                {activeTab !== 'portal' && (
+                {activeTab === 'dashboard' && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {[
                             { label: 'Total Students', value: stats.totalStudents, icon: UsersIcon, color: 'indigo' },
