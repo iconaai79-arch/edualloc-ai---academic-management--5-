@@ -38,7 +38,7 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'sold' | 'draft'>('all');
 
     const filteredListings = listings.filter(l => {
-        const matchesSearch = `${l.make} ${l.model} ${l.vin || ''}`.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = `${l.make} ${l.model} ${l.vin || ''} ${l.registrationNumber || ''}`.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesStatus = statusFilter === 'all' || l.status === statusFilter;
         return matchesSearch && matchesStatus;
     });

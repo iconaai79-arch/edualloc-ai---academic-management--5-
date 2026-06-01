@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
+import { authenticateWebAuthn, captureUsbFingerprint, registerWebAuthn, verifyUsbFingerprint } from '../../utils/biometrics';
 import { 
     UsersIcon, 
     TruckIcon, 
@@ -48,6 +49,16 @@ import type {
 } from '../../types';
 import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
+
+const calculateSmsPages = (msg: string) => {
+    if (!msg) return 1;
+    const isUnicode = /[^\u0000-\u007F\u0080-\u00FF,]/.test(msg);
+    const charCount = msg.length;
+    if (isUnicode) {
+        return charCount <= 70 ? 1 : Math.ceil(charCount / 67);
+    }
+    return charCount <= 160 ? 1 : Math.ceil(charCount / 153);
+};
 import { DSReportsView } from './DSReportsView';
 import { BuySMSModal } from '../BuySMSModal';
 import { 
@@ -883,6 +894,53 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                             </p>
                                                         </div>
                                                     </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* ── Biometric Security ── */}
+                                        <div className="md:col-span-2">
+                                            <div className="p-5 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700/50 rounded-2xl space-y-4">
+                                                <div className="flex items-start gap-3">
+                                                    <span className="text-lg">🔐</span>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-widest">Biometric Security (Kiosk Login)</p>
+                                                        <p className="text-[10px] text-indigo-700 dark:text-indigo-400 mt-0.5 font-medium">Register student's fingerprint or passkey to allow them to securely check-in at the kiosk without passwords.</p>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const creds = await registerWebAuthn(formData.id || `student_${Date.now()}`, formData.fullName || 'Student');
+                                                                setFormData({...formData, webauthnCredentials: creds});
+                                                                toastSuccess("Passkey registered successfully!");
+                                                            } catch (e: any) {
+                                                                toastError(e.message || "Failed to register passkey");
+                                                            }
+                                                        }}
+                                                        className="w-full py-3 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-400 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 dark:hover:bg-indigo-800 transition-colors flex items-center justify-center gap-2"
+                                                    >
+                                                        {formData.webauthnCredentials ? '✅ Passkey Enrolled (Re-enroll)' : 'Register Passkey (WebAuthn)'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const tmpl = await captureUsbFingerprint();
+                                                                if (tmpl) {
+                                                                    setFormData({...formData, fingerprintTemplate: tmpl});
+                                                                    toastSuccess("USB Fingerprint captured successfully!");
+                                                                }
+                                                            } catch (e: any) {
+                                                                toastError(e.message || "Failed to capture fingerprint");
+                                                            }
+                                                        }}
+                                                        className="w-full py-3 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-400 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 dark:hover:bg-indigo-800 transition-colors flex items-center justify-center gap-2"
+                                                    >
+                                                        {formData.fingerprintTemplate ? '✅ Fingerprint Scanned (Re-scan)' : 'Scan USB Fingerprint'}
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
@@ -2113,6 +2171,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [isScanningKioskFace, setIsScanningKioskFace] = useState(false);
     const [kioskFaceVerificationStatus, setKioskFaceVerificationStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
     const [kioskFaceVerificationMsg, setKioskFaceVerificationMsg] = useState('');
+    const [isScanningBiometric, setIsScanningBiometric] = useState(false);
     const kioskWebcamRef = useRef<HTMLVideoElement>(null);
     const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
     const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
@@ -2242,7 +2301,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
 
         const currentBalance = currentInstitution?.smsBalance || 0;
-        const requiredUnits = targets.reduce((sum, t) => sum + (Math.ceil(t.message.length / 160) || 1), 0);
+        const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
             toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}. Please top up.`);
             return;
@@ -2256,7 +2315,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         try {
             // Dispatch personalized SMS batches
             const tasks = targets.map(t => 
-                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, Math.ceil(t.message.length / 160) || 1, currentInstitution?.id)
+                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), currentInstitution?.id)
             );
             await Promise.all(tasks);
             
@@ -2301,7 +2360,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
 
         const currentBalance = currentInstitution?.smsBalance || 0;
-        const requiredUnits = targets.reduce((sum, t) => sum + (Math.ceil(t.message.length / 160) || 1), 0);
+        const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
             toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
             return;
@@ -2311,7 +2370,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
         setIsSendingReminders(true);
         try {
-            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, Math.ceil(t.message.length / 160) || 1, currentInstitution?.id)));
+            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), currentInstitution?.id)));
             success(`Successfully dispatched PDL expiry alerts to ${targets.length} candidates!`);
         } catch (err) {
             toastError("Failed to dispatch some PDL alerts.");
@@ -2345,7 +2404,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
 
         const currentBalance = currentInstitution?.smsBalance || 0;
-        const requiredUnits = targets.reduce((sum, t) => sum + (Math.ceil(t.message.length / 160) || 1), 0);
+        const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
             toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
             return;
@@ -2355,7 +2414,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
         setIsSendingReminders(true);
         try {
-            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, Math.ceil(t.message.length / 160) || 1, currentInstitution?.id)));
+            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), currentInstitution?.id)));
             success(`Successfully dispatched Test prep notifications to ${targets.length} candidates!`);
         } catch (err) {
             toastError("Failed to dispatch some test notifications.");
@@ -2624,7 +2683,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         student.phone, 
                         msg,
                         currentInstitution.smsConfig,
-                        Math.ceil(msg.length / 160) || 1,
+                        calculateSmsPages(msg),
                         currentInstitution.id
                     );
                 } else {
@@ -2983,6 +3042,63 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
     }
 
+    async function handleKioskPasskeyLogin() {
+        if (!matchedStudentForCheckIn) return;
+        setIsScanningBiometric(true);
+        setKioskFaceVerificationStatus('scanning');
+        setKioskFaceVerificationMsg("Waiting for device biometric (Passkey)...");
+        try {
+            const authResult = await authenticateWebAuthn();
+            if (matchedStudentForCheckIn.webauthnCredentials && matchedStudentForCheckIn.webauthnCredentials.id === authResult.id) {
+                // Success!
+                setIsScanningBiometric(false);
+                setKioskFaceVerificationStatus('idle');
+                setKioskFaceVerificationMsg("");
+                await executeKioskCheckIn(matchedStudentForCheckIn);
+            } else {
+                throw new Error("Biometric credential did not match this student.");
+            }
+        } catch (e: any) {
+            setKioskFaceVerificationStatus('error');
+            setKioskFaceVerificationMsg(e.message || 'Biometric Login Failed');
+            setTimeout(() => {
+                setIsScanningBiometric(false);
+                setKioskFaceVerificationStatus('idle');
+                setKioskFaceVerificationMsg("");
+            }, 3000);
+        }
+    }
+
+    async function handleKioskUSBScanLogin() {
+        if (!matchedStudentForCheckIn) return;
+        if (!matchedStudentForCheckIn.fingerprintTemplate) {
+            setKioskMessage({ status: 'error', text: 'No Fingerprint Found', details: 'Please register your fingerprint first.' });
+            return;
+        }
+        setIsScanningBiometric(true);
+        setKioskFaceVerificationStatus('scanning');
+        setKioskFaceVerificationMsg("Please place your finger on the USB scanner...");
+        try {
+            const isMatch = await verifyUsbFingerprint(matchedStudentForCheckIn.fingerprintTemplate);
+            if (isMatch) {
+                setIsScanningBiometric(false);
+                setKioskFaceVerificationStatus('idle');
+                setKioskFaceVerificationMsg("");
+                await executeKioskCheckIn(matchedStudentForCheckIn);
+            } else {
+                throw new Error("Fingerprint did not match.");
+            }
+        } catch (e: any) {
+            setKioskFaceVerificationStatus('error');
+            setKioskFaceVerificationMsg(e.message || 'USB Scanner Failed');
+            setTimeout(() => {
+                setIsScanningBiometric(false);
+                setKioskFaceVerificationStatus('idle');
+                setKioskFaceVerificationMsg("");
+            }, 3000);
+        }
+    }
+
 
     async function executeKioskCheckIn(student: DSStudent) {
         // Get milestone status
@@ -3016,87 +3132,100 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             try {
                 // If there's a scheduled lesson today, mark it completed
                 let updatedInfo = '';
-                const hasScheduled = todayLessons.some(l => l.status === 'Scheduled');
-                
-                if (hasScheduled) {
-                    const scheduledLessons = todayLessons.filter(l => l.status === 'Scheduled');
-                    const completedTheoryToday = todayLessons.some(l => l.lessonType === 'Theory' && l.status === 'Completed');
-                    const completedPracticalToday = todayLessons.some(l => l.lessonType === 'Practical' && l.status === 'Completed');
+                const sequence = settings?.schedulingRules?.dailySequence?.length 
+                    ? settings.schedulingRules.dailySequence 
+                    : ['Theory', 'Practical'];
+
+                const completedTheoryToday = todayLessons.find(l => l.lessonType === 'Theory' && l.status === 'Completed');
+                const completedPracticalToday = todayLessons.find(l => l.lessonType === 'Practical' && l.status === 'Completed');
+
+                const completedLessonsToday: Record<string, any> = {
+                    'Theory': completedTheoryToday,
+                    'Practical': completedPracticalToday
+                };
+
+                let lessonTypeToAssign: 'Theory' | 'Practical' | null = null;
+                let blockReason = '';
+
+                const now = new Date();
+                for (let i = 0; i < sequence.length; i++) {
+                    const type = sequence[i] as 'Theory' | 'Practical';
+                    const completedLesson = completedLessonsToday[type];
                     
-                    const validScheduledLessons = scheduledLessons.filter(l => {
-                        if (l.lessonType === 'Theory' && completedTheoryToday) return false;
-                        if (l.lessonType === 'Practical' && completedPracticalToday) return false;
-                        return true;
-                    });
-
-                    if (validScheduledLessons.length === 0) {
-                        setKioskMessage({
-                            status: 'error',
-                            text: 'Daily Session Limit Reached',
-                            details: `Candidate: ${student.fullName}. You have already completed a session of the scheduled type(s) today. (Limit: 1 Theory & 1 Practical daily).`
-                        });
-                        setTimeout(() => {
-                            setKioskMessage(null);
-                            setKioskAdmissionNo('');
-                            setIsEnteringKioskPassword(false);
-                            setMatchedStudentForCheckIn(null);
-                            setKioskPassword('');
-                        }, 12000);
-                        return;
+                    if (!completedLesson) {
+                        if (i > 0) {
+                            const prevType = sequence[i - 1] as 'Theory' | 'Practical';
+                            const prevCompletedLesson = completedLessonsToday[prevType];
+                            
+                            if (prevCompletedLesson && prevCompletedLesson.endTime) {
+                                const [endHr, endMin] = prevCompletedLesson.endTime.split(':').map(Number);
+                                const endTimeToday = new Date(now);
+                                endTimeToday.setHours(endHr, endMin, 0, 0);
+                                
+                                if (now < endTimeToday) {
+                                    blockReason = `Your ${prevType} session is still ongoing until ${prevCompletedLesson.endTime}. Please wait for it to end before checking in for ${type}.`;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        lessonTypeToAssign = type;
+                        break;
                     }
+                }
 
-                    for (const lesson of validScheduledLessons) {
+                if (blockReason) {
+                    setKioskMessage({
+                        status: 'error',
+                        text: 'Session Sequence Check',
+                        details: `Candidate: ${student.fullName}. ${blockReason}`
+                    });
+                    setTimeout(() => {
+                        setKioskMessage(null);
+                        setKioskAdmissionNo('');
+                        setIsEnteringKioskPassword(false);
+                        setMatchedStudentForCheckIn(null);
+                        setKioskPassword('');
+                    }, 12000);
+                    return;
+                }
+
+                if (!lessonTypeToAssign) {
+                    setKioskMessage({
+                        status: 'error',
+                        text: 'Daily Session Limit Reached',
+                        details: `Candidate: ${student.fullName}. You have already completed all allowed sessions for today (${sequence.join(' and ')}). Daily limit strictly enforced.`
+                    });
+                    setTimeout(() => {
+                        setKioskMessage(null);
+                        setKioskAdmissionNo('');
+                        setIsEnteringKioskPassword(false);
+                        setMatchedStudentForCheckIn(null);
+                        setKioskPassword('');
+                    }, 12000);
+                    return;
+                }
+
+                // Apply assignment
+                const matchingScheduled = todayLessons.filter(l => l.status === 'Scheduled' && l.lessonType === lessonTypeToAssign);
+
+                if (matchingScheduled.length > 0) {
+                    for (const lesson of matchingScheduled) {
                         await onUpdateLesson({
                             ...lesson,
                             status: 'Completed',
                             notes: (lesson.notes || '') + ' [Auto-checked-in via Reception Kiosk]'
                         });
                     }
-                    updatedInfo = `Attendance marked for ${validScheduledLessons.length} scheduled session(s).`;
+                    updatedInfo = `Attendance marked for scheduled ${lessonTypeToAssign} session.`;
                 } else {
-                    // First come first serve auto-assign logic:
-                    const completedTheoryToday = todayLessons.some(l => l.lessonType === 'Theory' && l.status === 'Completed');
-                    const completedPracticalToday = todayLessons.some(l => l.lessonType === 'Practical' && l.status === 'Completed');
-                    
-                    const theoryPct = student.theoryProgressPercent || 0;
-                    const practicalPct = student.practicalProgressPercent || 0;
-                    
-                    let lessonType: 'Theory' | 'Practical' | null = null;
-                    if (!completedTheoryToday && theoryPct <= practicalPct && theoryPct < 100) {
-                        lessonType = 'Theory';
-                    } else if (!completedPracticalToday && practicalPct < 100) {
-                        lessonType = 'Practical';
-                    } else if (!completedTheoryToday && theoryPct < 100) {
-                        lessonType = 'Theory';
-                    } else if (!completedPracticalToday) {
-                        lessonType = 'Practical';
-                    } else if (!completedTheoryToday) {
-                        lessonType = 'Theory';
-                    }
-                    
-                    if (!lessonType) {
-                        setKioskMessage({
-                            status: 'error',
-                            text: 'Daily Session Limit Reached',
-                            details: `Candidate: ${student.fullName}. You have already completed one Theory session and one Practical session today. Daily restriction: 1 session per type.`
-                        });
-                        setTimeout(() => {
-                            setKioskMessage(null);
-                            setKioskAdmissionNo('');
-                            setIsEnteringKioskPassword(false);
-                            setMatchedStudentForCheckIn(null);
-                            setKioskPassword('');
-                        }, 12000);
-                        return;
-                    }
-                    
                     let instructor = (instructors || []).find(i => i.id === student.preferredInstructorId && i.status === 'Active');
                     if (!instructor) {
                         instructor = (instructors || []).find(i => i.status === 'Active');
                     }
                     
                     let vehicle = null;
-                    if (lessonType === 'Practical') {
+                    if (lessonTypeToAssign === 'Practical') {
                         if (instructor?.assignedVehicleId) {
                             vehicle = (vehicles || []).find(v => v.id === instructor.assignedVehicleId && v.status === 'Operational');
                         }
@@ -3106,10 +3235,19 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     }
                     
                     const nowTime = new Date();
+                    const durationMins = lessonTypeToAssign === 'Theory' 
+                        ? (settings?.schedulingRules?.theoryDurationMinutes || 60)
+                        : (settings?.schedulingRules?.practicalDurationMinutes || 60);
+
+                    const endTimeDate = new Date(nowTime.getTime() + durationMins * 60000);
+                    
                     const startHr = String(nowTime.getHours()).padStart(2, '0');
-                    const endHr = String((nowTime.getHours() + 1) % 24).padStart(2, '0');
-                    const startTime = `${startHr}:00`;
-                    const endTime = `${endHr}:00`;
+                    const startMin = String(nowTime.getMinutes()).padStart(2, '0');
+                    const endHr = String(endTimeDate.getHours()).padStart(2, '0');
+                    const endMin = String(endTimeDate.getMinutes()).padStart(2, '0');
+
+                    const startTime = `${startHr}:${startMin}`;
+                    const endTime = `${endHr}:${endMin}`;
                     
                     const newLessonId = `less_${Date.now()}`;
                     const newLesson = {
@@ -3121,21 +3259,21 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         lessonDate: todayStr,
                         startTime,
                         endTime,
-                        lessonType,
+                        lessonType: lessonTypeToAssign,
                         status: 'Completed',
                         confirmationStatus: 'Confirmed',
-                        notes: `[Auto-scheduled & Checked-in first-come first-serve via Kiosk]`,
+                        notes: `[Auto-scheduled & Checked-in sequentially via Kiosk]`,
                         createdAt: new Date().toISOString()
                     };
                     
-                    // Save the completed lesson
                     await apiService.saveModuleRecord('ds_lessons', newLesson);
                     
-                    // Update student progress directly
+                    const theoryPct = student.theoryProgressPercent || 0;
+                    const practicalPct = student.practicalProgressPercent || 0;
                     const durationDays = student.courseDurationDays || 21;
                     const increment = Math.max(5, Math.round(100 / durationDays));
-                    const nextTheory = lessonType === 'Theory' ? Math.min(100, theoryPct + increment) : theoryPct;
-                    const nextPractical = lessonType === 'Practical' ? Math.min(100, practicalPct + increment) : practicalPct;
+                    const nextTheory = lessonTypeToAssign === 'Theory' ? Math.min(100, theoryPct + increment) : theoryPct;
+                    const nextPractical = lessonTypeToAssign === 'Practical' ? Math.min(100, practicalPct + increment) : practicalPct;
                     const currentRemaining = student.remainingDays ?? student.courseDurationDays ?? 0;
                     
                     await apiService.saveModuleRecord('ds_students', {
@@ -3146,7 +3284,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         updatedAt: new Date().toISOString()
                     });
                     
-                    updatedInfo = `Auto-assigned & marked attendance for a new ${lessonType} Session with ${instructor?.name || 'available instructor'}.`;
+                    updatedInfo = `Auto-assigned & marked attendance for a new ${lessonTypeToAssign} Session with ${instructor?.name || 'available instructor'}.`;
                 }
 
                 setKioskMessage({
@@ -4291,7 +4429,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                             
                                                                             if (confirm(`Send Fee Quotation SMS to ${lead.fullName} (${lead.phone})?\n\nMessage payload:\n"${msg}"`)) {
                                                                                 // Ensure live SMS broadcast via gateway
-                                                                                const pages = Math.ceil(msg.length / 160) || 1;
+                                                                                const pages = calculateSmsPages(msg);
                                                                                 const res = await apiService.sendSms(lead.phone, msg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
                                                                                 
                                                                                 await updateLead({ ...lead, status: 'Quotation Sent', quotedAmount: baseFeeAmount });
@@ -5810,14 +5948,34 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     </button>
 
                                                     {isEnteringKioskPassword && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setIsScanningKioskFace(true)}
-                                                            className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-indigo-100 dark:border-indigo-900/50 active:scale-95 flex items-center justify-center gap-2"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                            <span>Verify with Face Recognition</span>
-                                                        </button>
+                                                        <div className="flex flex-col gap-3">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsScanningKioskFace(true)}
+                                                                className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-indigo-100 dark:border-indigo-900/50 active:scale-95 flex items-center justify-center gap-2"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                <span>Verify with Face Recognition</span>
+                                                            </button>
+                                                            
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleKioskPasskeyLogin}
+                                                                className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/20 text-emerald-600 dark:emerald-400 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-emerald-100 dark:border-emerald-900/50 active:scale-95 flex items-center justify-center gap-2"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" /></svg>
+                                                                <span>Use Device Biometrics (Passkey)</span>
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleKioskUSBScanLogin}
+                                                                className="w-full py-3 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-amber-100 dark:border-amber-900/50 active:scale-95 flex items-center justify-center gap-2"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>
+                                                                <span>Scan USB Fingerprint</span>
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </form>
@@ -7398,7 +7556,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                     if (phones.length > 0) {
                                         const fullMsg = `${priorityPrefix}${data.title}: ${data.message}`;
-                                        const pages = Math.ceil(fullMsg.length / 160) || 1;
+                                        const pages = calculateSmsPages(fullMsg);
                                         requiredUnits = phones.length * pages;
                                         
                                         if (currentBalance < requiredUnits) {

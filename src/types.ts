@@ -3877,6 +3877,8 @@ export interface DSStudent {
     practicalTestScore?: number;
     ntsaBookingStatus?: 'Not Booked' | 'Eligible' | 'Booked' | 'Passed' | 'Failed';
     createdAt: string;
+    webauthnCredentials?: any; // To store WebAuthn passkey data
+    fingerprintTemplate?: string; // To store USB scanner biometric hash
 }
 
 export interface DSLesson {

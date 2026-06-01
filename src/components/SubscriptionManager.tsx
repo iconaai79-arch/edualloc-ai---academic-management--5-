@@ -125,9 +125,11 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
     // Support both camelCase (transformed) and snake_case (raw) from backend
     const customPrice = institution.customSubscriptionPrice || (institution as any).custom_subscription_price;
     const monthlyPrice = customPrice?.monthly ?? subscriptionConfig.defaultMonthlyPrice;
+    const quarterlyPrice = customPrice?.quarterly ?? (subscriptionConfig.defaultMonthlyPrice * 4);
     const yearlyPrice = customPrice?.yearly ?? subscriptionConfig.defaultYearlyPrice;
 
     const hasCustomMonthly = customPrice?.monthly !== undefined;
+    const hasCustomQuarterly = customPrice?.quarterly !== undefined;
     const hasCustomYearly = customPrice?.yearly !== undefined;
 
     const [activeLibraryStudents, setActiveLibraryStudents] = useState(0);
@@ -259,7 +261,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 <>
                     <section>
                         <h3 className="text-xl font-semibold mb-4">Subscription Pricing</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                                 <h4 className="text-lg font-medium text-slate-900 dark:text-white">Monthly Plan</h4>
                                 <div className="space-y-2 mt-4">
@@ -338,6 +340,45 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                     <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Default system base price</p>
                                 )}
                                 <p className="mt-1 text-xs text-green-600 dark:text-green-400">Save by subscribing annually!</p>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+                                <h4 className="text-lg font-medium text-slate-900 dark:text-white">Quarterly Plan</h4>
+                                <div className="space-y-2 mt-4">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-600 dark:text-slate-400">Base License:</span>
+                                        <span className="font-bold">KES {quarterlyPrice.toLocaleString()}</span>
+                                    </div>
+                                    {subscriptionConfig.libraryCostPerStudent !== undefined && subscriptionConfig.libraryCostPerStudent > 0 && activeLibraryStudents > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Library ({activeLibraryStudents} active x 4):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.libraryCostPerStudent * activeLibraryStudents * 4).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {subscriptionConfig.boardingCostPerStudent !== undefined && subscriptionConfig.boardingCostPerStudent > 0 && activeBoardingStudents > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Boarding ({activeBoardingStudents} active x 4):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.boardingCostPerStudent * activeBoardingStudents * 4).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {subscriptionConfig.transportCostPerStudent !== undefined && subscriptionConfig.transportCostPerStudent > 0 && activeTransportStudents > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Transport ({activeTransportStudents} active x 4):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents * 4).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                                        <span className="text-slate-900 dark:text-white font-bold">Total:</span>
+                                        <span className="text-2xl font-bold text-[var(--color-primary)]">
+                                            KES {(quarterlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 4) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 4) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 4)).toLocaleString()}
+                                            <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">/qtr</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                {hasCustomQuarterly ? (
+                                    <p className="mt-3 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional base price</p>
+                                ) : (
+                                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Default system base price</p>
+                                )}
                             </div>
                         </div>
                     </section>

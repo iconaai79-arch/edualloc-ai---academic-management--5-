@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS institutions (
     location JSONB,
     is_in_demo_mode BOOLEAN DEFAULT FALSE,
     custom_subscription_price JSONB,
+    custom_sms_price DECIMAL(10, 2),
     grading_systems JSONB DEFAULT '[]'::jsonb,
     active_grading_system_id TEXT,
     timetable_settings JSONB,

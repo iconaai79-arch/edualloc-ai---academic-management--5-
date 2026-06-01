@@ -139,6 +139,11 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                     <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                         <Star className="w-3.5 h-3.5 text-indigo-600" /> {listing.inspectionScore}% Score
                     </div>
+                    {listing.registrationNumber && (
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            <Hash className="w-3.5 h-3.5 text-slate-400" /> {listing.registrationNumber}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -258,6 +263,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                                 { icon: Gauge, label: 'Mileage', value: `${(vehicle.mileage / 1000).toFixed(0)}k km` },
                                 { icon: Settings2, label: 'Gearbox', value: vehicle.transmission },
                                 { icon: Fuel, label: 'Fuel', value: vehicle.fuelType },
+                                { icon: Hash, label: 'Reg Number', value: vehicle.registrationNumber || 'UNREG' },
                             ].map((stat, i) => (
                                 <div key={i} className="bg-slate-50 p-6 rounded-[2rem] space-y-2">
                                     <stat.icon className="w-6 h-6 text-slate-400" />

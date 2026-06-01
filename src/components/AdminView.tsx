@@ -568,7 +568,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     }, [props.currentInstitution, isDS]);
 
     const isLaw = useMemo(() => {
-        return props.currentInstitution?.category === 'Law Firm' || institutionType === 'Law Firm';
+        const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
+        const name = props.currentInstitution?.name?.toLowerCase() || '';
+        return props.currentInstitution?.category === 'Law Firm' || institutionType === 'Law Firm' || subType.includes('law') || subType.includes('legal') || name.includes('law firm');
     }, [props.currentInstitution, institutionType]);
 
     const isLogistics = useMemo(() => {
@@ -631,11 +633,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     }, [props.currentInstitution]);
 
     const isRetailAgency = useMemo(() => {
-        if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality' || props.currentInstitution?.institutionType === 'Car Showroom' || isAutoMarket) return false;
+        if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality' || props.currentInstitution?.institutionType === 'Car Showroom' || isAutoMarket || isLaw) return false;
         const subType = props.currentInstitution?.businessSubType || '';
         const type = props.currentInstitution?.institutionType || '';
         return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type);
-    }, [props.currentInstitution, isAutoMarket]);
+    }, [props.currentInstitution, isAutoMarket, isLaw]);
 
     const isChurch = useMemo(() => {
         return props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.businessSubType === 'Church';
@@ -946,8 +948,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
         { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
         { role: 'fuel_admin', label: 'Fuel Station Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-700' },
-        { role: 'event_manager', label: 'Event Management', icon: <CalendarDaysIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' }
+        { role: 'event_manager', label: 'Event Management', icon: <CalendarDaysIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
+        { role: 'legal_admin', label: 'Law Firm Hub', icon: <DocumentTextIcon className="w-6 h-6" />, color: 'bg-slate-50 text-slate-800' }
     ].filter(opt => {
+        if (isLaw) {
+            return ['legal_admin', 'customer'].includes(opt.role);
+        }
         if (isRetailAgency) {
             return ['retail_agent', 'customer'].includes(opt.role);
         }

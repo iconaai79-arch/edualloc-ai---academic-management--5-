@@ -12,6 +12,7 @@ interface PayNowModalProps {
     onSubmit?: (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]) => Promise<TransactionStatus>;
     onSuccess?: () => void;
     monthlyPrice?: number;
+    quarterlyPrice?: number;
     yearlyPrice?: number;
     mpesaConfig: MpesaConfig;
     airtelMoneyConfig?: any;
@@ -25,13 +26,13 @@ interface PayNowModalProps {
 }
 
 export const PayNowModal: React.FC<PayNowModalProps> = ({
-    isOpen = true, onClose, onPay, onSubmit, onSuccess, monthlyPrice = 0, yearlyPrice = 0,
+    isOpen = true, onClose, onPay, onSubmit, onSuccess, monthlyPrice = 0, quarterlyPrice = 0, yearlyPrice = 0,
     mpesaConfig, airtelMoneyConfig, intasendConfig, ncbaConfig, institutionId, institutionCode, institutionName,
     forceAmount, forcedItems
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [payerName, setPayerName] = useState('');
-    const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly' | 'forced'>(forceAmount !== undefined ? 'forced' : 'monthly');
+    const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'quarterly' | 'yearly' | 'forced'>(forceAmount !== undefined ? 'forced' : 'monthly');
     const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
     const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
     const [isLoading, setIsLoading] = useState(false);
@@ -61,9 +62,9 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
 
         isCompletedRef.current = false;
         setIsLoading(true);
-        const amount = forceAmount !== undefined ? forceAmount : (selectedPlan === 'monthly' ? monthlyPrice : yearlyPrice);
+        const amount = forceAmount !== undefined ? forceAmount : (selectedPlan === 'monthly' ? monthlyPrice : selectedPlan === 'quarterly' ? quarterlyPrice : yearlyPrice);
         const activeItems = forcedItems && forcedItems.length > 0 ? forcedItems : [{
-            description: `Timetable Allocator Subscription - ${selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Plan`,
+            description: `Timetable Allocator Subscription - ${selectedPlan === 'monthly' ? 'Monthly' : selectedPlan === 'quarterly' ? 'Quarterly' : 'Yearly'} Plan`,
             quantity: 1,
             unitPrice: amount,
             amount: amount,
@@ -283,11 +284,16 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                         {selectedPlan !== 'forced' && (
                             <div>
                                 <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2.5 ml-1">Select Plan</label>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-3 gap-3">
                                     <label className={`relative block cursor-pointer rounded-2xl border-2 p-4 transition-all ${selectedPlan === 'monthly' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                         <input type="radio" name="plan-choice" value="monthly" className="sr-only" checked={selectedPlan === 'monthly'} onChange={() => setSelectedPlan('monthly')} />
                                         <span className="text-xs font-black uppercase block">Monthly</span>
                                         <span className="mt-1 text-sm font-black text-indigo-600">KES {monthlyPrice.toLocaleString()}</span>
+                                    </label>
+                                    <label className={`relative block cursor-pointer rounded-2xl border-2 p-4 transition-all ${selectedPlan === 'quarterly' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
+                                        <input type="radio" name="plan-choice" value="quarterly" className="sr-only" checked={selectedPlan === 'quarterly'} onChange={() => setSelectedPlan('quarterly')} />
+                                        <span className="text-xs font-black uppercase block">Quarterly</span>
+                                        <span className="mt-1 text-sm font-black text-indigo-600">KES {quarterlyPrice.toLocaleString()}</span>
                                     </label>
                                     <label className={`relative block cursor-pointer rounded-2xl border-2 p-4 transition-all ${selectedPlan === 'yearly' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                         <input type="radio" name="plan-choice" value="yearly" className="sr-only" checked={selectedPlan === 'yearly'} onChange={() => setSelectedPlan('yearly')} />
@@ -309,7 +315,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                         {provider === 'airtel' && <div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white text-[7px] font-black">A</div>}
                         {provider === 'intasend' && <div className="w-5 h-5 bg-emerald-600 rounded flex items-center justify-center text-white text-[7px] font-black">IS</div>}
                         {provider === 'ncba' && <NcbaIcon className="w-5 h-5" />}
-                        PAY KES {(selectedPlan === 'monthly' ? monthlyPrice : selectedPlan === 'yearly' ? yearlyPrice : forceAmount || 0).toLocaleString()}
+                        PAY KES {(selectedPlan === 'monthly' ? monthlyPrice : selectedPlan === 'quarterly' ? quarterlyPrice : selectedPlan === 'yearly' ? yearlyPrice : forceAmount || 0).toLocaleString()}
                     </button>
                     <button
                         type="button"

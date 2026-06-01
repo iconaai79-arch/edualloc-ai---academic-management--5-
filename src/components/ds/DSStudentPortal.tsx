@@ -16,6 +16,7 @@ import {
     TrendingUpIcon,
 } from '../icons';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
+import { registerWebAuthn } from '../../utils/biometrics';
 import type { User, Institution } from '../../types';
 
 interface DSStudentPortalProps {
@@ -36,7 +37,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
     currentInstitution,
     onLogout,
 }) => {
-    const { students, lessons, invoices, mastery, instructors, vehicles, addLesson } = useDrivingSchool();
+    const { students, lessons, invoices, mastery, instructors, vehicles, addLesson, updateStudent } = useDrivingSchool();
     const [activeTab, setActiveTab] = useState<'home' | 'lessons' | 'finance' | 'progress' | 'book'>('home');
     const [bookingDate, setBookingDate] = useState('');
     const [bookingType, setBookingType] = useState<'Practical' | 'Theory'>('Practical');
@@ -46,6 +47,9 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
     const [bookingVehicle, setBookingVehicle] = useState('');
     const [bookingLoading, setBookingLoading] = useState(false);
     const [bookingSuccess, setBookingSuccess] = useState(false);
+    const [biometricRegistering, setBiometricRegistering] = useState(false);
+    const [biometricError, setBiometricError] = useState('');
+    const [biometricSuccess, setBiometricSuccess] = useState(false);
 
     // Match student record to logged-in user (by userId or phone/email)
     const studentRecord = useMemo(() => {
@@ -110,6 +114,32 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
             // silently handled
         } finally {
             setBookingLoading(false);
+        }
+    };
+
+    const handleRegisterBiometrics = async () => {
+        if (!studentRecord) return;
+        setBiometricError('');
+        setBiometricRegistering(true);
+        setBiometricSuccess(false);
+
+        try {
+            const passkey = await registerWebAuthn({
+                id: studentRecord.id,
+                name: studentRecord.fullName
+            });
+
+            await updateStudent({
+                ...studentRecord,
+                webauthnCredentials: passkey
+            });
+
+            setBiometricSuccess(true);
+            setTimeout(() => setBiometricSuccess(false), 3000);
+        } catch (err: any) {
+            setBiometricError(err.message || "Failed to register biometric passkey.");
+        } finally {
+            setBiometricRegistering(false);
         }
     };
 
@@ -323,6 +353,46 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                 <StarIcon className="w-6 h-6 text-amber-500" />
                                 <span className="text-[10px] font-black uppercase tracking-widest">My Skills</span>
                             </button>
+                        </div>
+                        
+                        {/* Biometric Setup */}
+                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 border border-slate-100 dark:border-slate-800 shadow-sm mt-3">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+                                    <SparklesIcon className="w-4 h-4 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Kiosk Fast-Pass</h3>
+                                    <p className="text-[10px] text-slate-500">Use FaceID or Fingerprint to check-in</p>
+                                </div>
+                            </div>
+                            
+                            {studentRecord?.webauthnCredentials ? (
+                                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                                    <CheckCircleIcon className="w-4 h-4 shrink-0" />
+                                    <span className="text-[11px] font-bold">Biometrics Registered</span>
+                                </div>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={handleRegisterBiometrics}
+                                        disabled={biometricRegistering}
+                                        className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {biometricRegistering ? (
+                                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            'Setup Passkey'
+                                        )}
+                                    </button>
+                                    {biometricError && (
+                                        <p className="mt-2 text-[10px] font-bold text-rose-500 text-center">{biometricError}</p>
+                                    )}
+                                    {biometricSuccess && (
+                                        <p className="mt-2 text-[10px] font-bold text-emerald-500 text-center">Successfully linked!</p>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                 )}

@@ -802,9 +802,10 @@ export const App: React.FC = () => {
             const instTypeLower = instType.toLowerCase();
             const isAcademic = isSuper || ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'].includes(instTypeLower);
             const isHealth = isSuper || ['his', 'pharmacy'].includes(instTypeLower);
-            const isLaw = isSuper || instTypeLower === 'law firm';
+            const isLaw = isSuper || instTypeLower === 'law firm' || (activeInst?.businessSubType || '').toLowerCase().includes('law') || (activeInst?.businessSubType || '').toLowerCase().includes('legal');
             const isCoop = isSuper || ['cooperative', 'sacco'].includes(instTypeLower);
             const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'agrovet', 'car wash', 'automotive marketplace', 'hardware', 'pharmacy'].includes(instTypeLower);
+
             const isLogistics = isSuper || ['logistics', 'transport'].includes(instTypeLower);
             const isHospitality = isSuper || instTypeLower === 'hospitality';
             const isDrivingSchool = isSuper || instTypeLower === 'driving school' || activeInstWithModules?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
@@ -5140,13 +5141,19 @@ export const App: React.FC = () => {
                                             } as any}
                                         />
                                     </ModuleAccessGuard>
-                                ) : (activeRole === 'carwash_admin' || activeRole === 'carwash_cashier') ? (
+                                ) : (activeRole === 'carwash_admin' || activeRole === 'carwash_cashier' || (isAdminCatchAll && (activeInstitution?.institutionType?.toLowerCase().includes('carwash') || activeInstitution?.institutionType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash') || activeInstitution?.businessSubType?.toLowerCase().includes('car wash')))) ? (
                                     <CarWashView {...carWashProps as any}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         jobs={jobs}
-                                        onAddJob={async (j) => { await apiService.saveModuleRecord('car_wash_jobs', { ...j, id: `job_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        onUpdateJobStatus={async (id, status) => { const existing = jobs.find(x => x.id === id); if (existing) { await apiService.saveModuleRecord('car_wash_jobs', { ...existing, status }); loadData(); } }}
+                                        users={users}
+                                        companyDetails={companyDetails}
+                                        onDataChange={loadData}
+                                        onSendSms={handleSendSms}
+                                        smsConfig={companyDetails.smsConfig}
+                                        smsBalance={smsBalance}
+                                        onAddJob={async (j) => { await apiService.saveModuleRecord('carwash_jobs', { ...j, id: `job_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
+                                        onUpdateJobStatus={async (id, status) => { const existing = jobs.find(x => x.id === id); if (existing) { await apiService.saveModuleRecord('carwash_jobs', { ...existing, status }); loadData(); } }}
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         onLogAction={handleLogAction}
                                     />
