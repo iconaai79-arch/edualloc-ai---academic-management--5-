@@ -412,7 +412,7 @@ export interface Institution {
     resellerId?: string;
     isOtpEnabled?: boolean;
     smsBalance?: number;
-    customSmsPrice?: number;
+    customSmsPrice?: number | null;
     smsConfig?: SmsConfig;
     mpesaConfig?: MpesaConfig;
     emailConfig?: EmailConfig;

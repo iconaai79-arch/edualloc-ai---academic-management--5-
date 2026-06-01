@@ -18,6 +18,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     countyId: '',
     customSubscriptionPrice: {
       monthly: '',
+      quarterly: '',
       yearly: '',
     },
     isOtpEnabled: false,
@@ -36,6 +37,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         countyId: institution.countyId || '',
         customSubscriptionPrice: {
           monthly: (institution.customSubscriptionPrice?.monthly ?? (institution as any).custom_subscription_price?.monthly)?.toString() || '',
+          quarterly: (institution.customSubscriptionPrice?.quarterly ?? (institution as any).custom_subscription_price?.quarterly)?.toString() || '',
           yearly: (institution.customSubscriptionPrice?.yearly ?? (institution as any).custom_subscription_price?.yearly)?.toString() || '',
         },
         isOtpEnabled: institution.isOtpEnabled ?? false,
@@ -72,10 +74,11 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       countyId: formData.countyId || undefined,
       customSubscriptionPrice: {
         monthly: formData.customSubscriptionPrice.monthly ? parseFloat(formData.customSubscriptionPrice.monthly) : undefined,
+        quarterly: formData.customSubscriptionPrice.quarterly ? parseFloat(formData.customSubscriptionPrice.quarterly) : undefined,
         yearly: formData.customSubscriptionPrice.yearly ? parseFloat(formData.customSubscriptionPrice.yearly) : undefined,
       },
       isOtpEnabled: formData.isOtpEnabled,
-      customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : undefined,
+      customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : null,
       category: formData.category || undefined,
       businessSubType: formData.category || formData.businessSubType || undefined,
     };
@@ -298,7 +301,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                     <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Custom Subscription Overrides</h4>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5 ml-1 tracking-wider">Monthly Rate (KES)</label>
                       <input
@@ -308,6 +311,18 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         onChange={handlePriceChange}
                         className="form-input font-bold text-emerald-600 dark:text-emerald-400"
                         placeholder={`Default: ${defaultPrices.defaultMonthlyPrice}`}
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5 ml-1 tracking-wider">Quarterly Rate (KES)</label>
+                      <input
+                        type="number"
+                        name="quarterly"
+                        value={formData.customSubscriptionPrice.quarterly}
+                        onChange={handlePriceChange}
+                        className="form-input font-bold text-emerald-600 dark:text-emerald-400"
+                        placeholder={`Default: ${defaultPrices.defaultMonthlyPrice * 4}`}
                         min="0"
                       />
                     </div>
