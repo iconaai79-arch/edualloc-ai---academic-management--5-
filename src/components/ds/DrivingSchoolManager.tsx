@@ -3795,7 +3795,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                 {/* Main Navigation - Hidden if controlled externally */}
                 {!externalTab && activeTab !== 'portal' && (
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl md:rounded-3xl w-full overflow-x-auto scrollbar-hide pb-3 md:pb-2">
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl md:rounded-3xl w-full overflow-x-auto custom-scrollbar-horizontal pb-3 md:pb-2">
                         <div className="flex items-center gap-2 min-w-max">
                         {[
                             { id: 'dashboard', label: 'Dashboard', icon: ClipboardListIcon },
