@@ -1024,7 +1024,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                             });
                                             const displayFee = matchedFS && typeof matchedFS.totalAmount === 'number' ? matchedFS.totalAmount : (cat.baseFee || 0);
                                             return (
-                                                <option key={cat.id} value={cat.code}>{cat.code} - {cat.name} (KES {Number(displayFee).toLocaleString()})</option>
+                                                <option key={cat.id} value={cat.code}>{cat.code} - {cat.name} (KES {Number(displayFee)?.toLocaleString()})</option>
                                             );
                                         })}
                                     </select>
@@ -1335,7 +1335,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                         <span className="text-base font-black text-blue-600 shrink-0">ℹ️</span>
                                                         <div>
                                                             <p className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Outstanding Balance</p>
-                                                            <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">Student has an outstanding fee balance of <strong>KES {(totalOwed ?? 0).toLocaleString()}</strong>.</p>
+                                                            <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">Student has an outstanding fee balance of <strong>KES {(totalOwed ?? 0)?.toLocaleString()}</strong>.</p>
                                                         </div>
                                                     </div>
                                                 ) : null;
@@ -1355,15 +1355,15 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                             <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                                                                 <div className="bg-white dark:bg-slate-900 rounded-xl p-2 border border-rose-100 dark:border-rose-800">
                                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Expected by Day {_nextSession}</p>
-                                                                    <p className="text-xs font-black text-rose-700 dark:text-rose-300 mt-0.5">KES {_expected.toLocaleString()}</p>
+                                                                    <p className="text-xs font-black text-rose-700 dark:text-rose-300 mt-0.5">KES {_expected?.toLocaleString()}</p>
                                                                 </div>
                                                                 <div className="bg-white dark:bg-slate-900 rounded-xl p-2 border border-rose-100 dark:border-rose-800">
                                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid So Far</p>
-                                                                    <p className="text-xs font-black text-emerald-600 mt-0.5">KES {_paid.toLocaleString()}</p>
+                                                                    <p className="text-xs font-black text-emerald-600 mt-0.5">KES {_paid?.toLocaleString()}</p>
                                                                 </div>
                                                                 <div className="bg-white dark:bg-slate-900 rounded-xl p-2 border border-rose-100 dark:border-rose-800">
                                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Shortfall</p>
-                                                                    <p className="text-xs font-black text-rose-700 dark:text-rose-300 mt-0.5">KES {_shortfall.toLocaleString()}</p>
+                                                                    <p className="text-xs font-black text-rose-700 dark:text-rose-300 mt-0.5">KES {_shortfall?.toLocaleString()}</p>
                                                                 </div>
                                                             </div>
                                                             <p className="text-[9px] text-rose-600 dark:text-rose-400 mt-2 font-bold">{_priorDays > 0 ? `(${_priorDays} prior + ${_systemDays} system = ${_effectiveDays} effective days attended)` : `${_systemDays} sessions recorded in system`}</p>
@@ -1374,7 +1374,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                         <span className="text-base shrink-0">✅</span>
                                                         <div>
                                                             <p className="text-xs font-black text-emerald-900 dark:text-emerald-200 uppercase tracking-tight">Payment On Track — Session {_nextSession} of {_courseDuration}</p>
-                                                            <p className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">Expected: KES {_expected.toLocaleString()} · Paid: KES {_paid.toLocaleString()} · Cleared ✓</p>
+                                                            <p className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">Expected: KES {_expected?.toLocaleString()} · Paid: KES {_paid?.toLocaleString()} · Cleared ✓</p>
                                                         </div>
                                                     </div>
                                                 ) : null;
@@ -1429,7 +1429,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         }
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="">Select Fee Structure</option>
-                                        {settings?.feeStructures?.map((fs: DSFeeStructure) => <option key={fs.id} value={fs.id}>{fs.className} (KES {(fs.totalAmount ?? 0).toLocaleString()})</option>)}
+                                        {settings?.feeStructures?.map((fs: DSFeeStructure) => <option key={fs.id} value={fs.id}>{fs.className} (KES {(fs.totalAmount ?? 0)?.toLocaleString()})</option>)}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
@@ -1919,7 +1919,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-xl">
                                             <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Calculated Total:</span>
                                             <span className="text-sm font-black text-slate-900 dark:text-white">
-                                                KES {(Array.isArray(formData.items) ? formData.items : []).reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0).toLocaleString()}
+                                                KES {(Array.isArray(formData.items) ? formData.items : []).reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0)?.toLocaleString()}
                                             </span>
                                         </div>
                                     </div>
@@ -2303,7 +2303,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             const student = (students || []).find(s => s.id === inv.studentId);
             const phone = student?.phone || (student as any)?.phoneNumber;
             if (student && phone) {
-                const textMsg = `Hello ${student.fullName.split(' ')[0]}, your driving course account (${inv.invoiceNumber}) has an outstanding balance of KES ${(inv.balance ?? 0).toLocaleString()}. Please settle via M-Pesa to avoid lesson interruption.`;
+                const textMsg = `Hello ${student.fullName.split(' ')[0]}, your driving course account (${inv.invoiceNumber}) has an outstanding balance of KES ${(inv.balance ?? 0)?.toLocaleString()}. Please settle via M-Pesa to avoid lesson interruption.`;
                 targets.push({ phone, message: textMsg, name: student.fullName });
             }
         });
@@ -3214,7 +3214,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             setKioskMessage({
                 status: 'error',
                 text: 'Clearance Denied!',
-                details: `Candidate: ${student.fullName}. Pro-rata shortfall of KES ${milestone.shortfall.toLocaleString()} detected. Please visit the reception desk or settle via M-Pesa to resume training.`
+                details: `Candidate: ${student.fullName}. Pro-rata shortfall of KES ${milestone.shortfall?.toLocaleString()} detected. Please visit the reception desk or settle via M-Pesa to resume training.`
             });
             // Auto-reset after 12 seconds
             setTimeout(() => {
@@ -3710,7 +3710,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     <div className={`w-2 h-2 rounded-full ${(currentInstitution?.smsBalance || 0) < 50 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                                     <div className="flex flex-col">
                                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SMS Units</span>
-                                        <span className="text-xs font-black text-slate-900 dark:text-white">{(currentInstitution?.smsBalance || 0).toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
+                                        <span className="text-xs font-black text-slate-900 dark:text-white">{(currentInstitution?.smsBalance || 0)?.toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
                                     </div>
                                     <button 
                                         onClick={() => setIsBuySMSModalOpen(true)}
@@ -4039,7 +4039,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                             </span>
                                                                         ) : (
                                                                             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-rose-50 text-rose-700 border border-rose-200 w-fit">
-                                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>KES {ms.shortfall.toLocaleString()} Behind
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0"></span>KES {ms.shortfall?.toLocaleString()} Behind
                                                                             </span>
                                                                         )}
                                                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Day {ms.effectiveDays}/{ms.courseDuration} · {ms.remainingDays} left{ms.priorDays > 0 ? ` (${ms.priorDays} prior)` : ''}</p>
@@ -4634,7 +4634,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             </span>
                                                         </td>
                                                         <td className="px-10 py-8 font-black text-slate-900 dark:text-white text-xs">
-                                                            KES {(baseFeeAmount || 0).toLocaleString()}
+                                                            KES {(baseFeeAmount || 0)?.toLocaleString()}
                                                         </td>
                                                         <td className="px-10 py-8 text-right">
                                                             <div className="flex items-center justify-end gap-2">
@@ -4642,7 +4642,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                     onClick={async () => {
                                                                         setIsActionLoading(true);
                                                                         try {
-                                                                            const amountStr = `KES ${(baseFeeAmount || 0).toLocaleString()}`;
+                                                                            const amountStr = `KES ${(baseFeeAmount || 0)?.toLocaleString()}`;
                                                                             const catName = targetCategory ? `${targetCategory.name} (${targetCategory.code})` : (lead.licenseTypeInterested || 'Class B');
                                                                             
                                                                             // 1. Generate premium itemized quotation PDF
@@ -4914,7 +4914,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                             const ms = getStudentMilestoneStatus(lesson.studentId);
                                                                             if (ms && !ms.noInvoice && !ms.isCleared) {
                                                                                 if (!isDirector) {
-                                                                                    toastError(`⛔ Payment Required: Student must pay KES ${ms.shortfall.toLocaleString()} before Session ${ms.nextSession}. Expected: KES ${ms.expectedByNextSession.toLocaleString()}, Paid: KES ${ms.paidAmount.toLocaleString()}. Contact the director to override.`);
+                                                                                    toastError(`⛔ Payment Required: Student must pay KES ${ms.shortfall?.toLocaleString()} before Session ${ms.nextSession}. Expected: KES ${ms.expectedByNextSession?.toLocaleString()}, Paid: KES ${ms.paidAmount?.toLocaleString()}. Contact the director to override.`);
                                                                                     return;
                                                                                 }
                                                                                 setPendingAttendanceOverride({ lesson, ms });
@@ -5309,8 +5309,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
                                                             <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
                                                             <td className="px-10 py-6 text-sm">{invoice.studentName}</td>
-                                                        <td className="px-10 py-6 font-bold text-sm">KES {(invoice.totalAmount ?? 0).toLocaleString()}</td>
-                                                        <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {(invoice.balance ?? 0).toLocaleString()}</td>
+                                                        <td className="px-10 py-6 font-bold text-sm">KES {(invoice.totalAmount ?? 0)?.toLocaleString()}</td>
+                                                        <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {(invoice.balance ?? 0)?.toLocaleString()}</td>
                                                         <td className="px-10 py-6">
                                                             <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
                                                                 invoice.status === 'Fully Paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
@@ -5421,7 +5421,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                              <tr key={payment.id} className="hover:bg-amber-100/20">
                                                                  <td className="px-6 py-4 font-bold text-amber-900 dark:text-amber-300">{payment.receiptNumber}</td>
                                                                  <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">{payment.studentName}</td>
-                                                                 <td className="px-6 py-4 font-bold text-sm text-slate-900 dark:text-white">KES {(payment.amount ?? 0).toLocaleString()}</td>
+                                                                 <td className="px-6 py-4 font-bold text-sm text-slate-900 dark:text-white">KES {(payment.amount ?? 0)?.toLocaleString()}</td>
                                                                  <td className="px-6 py-4 text-xs italic text-rose-600 dark:text-rose-400">{payment.deletionReason}</td>
                                                                  <td className="px-6 py-4 text-xs text-slate-500">{payment.deletionRequestedBy || 'Admin'}</td>
                                                                  <td className="px-6 py-4 text-right space-x-2">
@@ -5510,7 +5510,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
                                                             <td className="px-10 py-6 text-sm">{payment.studentName}</td>
                                                             <td className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
-                                                            <td className="px-10 py-6 font-bold text-sm">KES {(payment.amount ?? 0).toLocaleString()}</td>
+                                                            <td className="px-10 py-6 font-bold text-sm">KES {(payment.amount ?? 0)?.toLocaleString()}</td>
                                                             <td className="px-10 py-6 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
                                                             <td className="px-10 py-6 text-right space-x-2">
                                                                 <button 
@@ -5761,7 +5761,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         <div className="text-right">
                                                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Fee Balance</span>
                                                             <span className={`text-xs font-black ${totalOwed > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                                                KES {(totalOwed ?? 0).toLocaleString()}
+                                                                KES {(totalOwed ?? 0)?.toLocaleString()}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -5773,7 +5773,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             <div className="space-y-1">
                                                                 <h6 className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Financial Milestone Guidance Active</h6>
                                                                 <p className="text-[11px] text-blue-700 dark:text-blue-300">
-                                                                    Your account carries an outstanding cumulative balance of <b>KES {(totalOwed ?? 0).toLocaleString()}</b>. Institutional protocols encourage prompt deposits before scheduling subsequent continuous advanced coaching blocks.
+                                                                    Your account carries an outstanding cumulative balance of <b>KES {(totalOwed ?? 0)?.toLocaleString()}</b>. Institutional protocols encourage prompt deposits before scheduling subsequent continuous advanced coaching blocks.
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -6564,7 +6564,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                             <h6 className="font-bold text-sm text-slate-900 dark:text-white">{cat.name}</h6>
                                                                         </div>
                                                                         {cat.description && <p className="text-xs text-slate-500">{cat.description}</p>}
-                                                                        <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(cat.baseFee ?? (cat as any).base_fee ?? 0).toLocaleString()}</p>
+                                                                        <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(cat.baseFee ?? (cat as any).base_fee ?? 0)?.toLocaleString()}</p>
                                                                     </div>
                                                                     <button
                                                                         type="button"
@@ -7032,7 +7032,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                                 <h6 className="font-bold text-sm text-slate-900 dark:text-white">{vName}</h6>
                                                                                 {vMandatory && <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-600 rounded text-[9px] font-black uppercase">Mandatory</span>}
                                                                             </div>
-                                                                            <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(vAmount || 0).toLocaleString()}</p>
+                                                                            <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(vAmount || 0)?.toLocaleString()}</p>
                                                                         </div>
                                                                         <div className="flex items-center justify-end gap-1 pt-2 border-t border-slate-50 dark:border-slate-800/50 mt-auto">
                                                                             <button
@@ -7604,7 +7604,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             {fee.items.map((item: any, i: number) => (
                                                                 <div key={i} className="flex items-center justify-between text-[11px]">
                                                                     <span className="text-slate-500 dark:text-slate-400 font-medium">{item.name || item.voteName || item.vote_name}</span>
-                                                                    <span className="text-slate-700 dark:text-slate-300 font-bold">KES {(item.amount ?? item.defaultAmount ?? 0).toLocaleString()}</span>
+                                                                    <span className="text-slate-700 dark:text-slate-300 font-bold">KES {(item.amount ?? item.defaultAmount ?? 0)?.toLocaleString()}</span>
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -8202,7 +8202,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     const ms = getStudentMilestoneStatus(lessonToComplete.studentId);
                                     if (ms && !ms.noInvoice && !ms.isCleared) {
                                         setSelectedQRLesson(null);
-                                        toastError(`⚠️ QR Check-In Blocked: ${normalizedStudents.find(s => s.id === lessonToComplete.studentId)?.fullName || 'Student'} has an unpaid balance of KES ${ms.shortfall.toLocaleString()} for Session ${ms.nextSession}. Expected: KES ${ms.expectedByNextSession.toLocaleString()} · Paid: KES ${ms.paidAmount.toLocaleString()}. Admin action required before attendance can be confirmed.`);
+                                        toastError(`⚠️ QR Check-In Blocked: ${normalizedStudents.find(s => s.id === lessonToComplete.studentId)?.fullName || 'Student'} has an unpaid balance of KES ${ms.shortfall?.toLocaleString()} for Session ${ms.nextSession}. Expected: KES ${ms.expectedByNextSession?.toLocaleString()} · Paid: KES ${ms.paidAmount?.toLocaleString()}. Admin action required before attendance can be confirmed.`);
                                         return;
                                     }
                                     setSelectedQRLesson(null);
@@ -8363,17 +8363,17 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             <div className="grid grid-cols-3 gap-3 text-center">
                                 <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Expected</p>
-                                    <p className="text-sm font-black text-rose-600 mt-1">KES {(pendingAttendanceOverride.ms.expectedByNextSession || 0).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-rose-600 mt-1">KES {(pendingAttendanceOverride.ms.expectedByNextSession || 0)?.toLocaleString()}</p>
                                     <p className="text-[9px] text-slate-400 mt-0.5">by Day {pendingAttendanceOverride.ms.nextSession}</p>
                                 </div>
                                 <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</p>
-                                    <p className="text-sm font-black text-emerald-600 mt-1">KES {(pendingAttendanceOverride.ms.paidAmount || 0).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-emerald-600 mt-1">KES {(pendingAttendanceOverride.ms.paidAmount || 0)?.toLocaleString()}</p>
                                     <p className="text-[9px] text-slate-400 mt-0.5">so far</p>
                                 </div>
                                 <div className="bg-rose-50 dark:bg-rose-900/30 rounded-2xl p-4 border border-rose-200 dark:border-rose-800">
                                     <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Shortfall</p>
-                                    <p className="text-sm font-black text-rose-700 dark:text-rose-300 mt-1">KES {(pendingAttendanceOverride.ms.shortfall || 0).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-rose-700 dark:text-rose-300 mt-1">KES {(pendingAttendanceOverride.ms.shortfall || 0)?.toLocaleString()}</p>
                                     <p className="text-[9px] text-rose-500 mt-0.5">unpaid</p>
                                 </div>
                             </div>

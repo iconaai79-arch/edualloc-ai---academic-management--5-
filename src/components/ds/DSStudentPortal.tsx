@@ -229,7 +229,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                         {[
                             { label: 'Upcoming', value: upcomingLessons.length, icon: CalendarDaysIcon, color: 'bg-white/15' },
                             { label: 'Completed', value: completedLessons.length, icon: CheckCircleIcon, color: 'bg-emerald-400/20' },
-                            { label: 'Balance', value: `KES ${(totalBalance || 0).toLocaleString()}`, icon: CurrencyIcon, color: totalBalance > 0 ? 'bg-rose-400/20' : 'bg-emerald-400/20' },
+                            { label: 'Balance', value: `KES ${(totalBalance || 0)?.toLocaleString()}`, icon: CurrencyIcon, color: totalBalance > 0 ? 'bg-rose-400/20' : 'bg-emerald-400/20' },
                         ].map((stat) => (
                             <div key={stat.label} className={`${stat.color} backdrop-blur rounded-2xl p-3 text-center`}>
                                 <stat.icon className="w-4 h-4 text-white/70 mx-auto mb-1" />
@@ -336,11 +336,11 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl text-center">
-                                        <p className="text-lg font-black text-emerald-600">KES {(totalPaid || 0).toLocaleString()}</p>
+                                        <p className="text-lg font-black text-emerald-600">KES {(totalPaid || 0)?.toLocaleString()}</p>
                                         <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Paid</p>
                                     </div>
                                     <div className={`p-3 rounded-2xl text-center ${totalBalance > 0 ? 'bg-rose-50 dark:bg-rose-900/20' : 'bg-slate-50 dark:bg-slate-800/50'}`}>
-                                        <p className={`text-lg font-black ${totalBalance > 0 ? 'text-rose-600' : 'text-slate-400'}`}>KES {(totalBalance || 0).toLocaleString()}</p>
+                                        <p className={`text-lg font-black ${totalBalance > 0 ? 'text-rose-600' : 'text-slate-400'}`}>KES {(totalBalance || 0)?.toLocaleString()}</p>
                                         <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Balance</p>
                                     </div>
                                 </div>
@@ -441,11 +441,11 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                         {/* Summary pills */}
                         <div className="grid grid-cols-2 gap-3">
                             <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl p-4 text-center">
-                                <p className="text-xl font-black text-emerald-600">KES {(totalPaid || 0).toLocaleString()}</p>
+                                <p className="text-xl font-black text-emerald-600">KES {(totalPaid || 0)?.toLocaleString()}</p>
                                 <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest mt-1">Total Paid</p>
                             </div>
                             <div className={`rounded-2xl p-4 text-center ${totalBalance > 0 ? 'bg-rose-50 dark:bg-rose-900/20' : 'bg-slate-100 dark:bg-slate-800'}`}>
-                                <p className={`text-xl font-black ${totalBalance > 0 ? 'text-rose-600' : 'text-slate-400'}`}>KES {(totalBalance || 0).toLocaleString()}</p>
+                                <p className={`text-xl font-black ${totalBalance > 0 ? 'text-rose-600' : 'text-slate-400'}`}>KES {(totalBalance || 0)?.toLocaleString()}</p>
                                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Outstanding</p>
                             </div>
                         </div>
@@ -456,7 +456,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                 <div>
                                     <p className="text-xs font-black text-amber-900 dark:text-amber-200">Outstanding Balance</p>
                                     <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
-                                        You have an outstanding balance of <strong>KES {(totalBalance || 0).toLocaleString()}</strong>. Please contact {currentInstitution.name} to make a payment.
+                                        You have an outstanding balance of <strong>KES {(totalBalance || 0)?.toLocaleString()}</strong>. Please contact {currentInstitution.name} to make a payment.
                                     </p>
                                     {currentInstitution.phoneNumber && (
                                         <a href={`tel:${currentInstitution.phoneNumber}`} className="inline-flex items-center gap-1 mt-2 text-[10px] font-black text-amber-700 underline">
@@ -493,13 +493,13 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                         {(inv.items || []).slice(0, 3).map((item, i) => (
                                             <div key={i} className="flex justify-between text-[11px]">
                                                 <span className="text-slate-500">{item.name}</span>
-                                                <span className="font-bold text-slate-700 dark:text-slate-300">KES {Number(item.amount).toLocaleString()}</span>
+                                                <span className="font-bold text-slate-700 dark:text-slate-300">KES {Number(item.amount)?.toLocaleString()}</span>
                                             </div>
                                         ))}
                                         <div className="border-t border-slate-100 dark:border-slate-800 pt-2 mt-2 flex justify-between">
                                             <span className="text-[11px] font-black text-slate-500">Balance</span>
                                             <span className={`text-sm font-black ${Number(inv.balance) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                                KES {Number(inv.balance).toLocaleString()}
+                                                KES {Number(inv.balance)?.toLocaleString()}
                                             </span>
                                         </div>
                                     </div>
