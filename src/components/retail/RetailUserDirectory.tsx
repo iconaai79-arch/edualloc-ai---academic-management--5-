@@ -149,7 +149,7 @@ export function RetailUserDirectory({
         setIsSubmitting(true);
         try {
             const id = `user_${Date.now()}`;
-            const newUser: Partial<User> = {
+            const newUser: any = {
                 id,
                 name: formData.name.trim(),
                 email: formData.email.trim() || undefined,
@@ -179,6 +179,26 @@ export function RetailUserDirectory({
             setIsSubmitting(false);
         }
     };
+
+    const groupedUsers = useMemo(() => {
+        if (role !== 'student') return {};
+        
+        const groups: Record<string, Record<string, User[]>> = {};
+        
+        displayUsers.forEach(user => {
+            const courseName = getCourseName(user.courseId);
+            const course = courses.find(c => c.id === user.courseId);
+            const level = course?.levels?.find(l => l.id === user.courseLevelId);
+            const streamName = level ? level.name : 'No Stream Assigned';
+            
+            if (!groups[courseName]) groups[courseName] = {};
+            if (!groups[courseName][streamName]) groups[courseName][streamName] = [];
+            
+            groups[courseName][streamName].push(user);
+        });
+        
+        return groups;
+    }, [displayUsers, courses, role]);
 
     if (loading) {
         return (
@@ -283,13 +303,82 @@ export function RetailUserDirectory({
                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter">No Records Found</h3>
                     <p className="text-slate-400 text-xs italic mt-2 font-medium">No {role === 'teacher' ? 'teachers' : 'students'} match your search filters in the registry database.</p>
                 </div>
+            ) : role === 'student' ? (
+                <div className="space-y-10">
+                    {Object.entries(groupedUsers).sort(([a], [b]) => a.localeCompare(b)).map(([gradeName, streams]) => (
+                        <div key={gradeName} className="space-y-5 bg-white/40 dark:bg-slate-900/40 p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white pb-2 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/60">
+                                <span className="w-10 h-10 rounded-[1rem] bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                    <BuildingIcon className="w-5 h-5" />
+                                </span>
+                                {gradeName}
+                            </h3>
+                            <div className="space-y-8 md:pl-12 pt-2">
+                                {Object.entries(streams).sort(([a], [b]) => a.localeCompare(b)).map(([streamName, students]) => (
+                                    <div key={streamName} className="space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="text-sm font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300">
+                                                {streamName}
+                                            </h4>
+                                            <span className="text-[10px] font-black tracking-widest text-slate-500 bg-slate-200/50 dark:bg-slate-800 px-2.5 py-0.5 rounded-md">
+                                                {students.length} {students.length === 1 ? 'STUDENT' : 'STUDENTS'}
+                                            </span>
+                                        </div>
+                                        <div className="bg-white dark:bg-slate-850 rounded-3xl border border-slate-200/60 dark:border-slate-700/50 shadow-sm overflow-hidden">
+                                            <ul className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                                                {students.map((user) => {
+                                                    const avatarColor = generatePastelColor(user.id);
+                                                    const idVal = user.admissionNumber || (user as any).admission_number || 'N/A';
+                                                    return (
+                                                        <li key={user.id} className="p-3 sm:p-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between gap-4 group">
+                                                            <div className="flex items-center gap-4 min-w-0 flex-1">
+                                                                <div 
+                                                                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center font-black text-slate-800 text-xs sm:text-sm shadow-sm flex-shrink-0"
+                                                                    style={{ backgroundColor: avatarColor }}
+                                                                >
+                                                                    {getInitials(user.name)}
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <h5 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base truncate uppercase tracking-tight group-hover:text-indigo-600 transition-colors">
+                                                                        {user.name}
+                                                                    </h5>
+                                                                    <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                                        <span className="font-semibold text-[9px] uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                                                                            ADM: {idVal}
+                                                                        </span>
+                                                                        {user.phoneNumber && (
+                                                                            <span className="flex items-center gap-1 truncate"><PhoneIcon className="w-3 h-3"/> {user.phoneNumber}</span>
+                                                                        )}
+                                                                        {user.email && (
+                                                                            <span className="hidden sm:flex items-center gap-1 truncate"><EnvelopeIcon className="w-3 h-3"/> {user.email}</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => onIssueItem(user)}
+                                                                className="flex-shrink-0 px-4 py-2 sm:py-3 bg-slate-100 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-slate-700 hover:text-white dark:text-slate-300 dark:hover:text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                                                            >
+                                                                <Zap className="w-3.5 h-3.5" />
+                                                                <span className="hidden sm:inline">Issue Item</span>
+                                                                <span className="sm:hidden">Issue</span>
+                                                            </button>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {displayUsers.map((user, idx) => {
                         const avatarColor = generatePastelColor(user.id);
-                        const idVal = role === 'student' 
-                            ? (user.admissionNumber || (user as any).admission_number || 'N/A')
-                            : (user.staffId || 'N/A');
+                        const idVal = user.staffId || 'N/A';
 
                         return (
                             <div 
@@ -310,7 +399,7 @@ export function RetailUserDirectory({
                                                 {user.name}
                                             </h4>
                                             <span className="inline-block mt-1 text-[8px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md">
-                                                {role === 'student' ? `ADM: ${idVal}` : `STAFF: ${idVal}`}
+                                                STAFF: {idVal}
                                             </span>
                                         </div>
                                     </div>
@@ -321,9 +410,7 @@ export function RetailUserDirectory({
                                         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                                             <BuildingIcon className="w-4 h-4 text-slate-400" />
                                             <span className="font-semibold truncate">
-                                                {role === 'student' 
-                                                    ? getCourseName(user.courseId) 
-                                                    : getDepartmentName(user.departmentId)}
+                                                {getDepartmentName(user.departmentId)}
                                             </span>
                                         </div>
 
