@@ -2175,11 +2175,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const kioskWebcamRef = useRef<HTMLVideoElement>(null);
     const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
     const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
+    const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
 
     useEffect(() => {
         let activeStream: MediaStream | null = null;
         if (isScanningKioskFace) {
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode } })
                 .then((s) => {
                     activeStream = s;
                     setWebcamStream(s);
@@ -2201,7 +2202,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 activeStream.getTracks().forEach(track => track.stop());
             }
         };
-    }, [isScanningKioskFace]);
+    }, [isScanningKioskFace, cameraFacingMode]);
 
     useEffect(() => {
         if (kioskWebcamRef.current && webcamStream) {
@@ -5598,7 +5599,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 audio={false}
                                                                 ref={kioskWebcamRef}
                                                                 screenshotFormat="image/jpeg"
-                                                                videoConstraints={{ facingMode: "user", width: 640, height: 360 }}
+                                                                videoConstraints={{ facingMode: cameraFacingMode, width: 640, height: 360 }}
                                                                 className="absolute inset-0 w-full h-full object-cover"
                                                             />
                                                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -5624,8 +5625,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             {kioskFaceVerificationMsg ? (
                                                                 <p className="text-xs text-indigo-400 font-extrabold animate-pulse">{kioskFaceVerificationMsg}</p>
                                                             ) : (
-                                                                <p className="text-[10px] text-slate-400 max-w-xs">Align your face in the camera bounds to initialize check-in verification.</p>
+                                                                <p className="text-[10px] text-slate-400 max-w-xs mx-auto">Align your face in the camera bounds to initialize check-in verification.</p>
                                                             )}
+                                                            <button 
+                                                                onClick={() => setCameraFacingMode(prev => prev === 'user' ? 'environment' : 'user')}
+                                                                className="mt-2 px-4 py-2 bg-slate-800 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-700 transition-colors inline-block"
+                                                            >
+                                                                Switch to {cameraFacingMode === 'user' ? 'Rear' : 'Front'} Camera
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 ) : (
