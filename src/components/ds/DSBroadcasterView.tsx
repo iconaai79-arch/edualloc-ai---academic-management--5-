@@ -30,6 +30,8 @@ const MOCK_MESSAGES: Broadcast[] = [
 ];
 
 export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroadcast }) => {
+    const [activeTab, setActiveTab] = useState<'Live Feed' | 'Sent' | 'Outbox'>('Live Feed');
+
     return (
         <div className="animate-fade-in-up space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
@@ -57,44 +59,70 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
                 {/* Visual Signal Mixer / Live Feed */}
                 <div className="lg:col-span-8 space-y-8">
                     <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
-                        <div className="flex justify-between items-center mb-10">
+                        <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-3 text-slate-900 dark:text-white">
                                 <SignalIcon className="w-6 h-6 text-indigo-600 animate-pulse" /> Live <span className="text-indigo-600">Transmissions</span>
                             </h3>
                             <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full border border-emerald-100">PA System: Online</span>
                         </div>
 
-                        <div className="space-y-4">
-                            {MOCK_MESSAGES.map((msg, i) => (
-                                <div key={i} className={`p-6 rounded-[2rem] border transition-all ${
-                                    msg.type === 'Emergency' ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700'
-                                }`}>
-                                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
-                                        <div className="flex gap-4">
-                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
-                                                msg.type === 'Emergency' ? 'bg-rose-100 border-rose-200 text-rose-600' : 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-100 dark:border-indigo-800 text-indigo-600'
-                                            }`}>
-                                                {msg.type === 'Lesson' ? <CalendarDaysIcon className="w-6 h-6" /> : 
-                                                 msg.type === 'Fleet' ? <TruckIcon className="w-6 h-6" /> : 
-                                                 msg.type === 'Info' ? <AcademicCapIcon className="w-6 h-6" /> :
-                                                 <MegaphoneIcon className="w-6 h-6" />}
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">{msg.title}</h4>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{msg.timestamp}</p>
-                                            </div>
-                                        </div>
-                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                            msg.priority === 'Critical' ? 'bg-rose-600 text-white' : 
-                                            msg.priority === 'High' ? 'bg-amber-100 text-amber-600' :
-                                            'bg-white/50 text-slate-400'
-                                        }`}>
-                                            {msg.priority} Priority
-                                        </span>
-                                    </div>
-                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300 pl-0 sm:pl-16">{msg.message}</p>
-                                </div>
+                        <div className="flex gap-4 mb-8 border-b border-slate-100 dark:border-slate-800 pb-4 overflow-x-auto scrollbar-hide">
+                            {['Live Feed', 'Sent', 'Outbox'].map(tab => (
+                                <button 
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab as any)}
+                                    className={`text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                                        activeTab === tab 
+                                        ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 shadow-sm border border-indigo-100 dark:border-indigo-900/50' 
+                                        : 'text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
+                                    }`}
+                                >
+                                    {tab}
+                                </button>
                             ))}
+                        </div>
+
+                        <div className="space-y-4">
+                            {activeTab === 'Outbox' ? (
+                                <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/30 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                    <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+                                        <MegaphoneIcon className="w-8 h-8 opacity-50" />
+                                    </div>
+                                    <h4 className="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Outbox is Empty</h4>
+                                    <p className="text-xs text-slate-400 mt-2">All scheduled and queued broadcasts have been dispatched.</p>
+                                </div>
+                            ) : (
+                                MOCK_MESSAGES.map((msg, i) => (
+                                    <div key={i} className={`p-6 rounded-[2rem] border transition-all ${
+                                        msg.type === 'Emergency' ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700'
+                                    }`}>
+                                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+                                            <div className="flex gap-4">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
+                                                    msg.type === 'Emergency' ? 'bg-rose-100 border-rose-200 text-rose-600' : 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-100 dark:border-indigo-800 text-indigo-600'
+                                                }`}>
+                                                    {msg.type === 'Lesson' ? <CalendarDaysIcon className="w-6 h-6" /> : 
+                                                     msg.type === 'Fleet' ? <TruckIcon className="w-6 h-6" /> : 
+                                                     msg.type === 'Info' ? <AcademicCapIcon className="w-6 h-6" /> :
+                                                     <MegaphoneIcon className="w-6 h-6" />}
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">{msg.title}</h4>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{msg.timestamp}</p>
+                                                </div>
+                                            </div>
+                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                msg.priority === 'Critical' ? 'bg-rose-600 text-white' : 
+                                                msg.priority === 'High' ? 'bg-amber-100 text-amber-600' :
+                                                'bg-white/50 text-slate-400'
+                                            }`}>
+                                                {msg.priority} Priority
+                                            </span>
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-600 dark:text-slate-300 pl-0 sm:pl-16">{msg.message}</p>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>
