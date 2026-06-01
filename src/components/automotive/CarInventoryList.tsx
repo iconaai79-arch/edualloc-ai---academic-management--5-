@@ -13,7 +13,8 @@ import {
     Zap,
     Gauge,
     Calendar,
-    ArrowRightLeft
+    ArrowRightLeft,
+    Hash
 } from 'lucide-react';
 
 interface CarInventoryListProps {
@@ -144,19 +145,26 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-50 dark:border-slate-800">
-                                    <Gauge className="w-4 h-4 text-slate-400" />
-                                    <div>
-                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Mileage</p>
-                                        <p className="text-[10px] font-black text-slate-900 dark:text-white">{(listing.mileage || 0).toLocaleString()} KM</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-50 dark:border-slate-800">
+                                    <Gauge className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest truncate">Mileage</p>
+                                        <p className="text-[9px] font-black text-slate-900 dark:text-white truncate">{(listing.mileage || 0).toLocaleString()} KM</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-50 dark:border-slate-800">
-                                    <Zap className="w-4 h-4 text-amber-500" />
-                                    <div>
-                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Fuel Type</p>
-                                        <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{listing.fuelType}</p>
+                                <div className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-50 dark:border-slate-800">
+                                    <Zap className="w-3 h-3 text-amber-500 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest truncate">Fuel</p>
+                                        <p className="text-[9px] font-black text-slate-900 dark:text-white uppercase truncate">{listing.fuelType}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-50 dark:border-slate-800">
+                                    <Hash className="w-3 h-3 text-indigo-500 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest truncate">Reg No.</p>
+                                        <p className="text-[9px] font-black text-slate-900 dark:text-white uppercase truncate">{listing.registrationNumber || 'UNREG'}</p>
                                     </div>
                                 </div>
                             </div>
