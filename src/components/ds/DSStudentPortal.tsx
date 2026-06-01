@@ -872,13 +872,13 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
             </div>
 
             {/* Bottom Nav Bar */}
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 px-2 py-2 safe-area-bottom">
-                <div className="flex items-center justify-around max-w-lg mx-auto">
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 px-2 py-2 safe-area-bottom overflow-x-auto hide-scrollbar">
+                <div className="flex items-center min-w-max md:justify-center justify-start gap-4 md:gap-8 px-4 mx-auto">
                     {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex flex-col items-center gap-1 px-4 py-2 rounded-2xl transition-all ${
+                            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all min-w-[60px] ${
                                 activeTab === tab.id
                                     ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30'
                                     : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'

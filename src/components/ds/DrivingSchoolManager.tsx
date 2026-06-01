@@ -4129,6 +4129,54 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                     <PrinterIcon className="w-4 h-4" />
                                                                 </button>
                                                                 <button 
+                                                                    onClick={() => {
+                                                                        const printWindow = window.open('', '', 'width=600,height=800');
+                                                                        if (!printWindow) return;
+                                                                        printWindow.document.write(`
+                                                                            <html>
+                                                                                <head>
+                                                                                    <title>Digital ID - ${student.fullName}</title>
+                                                                                    <style>
+                                                                                        body { font-family: system-ui, sans-serif; margin: 0; padding: 40px; display: flex; justify-content: center; }
+                                                                                        .card { width: 320px; border-radius: 20px; border: 2px solid #e2e8f0; padding: 30px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+                                                                                        .img { width: 100px; height: 100px; border-radius: 20px; object-fit: cover; margin-bottom: 15px; background: #f8fafc; display: inline-block; }
+                                                                                        .qr { margin: 25px auto; width: 150px; height: 150px; }
+                                                                                        .title { font-size: 22px; font-weight: 900; margin: 0 0 5px 0; color: #0f172a; }
+                                                                                        .sub { font-size: 12px; color: #64748b; margin: 0; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; }
+                                                                                        .school { font-size: 14px; font-weight: 800; color: #4f46e5; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+                                                                                    </style>
+                                                                                </head>
+                                                                                <body>
+                                                                                    <div class="card">
+                                                                                        <div class="school">${currentInstitution.name}</div>
+                                                                                        ${student.passportPhoto ? `<img src="${student.passportPhoto}" class="img" />` : `<div class="img" style="display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;color:#94a3b8">${student.fullName.charAt(0)}</div>`}
+                                                                                        <h2 class="title">${student.fullName}</h2>
+                                                                                        <p class="sub">${student.admissionNumber || student.idNumber || 'STUDENT ID'}</p>
+                                                                                        <svg viewBox="0 0 100 100" class="qr" fill="currentColor">
+                                                                                            <path d="M0,0 h30 v30 h-30 z m5,5 v20 h20 v-20 z m5,5 h10 v10 h-10 z" />
+                                                                                            <path d="M70,0 h30 v30 h-30 z m5,5 v20 h20 v-20 z m5,5 h10 v10 h-10 z" />
+                                                                                            <path d="M0,70 h30 v30 h-30 z m5,5 v20 h20 v-20 z m5,5 h10 v10 h-10 z" />
+                                                                                            <path d="M40,0 h20 v10 h-20 z M40,20 h10 v10 h-10 z M60,10 h10 v20 h-10 z" />
+                                                                                            <path d="M0,40 h20 v10 h-20 z M20,50 h10 v20 h-10 z M10,60 h10 v10 h-10 z" />
+                                                                                            <path d="M40,40 h20 v20 h-20 z" />
+                                                                                            <path d="M70,40 h30 v10 h-30 z M80,50 h20 v10 h-20 z M70,60 h10 v20 h-10 z M90,70 h10 v30 h-10 z M80,80 h10 v20 h-10 z M40,70 h20 v10 h-20 z M50,80 h20 v10 h-20 z M40,90 h10 v10 h-10 z M60,90 h10 v10 h-10 z" />
+                                                                                        </svg>
+                                                                                        <p class="sub" style="margin-top: 15px; color: #4f46e5;">Valid Digital ID</p>
+                                                                                    </div>
+                                                                                    <script>
+                                                                                        window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }
+                                                                                    </script>
+                                                                                </body>
+                                                                            </html>
+                                                                        `);
+                                                                        printWindow.document.close();
+                                                                    }}
+                                                                    className="p-2 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg text-slate-400 hover:text-amber-600 transition-colors"
+                                                                    title="Generate & Print Digital ID"
+                                                                >
+                                                                    <UsersIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button 
                                                                     onClick={() => handleAutoScheduleSingleStudent(student.id)}
                                                                     className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
                                                                     title="Auto Schedule Lessons"
