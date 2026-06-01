@@ -2600,7 +2600,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     });
                 }
                 
-                toastSuccess(`Password reset successfully.`);
+                success(`Password reset successfully.`);
                 
                 if (student.phone && currentInstitution?.smsConfig) {
                     await apiService.sendSms(
