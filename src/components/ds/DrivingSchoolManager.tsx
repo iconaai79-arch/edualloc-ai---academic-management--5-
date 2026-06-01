@@ -59,6 +59,18 @@ const calculateSmsPages = (msg: string) => {
     }
     return charCount <= 160 ? 1 : Math.ceil(charCount / 153);
 };
+
+const isCarAvailableAt = (vehicleId: string, currentLessons: any[], startTime: string, endTime: string, dateStr: string) => {
+    return !currentLessons.some(l => 
+        l.vehicleId === vehicleId &&
+        l.lessonDate === dateStr &&
+        l.status !== 'Cancelled' &&
+        ((startTime >= l.startTime && startTime < l.endTime) || 
+         (endTime > l.startTime && endTime <= l.endTime) ||
+         (startTime <= l.startTime && endTime >= l.endTime))
+    );
+};
+
 import { DSReportsView } from './DSReportsView';
 import { BuySMSModal } from '../BuySMSModal';
 import { 
@@ -2819,6 +2831,64 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [selectedQRLesson, setSelectedQRLesson] = useState<any | null>(null);
     const [enrollWizard, setEnrollWizard] = useState<{ open: boolean; student: any | null; step: 'invoice' | 'payment' | 'lesson' | 'done'; createdInvoiceId: string | null }>({ open: false, student: null, step: 'invoice', createdInvoiceId: null });
 
+    // Background Dispatch Queue Processor
+    useEffect(() => {
+        if (!currentInstitution) return;
+        const interval = setInterval(async () => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const pendingQueue = (lessons || [])
+                .filter(l => l.lessonDate === todayStr && l.lessonType === 'Practical' && l.status === 'Scheduled' && !l.vehicleId)
+                .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+            if (pendingQueue.length === 0) return; // Queue empty
+
+            const operationalVehicles = (vehicles || []).filter(v => v.status === 'Operational');
+            const activeLessons = lessons || [];
+
+            let assignedAny = false;
+
+            for (const lesson of pendingQueue) {
+                const nowTime = new Date();
+                const pStartHr = String(nowTime.getHours()).padStart(2, '0');
+                const pStartMin = String(nowTime.getMinutes()).padStart(2, '0');
+                const pStartStr = `${pStartHr}:${pStartMin}`;
+                
+                const pracDurMins = (settings?.schedulingRules?.practicalDurationMinutes || 60);
+                const pEndTime = new Date(nowTime.getTime() + pracDurMins * 60000);
+                const pEndHr = String(pEndTime.getHours()).padStart(2, '0');
+                const pEndMin = String(pEndTime.getMinutes()).padStart(2, '0');
+                const pEndStr = `${pEndHr}:${pEndMin}`;
+
+                let pVehicle = operationalVehicles.find(v => isCarAvailableAt(v.id, activeLessons, pStartStr, pEndStr, todayStr)) || null;
+
+                if (pVehicle) {
+                    await apiService.saveModuleRecord('ds_lessons', {
+                        ...lesson,
+                        vehicleId: pVehicle.id,
+                        startTime: pStartStr,
+                        endTime: pEndStr,
+                        notes: `[Auto-dispatched from Queue]`
+                    });
+
+                    assignedAny = true;
+                    
+                    const student = (students || []).find(s => s.id === lesson.studentId);
+                    const instructor = (instructors || []).find(i => i.id === lesson.instructorId);
+                    
+                    if (student?.phone && currentInstitution?.smsConfig) {
+                        const msg = `Hi ${student.fullName}, your vehicle is ready! A Practical session is starting now at ${pStartStr} with ${instructor?.name || 'TBD'} in car ${pVehicle.registrationNumber}. Please proceed to the vehicle.`;
+                        await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
+                    }
+                }
+            }
+            if (assignedAny) {
+                if (onRefreshDataProp) onRefreshDataProp();
+                refreshData();
+            }
+        }, 30000); // run every 30 seconds
+        return () => clearInterval(interval);
+    }, [lessons, vehicles, students, instructors, currentInstitution, settings, onRefreshDataProp]);
+
     // Normalization
     const normalizedStudents = useMemo(() => (students || []).map(s => ({
         ...s,
@@ -3288,6 +3358,83 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     updatedInfo = `Auto-assigned & marked attendance for a new ${lessonTypeToAssign} Session with ${instructor?.name || 'available instructor'}.`;
                 }
 
+                if (lessonTypeToAssign === 'Theory') {
+                    const practicalScheduled = todayLessons.filter(l => l.lessonType === 'Practical');
+                    if (practicalScheduled.length === 0) {
+                        let pInstructor = (instructors || []).find(i => i.id === student.preferredInstructorId && i.status === 'Active');
+                        if (!pInstructor) pInstructor = (instructors || []).find(i => i.status === 'Active');
+                        
+                        let pVehicle = null;
+                        if (pInstructor?.assignedVehicleId) {
+                            pVehicle = (vehicles || []).find(v => v.id === pInstructor.assignedVehicleId && v.status === 'Operational');
+                        }
+                        if (!pVehicle) pVehicle = (vehicles || []).find(v => v.status === 'Operational');
+
+                        const nowTimeForTheoryEnd = new Date();
+                        const theoryDurMins = (settings?.schedulingRules?.theoryDurationMinutes || 60);
+                        nowTimeForTheoryEnd.setMinutes(nowTimeForTheoryEnd.getMinutes() + theoryDurMins);
+                        
+                        const pracDurMins = (settings?.schedulingRules?.practicalDurationMinutes || 60);
+                        const pEndTime = new Date(nowTimeForTheoryEnd.getTime() + pracDurMins * 60000);
+                        
+                        const pStartHr = String(nowTimeForTheoryEnd.getHours()).padStart(2, '0');
+                        const pStartMin = String(nowTimeForTheoryEnd.getMinutes()).padStart(2, '0');
+                        const pEndHr = String(pEndTime.getHours()).padStart(2, '0');
+                        const pEndMin = String(pEndTime.getMinutes()).padStart(2, '0');
+                        const pStartStr = `${pStartHr}:${pStartMin}`;
+                        const pEndStr = `${pEndHr}:${pEndMin}`;
+
+                        // Find an available operational vehicle
+                        let pVehicle = null;
+                        const operationalVehicles = (vehicles || []).filter(v => v.status === 'Operational');
+                        
+                        // Check preferred instructor's vehicle first
+                        if (pInstructor?.assignedVehicleId) {
+                            const prefV = operationalVehicles.find(v => v.id === pInstructor.assignedVehicleId);
+                            if (prefV && isCarAvailableAt(prefV.id, lessons || [], pStartStr, pEndStr, todayStr)) {
+                                pVehicle = prefV;
+                            }
+                        }
+                        // Fallback to any available vehicle
+                        if (!pVehicle) {
+                            pVehicle = operationalVehicles.find(v => isCarAvailableAt(v.id, lessons || [], pStartStr, pEndStr, todayStr)) || null;
+                        }
+
+                        const newPLesson = {
+                            id: `less_${Date.now()}_P`,
+                            institutionId: currentInstitution?.id,
+                            studentId: student.id,
+                            instructorId: pInstructor?.id || null,
+                            vehicleId: pVehicle?.id || null,
+                            lessonDate: todayStr,
+                            startTime: pStartStr,
+                            endTime: pEndStr,
+                            lessonType: 'Practical',
+                            status: 'Scheduled',
+                            confirmationStatus: 'Confirmed',
+                            notes: pVehicle ? `[Auto-scheduled after Theory Check-in]` : `[Queued for Dispatch after Theory]`,
+                            createdAt: new Date().toISOString()
+                        };
+                        
+                        await apiService.saveModuleRecord('ds_lessons', newPLesson);
+                        
+                        if (pVehicle) {
+                            const pPlate = pVehicle.registrationNumber;
+                            updatedInfo += ` A Practical session has been auto-scheduled for ${pStartStr} with ${pInstructor?.name || 'an available instructor'} (${pPlate}).`;
+                            if (student.phone && currentInstitution?.smsConfig) {
+                                const msg = `Hi ${student.fullName}, your Theory session has started. A Practical session is auto-scheduled at ${pStartStr} with ${pInstructor?.name || 'TBD'} in car ${pPlate}. Please be ready!`;
+                                await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
+                            }
+                        } else {
+                            updatedInfo += ` You have been placed in the Practical Dispatch Queue. A car will be assigned when available.`;
+                            if (student.phone && currentInstitution?.smsConfig) {
+                                const msg = `Hi ${student.fullName}, your Theory session has started. You are currently in the queue for a Practical car. We will notify you via SMS once a vehicle is assigned.`;
+                                await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
+                            }
+                        }
+                    }
+                }
+
                 setKioskMessage({
                     status: 'success',
                     text: 'Clearance Approved!',
@@ -3636,6 +3783,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             { id: 'students', label: 'Students', icon: UsersIcon },
                             { id: 'leads', label: 'Enquiries', icon: SparklesIcon },
                             { id: 'lessons', label: 'Lessons', icon: CalendarDaysIcon },
+                            { id: 'dispatch', label: 'Dispatch', icon: TruckIcon },
                             { id: 'fleet', label: 'Fleet', icon: TruckIcon },
                             { id: 'instructors', label: 'Instructors', icon: AcademicCapIcon },
                             { id: 'finance', label: 'Finance', icon: CurrencyIcon },
@@ -4746,6 +4894,60 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'dispatch' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+                            {/* Pending Queue */}
+                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Dispatch Queue</h3>
+                                <div className="space-y-4">
+                                    {(lessons || []).filter(l => l.lessonDate === new Date().toISOString().split('T')[0] && l.lessonType === 'Practical' && l.status === 'Scheduled' && !l.vehicleId).length === 0 ? (
+                                        <div className="text-center py-12 text-slate-400 text-xs font-bold">No students waiting for dispatch</div>
+                                    ) : (
+                                        (lessons || []).filter(l => l.lessonDate === new Date().toISOString().split('T')[0] && l.lessonType === 'Practical' && l.status === 'Scheduled' && !l.vehicleId)
+                                        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+                                        .map(lesson => {
+                                            const s = (students || []).find(x => x.id === lesson.studentId);
+                                            return (
+                                                <div key={lesson.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                                    <div>
+                                                        <p className="font-bold text-sm text-slate-900 dark:text-white">{s?.fullName}</p>
+                                                        <p className="text-[10px] text-slate-500 font-bold mt-1">Waiting since: {new Date(lesson.createdAt).toLocaleTimeString()}</p>
+                                                    </div>
+                                                    <div className="px-3 py-1.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                                        Queued
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Active Fleet / On Road */}
+                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">On Road / Active Vehicles</h3>
+                                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {(vehicles || []).filter(v => v.status === 'Operational').map(vehicle => {
+                                        const now = new Date();
+                                        const nowStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                                        const todayStr = now.toISOString().split('T')[0];
+                                        const activeLesson = (lessons || []).find(l => l.vehicleId === vehicle.id && l.lessonDate === todayStr && l.status !== 'Cancelled' && l.startTime <= nowStr && l.endTime > nowStr);
+                                        
+                                        return (
+                                            <div key={vehicle.id} className={`p-4 rounded-2xl border flex items-center justify-between ${activeLesson ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'}`}>
+                                                <div>
+                                                    <p className="font-bold text-sm text-slate-900 dark:text-white">{vehicle.registrationNumber} - {vehicle.make} {vehicle.model}</p>
+                                                    <p className="text-[10px] text-slate-500 font-bold mt-1">{activeLesson ? `In Lesson until ${activeLesson.endTime}` : 'Available Now'}</p>
+                                                </div>
+                                                <div className={`w-3 h-3 rounded-full shadow-sm ${activeLesson ? 'bg-amber-500 shadow-amber-500/50' : 'bg-emerald-500 shadow-emerald-500/50 animate-pulse'}`} />
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>

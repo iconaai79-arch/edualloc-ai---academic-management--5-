@@ -5149,7 +5149,17 @@ export const App: React.FC = () => {
                                         users={users}
                                         companyDetails={companyDetails}
                                         onDataChange={loadData}
-                                        onSendSms={handleSendSms}
+                                        onSendSms={async (phone, msg) => {
+                                            try {
+                                                const pages = Math.ceil(msg.length / 160) || 1;
+                                                await apiService.sendSms(phone, msg, companyDetails?.smsConfig, pages, currentUser?.institutionId);
+                                                loadData();
+                                                return true;
+                                            } catch (e) {
+                                                console.error(e);
+                                                return false;
+                                            }
+                                        }}
                                         smsConfig={companyDetails.smsConfig}
                                         smsBalance={smsBalance}
                                         onAddJob={async (j) => { await apiService.saveModuleRecord('carwash_jobs', { ...j, id: `job_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
