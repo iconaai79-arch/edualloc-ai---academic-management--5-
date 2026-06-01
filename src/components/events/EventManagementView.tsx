@@ -809,7 +809,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm flex items-center justify-between">
                                 <div>
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Total Registration Revenue</span>
-                                    <div className="text-2xl font-black text-slate-800 dark:text-white mt-1">KES {totals.revenue.toLocaleString()}</div>
+                                    <div className="text-2xl font-black text-slate-800 dark:text-white mt-1">KES {totals.revenue?.toLocaleString()}</div>
                                 </div>
                                 <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center text-indigo-600">
                                     <BanknotesIcon className="w-5 h-5" />
@@ -837,7 +837,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                 <div>
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Total Charity Raised</span>
                                     <div className="text-2xl font-black text-slate-800 dark:text-white mt-1">
-                                        KES {activeEventPledges.reduce((sum, pl) => sum + Number(pl.amount), 0).toLocaleString()}
+                                        KES {activeEventPledges.reduce((sum, pl) => sum + Number(pl.amount), 0)?.toLocaleString()}
                                     </div>
                                 </div>
                                 <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center text-indigo-600">
@@ -981,7 +981,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                             <div key={cat.id} className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl">
                                                 <h5 className="font-bold text-slate-800 dark:text-white text-sm">{cat.name}</h5>
                                                 <div className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-1">{cat.distanceKm} KM</div>
-                                                <div className="text-[10px] text-slate-400 mt-2">KES {Number(cat.registrationFee).toLocaleString()} entry fee</div>
+                                                <div className="text-[10px] text-slate-400 mt-2">KES {Number(cat.registrationFee)?.toLocaleString()} entry fee</div>
                                             </div>
                                         ))}
                                         {activeEventCategories.length === 0 && (
@@ -1054,7 +1054,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                             <tr key={cat.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50">
                                                 <td className="py-3 font-bold text-slate-800 dark:text-white">{cat.name}</td>
                                                 <td className="py-3 font-bold text-indigo-600 font-mono">{cat.distanceKm} KM</td>
-                                                <td className="py-3 font-mono">KES {Number(cat.registrationFee).toLocaleString()}</td>
+                                                <td className="py-3 font-mono">KES {Number(cat.registrationFee)?.toLocaleString()}</td>
                                                 <td className="py-3">{cat.capacity || 'Unlimited'}</td>
                                                 <td className="py-3 uppercase">{cat.genderRestriction}</td>
                                                 <td className="py-3 font-mono">{cat.startTime || 'TBD'}</td>
@@ -1273,7 +1273,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Bank Receipts (Paid)</span>
                                 <div className="text-2xl font-black text-green-600 dark:text-green-400 mt-1">
-                                    KES {activeEventTransactions.filter(t => t.status === 'completed' || t.status === 'success' || t.status === 'paid').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                                    KES {activeEventTransactions.filter(t => t.status === 'completed' || t.status === 'success' || t.status === 'paid').reduce((acc, curr) => acc + Number(curr.amount || 0), 0)?.toLocaleString()}
                                 </div>
                                 <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 block">
                                     {activeEventTransactions.filter(t => t.status === 'completed' || t.status === 'success' || t.status === 'paid').length} successful transactions
@@ -1283,7 +1283,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Pending Checkout Pushes</span>
                                 <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                                    KES {activeEventTransactions.filter(t => t.status === 'pending' || t.status === 'idle').reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString()}
+                                    KES {activeEventTransactions.filter(t => t.status === 'pending' || t.status === 'idle').reduce((acc, curr) => acc + Number(curr.amount || 0), 0)?.toLocaleString()}
                                 </div>
                                 <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 block">
                                     {activeEventTransactions.filter(t => t.status === 'pending' || t.status === 'idle').length} pending user checks
@@ -1339,7 +1339,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                             return (
                                                 <tr key={tx.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50">
                                                     <td className="py-3 text-slate-500 font-mono">
-                                                        {tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'N/A'}
+                                                        {tx.timestamp ? new Date(tx.timestamp)?.toLocaleString() : 'N/A'}
                                                     </td>
                                                     <td className="py-3 font-mono font-bold text-slate-750 dark:text-slate-350">
                                                         {tx.transactionId || tx.checkoutRequestId || 'N/A'}
@@ -1350,7 +1350,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                                     </td>
                                                     <td className="py-3 text-slate-500">{catName}</td>
                                                     <td className="py-3 font-bold text-slate-850 dark:text-slate-200">
-                                                        KES {Number(tx.amount || 0).toLocaleString()}
+                                                        KES {Number(tx.amount || 0)?.toLocaleString()}
                                                     </td>
                                                     <td className="py-3">
                                                         {(tx.status === 'completed' || tx.status === 'success' || tx.status === 'paid') ? (
@@ -1597,8 +1597,8 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Collected Revenue</span>
-                            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">KES {eventInsights.totalCollectedRevenue.toLocaleString()}</div>
-                            <p className="text-xs text-slate-500 mt-2 font-medium">Out of KES {eventInsights.totalExpectedRevenue.toLocaleString()} Expected</p>
+                            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">KES {eventInsights.totalCollectedRevenue?.toLocaleString()}</div>
+                            <p className="text-xs text-slate-500 mt-2 font-medium">Out of KES {eventInsights.totalExpectedRevenue?.toLocaleString()} Expected</p>
                         </div>
                         <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Total Registered</span>
@@ -1656,7 +1656,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                                     </div>
                                                 </td>
                                                 <td className="p-4 text-right text-sm font-black text-emerald-600 dark:text-emerald-400">
-                                                    KES {cat.revenue.toLocaleString()}
+                                                    KES {cat.revenue?.toLocaleString()}
                                                 </td>
                                             </tr>
                                         );

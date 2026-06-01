@@ -2664,7 +2664,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-xl">
                                                             <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Calculated Total:</span>
                                                             <span className="text-sm font-black text-slate-900 dark:text-white">
-                                                                KES {newFeeForm.items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0).toLocaleString()}
+                                                                KES {newFeeForm.items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0)?.toLocaleString()}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -2724,13 +2724,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
                                         <div className="flex items-center justify-between mb-4">
                                             <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
-                                            <span className="text-lg font-black text-slate-900 dark:text-white">KSH {(fee.totalAmount ?? 0).toLocaleString()}</span>
+                                            <span className="text-lg font-black text-slate-900 dark:text-white">KSH {(fee.totalAmount ?? 0)?.toLocaleString()}</span>
                                         </div>
                                         <div className="space-y-2">
                                             {(Array.isArray(fee.items) ? fee.items : []).map((item, i) => (
                                                 <div key={i} className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/40 last:border-none">
                                                     <span className="text-[11px] font-black text-slate-950 dark:text-slate-50 uppercase tracking-wider">{item.name}</span>
-                                                    <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">KSH {(item.amount ?? 0).toLocaleString()}</span>
+                                                    <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">KSH {(item.amount ?? 0)?.toLocaleString()}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -2981,13 +2981,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                                 <div key={fee.id} className="bg-white dark:bg-slate-900/60 rounded-2xl px-4 py-3 border border-slate-100 dark:border-slate-700/50">
                                                                                     <div className="flex items-center justify-between mb-2">
                                                                                         <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest">{fee.className}</span>
-                                                                                        <span className="text-xs font-black text-emerald-600">KES {(fee.totalAmount ?? 0).toLocaleString()}</span>
+                                                                                        <span className="text-xs font-black text-emerald-600">KES {(fee.totalAmount ?? 0)?.toLocaleString()}</span>
                                                                                     </div>
                                                                                     <div className="space-y-1 mb-3">
                                                                                         {(Array.isArray(fee.items) ? fee.items : []).map((item: any, i: number) => (
                                                                                             <div key={i} className="flex items-center justify-between text-[10px]">
                                                                                                 <span className="text-slate-400 font-medium">{item.name}</span>
-                                                                                                <span className="text-slate-600 dark:text-slate-300 font-bold">KES {(item.amount ?? 0).toLocaleString()}</span>
+                                                                                                <span className="text-slate-600 dark:text-slate-300 font-bold">KES {(item.amount ?? 0)?.toLocaleString()}</span>
                                                                                             </div>
                                                                                         ))}
                                                                                     </div>
@@ -3313,7 +3313,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-black text-xs rounded-xl uppercase tracking-widest">Priority {vote.priority}</span>
                                                 {vote.allocatedAmount > 0 && (
-                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Budget: KES {(vote.allocatedAmount ?? 0).toLocaleString()}</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Budget: KES {(vote.allocatedAmount ?? 0)?.toLocaleString()}</span>
                                                 )}
                                             </div>
                                             <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{vote.name}</h4>

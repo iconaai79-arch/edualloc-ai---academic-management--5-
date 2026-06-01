@@ -75,7 +75,7 @@ export const FundraisingTracker: React.FC<FundraisingTrackerProps> = ({
                     <div className="absolute right-0 bottom-0 w-32 h-32 bg-white/5 rounded-full blur-xl"></div>
                     <div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Total Funds Pledged</span>
-                        <div className="text-3xl font-black mt-1">KES {metrics.total.toLocaleString()}</div>
+                        <div className="text-3xl font-black mt-1">KES {metrics.total?.toLocaleString()}</div>
                     </div>
                     <BanknotesIcon className="w-12 h-12 text-indigo-300/40" />
                 </div>
@@ -83,7 +83,7 @@ export const FundraisingTracker: React.FC<FundraisingTrackerProps> = ({
                     <div className="absolute right-0 bottom-0 w-32 h-32 bg-white/5 rounded-full blur-xl"></div>
                     <div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Total Collected</span>
-                        <div className="text-3xl font-black mt-1">KES {metrics.collected.toLocaleString()}</div>
+                        <div className="text-3xl font-black mt-1">KES {metrics.collected?.toLocaleString()}</div>
                     </div>
                     <CheckCircleIcon className="w-12 h-12 text-emerald-300/40" />
                 </div>
@@ -91,7 +91,7 @@ export const FundraisingTracker: React.FC<FundraisingTrackerProps> = ({
                     <div className="absolute right-0 bottom-0 w-32 h-32 bg-white/5 rounded-full blur-xl"></div>
                     <div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Outstanding Pledges</span>
-                        <div className="text-3xl font-black mt-1">KES {metrics.pending.toLocaleString()}</div>
+                        <div className="text-3xl font-black mt-1">KES {metrics.pending?.toLocaleString()}</div>
                     </div>
                     <div className="w-12 h-12 flex items-center justify-center bg-slate-700/40 rounded-full font-black text-xl text-slate-400">?</div>
                 </div>
@@ -182,7 +182,7 @@ export const FundraisingTracker: React.FC<FundraisingTrackerProps> = ({
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-xs font-black text-indigo-600 dark:text-indigo-400">KES {runner.totalRaised.toLocaleString()}</div>
+                                        <div className="text-xs font-black text-indigo-600 dark:text-indigo-400">KES {runner.totalRaised?.toLocaleString()}</div>
                                         <div className="text-[9px] text-slate-400">raised</div>
                                     </div>
                                 </div>
@@ -218,7 +218,7 @@ export const FundraisingTracker: React.FC<FundraisingTrackerProps> = ({
                                                     {runner ? `${runner.firstName} ${runner.lastName} (BIB ${runner.bibNumber})` : 'Unknown'}
                                                 </td>
                                                 <td className="py-2.5 font-bold text-slate-800 dark:text-white font-mono">
-                                                    KES {Number(pl.amount).toLocaleString()}
+                                                    KES {Number(pl.amount)?.toLocaleString()}
                                                 </td>
                                                 <td className="py-2.5">
                                                     {pl.paymentStatus === 'paid' ? (

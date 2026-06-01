@@ -113,7 +113,7 @@ export const RepairOrderManager: React.FC<RepairOrderManagerProps> = ({
                                             <p className="text-xs font-bold text-slate-500">Date IN: {new Date(ro.createdAt).toLocaleDateString()}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-lg font-black text-slate-900 dark:text-white">KES {((ro.estimatedTotal || 0)).toLocaleString()}</p>
+                                            <p className="text-lg font-black text-slate-900 dark:text-white">KES {((ro.estimatedTotal || 0))?.toLocaleString()}</p>
                                         </div>
                                     </div>
 

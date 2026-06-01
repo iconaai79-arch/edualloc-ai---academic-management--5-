@@ -183,7 +183,7 @@ export const SupplierView: React.FC<SupplierViewProps> = ({
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-xl font-bold text-slate-900 dark:text-white">KES {req.totalEstimatedCost.toLocaleString()}</p>
+                                                <p className="text-xl font-bold text-slate-900 dark:text-white">KES {req.totalEstimatedCost?.toLocaleString()}</p>
                                                 <p className="text-sm text-slate-500">{req.items.length} Items</p>
                                             </div>
                                         </div>
@@ -282,7 +282,7 @@ export const SupplierView: React.FC<SupplierViewProps> = ({
                                                         className="form-input w-32 py-1"
                                                     />
                                                 ) : (
-                                                    `KES ${si.price.toLocaleString()}`
+                                                    `KES ${si.price?.toLocaleString()}`
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-sm">

@@ -612,7 +612,7 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
                                                 onClick={() => setDonationAmount(amt)}
                                                 className={`flex-1 py-3 rounded-2xl font-black text-sm transition-all ${donationAmount === amt ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-700 hover:border-indigo-300'}`}
                                             >
-                                                {parseInt(amt).toLocaleString()}
+                                                {parseInt(amt)?.toLocaleString()}
                                             </button>
                                         ))}
                                     </div>

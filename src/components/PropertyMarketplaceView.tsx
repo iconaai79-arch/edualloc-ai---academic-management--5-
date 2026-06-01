@@ -302,7 +302,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             Name: ${inquiryName}
                             Phone: ${inquiryPhone}
                             Product: ${inquiryProduct.name}
-                            Price: KES ${Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0).toLocaleString()}
+                            Price: KES ${Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0)?.toLocaleString()}
                             
                             Please follow up with the lead.
                         `.trim();
@@ -537,7 +537,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                     <div className="mt-12 flex items-center gap-8 animate-fade-in-up delay-300">
                                         <p className="text-4xl md:text-6xl font-black text-white italic tracking-tighter shadow-indigo-500/50">
                                             <span className="text-xl font-medium not-italic mr-2 text-white/50">KES</span>
-                                            {Number(item.price || item.srpPrice || item.costPrice || 0).toLocaleString()}
+                                            {Number(item.price || item.srpPrice || item.costPrice || 0)?.toLocaleString()}
                                         </p>
                                         <button 
                                             onClick={() => item.type === 'property' ? setSelectedListing(item) : setSelectedProduct(item)}
@@ -959,7 +959,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Price Unit</p>
                                                     <p className="text-2xl font-black text-slate-900 dark:text-white italic mt-0.5">
                                                         <span className="text-xs font-medium not-italic mr-1 text-slate-400">KES</span>
-                                                        {Number(product.srpPrice || product.costPrice || 0).toLocaleString()}
+                                                        {Number(product.srpPrice || product.costPrice || 0)?.toLocaleString()}
                                                     </p>
                                                 </div>
                                                 <div className="w-11 h-11 bg-indigo-600 text-white rounded-2xl flex items-center justify-center group-hover:scale-110 group-hover:rotate-12 transition-all shadow-lg shadow-indigo-600/20">
@@ -1252,7 +1252,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                     <div className="flex items-baseline gap-2">
                                         <span className="text-sm font-medium text-slate-400 uppercase">KES</span>
                                         <p className="text-3xl font-black text-slate-900 dark:text-white italic tracking-tighter">
-                                            {Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0).toLocaleString()}
+                                            {Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0)?.toLocaleString()}
                                         </p>
                                     </div>
                                 </div>
@@ -1469,7 +1469,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                             <div className="space-y-6">
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Base Item</span>
-                                                    <span className="font-bold text-slate-900 dark:text-white italic">KES {Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0).toLocaleString()}</span>
+                                                    <span className="font-bold text-slate-900 dark:text-white italic">KES {Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0)?.toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">{selectedRate?.destination} Transit</span>
@@ -1478,7 +1478,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                                 <div className="h-px bg-slate-100 dark:bg-slate-800"></div>
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.3em]">Total Intelligence</span>
-                                                    <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {(Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0) + Number(selectedRate?.rate || 0)).toLocaleString()}</span>
+                                                    <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {(Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0) + Number(selectedRate?.rate || 0))?.toLocaleString()}</span>
                                                 </div>
                                             </div>
                                         </div>

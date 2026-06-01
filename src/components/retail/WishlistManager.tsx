@@ -289,7 +289,7 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                                 {lead.maxBudget && (
                                     <div className="flex flex-col items-end">
                                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Max Budget</p>
-                                        <span className="text-sm font-black text-slate-900 dark:text-white leading-tight">KES {lead.maxBudget.toLocaleString()}</span>
+                                        <span className="text-sm font-black text-slate-900 dark:text-white leading-tight">KES {lead.maxBudget?.toLocaleString()}</span>
                                     </div>
                                 )}
                             </div>

@@ -124,7 +124,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         isCompletedRef.current = true;
                         clearInterval(pollInterval);
                         setFinalStatus('completed');
-                        setStatusMessage(`Payment Confirmed! ${units.toLocaleString()} SMS units have been added to your balance.`);
+                        setStatusMessage(`Payment Confirmed! ${units?.toLocaleString()} SMS units have been added to your balance.`);
                         setIsLoading(false);
                         onPurchaseComplete(units);
                     } else if ((isFailed || attempts >= maxAttempts) && !isCompletedRef.current) {
@@ -263,10 +263,10 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                                 }`}
                                         >
                                             <span className={`text-base font-black tracking-tight ${units === pkg.units ? 'text-indigo-600' : 'text-slate-700 dark:text-slate-200'}`}>
-                                                {pkg.units.toLocaleString()}
+                                                {pkg.units?.toLocaleString()}
                                             </span>
                                             <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">
-                                                {pkg.units < minSmsUnits ? 'Disabled' : `KES ${(pkg.units * smsUnitPrice).toLocaleString()}`}
+                                                {pkg.units < minSmsUnits ? 'Disabled' : `KES ${(pkg.units * smsUnitPrice)?.toLocaleString()}`}
                                             </span>
                                             {units === pkg.units && (
                                                 <div className="absolute top-0 right-0 p-0.5 bg-indigo-600 rounded-bl-lg">
@@ -283,7 +283,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                         <div className="flex flex-col items-end">
                                             <span className="text-[9px] text-slate-400 font-bold uppercase">KES {smsUnitPrice}/Unit</span>
                                             {minSmsUnits > 0 && (
-                                                <span className="text-[9px] text-indigo-500 font-black uppercase tracking-tighter">Min: {minSmsUnits.toLocaleString()} Units</span>
+                                                <span className="text-[9px] text-indigo-500 font-black uppercase tracking-tighter">Min: {minSmsUnits?.toLocaleString()} Units</span>
                                             )}
                                         </div>
                                     </div>
@@ -325,7 +325,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                             <div className="flex items-center justify-between px-2 pt-2">
                                 <div>
                                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-0.5">Payable Amount</p>
-                                    <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">KES {calculatedTotal.toLocaleString()}</p>
+                                    <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">KES {calculatedTotal?.toLocaleString()}</p>
                                 </div>
                                 <button
                                     type="submit"

@@ -153,7 +153,7 @@ export const RiderPortal: React.FC<RiderPortalProps> = (props) => {
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Deliveries</p>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    {stats.totalDeliveries.toLocaleString()}
+                                    {stats.totalDeliveries?.toLocaleString()}
                                 </h3>
                             </div>
 
@@ -163,7 +163,7 @@ export const RiderPortal: React.FC<RiderPortalProps> = (props) => {
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Volume</p>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    {stats.totalQty.toLocaleString()} <span className="text-xs text-slate-400 font-bold ml-1">Units</span>
+                                    {stats.totalQty?.toLocaleString()} <span className="text-xs text-slate-400 font-bold ml-1">Units</span>
                                 </h3>
                             </div>
 
@@ -173,7 +173,7 @@ export const RiderPortal: React.FC<RiderPortalProps> = (props) => {
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SACCO Balance</p>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    KES {stats.saccoBalance.toLocaleString()}
+                                    KES {stats.saccoBalance?.toLocaleString()}
                                 </h3>
                             </div>
 
@@ -306,7 +306,7 @@ export const RiderPortal: React.FC<RiderPortalProps> = (props) => {
                                          <ArrowUpRight className="w-10 h-10 text-slate-100 dark:text-slate-800 transition-colors group-hover:text-orange-500" />
                                      </div>
                                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">{acc.accountType} ACCOUNT</p>
-                                     <h4 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {acc.balance.toLocaleString()}</h4>
+                                     <h4 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {acc.balance?.toLocaleString()}</h4>
                                      <div className="flex gap-4">
                                          <span className="px-4 py-1.5 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-[9px] font-black uppercase tracking-widest rounded-full">{acc.status}</span>
                                      </div>
@@ -341,7 +341,7 @@ export const RiderPortal: React.FC<RiderPortalProps> = (props) => {
                                                 <td className={`py-4 px-8 text-sm font-black ${
                                                     txn.transactionType === 'deposit' || txn.transactionType === 'dividend' ? 'text-emerald-600' : 'text-red-600'
                                                 }`}>
-                                                    {txn.transactionType === 'deposit' || txn.transactionType === 'dividend' ? '+' : '-'} {txn.amount.toLocaleString()}
+                                                    {txn.transactionType === 'deposit' || txn.transactionType === 'dividend' ? '+' : '-'} {txn.amount?.toLocaleString()}
                                                 </td>
                                             </tr>
                                         ))}
@@ -377,7 +377,7 @@ export const RiderPortal: React.FC<RiderPortalProps> = (props) => {
                                          }`}>{payout.status}</span>
                                      </div>
                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{payout.payoutMonth}</p>
-                                     <h4 className="text-lg font-black text-slate-900 dark:text-white tracking-tight mb-4 text-glow">KES {payout.netPayout.toLocaleString()}</h4>
+                                     <h4 className="text-lg font-black text-slate-900 dark:text-white tracking-tight mb-4 text-glow">KES {payout.netPayout?.toLocaleString()}</h4>
                                      
                                      <div className="pt-4 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
                                          <button className="text-[9px] font-black text-orange-600 uppercase tracking-widest hover:underline flex items-center gap-2">

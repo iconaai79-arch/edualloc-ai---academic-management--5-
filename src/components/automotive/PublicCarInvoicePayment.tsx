@@ -153,7 +153,7 @@ export const PublicCarInvoicePayment: React.FC<PublicCarInvoicePaymentProps> = (
                 if (statusRes.success && (statusRes.status === 'Completed' || statusRes.status === 'Success' || statusRes.resultCode === '0')) {
                     clearInterval(interval);
                     setPaymentStatus('completed');
-                    setStatusMessage(`Payment confirmed! KES ${parseFloat(amount).toLocaleString()} received successfully.`);
+                    setStatusMessage(`Payment confirmed! KES ${parseFloat(amount)?.toLocaleString()} received successfully.`);
                     setPaying(false);
 
                     // Re-load invoice to show updated balance
@@ -193,7 +193,7 @@ export const PublicCarInvoicePayment: React.FC<PublicCarInvoicePaymentProps> = (
             return;
         }
         if (invoice && parseFloat(amount) > invoice.balanceAmount) {
-            alert(`Amount exceeds outstanding balance of KES ${invoice.balanceAmount.toLocaleString()}.`);
+            alert(`Amount exceeds outstanding balance of KES ${invoice.balanceAmount?.toLocaleString()}.`);
             return;
         }
 
@@ -357,11 +357,11 @@ export const PublicCarInvoicePayment: React.FC<PublicCarInvoicePaymentProps> = (
                         <div className="flex justify-between items-end">
                             <div>
                                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Paid to Date</p>
-                                <p className="text-2xl font-black text-emerald-500">KES {invoice.paidAmount.toLocaleString()}</p>
+                                <p className="text-2xl font-black text-emerald-500">KES {invoice.paidAmount?.toLocaleString()}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Valuation</p>
-                                <p className="text-lg font-black text-slate-400">KES {invoice.totalAmount.toLocaleString()}</p>
+                                <p className="text-lg font-black text-slate-400">KES {invoice.totalAmount?.toLocaleString()}</p>
                             </div>
                         </div>
 
@@ -373,7 +373,7 @@ export const PublicCarInvoicePayment: React.FC<PublicCarInvoicePaymentProps> = (
                         </div>
                         <div className="flex justify-between text-[9px] font-black text-slate-500 uppercase tracking-widest">
                             <span>{paidPercentage}% Paid</span>
-                            <span>KES {outstandingBalance.toLocaleString()} Remaining</span>
+                            <span>KES {outstandingBalance?.toLocaleString()} Remaining</span>
                         </div>
                     </div>
                 </div>

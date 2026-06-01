@@ -92,21 +92,21 @@ const AnimatedProfitBar = ({ d, i, maxGraphValue }: { d: any, i: number, maxGrap
                 <div className="relative w-8 sm:w-12 bg-emerald-100 dark:bg-emerald-900/40 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: `${revHeight}%` }}>
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-emerald-600 to-teal-400 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: '100%' }} />
                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-slate-800 text-white text-[10px] font-black px-2 py-1 rounded">
-                        Rev: KES {d.revenue.toLocaleString()}
+                        Rev: KES {d.revenue?.toLocaleString()}
                     </div>
                 </div>
                 {/* Expense Bar */}
                 <div className="relative w-8 sm:w-12 bg-red-100 dark:bg-red-900/40 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: `${expHeight}%` }}>
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-red-500 to-orange-400 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: '100%' }} />
                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-slate-800 text-white text-[10px] font-black px-2 py-1 rounded">
-                        Exp: KES {d.expense.toLocaleString()}
+                        Exp: KES {d.expense?.toLocaleString()}
                     </div>
                 </div>
             </div>
             <div className="mt-4 text-center">
                 <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{d.label}</p>
                 <p className={`text-[10px] font-black mt-1 ${d.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {d.profit >= 0 ? '+' : ''}KES {d.profit.toLocaleString()}
+                    {d.profit >= 0 ? '+' : ''}KES {d.profit?.toLocaleString()}
                 </p>
             </div>
         </div>
@@ -835,7 +835,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             // Notify customer when car is ready and in waiting bay
             const customer = customers.find(c => c.id === job.customerId);
             if (customer && customer.phoneNumber) {
-                const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is complete and ready in the waiting bay! Please proceed to checkout. Amount due: KES ${(job.amountCharged || 0).toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
+                const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is complete and ready in the waiting bay! Please proceed to checkout. Amount due: KES ${(job.amountCharged || 0)?.toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
                 try {
                     await onSendSms(customer.phoneNumber, message, smsConfig, 1, institutionId);
                 } catch (e) {
@@ -1085,16 +1085,16 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     
                     VEHICLE: ${job.vehiclePlate} (${job.vehicleType})
                     SERVICE: ${job.packageName}
-                    TOTAL VALUE: KES ${job.amountCharged.toLocaleString()}
-                    ${discountApplied > 0 ? `LOYALTY DISCOUNT: -KES ${discountApplied.toLocaleString()}` : ''}
-                    FINAL PAID: KES ${finalAmountToPay.toLocaleString()}
+                    TOTAL VALUE: KES ${job.amountCharged?.toLocaleString()}
+                    ${discountApplied > 0 ? `LOYALTY DISCOUNT: -KES ${discountApplied?.toLocaleString()}` : ''}
+                    FINAL PAID: KES ${finalAmountToPay?.toLocaleString()}
                     PAYMENT METHOD: ${method.toUpperCase()}
                     DATE: ${new Date().toLocaleDateString()}
                     
                     INVOICE NO: ${invNumber}
                     RECEIPT NO: ${rcptNumber}
                     
-                    Your new Loyalty Points balance is: ${((customer.loyaltyPoints || 0) + (finalAmountToPay * (carWashSettings?.pointsPerKes ?? 1)) - (discountApplied / (carWashSettings?.redeemValuePerPoint ?? 1))).toLocaleString()} PTS
+                    Your new Loyalty Points balance is: ${((customer.loyaltyPoints || 0) + (finalAmountToPay * (carWashSettings?.pointsPerKes ?? 1)) - (discountApplied / (carWashSettings?.redeemValuePerPoint ?? 1)))?.toLocaleString()} PTS
                     
                     We appreciate your business!
                     
@@ -1183,7 +1183,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
             // Automated SMS Notification (Payment Confirmation)
             if (customer && customer.phoneNumber) {
-                const message = `Payment Received! KES ${(job.amountCharged || 0).toLocaleString()} for ${job.packageName} (${job.vehiclePlate}). Receipt: ${rcptNumber}. Thank you for choosing ${currentInstitution.name}!`;
+                const message = `Payment Received! KES ${(job.amountCharged || 0)?.toLocaleString()} for ${job.packageName} (${job.vehiclePlate}). Receipt: ${rcptNumber}. Thank you for choosing ${currentInstitution.name}!`;
                 try {
                     await onSendSms(customer.phoneNumber, message, smsConfig, 1, institutionId);
                 } catch (e) {
@@ -1664,7 +1664,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             );
 
             setShowBulkPayrollModal(false);
-            alert(`Successfully processed payroll for ${newPayrolls.length} attendants. Total disbursed: KES ${totalDisbursed.toLocaleString()}`);
+            alert(`Successfully processed payroll for ${newPayrolls.length} attendants. Total disbursed: KES ${totalDisbursed?.toLocaleString()}`);
             loadData();
         } catch (e: any) {
             alert(`Failed: ${e.message}`);
@@ -1774,7 +1774,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     <div className="space-y-6">
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             {[
-                                { label: "Today's Revenue", value: `KES ${todayRevenue.toLocaleString()}`, sub: `${todayJobs.filter(j => j.status === 'completed').length} washes`, color: 'from-emerald-500 to-teal-600' },
+                                { label: "Today's Revenue", value: `KES ${todayRevenue?.toLocaleString()}`, sub: `${todayJobs.filter(j => j.status === 'completed').length} washes`, color: 'from-emerald-500 to-teal-600' },
                                 { label: 'Active Queue', value: activeJobs.length, sub: `${jobs.filter(j => j.status === 'in_progress').length} in bays, ${jobs.filter(j => j.status === 'ready').length} waiting`, color: 'from-blue-500 to-cyan-600' },
                                 { label: 'Total Customers', value: customers.length, sub: `${vehicles.length} vehicles registered`, color: 'from-violet-500 to-purple-600' },
                                 { label: 'Avg Rating', value: `${avgRating} ★`, sub: `${feedbacks.length} reviews`, color: 'from-amber-500 to-orange-600' },
@@ -1819,7 +1819,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${statusColor[job.status]}`}>{job.status.replace('_', ' ')}</span>
-                                            <span className="text-sm font-black text-emerald-600">KES {getJobTabTotal(job).toLocaleString()}</span>
+                                            <span className="text-sm font-black text-emerald-600">KES {getJobTabTotal(job)?.toLocaleString()}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -1852,7 +1852,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                         <p className="text-[10px] text-slate-400">{job.packageName} · Bay {job.bayNumber}</p>
                                                         <p className="text-[10px] text-slate-400">{job.attendantName || 'Unassigned'}</p>
                                                     </div>
-                                                    <p className="font-black text-emerald-600 text-sm">KES {getJobTabTotal(job).toLocaleString()}</p>
+                                                    <p className="font-black text-emerald-600 text-sm">KES {getJobTabTotal(job)?.toLocaleString()}</p>
                                                 </div>
                                                 <div className="flex gap-1 mt-2">
                                                     {status === 'queued' && <button onClick={() => updateJobStatus(job, 'in_progress')} className="flex-1 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase">Start</button>}
@@ -1959,7 +1959,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                             <p className="text-xs text-slate-400 mb-3">{pkg.description}</p>
                                             <div className="space-y-1">
                                                 {Object.entries(pkg.pricing).map(([type, price]) => (
-                                                    <div key={type} className="flex justify-between text-xs"><span className="font-semibold">{type}</span><span className="font-black text-emerald-600">KES {(price as number).toLocaleString()}</span></div>
+                                                    <div key={type} className="flex justify-between text-xs"><span className="font-semibold">{type}</span><span className="font-black text-emerald-600">KES {(price as number)?.toLocaleString()}</span></div>
                                                 ))}
                                             </div>
                                             {pkg.includesInterior && <p className="text-[9px] font-black text-cyan-600 mt-2 uppercase">✓ Includes Interior Cleaning</p>}
@@ -1996,7 +1996,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         </div>
                                         <p className="text-[10px] text-slate-400 mb-2 truncate" title={ao.description}>{ao.description || 'No description'}</p>
                                         <div className="flex justify-between items-center mt-auto">
-                                            <span className="text-base font-black text-cyan-600">KES {ao.price.toLocaleString()}</span>
+                                            <span className="text-base font-black text-cyan-600">KES {ao.price?.toLocaleString()}</span>
                                             {!ao.isActive && <span className="text-[8px] font-black uppercase px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded">Inactive</span>}
                                         </div>
                                     </div>
@@ -2200,7 +2200,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         ].map(period => (
                                             <div key={period.label} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
                                                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{period.label} Revenue</p>
-                                                <p className="text-3xl font-black text-emerald-600 mt-1">KES {period.jobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}</p>
+                                                <p className="text-3xl font-black text-emerald-600 mt-1">KES {period.jobs.reduce((s, j) => s + (j.amountPaid || 0), 0)?.toLocaleString()}</p>
                                                 <p className="text-xs font-bold text-slate-400 mt-1">{period.jobs.length} washes completed</p>
                                             </div>
                                         ))}
@@ -2216,7 +2216,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                     if (rev === 0) return null;
                                                     return (
                                                         <div key={pkg.id}>
-                                                            <div className="flex justify-between text-xs font-black mb-1.5 uppercase"><span>{pkg.name}</span><span className="text-emerald-600">KES {rev.toLocaleString()}</span></div>
+                                                            <div className="flex justify-between text-xs font-black mb-1.5 uppercase"><span>{pkg.name}</span><span className="text-emerald-600">KES {rev?.toLocaleString()}</span></div>
                                                             <div className="h-3 bg-slate-50 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-100 dark:border-slate-800"><div className="h-full rounded-full transition-all duration-1000" style={{ width: `${(rev / maxRev) * 100}%`, background: pkg.color || '#06b6d4' }} /></div>
                                                         </div>
                                                     );
@@ -2239,7 +2239,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                             <div className="flex-1">
                                                                 <div className="flex justify-between items-end mb-1">
                                                                     <span className="text-xs font-black uppercase">{method}</span>
-                                                                    <span className="text-sm font-black">KES {rev.toLocaleString()}</span>
+                                                                    <span className="text-sm font-black">KES {rev?.toLocaleString()}</span>
                                                                 </div>
                                                                 <div className="h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
                                                                     <div className={`h-full rounded-full ${method === 'mpesa' ? 'bg-emerald-500' : 'bg-slate-400'}`} style={{ width: `${percentage}%` }} />
@@ -2296,8 +2296,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                                 </div>
                                                             </td>
                                                             <td className="px-6 py-4 text-center font-black">{attJobs.length}</td>
-                                                            <td className="px-6 py-4 text-right font-bold text-emerald-600">KES {rev.toLocaleString()}</td>
-                                                            <td className="px-6 py-4 text-right font-bold text-purple-600">KES {comm.toLocaleString()}</td>
+                                                            <td className="px-6 py-4 text-right font-bold text-emerald-600">KES {rev?.toLocaleString()}</td>
+                                                            <td className="px-6 py-4 text-right font-bold text-purple-600">KES {comm?.toLocaleString()}</td>
                                                             <td className="px-6 py-4 text-center">
                                                                 <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg font-black text-xs">{rating} ★</span>
                                                             </td>
@@ -2324,7 +2324,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                             <span className="text-xs font-black text-slate-300">#{idx + 1}</span>
                                                             <div><p className="font-black text-sm">{cust.name}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{cust.washCount} washes</p></div>
                                                         </div>
-                                                        <div className="text-right"><p className="text-sm font-black text-emerald-600">KES {cust.totalSpent.toLocaleString()}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{cust.loyaltyStamps} Loyalty Points</p></div>
+                                                        <div className="text-right"><p className="text-sm font-black text-emerald-600">KES {cust.totalSpent?.toLocaleString()}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{cust.loyaltyStamps} Loyalty Points</p></div>
                                                     </div>
                                                 ))}
                                         </div>
@@ -2387,7 +2387,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 return (
                                                     <div key={ao.id} className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center">
                                                         <div><p className="font-black text-xs uppercase">{ao.name}</p><p className="text-[10px] font-bold text-slate-400">{usageCount} attachments</p></div>
-                                                        <p className="text-sm font-black text-cyan-600">KES {addOnRev.toLocaleString()}</p>
+                                                        <p className="text-sm font-black text-cyan-600">KES {addOnRev?.toLocaleString()}</p>
                                                     </div>
                                                 );
                                             })}
@@ -2531,12 +2531,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             <div className="flex gap-4 items-center">
                                 <div className="text-right">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Collected</p>
-                                    <p className="text-2xl font-black text-emerald-600">KES {transactions.filter(t => t.status === 'completed').reduce((s, t) => s + (t.amount || 0), 0).toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-emerald-600">KES {transactions.filter(t => t.status === 'completed').reduce((s, t) => s + (t.amount || 0), 0)?.toLocaleString()}</p>
                                 </div>
                                 <div className="w-px h-10 bg-slate-200 dark:bg-slate-700"></div>
                                 <div className="text-right">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pending</p>
-                                    <p className="text-2xl font-black text-amber-500">KES {transactions.filter(t => t.status === 'pending').reduce((s, t) => s + (t.amount || 0), 0).toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-amber-500">KES {transactions.filter(t => t.status === 'pending').reduce((s, t) => s + (t.amount || 0), 0)?.toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>
@@ -2559,7 +2559,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <p className="font-black text-slate-700 dark:text-slate-200">{t.phoneNumber}</p>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.description}</p>
                                             </td>
-                                            <td className="px-8 py-5 font-black text-emerald-600">KES {(t.amount || 0).toLocaleString()}</td>
+                                            <td className="px-8 py-5 font-black text-emerald-600">KES {(t.amount || 0)?.toLocaleString()}</td>
                                             <td className="px-8 py-5">
                                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${t.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                                                     t.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
@@ -2567,7 +2567,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                     {t.status}
                                                 </span>
                                             </td>
-                                            <td className="px-8 py-5 text-xs font-bold text-slate-400">{new Date(t.timestamp).toLocaleString()}</td>
+                                            <td className="px-8 py-5 text-xs font-bold text-slate-400">{new Date(t.timestamp)?.toLocaleString()}</td>
                                         </tr>
                                     ))}
                                     {transactions.length === 0 && (
@@ -2601,7 +2601,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-sm font-bold">
                                         <span className="text-slate-500">{showCheckoutModal.packageName} ({showCheckoutModal.vehicleType})</span>
-                                        <span className="text-slate-700 dark:text-white">KES ${(showCheckoutModal.amountCharged || 0).toLocaleString()}</span>
+                                        <span className="text-slate-700 dark:text-white">KES ${(showCheckoutModal.amountCharged || 0)?.toLocaleString()}</span>
                                     </div>
                                     {showCheckoutModal.addOns.map(ao => (
                                         <div key={ao} className="flex justify-between text-xs font-bold text-slate-400">
@@ -2612,12 +2612,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     {checkoutOrders.flatMap(s => s.items).map((item, idx) => (
                                         <div key={idx} className="flex justify-between text-xs font-bold text-slate-400">
                                             <span>+ {item.name} (Tab)</span>
-                                            <span>KES {(item.quantity * item.unitPrice).toLocaleString()}</span>
+                                            <span>KES {(item.quantity * item.unitPrice)?.toLocaleString()}</span>
                                         </div>
                                     ))}
                                     <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                         <span className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-widest">Total Payable</span>
-                                        <span className="text-2xl font-black text-emerald-600">KES {checkoutGrandTotal.toLocaleString()}</span>
+                                        <span className="text-2xl font-black text-emerald-600">KES {checkoutGrandTotal?.toLocaleString()}</span>
                                     </div>
                                 </div>
                             </div>
@@ -2636,7 +2636,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <div>
                                                     <h4 className="text-sm font-black text-amber-900 dark:text-amber-400 uppercase tracking-tight">Loyalty Reward Available</h4>
                                                     <p className="text-[10px] font-bold text-amber-700 dark:text-amber-500/80 uppercase tracking-widest mt-0.5">
-                                                        Customer has {(customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0).toLocaleString()} points
+                                                        Customer has {(customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0)?.toLocaleString()} points
                                                     </p>
                                                 </div>
                                             </div>
@@ -2653,7 +2653,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         {useLoyaltyPoints && (
                                             <div className="mt-4 pt-4 border-t border-amber-200/50 dark:border-amber-800/50 flex justify-between items-center animate-in slide-in-from-top-2">
                                                 <span className="text-xs font-black text-amber-800 dark:text-amber-500 uppercase tracking-widest">Discount Applied:</span>
-                                                <span className="text-lg font-black text-rose-600">- KES {Math.min(checkoutGrandTotal, customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0).toLocaleString()}</span>
+                                                <span className="text-lg font-black text-rose-600">- KES {Math.min(checkoutGrandTotal, customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0)?.toLocaleString()}</span>
                                             </div>
                                         )}
                                     </div>
@@ -2663,7 +2663,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <div className="flex justify-between items-center px-4 py-3 bg-slate-900 text-white rounded-2xl">
                                         <span className="text-xs font-black uppercase tracking-widest text-slate-400">Final Amount Required:</span>
                                         <span className="text-xl font-black text-emerald-400">
-                                            KES {Math.max(0, checkoutGrandTotal - (customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0)).toLocaleString()}
+                                            KES {Math.max(0, checkoutGrandTotal - (customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0))?.toLocaleString()}
                                         </span>
                                     </div>
                                 )}
@@ -3006,27 +3006,27 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         <>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-slate-400">
                                                 <span>Gross Pay:</span>
-                                                <span className="text-slate-600 dark:text-slate-200">KES {(gross || 0).toLocaleString()}</span>
+                                                <span className="text-slate-600 dark:text-slate-200">KES {(gross || 0)?.toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
                                                 <span>NSSF Deduction:</span>
-                                                <span>-KES {(nssf || 0).toLocaleString()}</span>
+                                                <span>-KES {(nssf || 0)?.toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
                                                 <span>SHIF Deduction (2.75%):</span>
-                                                <span>-KES {(shif || 0).toLocaleString()}</span>
+                                                <span>-KES {(shif || 0)?.toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
                                                 <span>Housing Levy (1.5%):</span>
-                                                <span>-KES {(housingLevy || 0).toLocaleString()}</span>
+                                                <span>-KES {(housingLevy || 0)?.toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
                                                 <span>PAYE (Net of Relief):</span>
-                                                <span>-KES {(paye || 0).toLocaleString()}</span>
+                                                <span>-KES {(paye || 0)?.toLocaleString()}</span>
                                             </div>
                                             <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                                 <span className="text-xs font-black uppercase">Net Take-Home:</span>
-                                                <span className="text-xl font-black text-blue-600">KES {(net || 0).toLocaleString()}</span>
+                                                <span className="text-xl font-black text-blue-600">KES {(net || 0)?.toLocaleString()}</span>
                                             </div>
                                         </>
                                     );
@@ -3057,10 +3057,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             {/* Top Level Finance Metrics Dashboard */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                 {[
-                                    { title: 'Total Revenue', value: `KES ${journalLines.filter(l => l.credit > 0 && accounts.find(a => a.id === l.accountId)?.accountCode === '4000').reduce((s, l) => s + l.credit, 0).toLocaleString()}`, icon: <CurrencyIcon className="w-6 h-6 text-emerald-500" />, bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-                                    { title: 'Total Expenses', value: `KES ${journalLines.filter(l => l.debit > 0 && accounts.find(a => a.id === l.accountId)?.type === 'Expense').reduce((s, l) => s + l.debit, 0).toLocaleString()}`, icon: <ChartPieIcon className="w-6 h-6 text-rose-500" />, bg: 'bg-rose-50 dark:bg-rose-900/20' },
-                                    { title: 'Payroll Disbursed', value: `KES ${payroll.filter(p => p.status === 'paid').reduce((s, p) => s + p.totalPay, 0).toLocaleString()}`, icon: <UserGroupIcon className="w-6 h-6 text-blue-500" />, bg: 'bg-blue-50 dark:bg-blue-900/20' },
-                                    { title: 'Cash on Hand', value: `KES ${journalLines.filter(l => accounts.find(a => a.id === l.accountId)?.accountCode === '1000').reduce((s, l) => s + (l.debit - l.credit), 0).toLocaleString()}`, icon: <BanknotesIcon className="w-6 h-6 text-amber-500" />, bg: 'bg-amber-50 dark:bg-amber-900/20' }
+                                    { title: 'Total Revenue', value: `KES ${journalLines.filter(l => l.credit > 0 && accounts.find(a => a.id === l.accountId)?.accountCode === '4000').reduce((s, l) => s + l.credit, 0)?.toLocaleString()}`, icon: <CurrencyIcon className="w-6 h-6 text-emerald-500" />, bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                                    { title: 'Total Expenses', value: `KES ${journalLines.filter(l => l.debit > 0 && accounts.find(a => a.id === l.accountId)?.type === 'Expense').reduce((s, l) => s + l.debit, 0)?.toLocaleString()}`, icon: <ChartPieIcon className="w-6 h-6 text-rose-500" />, bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                                    { title: 'Payroll Disbursed', value: `KES ${payroll.filter(p => p.status === 'paid').reduce((s, p) => s + p.totalPay, 0)?.toLocaleString()}`, icon: <UserGroupIcon className="w-6 h-6 text-blue-500" />, bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                                    { title: 'Cash on Hand', value: `KES ${journalLines.filter(l => accounts.find(a => a.id === l.accountId)?.accountCode === '1000').reduce((s, l) => s + (l.debit - l.credit), 0)?.toLocaleString()}`, icon: <BanknotesIcon className="w-6 h-6 text-amber-500" />, bg: 'bg-amber-50 dark:bg-amber-900/20' }
                                 ].map((stat, idx) => (
                                     <div key={idx} className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-all">
                                         <div className="flex items-center gap-4">
@@ -3115,7 +3115,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <p className="font-black text-sm">{acc.name}</p>
                                             </div>
                                             <p className={`font-black ${(acc.balance || 0) < 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
-                                                {(acc.balance || 0).toLocaleString()}
+                                                {(acc.balance || 0)?.toLocaleString()}
                                             </p>
                                         </div>
                                     ))}
@@ -3188,10 +3188,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                                     {accounts.find(a => a.id === line.accountId)?.name || 'Unknown Account'}
                                                                 </td>
                                                                 <td className="px-6 py-3 text-right font-black text-emerald-600">
-                                                                    {line.debit > 0 ? line.debit.toLocaleString() : ''}
+                                                                    {line.debit > 0 ? line.debit?.toLocaleString() : ''}
                                                                 </td>
                                                                 <td className="px-6 py-3 text-right font-black text-rose-500">
-                                                                    {line.credit > 0 ? line.credit.toLocaleString() : ''}
+                                                                    {line.credit > 0 ? line.credit?.toLocaleString() : ''}
                                                                 </td>
                                                             </tr>
                                                         ));
@@ -3220,8 +3220,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                             return (
                                                 <tr>
                                                     <td colSpan={3} className="px-6 py-4 text-right text-xs uppercase tracking-widest text-slate-500">Running Total / Period Balance:</td>
-                                                    <td className="px-6 py-4 text-right text-emerald-600">{totalDebit.toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-right text-rose-500">{totalCredit.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right text-emerald-600">{totalDebit?.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right text-rose-500">{totalCredit?.toLocaleString()}</td>
                                                 </tr>
                                             );
                                         })()}
@@ -3266,7 +3266,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <td className="px-6 py-4"><span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-black uppercase text-slate-500">{exp.category}</span></td>
                                                 <td className="px-6 py-4 font-semibold">{exp.description}</td>
                                                 <td className="px-6 py-4 capitalize text-slate-500 font-medium">{exp.paymentMethod.replace('_', ' ')}</td>
-                                                <td className="px-6 py-4 text-right font-black text-rose-500">{(exp.amount || 0).toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-right font-black text-rose-500">{(exp.amount || 0)?.toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-2 text-slate-400">
                                                         <button onClick={() => handleEditExpense(exp)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg hover:text-indigo-600 transition-all" title="Edit Expense">
@@ -3332,10 +3332,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <tr key={pr.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                                                     <td className="px-6 py-4 font-bold text-slate-500">{new Date(pr.periodStart).toLocaleDateString()} - {new Date(pr.periodEnd).toLocaleDateString()}</td>
                                                     <td className="px-6 py-4 font-black">{staff?.name || 'Unknown Staff'}</td>
-                                                    <td className="px-6 py-4 text-right font-medium text-slate-500">{(pr.baseSalary || 0).toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-right font-medium text-emerald-600">+{(pr.commissionEarned || 0).toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-right font-medium text-rose-500">-{(pr.deductions || 0).toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-right font-black text-blue-600">{(pr.totalPay || 0).toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-slate-500">{(pr.baseSalary || 0)?.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-emerald-600">+{(pr.commissionEarned || 0)?.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-rose-500">-{(pr.deductions || 0)?.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-black text-blue-600">{(pr.totalPay || 0)?.toLocaleString()}</td>
                                                     <td className="px-6 py-4 text-center">
                                                         <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${pr.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                                             {pr.status}
@@ -3513,8 +3513,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                             <div>
                                                 <p className="text-[10px] font-black uppercase text-emerald-700 tracking-widest mb-1">Ecosystem Math</p>
                                                 <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed font-medium italic">
-                                                    A KES 1,000 wash will award <span className="font-black">{(1000 * (settingsForm.pointsPerKes || 0)).toLocaleString()} points</span>.
-                                                    Redeeming them later gives a <span className="font-black">KES {(1000 * (settingsForm.pointsPerKes || 0) * (settingsForm.redeemValuePerPoint || 0)).toLocaleString()}</span> discount.
+                                                    A KES 1,000 wash will award <span className="font-black">{(1000 * (settingsForm.pointsPerKes || 0))?.toLocaleString()} points</span>.
+                                                    Redeeming them later gives a <span className="font-black">KES {(1000 * (settingsForm.pointsPerKes || 0) * (settingsForm.redeemValuePerPoint || 0))?.toLocaleString()}</span> discount.
                                                 </p>
                                             </div>
                                         </div>
@@ -3591,7 +3591,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                         <td className="px-6 py-4 text-center">
                                                             <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg font-bold text-slate-500 text-xs">{attendantJobs.length} washes</span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-right font-black text-emerald-600 text-base">KES {comm.toLocaleString()}</td>
+                                                        <td className="px-6 py-4 text-right font-black text-emerald-600 text-base">KES {comm?.toLocaleString()}</td>
                                                     </tr>
                                                 );
                                             })}

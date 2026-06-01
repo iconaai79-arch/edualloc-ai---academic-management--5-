@@ -201,7 +201,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
 
             if (request.parentEmail) {
                 const subject = `Student Checkout Notification - ${currentInstitution.name} `;
-                const emailMsg = `Dear Parent, \n\nThis is to notify you that ${request.studentName} has checked out of the school gate at ${new Date(now).toLocaleString()} for their scheduled leave out.\n\nPlease find the attached permission sheet for your reference.\n\nRegards, \n${currentInstitution.name} `;
+                const emailMsg = `Dear Parent, \n\nThis is to notify you that ${request.studentName} has checked out of the school gate at ${new Date(now)?.toLocaleString()} for their scheduled leave out.\n\nPlease find the attached permission sheet for your reference.\n\nRegards, \n${currentInstitution.name} `;
 
                 // Generate PDF
                 const docUri = await generateLeaveOutSheetPdf(

@@ -94,8 +94,8 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
     }, [currentUser, isCarWash, isAutoSales]);
 
     const stats = [
-        { label: 'Wallet Balance', value: `KES ${walletBalance.toLocaleString()}`, icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-        { label: 'Loyalty Points', value: points.toLocaleString(), icon: Gift, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { label: 'Wallet Balance', value: `KES ${walletBalance?.toLocaleString()}`, icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+        { label: 'Loyalty Points', value: points?.toLocaleString(), icon: Gift, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: isCarWash ? 'Total Visits' : 'Total Orders', value: '12', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
     ];
 
@@ -176,7 +176,7 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                                                             <p className="text-slate-500 text-sm">Status: <span className="uppercase font-bold text-indigo-500">{invoice.status.replace('_', ' ')}</span></p>
                                                         </div>
                                                         <div className="text-right">
-                                                            <p className="text-2xl font-black text-slate-900 dark:text-white">KES {invoice.totalAmount.toLocaleString()}</p>
+                                                            <p className="text-2xl font-black text-slate-900 dark:text-white">KES {invoice.totalAmount?.toLocaleString()}</p>
                                                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Valuation</p>
                                                         </div>
                                                     </div>
@@ -184,11 +184,11 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                                                         <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Paid Amount</p>
-                                                            <p className="text-xl font-black text-emerald-500">KES {invoice.paidAmount.toLocaleString()}</p>
+                                                            <p className="text-xl font-black text-emerald-500">KES {invoice.paidAmount?.toLocaleString()}</p>
                                                         </div>
                                                         <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining Balance</p>
-                                                            <p className="text-xl font-black text-rose-500">KES {invoice.balanceAmount.toLocaleString()}</p>
+                                                            <p className="text-xl font-black text-rose-500">KES {invoice.balanceAmount?.toLocaleString()}</p>
                                                         </div>
                                                         <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Progress</p>
@@ -238,7 +238,7 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                                                                         <tr key={payment.id}>
                                                                             <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-400">{new Date(payment.paymentDate).toLocaleDateString()}</td>
                                                                             <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-white uppercase">{payment.receiptNumber}</td>
-                                                                            <td className="px-6 py-4 text-xs font-black text-emerald-600 text-right">KES {payment.amount.toLocaleString()}</td>
+                                                                            <td className="px-6 py-4 text-xs font-black text-emerald-600 text-right">KES {payment.amount?.toLocaleString()}</td>
                                                                         </tr>
                                                                     ))}
                                                                     {carPayments.filter(p => p.invoiceId === invoice.id).length === 0 && (
@@ -374,7 +374,7 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                     <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-6 text-white mb-6 shadow-xl shadow-indigo-100 relative overflow-hidden">
                                 <div className="relative z-10">
                                     <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest mb-1">Available Balance</p>
-                                    <p className="text-3xl font-black mb-6">KES {walletBalance.toLocaleString()}</p>
+                                    <p className="text-3xl font-black mb-6">KES {walletBalance?.toLocaleString()}</p>
                                     <button
                                         onClick={handleTopUp}
                                         className="w-full py-3 bg-white text-indigo-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 transition-all flex items-center justify-center gap-2"

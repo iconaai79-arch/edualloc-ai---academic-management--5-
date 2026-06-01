@@ -167,7 +167,7 @@ export const PoliticalMetadataManager: React.FC = () => {
                                 <div className="bg-indigo-50 dark:bg-indigo-950/30 px-6 py-3 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
                                     <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-0.5">County Total</span>
                                     <span className="text-lg font-black text-indigo-600 dark:text-indigo-400 leading-none">
-                                        {getCountyVoters(selectedCounty).toLocaleString()}
+                                        {getCountyVoters(selectedCounty)?.toLocaleString()}
                                     </span>
                                 </div>
                             )}
@@ -250,7 +250,7 @@ export const PoliticalMetadataManager: React.FC = () => {
                             <div className="text-right">
                                 <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-1">Total Voters</span>
                                 <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm leading-none inline-block">
-                                    {getCountyVoters(c.id).toLocaleString()}
+                                    {getCountyVoters(c.id)?.toLocaleString()}
                                 </span>
                             </div>
                         </div>
@@ -270,7 +270,7 @@ export const PoliticalMetadataManager: React.FC = () => {
                                     <div className="text-right">
                                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total Voters</span>
                                         <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm">
-                                            {getConstituencyVoters(c.id).toLocaleString()}
+                                            {getConstituencyVoters(c.id)?.toLocaleString()}
                                         </span>
                                     </div>
                                 </div>

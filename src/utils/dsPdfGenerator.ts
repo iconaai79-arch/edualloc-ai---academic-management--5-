@@ -143,9 +143,9 @@ export const generateDSPDF = async (
         tableHead = ['Description', 'Amount (KES)', 'Paid (KES)', 'Balance (KES)'];
         tableData = (inv.items || []).map(item => [
             item.name,
-            item.amount.toLocaleString(),
-            (item.paidAmount || 0).toLocaleString(),
-            (item.amount - (item.paidAmount || 0)).toLocaleString()
+            item.amount?.toLocaleString(),
+            (item.paidAmount || 0)?.toLocaleString(),
+            (item.amount - (item.paidAmount || 0))?.toLocaleString()
         ]);
         if (inv.notes) {
             tableData.push(['Notes', inv.notes, '', '']);
@@ -156,8 +156,8 @@ export const generateDSPDF = async (
         tableData = [
             ['Payment Method', pay.paymentMethod],
             ['Reference', pay.transactionReference || 'N/A'],
-            ['Date', new Date(pay.paymentDate).toLocaleString()],
-            ['Amount Paid', `KES ${pay.amount.toLocaleString()}`]
+            ['Date', new Date(pay.paymentDate)?.toLocaleString()],
+            ['Amount Paid', `KES ${pay.amount?.toLocaleString()}`]
         ];
     }
 
@@ -183,9 +183,9 @@ export const generateDSPDF = async (
 
         const votesData = associatedInvoice.items.map(item => [
             item.name,
-            `KES ${item.amount.toLocaleString()}`,
-            `KES ${(item.paidAmount || 0).toLocaleString()}`,
-            `KES ${(item.amount - (item.paidAmount || 0)).toLocaleString()}`
+            `KES ${item.amount?.toLocaleString()}`,
+            `KES ${(item.paidAmount || 0)?.toLocaleString()}`,
+            `KES ${(item.amount - (item.paidAmount || 0))?.toLocaleString()}`
         ]);
 
         autoTable(doc, {
@@ -209,32 +209,32 @@ export const generateDSPDF = async (
 
     doc.text(totalLabel, pageWidth - margin - 85, renderYAfterTable + 20);
     doc.setFontSize(16);
-    doc.text(`KES ${totalValue.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 20, { align: 'right' });
+    doc.text(`KES ${totalValue?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 20, { align: 'right' });
 
     if (type === 'invoice') {
         doc.setFontSize(10);
         doc.setTextColor(100);
         doc.text('AMOUNT PAID:', pageWidth - margin - 85, renderYAfterTable + 30);
         doc.setTextColor(30, 41, 59);
-        doc.text(`KES ${(data as DSInvoice).paidAmount.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 30, { align: 'right' });
+        doc.text(`KES ${(data as DSInvoice).paidAmount?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 30, { align: 'right' });
 
         doc.setFontSize(12);
         doc.setFont(undefined, 'bold');
         doc.text('BALANCE DUE:', pageWidth - margin - 85, renderYAfterTable + 42);
         doc.setTextColor(220, 38, 38); // Red-600
-        doc.text(`KES ${(data as DSInvoice).balance.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 42, { align: 'right' });
+        doc.text(`KES ${(data as DSInvoice).balance?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 42, { align: 'right' });
     } else if (type === 'receipt' && associatedInvoice) {
         doc.setFontSize(10);
         doc.setTextColor(100);
         doc.text('INVOICE TOTAL:', pageWidth - margin - 85, renderYAfterTable + 30);
         doc.setTextColor(30, 41, 59);
-        doc.text(`KES ${associatedInvoice.totalAmount.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 30, { align: 'right' });
+        doc.text(`KES ${associatedInvoice.totalAmount?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 30, { align: 'right' });
 
         doc.setFontSize(12);
         doc.setFont(undefined, 'bold');
         doc.text('OUTSTANDING BALANCE:', pageWidth - margin - 85, renderYAfterTable + 42);
         doc.setTextColor(220, 38, 38); // Red-600
-        doc.text(`KES ${associatedInvoice.balance.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 42, { align: 'right' });
+        doc.text(`KES ${associatedInvoice.balance?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 42, { align: 'right' });
     }
 
     // Footer Layout & Page Numbers
@@ -331,7 +331,7 @@ export const generateDSThermalReceipt = async (
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Date: ${new Date(payment.paymentDate).toLocaleString()}`, margin, yPos);
+    doc.text(`Date: ${new Date(payment.paymentDate)?.toLocaleString()}`, margin, yPos);
     yPos += 4;
     doc.text(`Receipt #: ${payment.receiptNumber}`, margin, yPos);
     yPos += 4;
@@ -352,7 +352,7 @@ export const generateDSThermalReceipt = async (
 
     doc.setFont('helvetica', 'normal');
     doc.text(payment.paymentMethod || 'Payment', margin, yPos);
-    doc.text(`Kes ${payment.amount.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`Kes ${payment.amount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 8;
 
     if (associatedInvoice && Array.isArray(associatedInvoice.items) && associatedInvoice.items.length > 0) {
@@ -363,7 +363,7 @@ export const generateDSThermalReceipt = async (
         doc.setFont('helvetica', 'normal');
         associatedInvoice.items.forEach(it => {
             doc.text(`${it.name}`, margin, yPos);
-            doc.text(`Kes ${it.amount.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+            doc.text(`Kes ${it.amount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
             yPos += 4;
         });
         yPos += 4;
@@ -377,13 +377,13 @@ export const generateDSThermalReceipt = async (
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.text("TOTAL PAID:", margin, yPos);
-    doc.text(`Kes ${payment.amount.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`Kes ${payment.amount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 8;
 
     if (associatedInvoice) {
         doc.setFontSize(9);
         doc.text("OUTSTANDING BAL:", margin, yPos);
-        doc.text(`Kes ${associatedInvoice.balance.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+        doc.text(`Kes ${associatedInvoice.balance?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
         yPos += 8;
     }
 
@@ -452,7 +452,7 @@ export const generateDSSchedulePDF = async (
     
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
+    doc.text(`Generated on: ${new Date()?.toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
     currentY += 12;
 
     // Table mapping
@@ -711,7 +711,7 @@ export const generateDSStudentDirectoryPDF = async (
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(subtitleText, margin, currentY + 5);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
+    doc.text(`Generated on: ${new Date()?.toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
     currentY += 15;
 
     // Filter students
@@ -757,7 +757,7 @@ export const generateDSStudentDirectoryPDF = async (
             if (shortfall <= 0) {
                 paymentStatusStr = 'On Track';
             } else {
-                paymentStatusStr = `KES ${shortfall.toLocaleString()} Behind`;
+                paymentStatusStr = `KES ${shortfall?.toLocaleString()} Behind`;
             }
         }
 

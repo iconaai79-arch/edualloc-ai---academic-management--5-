@@ -288,17 +288,17 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                                     <label className={`relative block cursor-pointer rounded-2xl border-2 p-4 transition-all ${selectedPlan === 'monthly' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                         <input type="radio" name="plan-choice" value="monthly" className="sr-only" checked={selectedPlan === 'monthly'} onChange={() => setSelectedPlan('monthly')} />
                                         <span className="text-xs font-black uppercase block">Monthly</span>
-                                        <span className="mt-1 text-sm font-black text-indigo-600">KES {monthlyPrice.toLocaleString()}</span>
+                                        <span className="mt-1 text-sm font-black text-indigo-600">KES {monthlyPrice?.toLocaleString()}</span>
                                     </label>
                                     <label className={`relative block cursor-pointer rounded-2xl border-2 p-4 transition-all ${selectedPlan === 'quarterly' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                         <input type="radio" name="plan-choice" value="quarterly" className="sr-only" checked={selectedPlan === 'quarterly'} onChange={() => setSelectedPlan('quarterly')} />
                                         <span className="text-xs font-black uppercase block">Quarterly</span>
-                                        <span className="mt-1 text-sm font-black text-indigo-600">KES {quarterlyPrice.toLocaleString()}</span>
+                                        <span className="mt-1 text-sm font-black text-indigo-600">KES {quarterlyPrice?.toLocaleString()}</span>
                                     </label>
                                     <label className={`relative block cursor-pointer rounded-2xl border-2 p-4 transition-all ${selectedPlan === 'yearly' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                         <input type="radio" name="plan-choice" value="yearly" className="sr-only" checked={selectedPlan === 'yearly'} onChange={() => setSelectedPlan('yearly')} />
                                         <span className="text-xs font-black uppercase block">Yearly</span>
-                                        <span className="mt-1 text-sm font-black text-indigo-600">KES {yearlyPrice.toLocaleString()}</span>
+                                        <span className="mt-1 text-sm font-black text-indigo-600">KES {yearlyPrice?.toLocaleString()}</span>
                                     </label>
                                 </div>
                             </div>
@@ -315,7 +315,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                         {provider === 'airtel' && <div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white text-[7px] font-black">A</div>}
                         {provider === 'intasend' && <div className="w-5 h-5 bg-emerald-600 rounded flex items-center justify-center text-white text-[7px] font-black">IS</div>}
                         {provider === 'ncba' && <NcbaIcon className="w-5 h-5" />}
-                        PAY KES {(selectedPlan === 'monthly' ? monthlyPrice : selectedPlan === 'quarterly' ? quarterlyPrice : selectedPlan === 'yearly' ? yearlyPrice : forceAmount || 0).toLocaleString()}
+                        PAY KES {(selectedPlan === 'monthly' ? monthlyPrice : selectedPlan === 'quarterly' ? quarterlyPrice : selectedPlan === 'yearly' ? yearlyPrice : forceAmount || 0)?.toLocaleString()}
                     </button>
                     <button
                         type="button"

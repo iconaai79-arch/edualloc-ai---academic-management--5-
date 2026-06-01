@@ -146,7 +146,7 @@ export const PublicInvoiceView: React.FC<PublicInvoiceViewProps> = ({ invoiceId 
                 if (statusRes.success && (statusRes.status === 'Completed' || statusRes.status === 'Success' || statusRes.resultCode === '0')) {
                     clearInterval(interval);
                     setPaymentStatus('completed');
-                    setStatusMessage(`Payment confirmed! KES ${parseFloat(amount).toLocaleString()} received successfully.`);
+                    setStatusMessage(`Payment confirmed! KES ${parseFloat(amount)?.toLocaleString()} received successfully.`);
                     setPaying(false);
 
                     // Refresh invoice state
@@ -186,7 +186,7 @@ export const PublicInvoiceView: React.FC<PublicInvoiceViewProps> = ({ invoiceId 
             return;
         }
         if (invoice && parseFloat(amount) > invoice.balance) {
-            alert(`Amount exceeds outstanding balance of KES ${invoice.balance.toLocaleString()}.`);
+            alert(`Amount exceeds outstanding balance of KES ${invoice.balance?.toLocaleString()}.`);
             return;
         }
 
@@ -371,11 +371,11 @@ export const PublicInvoiceView: React.FC<PublicInvoiceViewProps> = ({ invoiceId 
                         <div className="flex justify-between items-end">
                             <div>
                                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Amount Paid</p>
-                                <p className="text-2xl font-black text-emerald-500">KES {invoice.paidAmount.toLocaleString()}</p>
+                                <p className="text-2xl font-black text-emerald-500">KES {invoice.paidAmount?.toLocaleString()}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Bill</p>
-                                <p className="text-lg font-black text-slate-400">KES {invoice.totalAmount.toLocaleString()}</p>
+                                <p className="text-lg font-black text-slate-400">KES {invoice.totalAmount?.toLocaleString()}</p>
                             </div>
                         </div>
 
@@ -387,7 +387,7 @@ export const PublicInvoiceView: React.FC<PublicInvoiceViewProps> = ({ invoiceId 
                         </div>
                         <div className="flex justify-between text-[9px] font-black text-slate-500 uppercase tracking-widest">
                             <span>{paidPercentage}% Reconciled</span>
-                            <span>KES {invoice.balance.toLocaleString()} Outstanding</span>
+                            <span>KES {invoice.balance?.toLocaleString()} Outstanding</span>
                         </div>
                     </div>
                 </div>

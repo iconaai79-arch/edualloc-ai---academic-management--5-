@@ -195,7 +195,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
             doc.setTextColor(100);
-            doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, yPos);
+            doc.text(`Generated on: ${new Date()?.toLocaleString()}`, margin, yPos);
             doc.text(`Category Filter: ${pdfCategoryFilter.toUpperCase()}`, pageWidth - margin, yPos, { align: 'right' });
 
             // Summary metrics box background
@@ -221,7 +221,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             doc.text('TOTAL UNITS IN STOCK', margin + 6, yPos + 7);
             doc.setFontSize(11);
             doc.setTextColor(30, 41, 59);
-            doc.text(totalStockCount.toLocaleString(), margin + 6, yPos + 15);
+            doc.text(totalStockCount?.toLocaleString(), margin + 6, yPos + 15);
 
             // Col 2: Total Cost Basis (optional)
             doc.setFont('helvetica', 'bold');
@@ -230,7 +230,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             doc.text('TOTAL COST BASIS', margin + colWidth + 6, yPos + 7);
             doc.setFontSize(11);
             doc.setTextColor(30, 41, 59);
-            doc.text(pdfIncludeCostPrice ? `KES ${totalCostBasis.toLocaleString()}` : 'N/A (Hidden)', margin + colWidth + 6, yPos + 15);
+            doc.text(pdfIncludeCostPrice ? `KES ${totalCostBasis?.toLocaleString()}` : 'N/A (Hidden)', margin + colWidth + 6, yPos + 15);
 
             // Col 3: Total Retail Valuation
             doc.setFontSize(7);
@@ -238,7 +238,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             doc.text('RETAIL VALUATION', margin + (colWidth * 2) + 6, yPos + 7);
             doc.setFontSize(11);
             doc.setTextColor(79, 70, 229);
-            doc.text(`KES ${totalRetailValue.toLocaleString()}`, margin + (colWidth * 2) + 6, yPos + 15);
+            doc.text(`KES ${totalRetailValue?.toLocaleString()}`, margin + (colWidth * 2) + 6, yPos + 15);
 
             // Col 4: Alert items count
             doc.setFontSize(7);
@@ -264,9 +264,9 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 if (pdfIncludeSku) row.push(item.sku);
                 row.push(item.category || 'Other');
                 row.push(`${item.quantity} ${item.unit || 'pcs'}`);
-                if (pdfIncludeCostPrice) row.push(`KES ${item.costPrice.toLocaleString()}`);
-                row.push(`KES ${item.srpPrice.toLocaleString()}`);
-                row.push(`KES ${(item.srpPrice * item.quantity).toLocaleString()}`);
+                if (pdfIncludeCostPrice) row.push(`KES ${item.costPrice?.toLocaleString()}`);
+                row.push(`KES ${item.srpPrice?.toLocaleString()}`);
+                row.push(`KES ${(item.srpPrice * item.quantity)?.toLocaleString()}`);
                 return row;
             });
 

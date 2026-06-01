@@ -102,7 +102,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
             <div className="mb-6 bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm">
                 <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Revenue (Completed)</h4>
                 <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">
-                    KES {totalRevenue.toLocaleString()}
+                    KES {totalRevenue?.toLocaleString()}
                 </p>
             </div>
 
@@ -147,7 +147,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                                             {txn.provider || 'mpesa'}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{institution?.name || 'Unknown'}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {txn.amount.toLocaleString()}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {txn.amount?.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                                             {/* Fix: change payer_name to payerName */}
                                             <div>{txn.payerName}</div>
@@ -155,7 +155,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                                             <div className="text-xs">{txn.phoneNumber}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                                            {new Date(txn.timestamp).toLocaleString()}
+                                            {new Date(txn.timestamp)?.toLocaleString()}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             <TransactionStatusBadge status={txn.status} />

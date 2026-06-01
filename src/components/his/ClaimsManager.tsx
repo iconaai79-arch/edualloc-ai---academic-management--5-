@@ -95,7 +95,7 @@ export const ClaimsManager: React.FC<ClaimsManagerProps> = ({ institutionId }) =
                                             <span className="px-2 py-1 bg-slate-100 dark:bg-white/5 rounded-lg text-[9px] font-black text-slate-600 dark:text-slate-400">{claim.icdCode}</span>
                                         </td>
                                         <td className="py-6">
-                                            <p className="text-sm font-black italic">KES {claim.amount.toLocaleString()}</p>
+                                            <p className="text-sm font-black italic">KES {claim.amount?.toLocaleString()}</p>
                                         </td>
                                         <td className="py-6 text-right">
                                             <div className="flex items-center gap-2">

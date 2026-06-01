@@ -995,7 +995,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 const farmer = farmers.find(f => f.id === posFarmerId);
                 if (farmer && farmer.phone) {
                     const total = posBasket.reduce((sum, item) => sum + item.amount, 0);
-                    const msg = `Dear ${farmer.name}, a credit sale of KES ${total.toLocaleString()} for ${posBasket.length} items has been recorded (Member: ${farmer.memberId || 'N/A'}). This will be deducted from your next payout. Thank you for your continued partnership.`;
+                    const msg = `Dear ${farmer.name}, a credit sale of KES ${total?.toLocaleString()} for ${posBasket.length} items has been recorded (Member: ${farmer.memberId || 'N/A'}). This will be deducted from your next payout. Thank you for your continued partnership.`;
                     onSendSms(farmer.phone, msg, smsConfig, 1, currentInstitution?.id).catch(e => console.error("Failed to send credit sale SMS:", e));
                 }
             }
@@ -1114,7 +1114,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <div className="absolute -right-4 -top-4 bg-indigo-50 dark:bg-indigo-900/20 w-16 h-16 rounded-full" />
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Today's Intake</p>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    {stats.todayQty.toLocaleString()} <span className="text-xs text-slate-400 font-bold ml-1">Units</span>
+                                    {stats.todayQty?.toLocaleString()} <span className="text-xs text-slate-400 font-bold ml-1">Units</span>
                                 </h3>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
@@ -1125,12 +1125,12 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
                                 <div className="absolute -right-4 -top-4 bg-amber-50 dark:bg-amber-900/20 w-16 h-16 rounded-full" />
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monthly Payouts</p>
-                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.totalPayouts.toLocaleString()}</h3>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.totalPayouts?.toLocaleString()}</h3>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
                                 <div className="absolute -right-4 -top-4 bg-blue-50 dark:bg-blue-900/20 w-16 h-16 rounded-full" />
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SACCO Assets</p>
-                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.totalSaccoAssets.toLocaleString()}</h3>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.totalSaccoAssets?.toLocaleString()}</h3>
                             </div>
                         </div>
 
@@ -1171,7 +1171,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">Cash Position</span>
                                 </div>
                                 <p className="text-2xl font-black tracking-tighter text-white">
-                                    KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0)).toLocaleString()}
+                                    KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0))?.toLocaleString()}
                                 </p>
                             </div>
                         </div>
@@ -1283,7 +1283,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <div className="flex justify-between items-center mb-0.5">
                                                         <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-tight">{(item as any).companyName || (item as any).description}</p>
                                                         <p className={`text-[10px] font-black ${item.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                            {item.type === 'income' ? '+' : '-'} {item.amount.toLocaleString()}
+                                                            {item.type === 'income' ? '+' : '-'} {item.amount?.toLocaleString()}
                                                         </p>
                                                     </div>
                                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.date}</p>
@@ -1988,9 +1988,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(p.farmerId)}</p>
                                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{p.payoutMonth}</p>
                                                 </td>
-                                                <td className="px-6 py-5 text-right font-bold text-slate-600">KES {p.grossPayout.toLocaleString()}</td>
-                                                <td className="px-6 py-5 text-right font-medium text-rose-500">- KES {(p.agrovetDeduction + p.saccoDeduction + p.logisticsDeduction).toLocaleString()}</td>
-                                                <td className="px-6 py-5 text-right font-black text-emerald-700 text-lg tracking-tighter">KES {p.netPayout.toLocaleString()}</td>
+                                                <td className="px-6 py-5 text-right font-bold text-slate-600">KES {p.grossPayout?.toLocaleString()}</td>
+                                                <td className="px-6 py-5 text-right font-medium text-rose-500">- KES {(p.agrovetDeduction + p.saccoDeduction + p.logisticsDeduction)?.toLocaleString()}</td>
+                                                <td className="px-6 py-5 text-right font-black text-emerald-700 text-lg tracking-tighter">KES {p.netPayout?.toLocaleString()}</td>
                                                     <td className="px-6 py-5 text-center">
                                                         <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
                                                             farmers.find(f => f.id === p.farmerId)?.paymentMethod === 'bank' ? 'bg-blue-50 text-blue-600' :
@@ -2019,7 +2019,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                                     <p className="text-[8px] font-black text-emerald-600 uppercase tracking-tighter">
                                                                         {p.disbursementMethod?.toUpperCase()} | {p.disbursementReference || 'NO-REF'}
                                                                     </p>
-                                                                    <p className="text-[7px] font-bold text-slate-400 uppercase">{p.disbursementDate ? new Date(p.disbursementDate).toLocaleString() : 'Date missing'}</p>
+                                                                    <p className="text-[7px] font-bold text-slate-400 uppercase">{p.disbursementDate ? new Date(p.disbursementDate)?.toLocaleString() : 'Date missing'}</p>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -2318,7 +2318,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         {col.factoryConfirmed ? col.finalQuantity : '-'}
                                                     </td>
                                                     <td className="px-6 py-5 text-right font-black text-slate-900 dark:text-white">
-                                                        KES {(col.estimatedPayout || (Number(col.finalQuantity || col.quantity) * (currentInstitution?.coopSettings?.payoutRate || 50))).toLocaleString()}
+                                                        KES {(col.estimatedPayout || (Number(col.finalQuantity || col.quantity) * (currentInstitution?.coopSettings?.payoutRate || 50)))?.toLocaleString()}
                                                     </td>
                                                     <td className="px-6 py-5">
                                                         <div className="flex items-center gap-2">
@@ -2546,7 +2546,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <div className="flex items-center gap-8">
                                                 <div className="text-right">
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount Due</p>
-                                                    <p className="text-xl font-black text-emerald-600 tracking-tighter">KES {p.netPayout.toLocaleString()}</p>
+                                                    <p className="text-xl font-black text-emerald-600 tracking-tighter">KES {p.netPayout?.toLocaleString()}</p>
                                                 </div>
                                                  <div className="flex items-center gap-2">
                                                     <button 
@@ -2867,7 +2867,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <div className="flex items-center gap-8">
                                                 <div className="text-right">
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount Paid</p>
-                                                    <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">KES {p.netPayout.toLocaleString()}</p>
+                                                    <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">KES {p.netPayout?.toLocaleString()}</p>
                                                 </div>
                                                 
                                                 <div className="h-10 w-px bg-slate-100 dark:bg-slate-700 hidden md:block" />
@@ -2879,7 +2879,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         </span>
                                                     </div>
                                                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-tight truncate max-w-[140px]">Ref: {p.disbursementReference || 'N/A'}</p>
-                                                    <p className="text-[8px] font-bold text-slate-400">{p.disbursementDate ? new Date(p.disbursementDate).toLocaleString() : ''}</p>
+                                                    <p className="text-[8px] font-bold text-slate-400">{p.disbursementDate ? new Date(p.disbursementDate)?.toLocaleString() : ''}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -2999,7 +2999,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{exp.description}</p>
                                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{exp.date} • {exp.category}</p>
                                                     </div>
-                                                    <p className="text-lg font-black text-rose-600">- KES {exp.amount.toLocaleString()}</p>
+                                                    <p className="text-lg font-black text-rose-600">- KES {exp.amount?.toLocaleString()}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -3018,7 +3018,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{inc.companyName}</p>
                                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{inc.date} • {inc.productType} ({inc.quantity} {inc.unit})</p>
                                                     </div>
-                                                    <p className="text-lg font-black text-emerald-600">+ KES {inc.amount.toLocaleString()}</p>
+                                                    <p className="text-lg font-black text-emerald-600">+ KES {inc.amount?.toLocaleString()}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -3211,7 +3211,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                                         <div className="mt-4">
                                                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">{item.category}</p>
                                                                             <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-3 line-clamp-1">{item.itemName}</h4>
-                                                                            <p className="text-xl font-black text-indigo-600">KES {Number(item.unitPrice).toLocaleString()}</p>
+                                                                            <p className="text-xl font-black text-indigo-600">KES {Number(item.unitPrice)?.toLocaleString()}</p>
                                                                         </div>
                                                                         <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between">
                                                                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-500 transition-colors">Add to basket</span>
@@ -3255,7 +3255,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                                 <div key={basketItem.itemId} className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl relative group">
                                                                     <div className="flex-1">
                                                                         <h5 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tighter line-clamp-1">{basketItem.itemName}</h5>
-                                                                        <p className="text-[10px] font-bold text-slate-400">KES {Number(basketItem.unitPrice).toLocaleString()} × {basketItem.quantity}</p>
+                                                                        <p className="text-[10px] font-bold text-slate-400">KES {Number(basketItem.unitPrice)?.toLocaleString()} × {basketItem.quantity}</p>
                                                                     </div>
                                                                     <div className="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-1.5 shadow-sm">
                                                                         <button 
@@ -3272,7 +3272,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                                             <PlusIcon className="w-3.5 h-3.5" />
                                                                         </button>
                                                                     </div>
-                                                                    <p className="text-xs font-black text-slate-900 dark:text-white min-w-[80px] text-right">KES {Number(basketItem.amount).toLocaleString()}</p>
+                                                                    <p className="text-xs font-black text-slate-900 dark:text-white min-w-[80px] text-right">KES {Number(basketItem.amount)?.toLocaleString()}</p>
                                                                     <button 
                                                                         onClick={() => removeFromBasket(basketItem.itemId)}
                                                                         className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg scale-0 group-hover:scale-100 transition-all active:scale-90"
@@ -3340,7 +3340,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <div className="mt-10 space-y-6 pt-10 border-t border-slate-100 dark:border-slate-800">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-sm font-black text-slate-500 uppercase tracking-widest">Total Payable</span>
-                                                        <span className="text-3xl font-black text-slate-900 dark:text-white">KES {posBasket.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}</span>
+                                                        <span className="text-3xl font-black text-slate-900 dark:text-white">KES {posBasket.reduce((sum, item) => sum + item.amount, 0)?.toLocaleString()}</span>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <button 
@@ -3382,7 +3382,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700 pt-6">
                                                 <div>
                                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Unit Price</p>
-                                                    <p className="text-xl font-black text-indigo-600 tracking-tighter">KES {item.unitPrice.toLocaleString()}</p>
+                                                    <p className="text-xl font-black text-indigo-600 tracking-tighter">KES {item.unitPrice?.toLocaleString()}</p>
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Reorder Level</p>
@@ -3429,7 +3429,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                                 </p>
                                                             </td>
                                                             <td className="px-6 py-5 text-center font-bold">{sale.quantity}</td>
-                                                            <td className="px-6 py-5 text-right font-black text-emerald-600">KES {sale.amount.toLocaleString()}</td>
+                                                            <td className="px-6 py-5 text-right font-black text-emerald-600">KES {sale.amount?.toLocaleString()}</td>
                                                             <td className="px-6 py-5">
                                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{sale.saleDate}</p>
                                                             </td>
@@ -3493,7 +3493,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                             {acc.accountType}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-5 text-right font-black text-emerald-600">KES {(acc.balance || 0).toLocaleString()}</td>
+                                                    <td className="px-6 py-5 text-right font-black text-emerald-600">KES {(acc.balance || 0)?.toLocaleString()}</td>
                                                     <td className="px-6 py-5">
                                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{acc.status || 'active'}</span>
                                                     </td>
@@ -3721,21 +3721,21 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <div className="flex gap-12 text-right">
                                                     <div>
                                                         <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">Total Quantity</p>
-                                                        <p className="text-2xl font-black text-slate-900 dark:text-white italic">{totals.totalQty.toLocaleString()} <span className="text-xs uppercase font-bold text-slate-400">Units</span></p>
+                                                        <p className="text-2xl font-black text-slate-900 dark:text-white italic">{totals.totalQty?.toLocaleString()} <span className="text-xs uppercase font-bold text-slate-400">Units</span></p>
                                                     </div>
                                                     <div className="h-10 w-px bg-slate-200 dark:bg-slate-700" />
                                                     <div className="flex gap-6">
                                                         {(Object.entries(totals.deductionsBreakdown) as [string, number][]).map(([cat, amt]) => (
                                                             <div key={cat}>
                                                                 <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest italic">{cat}</p>
-                                                                <p className="text-sm font-black text-slate-900 dark:text-white italic">-{amt.toLocaleString()}</p>
+                                                                <p className="text-sm font-black text-slate-900 dark:text-white italic">-{amt?.toLocaleString()}</p>
                                                             </div>
                                                         ))}
                                                     </div>
                                                     <div className="h-10 w-px bg-slate-200 dark:bg-slate-700" />
                                                     <div>
                                                         <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">Closing Balance</p>
-                                                        <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {totals.balance.toLocaleString()}</p>
+                                                        <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {totals.balance?.toLocaleString()}</p>
                                                     </div>
                                                 </div>
                                             )}
@@ -3757,9 +3757,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                             <tr key={t.id} className="border-b border-slate-50 dark:border-slate-700/50">
                                                                 <td className="p-6 text-[10px] font-bold text-slate-500">{new Date(t.date).toLocaleDateString()}</td>
                                                                 <td className="p-6 text-xs font-black text-slate-900 dark:text-white uppercase italic">{t.description}</td>
-                                                                <td className="p-6 text-right text-sm font-black text-rose-500 italic">{t.type === 'debit' ? `KES ${t.amount.toLocaleString()}` : '-'}</td>
-                                                                <td className="p-6 text-right text-sm font-black text-emerald-600 italic">{t.type === 'credit' ? `KES ${t.amount.toLocaleString()}` : '-'}</td>
-                                                                <td className="p-6 text-right text-sm font-black text-indigo-600 italic">KES {t.balance.toLocaleString()}</td>
+                                                                <td className="p-6 text-right text-sm font-black text-rose-500 italic">{t.type === 'debit' ? `KES ${t.amount?.toLocaleString()}` : '-'}</td>
+                                                                <td className="p-6 text-right text-sm font-black text-emerald-600 italic">{t.type === 'credit' ? `KES ${t.amount?.toLocaleString()}` : '-'}</td>
+                                                                <td className="p-6 text-right text-sm font-black text-indigo-600 italic">KES {t.balance?.toLocaleString()}</td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
@@ -3841,7 +3841,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             }).reduce((s, i) => s + i.amount, 0) - expenses.filter(e => {
                                                 const d = e.date.substring(0, 10);
                                                 return d >= startDate && d <= endDate;
-                                            }).reduce((s, e) => s + e.amount, 0)).toLocaleString()}
+                                            }).reduce((s, e) => s + e.amount, 0))?.toLocaleString()}
                                         </h4>
                                         <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-white/10 w-fit px-3 py-1.5 rounded-full">
                                             Period Balance
@@ -3853,7 +3853,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             KES {income.filter(i => {
                                                 const d = i.date.substring(0, 10);
                                                 return d >= startDate && d <= endDate;
-                                            }).reduce((s, i) => s + i.amount, 0).toLocaleString()}
+                                            }).reduce((s, i) => s + i.amount, 0)?.toLocaleString()}
                                         </h4>
                                         <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-2">+ Gross Income</p>
                                     </div>
@@ -3863,7 +3863,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             KES {expenses.filter(e => {
                                                 const d = e.date.substring(0, 10);
                                                 return d >= startDate && d <= endDate;
-                                            }).reduce((s, e) => s + e.amount, 0).toLocaleString()}
+                                            }).reduce((s, e) => s + e.amount, 0)?.toLocaleString()}
                                         </h4>
                                         <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-2">- Operating Expenses</p>
                                     </div>
@@ -3894,7 +3894,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <div key={prod}>
                                                         <div className="flex justify-between items-end mb-2">
                                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{prod}</p>
-                                                            <p className="text-sm font-black tracking-tight">{prodTotal.toLocaleString()} Units</p>
+                                                            <p className="text-sm font-black tracking-tight">{prodTotal?.toLocaleString()} Units</p>
                                                         </div>
                                                         <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                                                             <div 
@@ -4042,14 +4042,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{farmer.phone}</p>
                                                         </td>
                                                         <td className="py-5 text-center">
-                                                            <span className="text-sm font-bold dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50 px-2.5 py-1 rounded-lg">{totalQty.toLocaleString()}</span>
+                                                            <span className="text-sm font-bold dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50 px-2.5 py-1 rounded-lg">{totalQty?.toLocaleString()}</span>
                                                         </td>
-                                                        <td className="py-5 font-bold dark:text-slate-200">KES {gross.toLocaleString()}</td>
-                                                        <td className="py-5 text-rose-500 font-bold">- KES {advances.toLocaleString()}</td>
-                                                        <td className="py-5 text-rose-500 font-bold">- KES {deductions.toLocaleString()}</td>
+                                                        <td className="py-5 font-bold dark:text-slate-200">KES {gross?.toLocaleString()}</td>
+                                                        <td className="py-5 text-rose-500 font-bold">- KES {advances?.toLocaleString()}</td>
+                                                        <td className="py-5 text-rose-500 font-bold">- KES {deductions?.toLocaleString()}</td>
                                                         <td className="py-5 text-right">
                                                             <span className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-black shadow-lg shadow-emerald-500/20 uppercase tracking-widest block w-fit ml-auto">
-                                                                KES {net.toLocaleString()}
+                                                                KES {net?.toLocaleString()}
                                                             </span>
                                                         </td>
                                                     </tr>
@@ -4096,25 +4096,25 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <div className="space-y-4">
                                         <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
                                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Income (Credit)</p>
-                                            <p className="text-sm font-black text-emerald-600">KES {income.reduce((s, i) => s + i.amount, 0).toLocaleString()}</p>
+                                            <p className="text-sm font-black text-emerald-600">KES {income.reduce((s, i) => s + i.amount, 0)?.toLocaleString()}</p>
                                         </div>
                                         <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
                                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Expenses (Debit)</p>
-                                            <p className="text-sm font-black text-rose-600">KES {expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}</p>
+                                            <p className="text-sm font-black text-rose-600">KES {expenses.reduce((s, e) => s + e.amount, 0)?.toLocaleString()}</p>
                                         </div>
                                         <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
                                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">SACCO Assets</p>
-                                            <p className="text-sm font-black text-indigo-600">KES {saccoAccounts.reduce((s, a) => s + a.balance, 0).toLocaleString()}</p>
+                                            <p className="text-sm font-black text-indigo-600">KES {saccoAccounts.reduce((s, a) => s + a.balance, 0)?.toLocaleString()}</p>
                                         </div>
                                         <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
                                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Agrovet Inventory Value</p>
-                                            <p className="text-sm font-black text-slate-600 dark:text-slate-400">KES {(inventory.reduce((s, i) => s + (i.quantity * i.unitPrice), 0)).toLocaleString()}</p>
+                                            <p className="text-sm font-black text-slate-600 dark:text-slate-400">KES {(inventory.reduce((s, i) => s + (i.quantity * i.unitPrice), 0))?.toLocaleString()}</p>
                                         </div>
                                         <div className="flex justify-between items-center pt-8">
                                             <div className="bg-slate-900 dark:bg-indigo-600 px-6 py-4 rounded-2xl w-full flex justify-between items-center shadow-xl shadow-indigo-500/20">
                                                 <p className="text-[10px] font-black uppercase text-white/60 tracking-[0.2em]">Retained Earnings</p>
                                                 <p className="text-xl font-black text-white tracking-widest">
-                                                    KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0)).toLocaleString()}
+                                                    KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0))?.toLocaleString()}
                                                 </p>
                                             </div>
                                         </div>
@@ -4138,7 +4138,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         </div>
                                                     </div>
                                                     <p className={`text-sm font-black ${item.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                        {item.type === 'income' ? '+' : '-'} KES {item.amount.toLocaleString()}
+                                                        {item.type === 'income' ? '+' : '-'} KES {item.amount?.toLocaleString()}
                                                     </p>
                                                 </div>
                                             ))}
@@ -5023,7 +5023,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             </div>
 
                             <h2 className="text-3xl font-black tracking-tighter uppercase mb-3">Multi-Factor Authorization</h2>
-                            <p className="text-xs font-black text-slate-400 tracking-widest uppercase mb-12">Batch Payout Total: KES {secureApprovalData.total.toLocaleString()}</p>
+                            <p className="text-xs font-black text-slate-400 tracking-widest uppercase mb-12">Batch Payout Total: KES {secureApprovalData.total?.toLocaleString()}</p>
 
                             <div className="grid grid-cols-3 gap-6 mb-12">
                                 <button 

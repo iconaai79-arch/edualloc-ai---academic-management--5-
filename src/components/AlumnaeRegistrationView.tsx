@@ -559,7 +559,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                         
                         <div>
                             <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-tight">Activation <br /> <span className="text-indigo-600 italic">Financials</span></h2>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-4">A one-off service fee of <span className="text-slate-900 dark:text-white font-black italic">KES {joiningFee.toLocaleString()}</span> is required for platform access and networking tools.</p>
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-4">A one-off service fee of <span className="text-slate-900 dark:text-white font-black italic">KES {joiningFee?.toLocaleString()}</span> is required for platform access and networking tools.</p>
                         </div>
 
                         <div className="bg-slate-50 dark:bg-slate-800 rounded-[2.5rem] p-10 text-left relative overflow-hidden group">
@@ -580,7 +580,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                     onClick={handlePayment}
                                     className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-slate-900 transition-all shadow-2xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-95"
                                 >
-                                    <ArrowRight className="w-5 h-5" /> Pay KES {joiningFee.toLocaleString()} via NCBA
+                                    <ArrowRight className="w-5 h-5" /> Pay KES {joiningFee?.toLocaleString()} via NCBA
                                 </button>
                             )}
 

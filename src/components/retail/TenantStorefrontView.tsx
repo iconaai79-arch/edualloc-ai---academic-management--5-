@@ -350,7 +350,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                                             </button>
                                             <div className="text-3xl font-black text-white italic">
                                                 <span className="text-sm font-medium mr-2 text-white/40">KES</span>
-                                                {Number((item as any).srpPrice || (item as any).price || 0).toLocaleString()}
+                                                {Number((item as any).srpPrice || (item as any).price || 0)?.toLocaleString()}
                                             </div>
                                         </div>
                                     </div>
@@ -483,7 +483,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Pricing</p>
                                             <p className="text-2xl font-black text-slate-900 dark:text-white italic">
                                                 <span className="text-sm font-medium not-italic mr-1 text-slate-400">KES</span>
-                                                {Number(product.srpPrice || product.costPrice || 0).toLocaleString()}
+                                                {Number(product.srpPrice || product.costPrice || 0)?.toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:rotate-12" style={{ backgroundColor: themeColor }}>
@@ -667,7 +667,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="p-8 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Price</p>
-                                    <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0).toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0)?.toLocaleString()}</p>
                                 </div>
                                 <div className="p-8 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Stock</p>

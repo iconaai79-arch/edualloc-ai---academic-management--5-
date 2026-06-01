@@ -343,7 +343,7 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                                 </div>
                                 <span className="text-xs font-black text-emerald-500/50 uppercase tracking-widest">Today</span>
                             </div>
-                            <h3 className="text-3xl font-black text-white tracking-tighter italic">KES {todayRevenue.toLocaleString()}</h3>
+                            <h3 className="text-3xl font-black text-white tracking-tighter italic">KES {todayRevenue?.toLocaleString()}</h3>
                             <p className="text-slate-400 text-xs font-bold uppercase mt-2">Total Sales Revenue</p>
                         </div>
 
@@ -401,12 +401,12 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                                                 <div>
                                                     <p className="text-white font-bold text-sm tracking-tight">Sale #{sale.id.slice(-6)}</p>
                                                     <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                                                        {new Date(sale.createdAt).toLocaleString()} • {sale.paymentMethod}
+                                                        {new Date(sale.createdAt)?.toLocaleString()} • {sale.paymentMethod}
                                                     </p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-emerald-400 font-black tracking-tighter italic">KES {sale.totalAmount.toLocaleString()}</p>
+                                                <p className="text-emerald-400 font-black tracking-tighter italic">KES {sale.totalAmount?.toLocaleString()}</p>
                                                 <p className={`text-[10px] font-black uppercase tracking-widest ${sale.status === 'completed' ? 'text-emerald-500' : 'text-amber-500'}`}>
                                                     {sale.status}
                                                 </p>
@@ -551,7 +551,7 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                                 <div className="flex justify-between items-center text-white border-b border-white/10 pb-2">
                                     <span className="text-xs font-black uppercase tracking-widest">Total Amount</span>
                                     <span className="text-2xl font-black italic tracking-tighter text-emerald-400">
-                                        KES {cart.reduce((sum, i) => sum + (i.price * i.quantity), 0).toLocaleString()}
+                                        KES {cart.reduce((sum, i) => sum + (i.price * i.quantity), 0)?.toLocaleString()}
                                     </span>
                                 </div>
 
@@ -790,7 +790,7 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                                                 <p className="text-slate-400 text-[10px] uppercase font-black tracking-widest">{consult.prescription || 'N/A'}</p>
                                             </td>
                                             <td className="p-5">
-                                                <p className="text-purple-400 font-black italic tracking-tighter">KES {consult.fee.toLocaleString()}</p>
+                                                <p className="text-purple-400 font-black italic tracking-tighter">KES {consult.fee?.toLocaleString()}</p>
                                             </td>
                                             <td className="p-5 text-right">
                                                 <button className="p-2 bg-white/5 text-slate-400 rounded-lg hover:bg-white/10 hover:text-white transition-all">
@@ -827,11 +827,11 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="bg-amber-900/20 p-6 rounded-2xl border border-amber-500/20 shadow-lg">
                                 <h4 className="text-amber-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Outstanding</h4>
-                                <p className="text-3xl font-black text-white italic tracking-tighter">KES {credits.reduce((sum, c) => sum + (c.amount - c.amountPaid), 0).toLocaleString()}</p>
+                                <p className="text-3xl font-black text-white italic tracking-tighter">KES {credits.reduce((sum, c) => sum + (c.amount - c.amountPaid), 0)?.toLocaleString()}</p>
                             </div>
                             <div className="bg-emerald-900/20 p-6 rounded-2xl border border-emerald-500/20 shadow-lg">
                                 <h4 className="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Repayments</h4>
-                                <p className="text-3xl font-black text-white italic tracking-tighter">KES {credits.reduce((sum, c) => sum + c.amountPaid, 0).toLocaleString()}</p>
+                                <p className="text-3xl font-black text-white italic tracking-tighter">KES {credits.reduce((sum, c) => sum + c.amountPaid, 0)?.toLocaleString()}</p>
                             </div>
                             <div className="bg-blue-900/20 p-6 rounded-2xl border border-blue-500/20 shadow-lg">
                                 <h4 className="text-blue-500 text-[10px] font-black uppercase tracking-widest mb-2">Active Accounts</h4>
@@ -857,10 +857,10 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                                                 <p className="text-white font-bold">{farmers.find(f => f.id === credit.customerId)?.name || 'Unknown'}</p>
                                             </td>
                                             <td className="p-5">
-                                                <p className="text-slate-400 font-bold">KES {credit.limit.toLocaleString()}</p>
+                                                <p className="text-slate-400 font-bold">KES {credit.limit?.toLocaleString()}</p>
                                             </td>
                                             <td className="p-5">
-                                                <p className="text-amber-400 font-black italic">KES {(credit.amount - credit.amountPaid).toLocaleString()}</p>
+                                                <p className="text-amber-400 font-black italic">KES {(credit.amount - credit.amountPaid)?.toLocaleString()}</p>
                                             </td>
                                             <td className="p-5">
                                                 <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest ${credit.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>

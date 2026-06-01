@@ -165,7 +165,7 @@ export const DispenseMedicationModal: React.FC<DispenseMedicationModalProps> = (
                 <div className="p-8 border-t border-white/5 bg-white/[0.02] flex justify-between items-center">
                     <div className="px-8 py-4 bg-indigo-500/5 rounded-2xl border border-indigo-500/20">
                         <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Total Yield Matrix</p>
-                        <h4 className="text-2xl font-black italic text-white tracking-tighter">KES {(prescription.items || []).reduce((s, i) => s + i.totalPrice, 0).toLocaleString()}</h4>
+                        <h4 className="text-2xl font-black italic text-white tracking-tighter">KES {(prescription.items || []).reduce((s, i) => s + i.totalPrice, 0)?.toLocaleString()}</h4>
                     </div>
                     <div className="flex gap-4">
                         <button type="button" onClick={onClose} className="px-10 py-5 rounded-[2rem] bg-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">Abort</button>

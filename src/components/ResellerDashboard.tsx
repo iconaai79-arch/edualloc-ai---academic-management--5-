@@ -379,7 +379,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                         </div>
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Total Earned</p>
-                            <p className="text-3xl font-black text-slate-900 font-mono">KES {totalCommissions.toLocaleString()}</p>
+                            <p className="text-3xl font-black text-slate-900 font-mono">KES {totalCommissions?.toLocaleString()}</p>
                         </div>
                     </div>
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 border-l-4 border-l-emerald-500">
@@ -389,7 +389,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Pending Payout</p>
                             <div className="flex items-center gap-4">
-                                <p className="text-3xl font-black text-emerald-600 font-mono">KES {pendingPayout.toLocaleString()}</p>
+                                <p className="text-3xl font-black text-emerald-600 font-mono">KES {pendingPayout?.toLocaleString()}</p>
                                 {pendingPayout > 0 && (
                                     <button
                                         onClick={() => {
@@ -410,7 +410,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                         </div>
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Disbursed to Date</p>
-                            <p className="text-3xl font-black text-slate-900 font-mono">KES {disbursedCommissions.toLocaleString()}</p>
+                            <p className="text-3xl font-black text-slate-900 font-mono">KES {disbursedCommissions?.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>
@@ -580,7 +580,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                     <div key={req.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center group hover:border-amber-200 transition-all">
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{new Date(req.requestedAt).toLocaleDateString()}</p>
-                                            <p className="text-lg font-black text-slate-900 font-mono">KES {req.amount.toLocaleString()}</p>
+                                            <p className="text-lg font-black text-slate-900 font-mono">KES {req.amount?.toLocaleString()}</p>
                                         </div>
                                         <div className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm ${req.status === 'pending' ? 'bg-amber-100 text-amber-700' :
                                             req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
@@ -627,14 +627,14 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                     <div className="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">{tx.transactionId}</div>
                                                 </td>
                                                 <td className="py-4 px-6 font-mono text-sm text-slate-700 font-bold">
-                                                    KES {tx.amount.toLocaleString()}
+                                                    KES {tx.amount?.toLocaleString()}
                                                 </td>
                                                 <td className="py-4 px-6 font-mono text-xs text-slate-500">
-                                                    KES {baseRate.toLocaleString()}
+                                                    KES {baseRate?.toLocaleString()}
                                                 </td>
                                                 <td className="py-4 px-6 text-right">
                                                     <div className="text-indigo-600 font-black font-mono">
-                                                        +KES {commission.toLocaleString()}
+                                                        +KES {commission?.toLocaleString()}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -775,7 +775,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                 onChange={(e) => setNewTenantMonthlyPrice(Number(e.target.value))}
                                                 className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                             />
-                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice.toLocaleString()}</p>
+                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice?.toLocaleString()}</p>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Quarterly Price (KES)</label>
@@ -787,7 +787,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                 onChange={(e) => setNewTenantQuarterlyPrice(Number(e.target.value))}
                                                 className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantQuarterlyPrice < (companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3) ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                             />
-                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {(companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3).toLocaleString()}</p>
+                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {(companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3)?.toLocaleString()}</p>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly Price (KES)</label>
@@ -799,18 +799,18 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                 onChange={(e) => setNewTenantYearlyPrice(Number(e.target.value))}
                                                 className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                             />
-                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultYearlyPrice.toLocaleString()}</p>
+                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultYearlyPrice?.toLocaleString()}</p>
                                         </div>
                                     </div>
                                     {(newTenantMonthlyPrice > companyDetails.subscriptionConfig.defaultMonthlyPrice || newTenantYearlyPrice > companyDetails.subscriptionConfig.defaultYearlyPrice) && (
                                         <div className="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between">
                                             <div>
                                                 <p className="text-[10px] font-black uppercase text-indigo-600">Reseller Commission (Monthly)</p>
-                                                <p className="text-sm font-bold text-indigo-900">KES {(newTenantMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice).toLocaleString()}</p>
+                                                <p className="text-sm font-bold text-indigo-900">KES {(newTenantMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice)?.toLocaleString()}</p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-[10px] font-black uppercase text-indigo-600">Reseller Commission (Yearly)</p>
-                                                <p className="text-sm font-bold text-indigo-900">KES {(newTenantYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice).toLocaleString()}</p>
+                                                <p className="text-sm font-bold text-indigo-900">KES {(newTenantYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice)?.toLocaleString()}</p>
                                             </div>
                                         </div>
                                     )}
@@ -871,7 +871,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                             onChange={(e) => setEditMonthlyPrice(Number(e.target.value))}
                                             className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                         />
-                                        <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice.toLocaleString()}</p>
+                                        <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice?.toLocaleString()}</p>
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Quarterly (KES)</label>
@@ -883,7 +883,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                             onChange={(e) => setEditQuarterlyPrice(Number(e.target.value))}
                                             className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editQuarterlyPrice < (companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3) ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                         />
-                                        <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {(companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3).toLocaleString()}</p>
+                                        <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {(companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3)?.toLocaleString()}</p>
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly (KES)</label>
@@ -895,7 +895,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                             onChange={(e) => setEditYearlyPrice(Number(e.target.value))}
                                             className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                         />
-                                        <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultYearlyPrice.toLocaleString()}</p>
+                                        <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultYearlyPrice?.toLocaleString()}</p>
                                     </div>
                                 </div>
 
@@ -903,13 +903,13 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                     <div>
                                         <p className="text-[10px] font-black uppercase text-indigo-600">Pending Commission</p>
                                         <p className="text-sm font-bold text-indigo-900">
-                                            Monthly: KES {(editMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice).toLocaleString()}
+                                            Monthly: KES {(editMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice)?.toLocaleString()}
                                         </p>
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] font-black uppercase text-indigo-600">Yearly</p>
                                         <p className="text-sm font-bold text-indigo-900">
-                                            KES {(editYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice).toLocaleString()}
+                                            KES {(editYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice)?.toLocaleString()}
                                         </p>
                                     </div>
                                 </div>
@@ -970,7 +970,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                         className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all font-mono font-bold text-lg"
                                     />
                                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">
-                                        MAX: {pendingPayout.toLocaleString()}
+                                        MAX: {pendingPayout?.toLocaleString()}
                                     </div>
                                 </div>
                             </div>

@@ -98,7 +98,7 @@ export function RetailExpenses({
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-600"><BanknoteIcon className="w-5 h-5" /></div>
                     </div>
-                    <p className="text-3xl font-black text-slate-900">KES {totalSpent.toLocaleString()}</p>
+                    <p className="text-3xl font-black text-slate-900">KES {totalSpent?.toLocaleString()}</p>
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Total Period Spending</p>
                 </div>
                 <div className="bg-emerald-50 p-6 rounded-[2rem] border border-white shadow-sm">
@@ -175,7 +175,7 @@ export function RetailExpenses({
                                     </td>
                                     <td className="py-5 text-xs font-medium text-slate-600">{exp.description}</td>
                                     <td className="py-5 text-right font-black text-slate-900 text-sm">
-                                        KES {Number(exp.amount).toLocaleString()}
+                                        KES {Number(exp.amount)?.toLocaleString()}
                                     </td>
                                 </tr>
                             ))}

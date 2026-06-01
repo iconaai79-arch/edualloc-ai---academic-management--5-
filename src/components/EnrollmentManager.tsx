@@ -62,7 +62,7 @@ export const EnrollmentManager: React.FC<EnrollmentManagerProps> = ({
                                                 Requested by: {student.name} ({student.staffId})
                                             </p>
                                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                                Submitted on: {new Date(req.timestamp).toLocaleString()}
+                                                Submitted on: {new Date(req.timestamp)?.toLocaleString()}
                                             </p>
                                             
                                             <div className="mt-3">

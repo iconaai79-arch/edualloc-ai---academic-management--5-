@@ -829,7 +829,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
             const docTypeName = type === 'invoice' ? 'Invoice' : 'Payment Receipt';
             const docNumber = type === 'invoice' ? data.invoiceNumber : data.receiptNumber;
-            const amountStr = `KES ${(data.totalAmount || (data.amount || 0)).toLocaleString()}`;
+            const amountStr = `KES ${(data.totalAmount || (data.amount || 0))?.toLocaleString()}`;
 
             // Attempt PDF generation & Storage Upload gracefully
             let publicUrl = '';
@@ -850,7 +850,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             if (student.email) {
                 try {
                     const subject = `${inst.name} - ${docTypeName} #${docNumber}`;
-                    const balanceLine = type === 'invoice' ? `Balance Due: KES ${(data.balance || 0).toLocaleString()}\n` : '';
+                    const balanceLine = type === 'invoice' ? `Balance Due: KES ${(data.balance || 0)?.toLocaleString()}\n` : '';
                     const body = `Dear ${student.fullName},\n\n` +
                                  `Your ${docTypeName} from ${inst.name} has been processed successfully.\n\n` +
                                  `Document Number: #${docNumber}\n` +
@@ -1025,7 +1025,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     
                     const distribution = Math.min(remainingAmount, itemBalance);
                     if (distribution > 0) {
-                        distributions.push(`${item.name}: ${distribution.toLocaleString()}`);
+                        distributions.push(`${item.name}: ${distribution?.toLocaleString()}`);
                     }
                     remainingAmount -= distribution;
                     
@@ -1039,7 +1039,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const newBalance = Math.max(0, invoice.totalAmount - newPaidAmount);
                 const newStatus = newBalance <= 0 ? 'Fully Paid' : 'Partially Paid';
 
-                summary = distributions.join(', ') + (newBalance > 0 ? ` | Balance: KES ${newBalance.toLocaleString()}` : ' | Fully Paid');
+                summary = distributions.join(', ') + (newBalance > 0 ? ` | Balance: KES ${newBalance?.toLocaleString()}` : ' | Fully Paid');
 
                 await apiService.saveModuleRecord('ds_invoices', {
                     ...invoice,

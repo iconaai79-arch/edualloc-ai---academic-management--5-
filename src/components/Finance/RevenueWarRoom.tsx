@@ -74,7 +74,7 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
                                 <stat.icon className="w-6 h-6" />
                             </div>
                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{stat.label}</p>
-                            <h4 className="text-2xl font-black text-slate-900 tracking-tight">KES {stat.value.toLocaleString()}</h4>
+                            <h4 className="text-2xl font-black text-slate-900 tracking-tight">KES {stat.value?.toLocaleString()}</h4>
                             <div className="mt-4 flex items-center gap-2">
                                 <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${stat.color} ${stat.bg}`}>{stat.trend}</span>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">vs last term</span>
@@ -109,7 +109,7 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
                             return (
                                 <div key={i} className="space-y-2">
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{goal.period} Goal</p>
-                                    <p className="text-lg font-black text-slate-900">KES {goal.targetAmount.toLocaleString()}</p>
+                                    <p className="text-lg font-black text-slate-900">KES {goal.targetAmount?.toLocaleString()}</p>
                                     <div className="flex items-center gap-2">
                                         <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                             <div className="bg-indigo-600 h-full" style={{ width: `${Math.min(progress, 100)}%` }} />
@@ -136,7 +136,7 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
                                     <div key={cat} className="space-y-2">
                                         <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
                                             <span className="text-slate-400">{cat}</span>
-                                            <span>KES {amount.toLocaleString()}</span>
+                                            <span>KES {amount?.toLocaleString()}</span>
                                         </div>
                                         <div className="h-1 bg-white/10 rounded-full overflow-hidden">
                                             <div className="bg-white h-full" style={{ width: `${perc}%` }} />
@@ -201,7 +201,7 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
                                         </td>
                                         <td className="px-8 py-6 text-right">
                                             <p className={`text-sm font-black ${isExpense ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                                {isExpense ? '-' : '+'}KES {((tx as any).amountPaid || (tx as any).amount).toLocaleString()}
+                                                {isExpense ? '-' : '+'}KES {((tx as any).amountPaid || (tx as any).amount)?.toLocaleString()}
                                             </p>
                                         </td>
                                         <td className="px-8 py-6">

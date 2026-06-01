@@ -281,7 +281,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         if ((smsBalance || 0) < totalUnitsRequired) {
             setStatus({
                 type: 'error',
-                message: `Insufficient balance. This send requires ${totalUnitsRequired.toLocaleString()} units, but you only have ${(smsBalance || 0).toLocaleString()}.`
+                message: `Insufficient balance. This send requires ${totalUnitsRequired?.toLocaleString()} units, but you only have ${(smsBalance || 0)?.toLocaleString()}.`
             });
             setIsBuySMSModalOpen(true);
             return;
@@ -295,8 +295,8 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             return;
         }
         const confirmMsg = validRecipients.length === 1
-            ? `You are about to send ${smsInfo.count} page(s) of SMS to 1 recipient. This will deduct ${totalUnitsRequired.toLocaleString()} units. Are you sure?`
-            : `You are about to send ${smsInfo.count} page(s) of SMS to ${validRecipients.length} recipients. \n\nCalculation: ${validRecipients.length} recipients × ${smsInfo.count} pages = ${totalUnitsRequired.toLocaleString()} total units.\n\nAre you sure?`;
+            ? `You are about to send ${smsInfo.count} page(s) of SMS to 1 recipient. This will deduct ${totalUnitsRequired?.toLocaleString()} units. Are you sure?`
+            : `You are about to send ${smsInfo.count} page(s) of SMS to ${validRecipients.length} recipients. \n\nCalculation: ${validRecipients.length} recipients × ${smsInfo.count} pages = ${totalUnitsRequired?.toLocaleString()} total units.\n\nAre you sure?`;
 
         if (!window.confirm(confirmMsg)) {
             return;
@@ -704,7 +704,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                         {txn.metadata?.units && <span className="ml-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded text-[8px] font-bold">{txn.metadata.units} Units</span>}
                                     </td>
                                     <td className="py-4 px-6 font-bold text-slate-900 dark:text-white">
-                                        KES {txn.amount.toLocaleString()}
+                                        KES {txn.amount?.toLocaleString()}
                                     </td>
                                     <td className="py-4 px-6 text-[10px] uppercase font-black text-slate-400">
                                         {txn.provider}
@@ -765,7 +765,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/40 px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-700">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Balance</span>
                         <span className={`text-sm font-black ${(smsBalance || 0) < 50 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
-                            {(smsBalance || 0).toLocaleString()} Units
+                            {(smsBalance || 0)?.toLocaleString()} Units
                         </span>
                         {(smsBalance || 0) < 10 && (
                             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse ml-1" />
@@ -841,7 +841,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                             </p>
                             {validRecipients.length > 0 && (
                                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                                    Total Units Required: <span className="text-indigo-600 dark:text-indigo-400">{(validRecipients.length * smsInfo.count).toLocaleString()}</span>
+                                    Total Units Required: <span className="text-indigo-600 dark:text-indigo-400">{(validRecipients.length * smsInfo.count)?.toLocaleString()}</span>
                                 </p>
                             )}
                         </div>

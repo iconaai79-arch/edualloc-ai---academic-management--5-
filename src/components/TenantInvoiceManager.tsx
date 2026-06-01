@@ -197,7 +197,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                             </div>
                                         </div>
                                         <div className="w-24 pt-2 text-right font-bold text-sm text-slate-700 dark:text-slate-200">
-                                            {item.amount.toLocaleString()}
+                                            {item.amount?.toLocaleString()}
                                         </div>
                                         <button type="button" onClick={() => removeItem(index)} className="p-2 text-slate-400 hover:text-red-500">
                                             <XIcon className="w-4 h-4" />
@@ -213,7 +213,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                         <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
                             <div>
                                 <p className="text-xs text-slate-500">{documentType === 'quote' ? 'Quoted Amount' : 'Total Amount Due'}</p>
-                                <p className="text-2xl font-black text-slate-900 dark:text-white">KES {calculateTotal().toLocaleString()}</p>
+                                <p className="text-2xl font-black text-slate-900 dark:text-white">KES {calculateTotal()?.toLocaleString()}</p>
                             </div>
                             <div className="flex gap-3">
                                 <button type="button" onClick={() => setIsCreating(false)} className="btn-secondary">Cancel</button>
@@ -273,7 +273,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
-                                        KES {inv.totalAmount.toLocaleString()}
+                                        KES {inv.totalAmount?.toLocaleString()}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-xs font-medium text-slate-500">
                                         {new Date(inv.dueDate).toLocaleDateString()}

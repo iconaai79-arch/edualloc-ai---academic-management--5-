@@ -82,7 +82,7 @@ export const TrialExpiredView: React.FC<TrialExpiredViewProps> = ({
                                         <CreditCardIcon className="w-5 h-5 text-indigo-400" />
                                     </div>
                                     <p className="text-sm font-black uppercase tracking-widest text-indigo-300 mb-1">Monthly Plan</p>
-                                    <p className="text-2xl font-black">KES {monthlyPrice.toLocaleString()}</p>
+                                    <p className="text-2xl font-black">KES {monthlyPrice?.toLocaleString()}</p>
                                     <p className="text-xs text-slate-500 mt-2">Billed per institution</p>
                                 </div>
                                 <div className="bg-white/5 p-6 rounded-[2rem] border border-white/10 text-left hover:bg-white/10 transition-colors cursor-pointer group" onClick={() => setIsPayModalOpen(true)}>
@@ -90,7 +90,7 @@ export const TrialExpiredView: React.FC<TrialExpiredViewProps> = ({
                                         <SparklesIcon className="w-5 h-5 text-purple-400" />
                                     </div>
                                     <p className="text-sm font-black uppercase tracking-widest text-purple-300 mb-1">Yearly Plan</p>
-                                    <p className="text-2xl font-black">KES {yearlyPrice.toLocaleString()}</p>
+                                    <p className="text-2xl font-black">KES {yearlyPrice?.toLocaleString()}</p>
                                     <p className="text-xs text-slate-500 mt-2">Get 2 months free</p>
                                 </div>
                             </div>

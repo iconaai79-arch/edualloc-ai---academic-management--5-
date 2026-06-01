@@ -362,7 +362,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 
                 const distribution = Math.min(remainingAmount, itemBalance);
                 if (distribution > 0) {
-                    distributions.push(`${item.name || item.voteName}: ${distribution.toLocaleString()}`);
+                    distributions.push(`${item.name || item.voteName}: ${distribution?.toLocaleString()}`);
                 }
                 remainingAmount -= distribution;
                 
@@ -613,7 +613,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         ))}
                                     </div>
                                     <div className="text-right font-black text-slate-800 text-lg">
-                                        Total Amount: KES {dsFormItems.reduce((s, it) => s + (it.amount || 0), 0).toLocaleString()}
+                                        Total Amount: KES {dsFormItems.reduce((s, it) => s + (it.amount || 0), 0)?.toLocaleString()}
                                     </div>
                                 </div>
 
@@ -1046,7 +1046,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         <div className="pt-6 border-t flex justify-between items-center">
                                             <div className="text-slate-500 font-medium text-sm">
-                                                Total Structure Amount: <span className="font-black text-slate-900 text-lg">KES {Object.values(builderAmounts).reduce((sum, a) => sum + (a || 0), 0).toLocaleString()}</span>
+                                                Total Structure Amount: <span className="font-black text-slate-900 text-lg">KES {Object.values(builderAmounts).reduce((sum, a) => sum + (a || 0), 0)?.toLocaleString()}</span>
                                             </div>
                                             <button 
                                                 onClick={handleSaveFeeStructure}
@@ -1105,7 +1105,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-sm font-black text-rose-600">-KES {(exp.amount ?? 0).toLocaleString()}</p>
+                                                <p className="text-sm font-black text-rose-600">-KES {(exp.amount ?? 0)?.toLocaleString()}</p>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified</p>
                                             </div>
                                         </div>

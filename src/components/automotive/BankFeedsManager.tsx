@@ -116,7 +116,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Pending Amount</p>
                     <h3 className="text-2xl font-black text-emerald-600">
-                        KES {transactions.filter(t => t.status === 'unreconciled').reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
+                        KES {transactions.filter(t => t.status === 'unreconciled').reduce((sum, t) => sum + t.amount, 0)?.toLocaleString()}
                     </h3>
                 </div>
                 <div className="md:col-span-2 bg-white dark:bg-slate-800 p-4 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-4">
@@ -176,7 +176,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <p className="text-sm font-black text-slate-900 dark:text-white">
-                                            KES {transaction.amount.toLocaleString()}
+                                            KES {transaction.amount?.toLocaleString()}
                                         </p>
                                     </td>
                                     <td className="px-8 py-6">

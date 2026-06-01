@@ -126,7 +126,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                                         <div className="flex-1">
                                             <div className="flex justify-between items-start">
                                                 <h5 className="font-black text-slate-900 text-sm">{log.userName}</h5>
-                                                <span className="text-[10px] font-bold text-slate-400">{new Date(log.timestamp).toLocaleString()}</span>
+                                                <span className="text-[10px] font-bold text-slate-400">{new Date(log.timestamp)?.toLocaleString()}</span>
                                             </div>
                                             <p className="text-slate-600 text-xs mt-1 font-bold">{log.action}</p>
                                             <p className="text-slate-400 text-[10px] mt-1 font-medium">{log.details}</p>

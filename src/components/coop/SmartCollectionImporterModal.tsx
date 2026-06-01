@@ -526,7 +526,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                                     {row.parsedData.quantity} <span className="text-[10px] text-slate-400 font-normal uppercase">{row.parsedData.unit}</span>
                                                 </td>
                                                 <td className="p-4 text-sm font-black text-slate-900 dark:text-white">
-                                                    {(row.parsedData as any)._estimatedPayout ? `KES ${(row.parsedData as any)._estimatedPayout.toLocaleString()}` : '-'}
+                                                    {(row.parsedData as any)._estimatedPayout ? `KES ${(row.parsedData as any)._estimatedPayout?.toLocaleString()}` : '-'}
                                                 </td>
                                                 <td className="p-4">
                                                     {!row.isValid ? (

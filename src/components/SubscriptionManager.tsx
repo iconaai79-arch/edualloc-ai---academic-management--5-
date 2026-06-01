@@ -267,30 +267,30 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                 <div className="space-y-2 mt-4">
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="text-slate-600 dark:text-slate-400">Base License:</span>
-                                        <span className="font-bold">KES {monthlyPrice.toLocaleString()}</span>
+                                        <span className="font-bold">KES {monthlyPrice?.toLocaleString()}</span>
                                     </div>
                                     {subscriptionConfig.libraryCostPerStudent !== undefined && subscriptionConfig.libraryCostPerStudent > 0 && activeLibraryStudents > 0 && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-600 dark:text-slate-400">Library ({activeLibraryStudents} active):</span>
-                                            <span className="font-bold">KES {(subscriptionConfig.libraryCostPerStudent * activeLibraryStudents).toLocaleString()}</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.libraryCostPerStudent * activeLibraryStudents)?.toLocaleString()}</span>
                                         </div>
                                     )}
                                     {subscriptionConfig.boardingCostPerStudent !== undefined && subscriptionConfig.boardingCostPerStudent > 0 && activeBoardingStudents > 0 && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-600 dark:text-slate-400">Boarding ({activeBoardingStudents} active):</span>
-                                            <span className="font-bold">KES {(subscriptionConfig.boardingCostPerStudent * activeBoardingStudents).toLocaleString()}</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.boardingCostPerStudent * activeBoardingStudents)?.toLocaleString()}</span>
                                         </div>
                                     )}
                                     {subscriptionConfig.transportCostPerStudent !== undefined && subscriptionConfig.transportCostPerStudent > 0 && activeTransportStudents > 0 && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-600 dark:text-slate-400">Transport ({activeTransportStudents} active):</span>
-                                            <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents).toLocaleString()}</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents)?.toLocaleString()}</span>
                                         </div>
                                     )}
                                     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                         <span className="text-slate-900 dark:text-white font-bold">Total:</span>
                                         <span className="text-2xl font-bold text-[var(--color-primary)]">
-                                            KES {(monthlyPrice + (subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents + (subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents + (subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents).toLocaleString()}
+                                            KES {(monthlyPrice + (subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents + (subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents + (subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents)?.toLocaleString()}
                                             <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">/mo</span>
                                         </span>
                                     </div>
@@ -306,30 +306,30 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                 <div className="space-y-2 mt-4">
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="text-slate-600 dark:text-slate-400">Base License:</span>
-                                        <span className="font-bold">KES {yearlyPrice.toLocaleString()}</span>
+                                        <span className="font-bold">KES {yearlyPrice?.toLocaleString()}</span>
                                     </div>
                                     {subscriptionConfig.libraryCostPerStudent !== undefined && subscriptionConfig.libraryCostPerStudent > 0 && activeLibraryStudents > 0 && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-600 dark:text-slate-400">Library ({activeLibraryStudents} active x 12):</span>
-                                            <span className="font-bold">KES {(subscriptionConfig.libraryCostPerStudent * activeLibraryStudents * 12).toLocaleString()}</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.libraryCostPerStudent * activeLibraryStudents * 12)?.toLocaleString()}</span>
                                         </div>
                                     )}
                                     {subscriptionConfig.boardingCostPerStudent !== undefined && subscriptionConfig.boardingCostPerStudent > 0 && activeBoardingStudents > 0 && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-600 dark:text-slate-400">Boarding ({activeBoardingStudents} active x 12):</span>
-                                            <span className="font-bold">KES {(subscriptionConfig.boardingCostPerStudent * activeBoardingStudents * 12).toLocaleString()}</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.boardingCostPerStudent * activeBoardingStudents * 12)?.toLocaleString()}</span>
                                         </div>
                                     )}
                                     {subscriptionConfig.transportCostPerStudent !== undefined && subscriptionConfig.transportCostPerStudent > 0 && activeTransportStudents > 0 && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-600 dark:text-slate-400">Transport ({activeTransportStudents} active x 12):</span>
-                                            <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents * 12).toLocaleString()}</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents * 12)?.toLocaleString()}</span>
                                         </div>
                                     )}
                                     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                         <span className="text-slate-900 dark:text-white font-bold">Total:</span>
                                         <span className="text-2xl font-bold text-[var(--color-primary)]">
-                                            KES {(yearlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 12) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 12) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 12)).toLocaleString()}
+                                            KES {(yearlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 12) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 12) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 12))?.toLocaleString()}
                                             <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">/yr</span>
                                         </span>
                                     </div>
@@ -346,30 +346,30 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                 <div className="space-y-2 mt-4">
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="text-slate-600 dark:text-slate-400">Base License:</span>
-                                        <span className="font-bold">KES {quarterlyPrice.toLocaleString()}</span>
+                                        <span className="font-bold">KES {quarterlyPrice?.toLocaleString()}</span>
                                     </div>
                                     {subscriptionConfig.libraryCostPerStudent !== undefined && subscriptionConfig.libraryCostPerStudent > 0 && activeLibraryStudents > 0 && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-600 dark:text-slate-400">Library ({activeLibraryStudents} active x 4):</span>
-                                            <span className="font-bold">KES {(subscriptionConfig.libraryCostPerStudent * activeLibraryStudents * 4).toLocaleString()}</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.libraryCostPerStudent * activeLibraryStudents * 4)?.toLocaleString()}</span>
                                         </div>
                                     )}
                                     {subscriptionConfig.boardingCostPerStudent !== undefined && subscriptionConfig.boardingCostPerStudent > 0 && activeBoardingStudents > 0 && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-600 dark:text-slate-400">Boarding ({activeBoardingStudents} active x 4):</span>
-                                            <span className="font-bold">KES {(subscriptionConfig.boardingCostPerStudent * activeBoardingStudents * 4).toLocaleString()}</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.boardingCostPerStudent * activeBoardingStudents * 4)?.toLocaleString()}</span>
                                         </div>
                                     )}
                                     {subscriptionConfig.transportCostPerStudent !== undefined && subscriptionConfig.transportCostPerStudent > 0 && activeTransportStudents > 0 && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-slate-600 dark:text-slate-400">Transport ({activeTransportStudents} active x 4):</span>
-                                            <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents * 4).toLocaleString()}</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents * 4)?.toLocaleString()}</span>
                                         </div>
                                     )}
                                     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                         <span className="text-slate-900 dark:text-white font-bold">Total:</span>
                                         <span className="text-2xl font-bold text-[var(--color-primary)]">
-                                            KES {(quarterlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 4) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 4) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 4)).toLocaleString()}
+                                            KES {(quarterlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 4) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 4) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 4))?.toLocaleString()}
                                             <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">/qtr</span>
                                         </span>
                                     </div>
@@ -550,7 +550,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{new Date(doc.date).toLocaleDateString()}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500 dark:text-slate-400">{doc.number}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{doc.type}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {doc.amount.toLocaleString()}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {doc.amount?.toLocaleString()}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm">
                                                 {doc.type === 'Invoice' ? <InvoiceStatusBadge status={(doc as Invoice).status} /> : <TransactionStatusBadge status="completed" />}
                                             </td>

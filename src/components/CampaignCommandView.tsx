@@ -577,7 +577,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Institutional reach vs Electorate Size</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-3xl font-black text-indigo-600 tracking-tighter">{stats.totalReached.toLocaleString()}</p>
+                                    <p className="text-3xl font-black text-indigo-600 tracking-tighter">{stats.totalReached?.toLocaleString()}</p>
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Onboarded</p>
                                 </div>
                            </div>
@@ -607,7 +607,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-end">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Voter Penetration</p>
-                                            <p className="font-black text-slate-900 dark:text-white uppercase text-sm">{stats.totalReached.toLocaleString()} / {stats.totalElectorate.toLocaleString()}</p>
+                                            <p className="font-black text-slate-900 dark:text-white uppercase text-sm">{stats.totalReached?.toLocaleString()} / {stats.totalElectorate?.toLocaleString()}</p>
                                         </div>
                                         <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                             <div className="h-full bg-indigo-600 rounded-full transition-all duration-1000" style={{ width: `${stats.reachPercent}%` }}></div>
@@ -624,7 +624,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                         </div>
                                         <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining to Target</p>
-                                            <p className="text-xl font-black text-slate-900 dark:text-white leading-none">{(stats.totalElectorate - stats.totalReached).toLocaleString()}</p>
+                                            <p className="text-xl font-black text-slate-900 dark:text-white leading-none">{(stats.totalElectorate - stats.totalReached)?.toLocaleString()}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -694,8 +694,8 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         {[
-                            { label: 'Total Supporter Strength', val: stats.supporters.toLocaleString(), sub: 'Hard Votes', icon: HeartIcon, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/10' },
-                            { label: 'Remaining Unonboarded', val: (stats.totalElectorate - stats.totalReached).toLocaleString(), sub: 'Untapped Potential', icon: UserGroupIcon, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/10' },
+                            { label: 'Total Supporter Strength', val: stats.supporters?.toLocaleString(), sub: 'Hard Votes', icon: HeartIcon, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/10' },
+                            { label: 'Remaining Unonboarded', val: (stats.totalElectorate - stats.totalReached)?.toLocaleString(), sub: 'Untapped Potential', icon: UserGroupIcon, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/10' },
                             { label: 'Upcoming Events', val: stats.upcomingEvents, sub: 'Engagement Ops', icon: CalendarDaysIcon, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/10' },
                             { label: 'Campaign Readiness', val: 'Elite', sub: 'Institution Level', icon: ShieldCheckIcon, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/10' }
                         ].map((s, idx) => (
@@ -1195,7 +1195,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                             const memberVoterIds = groupMembers.filter(m => m.groupId === activeGroupFilter).map(m => m.voterId);
                                             filtered = filtered.filter(v => memberVoterIds.includes(v.id));
                                         }
-                                        return filtered.length.toLocaleString();
+                                        return filtered.length?.toLocaleString();
                                     })()}
                                 </p>
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Target Recipients</p>
@@ -1275,7 +1275,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                                 const totalUnits = filtered.length * Math.ceil(smsMessage.length / 160);
                                                 return (
                                                     <span>
-                                                        Estimated Cost: <span className="font-black text-indigo-600">{ totalUnits.toLocaleString() } SMS Units</span> for {filtered.length} recipients. 
+                                                        Estimated Cost: <span className="font-black text-indigo-600">{ totalUnits?.toLocaleString() } SMS Units</span> for {filtered.length} recipients. 
                                                         Ensure your balance is topped up in the settings tab.
                                                     </span>
                                                 );

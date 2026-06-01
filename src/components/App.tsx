@@ -4039,7 +4039,7 @@ export const App: React.FC = () => {
             const isNew = !data.id;
             if (isNew && data.clientPhone) {
                 const smsCfg = activeInstitution?.smsConfig || companyDetails.smsConfig;
-                const message = `Hello ${data.clientName}, your invoice #${invoiceNumber} for KES ${total.toLocaleString()} has been recorded. Due date: ${data.dueDate ? new Date(data.dueDate).toLocaleDateString() : 'N/A'}. Thank you for your business!`;
+                const message = `Hello ${data.clientName}, your invoice #${invoiceNumber} for KES ${total?.toLocaleString()} has been recorded. Due date: ${data.dueDate ? new Date(data.dueDate).toLocaleDateString() : 'N/A'}. Thank you for your business!`;
                 apiService.sendSms(data.clientPhone, message, smsCfg, 1, instId).catch(e => {
                     console.error("Failed to send invoice SMS notification:", e);
                 });
@@ -4154,7 +4154,7 @@ export const App: React.FC = () => {
                 const invoice = dbInvoices.find(i => i.id === data.invoiceId);
                 if (invoice && invoice.clientPhone) {
                     const smsCfg = activeInstitution?.smsConfig || companyDetails.smsConfig;
-                    const message = `Hello ${invoice.clientName}, we have received your payment of KES ${Number(data.amount).toLocaleString()} for invoice #${invoice.invoiceNumber}. Receipt #${receiptNumber || data.receiptNumber || 'N/A'}. Thank you for your payment!`;
+                    const message = `Hello ${invoice.clientName}, we have received your payment of KES ${Number(data.amount)?.toLocaleString()} for invoice #${invoice.invoiceNumber}. Receipt #${receiptNumber || data.receiptNumber || 'N/A'}. Thank you for your payment!`;
                     apiService.sendSms(invoice.clientPhone, message, smsCfg, 1, instId).catch(e => {
                         console.error("Failed to send payment confirmation SMS:", e);
                     });
@@ -5492,9 +5492,9 @@ export const App: React.FC = () => {
 
                                             // Trigger Notifications (Email & SMS)
                                             const emailSubject = `Payment Confirmation: Alumnae Network Activation`;
-                                            const emailBody = `Dear ${registrationPayload.fullName},\n\nThank you for activating your membership in the ${school?.name || 'Alumnae'} Network.\n\nPayment Details:\n- Amount: KES ${amount.toLocaleString()}\n- Receipt: ${receiptData.receiptNumber}\n- Transaction ID: ${data.paymentId}\n\nYou can now access the social portal and connect with your alma mater.\n\nRegards,\nEduAI Network Team`;
+                                            const emailBody = `Dear ${registrationPayload.fullName},\n\nThank you for activating your membership in the ${school?.name || 'Alumnae'} Network.\n\nPayment Details:\n- Amount: KES ${amount?.toLocaleString()}\n- Receipt: ${receiptData.receiptNumber}\n- Transaction ID: ${data.paymentId}\n\nYou can now access the social portal and connect with your alma mater.\n\nRegards,\nEduAI Network Team`;
                                             
-                                            const smsMessage = `Hello ${registrationPayload.fullName}, your payment of KES ${amount.toLocaleString()} for Alumnae Network activation is received. Receipt: ${receiptData.receiptNumber}. Welcome!`;
+                                            const smsMessage = `Hello ${registrationPayload.fullName}, your payment of KES ${amount?.toLocaleString()} for Alumnae Network activation is received. Receipt: ${receiptData.receiptNumber}. Welcome!`;
 
                                             apiService.sendEmail(registrationPayload.email, emailSubject, emailBody).catch(console.error);
                                             apiService.sendSms(registrationPayload.phoneNumber, smsMessage).catch(console.error);

@@ -129,7 +129,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                             <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
                                 <Coins className="w-4 h-4 text-emerald-600" /> Revenue Flow
                             </p>
-                            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.revenueCollected.toLocaleString()}</h3>
+                            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.revenueCollected?.toLocaleString()}</h3>
                             <p className="text-[10px] font-bold text-emerald-600 mt-2 uppercase tracking-widest">Total Collected</p>
                         </div>
                     </div>
@@ -264,7 +264,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                                 </div>
                                             </div>
                                             <div className="mt-4 sm:mt-0 text-left sm:text-right">
-                                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {inv.totalAmount.toLocaleString()}</p>
+                                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {inv.totalAmount?.toLocaleString()}</p>
                                                 <span className={`inline-block px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.2em] mt-1 ${
                                                     inv.status === 'fully_paid' ? 'bg-emerald-50 text-emerald-600' : 
                                                     inv.status === 'partially_paid' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'

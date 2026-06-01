@@ -343,7 +343,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                                 <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                                                 <span className="text-[10px] font-black text-slate-400">{item.rating || '4.9'}</span>
                                             </div>
-                                            <p className="text-sm font-black text-indigo-600">KES {item.price ? item.price.toLocaleString() : '0'}</p>
+                                            <p className="text-sm font-black text-indigo-600">KES {item.price ? item.price?.toLocaleString() : '0'}</p>
                                         </div>
                                     </div>
                                 </div>

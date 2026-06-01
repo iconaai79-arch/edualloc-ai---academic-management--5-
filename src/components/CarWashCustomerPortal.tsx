@@ -307,7 +307,7 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                                         <div className="w-10 h-10 bg-emerald-500 text-white rounded-full flex items-center justify-center font-black">!</div>
                                         <div>
                                             <p className="text-xs font-black text-emerald-800 dark:text-emerald-400 uppercase tracking-widest">Your car is ready!</p>
-                                            <p className="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold mb-3">Please proceed to the waiting bay or pay here. Total Amount: KES {((job.amountCharged || 0) + (cafeOrders.filter(s => s.jobId === job.id && s.paymentMethod === 'tab').reduce((sum, s) => sum + s.totalAmount, 0)) + (retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab').reduce((sum, s) => sum + s.totalAmount, 0))).toLocaleString()}</p>
+                                            <p className="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold mb-3">Please proceed to the waiting bay or pay here. Total Amount: KES {((job.amountCharged || 0) + (cafeOrders.filter(s => s.jobId === job.id && s.paymentMethod === 'tab').reduce((sum, s) => sum + s.totalAmount, 0)) + (retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab').reduce((sum, s) => sum + s.totalAmount, 0)))?.toLocaleString()}</p>
 
                                             <button
                                                 onClick={() => handlePayment(job)}
@@ -350,7 +350,7 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-sm font-black text-indigo-600">KES {job.amountCharged.toLocaleString()}</p>
+                                    <p className="text-sm font-black text-indigo-600">KES {job.amountCharged?.toLocaleString()}</p>
                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 justify-end">
                                         <CalendarDaysIcon className="w-3 h-3" /> {new Date(job.createdAt).toLocaleDateString()}
                                     </p>
@@ -380,7 +380,7 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                                     <p className="text-[10px] font-black uppercase text-amber-100 tracking-widest flex items-center gap-1.5 object-contain">
                                         <SparklesIcon className="w-3 h-3" /> Loyalty Reward Points
                                     </p>
-                                    <p className="text-3xl font-black mt-1">{totalLoyaltyPoints.toLocaleString()} <span className="text-xs font-bold text-amber-200">PTS</span></p>
+                                    <p className="text-3xl font-black mt-1">{totalLoyaltyPoints?.toLocaleString()} <span className="text-xs font-bold text-amber-200">PTS</span></p>
                                 </div>
                                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md group-hover:scale-110 transition-transform">
                                     🌟

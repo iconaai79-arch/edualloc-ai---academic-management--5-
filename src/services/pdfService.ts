@@ -226,8 +226,8 @@ export const generateInvoicePdfDataUri = async (
         index + 1,
         item.description,
         item.quantity,
-        item.unitPrice.toLocaleString(),
-        item.amount.toLocaleString()
+        item.unitPrice?.toLocaleString(),
+        item.amount?.toLocaleString()
     ]);
 
     doc.autoTable({
@@ -241,7 +241,7 @@ export const generateInvoicePdfDataUri = async (
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.text('TOTAL:', pageWidth - margin - 40, finalY + 10);
-            doc.text(`KES ${invoice.totalAmount.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
+            doc.text(`KES ${invoice.totalAmount?.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
         }
     });
 
@@ -291,7 +291,7 @@ export const generateReceiptPdfDataUri = async (
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text('AMOUNT PAID:', margin, finalY + 15);
-    doc.text(`KES ${receipt.amountPaid.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+    doc.text(`KES ${receipt.amountPaid?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
 
     return doc.output('datauristring');
 };
@@ -333,7 +333,7 @@ export const generateCarInvoicePdfDataUri = async (
             1,
             `${listing.year} ${listing.make} ${listing.model}`,
             invoice.registrationNumber || listing.registrationNumber || 'N/A',
-            invoice.totalAmount.toLocaleString()
+            invoice.totalAmount?.toLocaleString()
         ]
     ];
 
@@ -348,7 +348,7 @@ export const generateCarInvoicePdfDataUri = async (
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.text('TOTAL PAYABLE:', pageWidth - margin - 85, finalY + 15);
-            doc.text(`KES ${invoice.totalAmount.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+            doc.text(`KES ${invoice.totalAmount?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
             
             doc.setFontSize(10);
             doc.text('CLIENT DETAILS:', margin, finalY + 15);
@@ -399,8 +399,8 @@ export const generateCarReceiptPdfDataUri = async (
         ['Invoice Ref', invoice.invoiceNumber],
         ['Payment Method', payment.paymentMethod],
         ['Transaction ID', payment.transactionReference],
-        ['Amount Paid', `KES ${payment.amount.toLocaleString()}`],
-        ['Remaining Balance', `KES ${invoice.balanceAmount.toLocaleString()}`],
+        ['Amount Paid', `KES ${payment.amount?.toLocaleString()}`],
+        ['Remaining Balance', `KES ${invoice.balanceAmount?.toLocaleString()}`],
     ];
 
     (doc as any).autoTable({
@@ -415,7 +415,7 @@ export const generateCarReceiptPdfDataUri = async (
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text('AMOUNT PAID:', margin, finalY + 20);
-    doc.text(`KES ${payment.amount.toLocaleString()}`, pageWidth - margin, finalY + 20, { align: 'right' });
+    doc.text(`KES ${payment.amount?.toLocaleString()}`, pageWidth - margin, finalY + 20, { align: 'right' });
 
     setupPdfFooter(doc, footerImg, footerText);
 
@@ -470,7 +470,7 @@ export const generateCarSaleAgreementPdfDataUri = async (
     
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(`Total Sale Price: KES ${invoice.totalAmount.toLocaleString()}`, margin, tableStartY + 94);
+    doc.text(`Total Sale Price: KES ${invoice.totalAmount?.toLocaleString()}`, margin, tableStartY + 94);
     
     if (invoice.isInstallment) {
         doc.text(`Payment Mode: Installment Plan`, margin, tableStartY + 100);
@@ -553,9 +553,9 @@ export const generateCarClientStatementPdfDataUri = async (
             new Date(t.date).toLocaleDateString(),
             t.ref,
             t.desc,
-            t.type === 'debit' ? t.amount.toLocaleString() : '',
-            t.type === 'credit' ? t.amount.toLocaleString() : '',
-            runningBalance.toLocaleString()
+            t.type === 'debit' ? t.amount?.toLocaleString() : '',
+            t.type === 'credit' ? t.amount?.toLocaleString() : '',
+            runningBalance?.toLocaleString()
         ]);
     });
 
@@ -572,7 +572,7 @@ export const generateCarClientStatementPdfDataUri = async (
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('OUTSTANDING BALANCE:', margin, finalY + 15);
-    doc.text(`KES ${runningBalance.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+    doc.text(`KES ${runningBalance?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
 
     setupPdfFooter(doc, footerImg, footerText);
 
@@ -614,9 +614,9 @@ export const generateCarShowroomInventoryPdf = async (
             `${listing.make} ${listing.model}`,
             listing.year.toString(),
             listing.registrationNumber || 'N/A',
-            `${(listing.mileage || 0).toLocaleString()} KM`,
+            `${(listing.mileage || 0)?.toLocaleString()} KM`,
             `${listing.fuelType} / ${listing.transmission}`,
-            (listing.price || 0).toLocaleString(),
+            (listing.price || 0)?.toLocaleString(),
             (listing.status || 'active').toUpperCase()
         ]);
     });
@@ -634,7 +634,7 @@ export const generateCarShowroomInventoryPdf = async (
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL SHOWROOM VALUE:', margin, finalY + 15);
-    doc.text(`KES ${totalValue.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+    doc.text(`KES ${totalValue?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
 
     setupPdfFooter(doc, footerImg, footerText);
 
@@ -693,9 +693,9 @@ export const generateCarSalesSummaryPdf = async (
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(`KES ${totalInvoiced.toLocaleString()}`, margin + 10, tableStartY + 31);
-    doc.text(`KES ${totalReceived.toLocaleString()}`, pageWidth / 2, tableStartY + 31, { align: 'center' });
-    doc.text(`KES ${totalOutstanding.toLocaleString()}`, pageWidth - margin - 10, tableStartY + 31, { align: 'right' });
+    doc.text(`KES ${totalInvoiced?.toLocaleString()}`, margin + 10, tableStartY + 31);
+    doc.text(`KES ${totalReceived?.toLocaleString()}`, pageWidth / 2, tableStartY + 31, { align: 'center' });
+    doc.text(`KES ${totalOutstanding?.toLocaleString()}`, pageWidth - margin - 10, tableStartY + 31, { align: 'right' });
 
     const head = [['DATE', 'INVOICE #', 'CLIENT NAME', 'VEHICLE REG', 'TOTAL (KES)', 'PAID (KES)', 'BALANCE (KES)', 'STATUS']];
     const body: any[] = [];
@@ -706,9 +706,9 @@ export const generateCarSalesSummaryPdf = async (
             inv.invoiceNumber,
             inv.clientName,
             inv.registrationNumber || 'N/A',
-            (inv.totalAmount || 0).toLocaleString(),
-            (inv.paidAmount || 0).toLocaleString(),
-            (inv.balanceAmount || 0).toLocaleString(),
+            (inv.totalAmount || 0)?.toLocaleString(),
+            (inv.paidAmount || 0)?.toLocaleString(),
+            (inv.balanceAmount || 0)?.toLocaleString(),
             (inv.status || 'pending').toUpperCase().replace('_', ' ')
         ]);
     });
@@ -768,8 +768,8 @@ export const generateQuotePdfDataUri = async (
         index + 1,
         item.description,
         item.quantity,
-        item.unitPrice.toLocaleString(),
-        item.amount.toLocaleString()
+        item.unitPrice?.toLocaleString(),
+        item.amount?.toLocaleString()
     ]);
 
     doc.autoTable({
@@ -783,7 +783,7 @@ export const generateQuotePdfDataUri = async (
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.text('TOTAL ESTIMATED:', pageWidth - margin - 50, finalY + 10);
-            doc.text(`KES ${quote.totalAmount.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
+            doc.text(`KES ${quote.totalAmount?.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
         }
     });
 
@@ -852,9 +852,9 @@ export const generateDSQuotationPdfDataUri = async (
     const tuitionFee = baseFeeAmount - pdlFee - testFee;
 
     const body = [
-        [1, 'Standard Tuition & Instruction Fee', catName, tuitionFee.toLocaleString()],
-        [2, 'NTSA PDL (Provisional Driving License) Processing', catName, pdlFee.toLocaleString()],
-        [3, 'Practical & Theory Test Booking Fee', catName, testFee.toLocaleString()]
+        [1, 'Standard Tuition & Instruction Fee', catName, tuitionFee?.toLocaleString()],
+        [2, 'NTSA PDL (Provisional Driving License) Processing', catName, pdlFee?.toLocaleString()],
+        [3, 'Practical & Theory Test Booking Fee', catName, testFee?.toLocaleString()]
     ];
 
     (doc as any).autoTable({
@@ -868,7 +868,7 @@ export const generateDSQuotationPdfDataUri = async (
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.text('TOTAL ESTIMATED FEES:', pageWidth - margin - 60, finalY + 15);
-            doc.text(`KES ${baseFeeAmount.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+            doc.text(`KES ${baseFeeAmount?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
             
             doc.setFontSize(9);
             doc.setFont('helvetica', 'italic');
@@ -957,7 +957,7 @@ export const generateRetailReceiptPdf = async (
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Date: ${new Date(saleData.createdAt || new Date()).toLocaleString()}`, margin, yPos);
+    doc.text(`Date: ${new Date(saleData.createdAt || new Date())?.toLocaleString()}`, margin, yPos);
     yPos += 4;
     doc.text(`Receipt #: ${saleData.id?.substring(0, 8).toUpperCase() || 'N/A'}`, margin, yPos);
     yPos += 4;
@@ -995,7 +995,7 @@ export const generateRetailReceiptPdf = async (
         doc.text(`${item.quantity} x ${item.unitPrice}`, 45, yPos, { align: 'right' });
 
         const lineTotal = item.quantity * item.unitPrice;
-        doc.text(lineTotal.toLocaleString(), pageWidth - margin, yPos, { align: 'right' });
+        doc.text(lineTotal?.toLocaleString(), pageWidth - margin, yPos, { align: 'right' });
 
         yPos += 5;
         totalItems += item.quantity;
@@ -1357,7 +1357,7 @@ export const generateContractPdf = async (
         doc.addImage(sigImg, 'PNG', margin, yPos, sigWidth, sigHeight);
         yPos += sigHeight + 10;
         doc.setFont('helvetica', 'normal');
-        doc.text(`Authenticated on: ${new Date((contract as any).acceptanceTimestamp || Date.now()).toLocaleString()}`, margin, yPos);
+        doc.text(`Authenticated on: ${new Date((contract as any).acceptanceTimestamp || Date.now())?.toLocaleString()}`, margin, yPos);
     }
 
     setupPdfFooter(doc, footerImg);
@@ -2341,7 +2341,7 @@ export const generateLeaveOutSheetPdf = async (
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`Sheet ID: ${req.id}`, margin, yPos);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`Generated: ${new Date()?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 10;
 
     // Student Information Block
@@ -2396,9 +2396,9 @@ export const generateLeaveOutSheetPdf = async (
     yPos += 10;
 
     const stages = [
-        ['1. Class Teacher', req.classTeacherName, 'AUTHORIZED', req.createdAt ? new Date(req.createdAt).toLocaleString() : '---'],
-        ['2. Boarding Master', req.boardingMasterName || '---', req.boardingMasterName ? 'CHECKED OUT' : 'PENDING', req.houseCheckedOutAt ? new Date(req.houseCheckedOutAt).toLocaleString() : '---'],
-        ['3. Security Gate', req.securityName || '---', req.securityName ? 'EXIT GRANTED' : 'PENDING', req.gateCheckedOutAt ? new Date(req.gateCheckedOutAt).toLocaleString() : '---'],
+        ['1. Class Teacher', req.classTeacherName, 'AUTHORIZED', req.createdAt ? new Date(req.createdAt)?.toLocaleString() : '---'],
+        ['2. Boarding Master', req.boardingMasterName || '---', req.boardingMasterName ? 'CHECKED OUT' : 'PENDING', req.houseCheckedOutAt ? new Date(req.houseCheckedOutAt)?.toLocaleString() : '---'],
+        ['3. Security Gate', req.securityName || '---', req.securityName ? 'EXIT GRANTED' : 'PENDING', req.gateCheckedOutAt ? new Date(req.gateCheckedOutAt)?.toLocaleString() : '---'],
     ];
 
     doc.autoTable({
@@ -3289,9 +3289,9 @@ export const generateMemberLibraryHistoryPdf = async (
         const paidAmount = Number(f.paidAmount || 0);
         return [
             f.description || 'Fine',
-            amount.toLocaleString(),
-            paidAmount.toLocaleString(),
-            (amount - paidAmount).toLocaleString(),
+            amount?.toLocaleString(),
+            paidAmount?.toLocaleString(),
+            (amount - paidAmount)?.toLocaleString(),
             (f.status || 'pending').toUpperCase()
         ];
     });
@@ -3316,7 +3316,7 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.setTextColor(0, 0, 0); // Reset color
     doc.text('TOTAL OUTSTANDING FINE:', pageWidth - margin - 55, finalY + 10);
     doc.setTextColor(totalDue > 0 ? [200, 0, 0] : [0, 100, 0]);
-    doc.text(`KES ${totalDue.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
+    doc.text(`KES ${totalDue?.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
@@ -3456,7 +3456,7 @@ export const generateCarWashTrialBalancePdf = async (
         acc.accountCode,
         acc.name,
         acc.type,
-        (acc.balance || 0).toLocaleString()
+        (acc.balance || 0)?.toLocaleString()
     ]);
 
     doc.autoTable({
@@ -3508,8 +3508,8 @@ export const generateCarWashCashbookPdf = async (
                 idx === 0 ? new Date(entry.entryDate).toLocaleDateString() : '',
                 idx === 0 ? `${entry.entryNumber}\n${entry.description}` : '',
                 acc ? acc.name : 'Unknown Account',
-                line.debit > 0 ? line.debit.toLocaleString() : '',
-                line.credit > 0 ? line.credit.toLocaleString() : ''
+                line.debit > 0 ? line.debit?.toLocaleString() : '',
+                line.credit > 0 ? line.credit?.toLocaleString() : ''
             ]);
         });
     });
@@ -3562,7 +3562,7 @@ export const generateCarWashExpensesPdf = async (
         exp.category.toUpperCase(),
         exp.description,
         exp.paymentMethod.replace('_', ' ').toUpperCase(),
-        (exp.amount || 0).toLocaleString()
+        (exp.amount || 0)?.toLocaleString()
     ]);
 
     doc.autoTable({
@@ -3578,7 +3578,7 @@ export const generateCarWashExpensesPdf = async (
     const total = (expenses || []).reduce((sum, exp) => sum + (exp.amount || 0), 0);
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFont('helvetica', 'bold');
-    doc.text(`TOTAL EXPENSES: KES ${total.toLocaleString()}`, doc.internal.pageSize.getWidth() - margin, finalY, { align: 'right' });
+    doc.text(`TOTAL EXPENSES: KES ${total?.toLocaleString()}`, doc.internal.pageSize.getWidth() - margin, finalY, { align: 'right' });
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
@@ -3614,10 +3614,10 @@ export const generateCarWashPayrollPdf = async (
         return [
             `${new Date(pr.periodStart).toLocaleDateString()} - ${new Date(pr.periodEnd).toLocaleDateString()}`,
             staff?.name || 'Unknown',
-            (pr.baseSalary || 0).toLocaleString(),
-            (pr.commissionEarned || 0).toLocaleString(),
-            ((pr.advancesTaken || 0) + (pr.deductions || 0)).toLocaleString(),
-            (pr.totalPay || 0).toLocaleString(),
+            (pr.baseSalary || 0)?.toLocaleString(),
+            (pr.commissionEarned || 0)?.toLocaleString(),
+            ((pr.advancesTaken || 0) + (pr.deductions || 0))?.toLocaleString(),
+            (pr.totalPay || 0)?.toLocaleString(),
             pr.status.toUpperCase()
         ];
     });
@@ -3702,7 +3702,7 @@ export const generateCarWashOperationalSummaryPdf = async (
 
         const revBody = [
             ['Total Completed Washes', completedJobs.length.toString()],
-            ['Gross Revenue (KES)', totalRev.toLocaleString()],
+            ['Gross Revenue (KES)', totalRev?.toLocaleString()],
             ['Average Ticket Size (KES)', (totalRev / (completedJobs.length || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })]
         ];
 
@@ -3731,7 +3731,7 @@ export const generateCarWashOperationalSummaryPdf = async (
             const rev = attJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
             const attFeedbacks = feedbacks.filter(f => attJobs.some(j => j.id === f.jobId));
             const rating = attFeedbacks.length ? (attFeedbacks.reduce((s, f) => s + f.rating, 0) / attFeedbacks.length).toFixed(1) : '—';
-            return [att.name, attJobs.length.toString(), rev.toLocaleString(), rating];
+            return [att.name, attJobs.length.toString(), rev?.toLocaleString(), rating];
         });
 
         doc.autoTable({
@@ -3757,7 +3757,7 @@ export const generateCarWashOperationalSummaryPdf = async (
         const customerData = customers.map(c => {
             const cj = jobs.filter(j => j.customerId === c.id && j.status === 'completed');
             const totalSpent = cj.reduce((s, j) => s + (j.amountPaid || 0), 0);
-            return [c.name, cj.length.toString(), totalSpent.toLocaleString(), c.loyaltyStamps.toString()];
+            return [c.name, cj.length.toString(), totalSpent?.toLocaleString(), c.loyaltyStamps.toString()];
         }).sort((a, b) => Number(b[2].replace(/,/g, '')) - Number(a[2].replace(/,/g, ''))).slice(0, 15);
 
         doc.autoTable({
@@ -3782,7 +3782,7 @@ export const generateCarWashOperationalSummaryPdf = async (
         const serviceData = packages.map(pkg => {
             const pkgJobs = jobs.filter(j => j.packageId === pkg.id && j.status === 'completed');
             const rev = pkgJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
-            return [pkg.name, pkgJobs.length.toString(), rev.toLocaleString()];
+            return [pkg.name, pkgJobs.length.toString(), rev?.toLocaleString()];
         }).sort((a, b) => Number(b[2].replace(/,/g, '')) - Number(a[2].replace(/,/g, '')));
 
         doc.autoTable({
@@ -3885,13 +3885,13 @@ export const generateCarWashBillsAndPaymentsPdf = async (
         body: [
             ['Total Jobs (Period)', jobs.length.toString()],
             ['Completed Jobs', completed.length.toString()],
-            ['Total Billed (KES)', totalBilled.toLocaleString()],
-            ['Total Collected (KES)', totalPaid.toLocaleString()],
-            ['Outstanding Balance (KES)', totalBalance.toLocaleString()],
-            ['Cash', `${cashJobs.length} jobs \u2014 KES ${cashJobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}`],
-            ['M-Pesa', `${mpesaJobs.length} jobs \u2014 KES ${mpesaJobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}`],
-            ['Card', `${cardJobs.length} jobs \u2014 KES ${cardJobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}`],
-            ['Credit / Unpaid', `${creditJobs.length} jobs \u2014 KES ${creditJobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}`],
+            ['Total Billed (KES)', totalBilled?.toLocaleString()],
+            ['Total Collected (KES)', totalPaid?.toLocaleString()],
+            ['Outstanding Balance (KES)', totalBalance?.toLocaleString()],
+            ['Cash', `${cashJobs.length} jobs \u2014 KES ${cashJobs.reduce((s, j) => s + (j.amountPaid || 0), 0)?.toLocaleString()}`],
+            ['M-Pesa', `${mpesaJobs.length} jobs \u2014 KES ${mpesaJobs.reduce((s, j) => s + (j.amountPaid || 0), 0)?.toLocaleString()}`],
+            ['Card', `${cardJobs.length} jobs \u2014 KES ${cardJobs.reduce((s, j) => s + (j.amountPaid || 0), 0)?.toLocaleString()}`],
+            ['Credit / Unpaid', `${creditJobs.length} jobs \u2014 KES ${creditJobs.reduce((s, j) => s + (j.amountPaid || 0), 0)?.toLocaleString()}`],
         ],
         theme: 'striped',
         headStyles: { fillColor: [6, 182, 212], textColor: 255, fontStyle: 'bold' },
@@ -3916,8 +3916,8 @@ export const generateCarWashBillsAndPaymentsPdf = async (
             customer?.phoneNumber || '—',
             pkg?.name || '\u2014',
             j.status || '\u2014',
-            `KES ${(j.amountCharged || 0).toLocaleString()}`,
-            `KES ${(j.amountPaid || 0).toLocaleString()}`,
+            `KES ${(j.amountCharged || 0)?.toLocaleString()}`,
+            `KES ${(j.amountPaid || 0)?.toLocaleString()}`,
             j.paymentMethod ? j.paymentMethod.toUpperCase() : '\u2014',
         ];
     });
@@ -3973,7 +3973,7 @@ export const generateBoardingReportPdf = async (
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, yPos);
+    doc.text(`Generated on: ${new Date()?.toLocaleString()}`, margin, yPos);
     yPos += 12;
 
     let head: string[][] = [];
@@ -4120,16 +4120,16 @@ export const generateTenantStatementPdf = async (
 
     let runningBal = openingBal;
     const body = [
-        [new Date(startDate).toLocaleDateString(), 'Opening Balance Brought Forward', '---', '---', '---', openingBal.toLocaleString()],
+        [new Date(startDate).toLocaleDateString(), 'Opening Balance Brought Forward', '---', '---', '---', openingBal?.toLocaleString()],
         ...filtered.map(t => {
             runningBal += (t.type === 'debit' ? t.amount : -t.amount);
             return [
                 new Date(t.date).toLocaleDateString(),
                 t.description,
                 t.ref,
-                t.type === 'debit' ? t.amount.toLocaleString() : '---',
-                t.type === 'credit' ? t.amount.toLocaleString() : '---',
-                runningBal.toLocaleString()
+                t.type === 'debit' ? t.amount?.toLocaleString() : '---',
+                t.type === 'credit' ? t.amount?.toLocaleString() : '---',
+                runningBal?.toLocaleString()
             ];
         })
     ];
@@ -4152,7 +4152,7 @@ export const generateTenantStatementPdf = async (
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.text('CLOSING BALANCE:', pageWidth - margin - 80, finalY);
-    doc.text(`KES ${runningBal.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
+    doc.text(`KES ${runningBal?.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
 
     return doc.output('datauristring');
 };
@@ -4207,9 +4207,9 @@ export const generateLandlordStatementPdf = async (
             new Date(p.paymentDate).toLocaleDateString(),
             `${unit?.unitNumber} - ${property?.name}`,
             p.id.split('_')[1],
-            p.amount.toLocaleString(),
-            comm.toLocaleString(),
-            (p.amount - comm).toLocaleString()
+            p.amount?.toLocaleString(),
+            comm?.toLocaleString(),
+            (p.amount - comm)?.toLocaleString()
         ];
     });
 
@@ -4238,14 +4238,14 @@ export const generateLandlordStatementPdf = async (
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text('Total Gross Collected:', margin, finalY + 8);
-    doc.text(`KES ${totalGross.toLocaleString()}`, margin + 60, finalY + 8);
+    doc.text(`KES ${totalGross?.toLocaleString()}`, margin + 60, finalY + 8);
     
     doc.text('Total Management Fees:', margin, finalY + 14);
-    doc.text(`KES ${totalComm.toLocaleString()}`, margin + 60, finalY + 14);
+    doc.text(`KES ${totalComm?.toLocaleString()}`, margin + 60, finalY + 14);
     
     doc.setFont('helvetica', 'bold');
     doc.text('NET PAYOUT DUE:', margin, finalY + 22);
-    doc.text(`KES ${(totalGross - totalComm).toLocaleString()}`, margin + 60, finalY + 22);
+    doc.text(`KES ${(totalGross - totalComm)?.toLocaleString()}`, margin + 60, finalY + 22);
 
     return doc.output('datauristring');
 };
@@ -4299,8 +4299,8 @@ export const generateLpoPdf = async (
         index + 1,
         item.name || 'Unknown Item',
         `${item.quantity || 0} ${item.unit || 'pcs'}`,
-        (item.unitCost || 0).toLocaleString(),
-        ((item.quantity || 0) * (item.unitCost || 0)).toLocaleString()
+        (item.unitCost || 0)?.toLocaleString(),
+        ((item.quantity || 0) * (item.unitCost || 0))?.toLocaleString()
     ]);
 
     (doc as any).autoTable({
@@ -4321,7 +4321,7 @@ export const generateLpoPdf = async (
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL ORDER VALUE:', pageWidth - margin - 100, finalY);
-    doc.text(`KES ${requisition.totalEstimatedCost.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
+    doc.text(`KES ${requisition.totalEstimatedCost?.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
 
     // Footer / Authorization
     doc.setFontSize(8);
@@ -4374,7 +4374,7 @@ export const generateRetailSalesStatementPdf = async (
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
     doc.text(`Period: ${startDate} to ${endDate}`, margin, nextY);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - margin, nextY, { align: 'right' });
+    doc.text(`Generated on: ${new Date()?.toLocaleString()}`, pageWidth - margin, nextY, { align: 'right' });
 
     nextY += 15;
     const head = [['Date', 'Description', 'Store', 'Payment', 'Amount (KES)']];
@@ -4386,7 +4386,7 @@ export const generateRetailSalesStatementPdf = async (
             `Sale - ${s.customerName || 'Walk-in Customer'}`,
             institution.name,
             s.paymentMethod,
-            s.totalAmount.toLocaleString()
+            s.totalAmount?.toLocaleString()
         ]);
     } else {
         body = [['-', 'No transactions found for the selected period', '-', '-', '0.00']];
@@ -4415,7 +4415,7 @@ export const generateRetailSalesStatementPdf = async (
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(45, 55, 72);
     doc.text('TOTAL REVENUE:', margin + 10, nextY + 13);
-    doc.text(`KES ${totalRevenue.toLocaleString()}`, pageWidth - margin - 10, nextY + 13, { align: 'right' });
+    doc.text(`KES ${totalRevenue?.toLocaleString()}`, pageWidth - margin - 10, nextY + 13, { align: 'right' });
 
     return doc.output('datauristring');
 };
@@ -4445,7 +4445,7 @@ export const generateRetailInventoryReportPdf = async (
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, nextY);
+    doc.text(`Generated on: ${new Date()?.toLocaleString()}`, margin, nextY);
 
     const totalCost = inventory.reduce((acc, i) => acc + (i.costPrice * i.quantity), 0);
     const totalSrp = inventory.reduce((acc, i) => acc + (i.srpPrice * i.quantity), 0);
@@ -4458,14 +4458,14 @@ export const generateRetailInventoryReportPdf = async (
     doc.setTextColor(255);
     doc.text('TOTAL COST BASIS', margin + 5, nextY + 10);
     doc.setFontSize(12);
-    doc.text(`KES ${totalCost.toLocaleString()}`, margin + 5, nextY + 18);
+    doc.text(`KES ${totalCost?.toLocaleString()}`, margin + 5, nextY + 18);
 
     doc.setFillColor(16, 185, 129);
     doc.rect(margin + 65, nextY, 60, 25, 'F');
     doc.setFontSize(8);
     doc.text('TOTAL RETAIL VALUE', margin + 70, nextY + 10);
     doc.setFontSize(12);
-    doc.text(`KES ${totalSrp.toLocaleString()}`, margin + 70, nextY + 18);
+    doc.text(`KES ${totalSrp?.toLocaleString()}`, margin + 70, nextY + 18);
 
     doc.setFillColor(245, 158, 11);
     doc.rect(margin + 130, nextY, pageWidth - margin - (margin + 130), 25, 'F');
@@ -4481,9 +4481,9 @@ export const generateRetailInventoryReportPdf = async (
         `${item.name}\n${item.sku}`,
         item.category,
         `${item.quantity} ${item.unit}`,
-        item.costPrice.toLocaleString(),
-        item.srpPrice.toLocaleString(),
-        (item.srpPrice * item.quantity).toLocaleString()
+        item.costPrice?.toLocaleString(),
+        item.srpPrice?.toLocaleString(),
+        (item.srpPrice * item.quantity)?.toLocaleString()
     ]);
 
     (doc as any).autoTable({
@@ -4541,7 +4541,7 @@ export const generatePMInvoicePdfDataUri = async (
 
     const head = [['#', 'DESCRIPTION', 'AMOUNT (KES)']];
     const body = [
-        ['1', invoice.description, invoice.amount.toLocaleString()]
+        ['1', invoice.description, invoice.amount?.toLocaleString()]
     ];
 
     doc.autoTable({
@@ -4555,7 +4555,7 @@ export const generatePMInvoicePdfDataUri = async (
             doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
             doc.text('TOTAL AMOUNT DUE:', pageWidth - margin - 60, finalY + 15);
-            doc.text(`KES ${invoice.amount.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+            doc.text(`KES ${invoice.amount?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
         }
     });
 
@@ -4612,7 +4612,7 @@ export const generatePMReceiptPdfDataUri = async (
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('AMOUNT RECEIVED:', margin, finalY + 20);
-    doc.text(`KES ${payment.amount.toLocaleString()}`, pageWidth - margin, finalY + 20, { align: 'right' });
+    doc.text(`KES ${payment.amount?.toLocaleString()}`, pageWidth - margin, finalY + 20, { align: 'right' });
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'italic');
@@ -4740,11 +4740,11 @@ export const generateCoopSettlementSchedulePdf = async (
     const body = data.map(item => [
         item.name,
         item.phone,
-        item.totalQty.toLocaleString(),
-        item.gross.toLocaleString(),
-        item.advances.toLocaleString(),
-        item.deductions.toLocaleString(),
-        item.net.toLocaleString()
+        item.totalQty?.toLocaleString(),
+        item.gross?.toLocaleString(),
+        item.advances?.toLocaleString(),
+        item.deductions?.toLocaleString(),
+        item.net?.toLocaleString()
     ]);
 
     (doc as any).autoTable({
@@ -4766,7 +4766,7 @@ export const generateCoopSettlementSchedulePdf = async (
     const finalY = (doc as any).lastAutoTable.finalY || tableStartY + 20;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(`TOTAL NET SETTLEMENT: KES ${totalNet.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+    doc.text(`TOTAL NET SETTLEMENT: KES ${totalNet?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
 
     return doc.output('datauristring');
 };
@@ -4800,7 +4800,7 @@ export const generateInventoryRegistryPdfDataUri = async (
         item.unit || 'unit',
         item.quantity,
         item.reorderLevel || 0,
-        (item.quantity * (item.price || 0)).toLocaleString()
+        (item.quantity * (item.price || 0))?.toLocaleString()
     ]);
 
     doc.autoTable({
@@ -4959,7 +4959,7 @@ export const generateInventoryAnalyticsPdfDataUri = async (
     doc.setFontSize(8);
     doc.text("TOTAL VALUATION", margin + 5, yPos + 8);
     doc.setFontSize(12);
-    doc.text(`KES ${totalValuation.toLocaleString()}`, margin + 5, yPos + 18);
+    doc.text(`KES ${totalValuation?.toLocaleString()}`, margin + 5, yPos + 18);
 
     doc.setFillColor(245, 158, 11); // Amber-500
     doc.roundedRect(margin + 60, yPos, 55, 25, 3, 3, 'F');
@@ -5012,7 +5012,7 @@ export const generateInventoryAnalyticsPdfDataUri = async (
     const catHead = [['Category', 'Valuation (KES)', 'Contribution (%)']];
     const catBody = categoryData.map(([cat, val]) => [
         cat.toUpperCase(),
-        val.toLocaleString(),
+        val?.toLocaleString(),
         ((val / Math.max(1, totalValuation)) * 100).toFixed(1) + '%'
     ]);
 
@@ -5044,7 +5044,7 @@ export const generateInventoryAnalyticsPdfDataUri = async (
     
     const issueBody = issuanceData.map(([item, qty]) => [
         item.toUpperCase(),
-        qty.toLocaleString(),
+        qty?.toLocaleString(),
         '|'.repeat(Math.round((qty/maxQty) * 20)) // Simple text-based bar
     ]);
 
@@ -5206,11 +5206,11 @@ export const generateFarmerStatementPdf = async (
     // Summary Table
     const summaryHead = [['Opening Bal', 'Total Deliveries (Qty)', 'Gross Earnings', 'Total Deductions', 'Closing Balance']];
     const summaryBody = [[
-        openingBalance.toLocaleString(),
-        (totals.totalQty || 0).toLocaleString(),
-        totals.credit.toLocaleString(),
-        totals.debit.toLocaleString(),
-        totals.balance.toLocaleString()
+        openingBalance?.toLocaleString(),
+        (totals.totalQty || 0)?.toLocaleString(),
+        totals.credit?.toLocaleString(),
+        totals.debit?.toLocaleString(),
+        totals.balance?.toLocaleString()
     ]];
 
     doc.autoTable({
@@ -5232,7 +5232,7 @@ export const generateFarmerStatementPdf = async (
         yPos += 5;
 
         const dedHead = [['Category', 'Amount (KES)']];
-        const dedBody = Object.entries(totals.deductionsBreakdown).map(([cat, amt]) => [cat, amt.toLocaleString()]);
+        const dedBody = Object.entries(totals.deductionsBreakdown).map(([cat, amt]) => [cat, amt?.toLocaleString()]);
 
         doc.autoTable({
             startY: yPos,
@@ -5259,9 +5259,9 @@ export const generateFarmerStatementPdf = async (
         new Date(t.date).toLocaleDateString(),
         t.description || (t.type === 'credit' ? 'Milk Delivery' : 'Cash Advance'),
         t.reference || t.id?.substring(0, 8).toUpperCase() || '-',
-        t.type === 'credit' ? (t.quantity || 0).toLocaleString() : '-',
-        t.type === 'debit' ? t.amount.toLocaleString() : '-',
-        t.balance.toLocaleString()
+        t.type === 'credit' ? (t.quantity || 0)?.toLocaleString() : '-',
+        t.type === 'debit' ? t.amount?.toLocaleString() : '-',
+        t.balance?.toLocaleString()
     ]);
 
     doc.autoTable({
@@ -5339,10 +5339,10 @@ export const generateRiderStatementPdf = async (
     // Summary Table
     const summaryHead = [['Opening Bal', 'Gross Earnings', 'Deductions', 'Net Payable']];
     const summaryBody = [[
-        openingBalance.toLocaleString(),
-        totals.credit.toLocaleString(),
-        totals.debit.toLocaleString(),
-        totals.balance.toLocaleString()
+        openingBalance?.toLocaleString(),
+        totals.credit?.toLocaleString(),
+        totals.debit?.toLocaleString(),
+        totals.balance?.toLocaleString()
     ]];
 
     doc.autoTable({
@@ -5364,7 +5364,7 @@ export const generateRiderStatementPdf = async (
         yPos += 5;
 
         const dedHead = [['Category', 'Amount (KES)']];
-        const dedBody = Object.entries(totals.deductionsBreakdown).map(([cat, amt]) => [cat, amt.toLocaleString()]);
+        const dedBody = Object.entries(totals.deductionsBreakdown).map(([cat, amt]) => [cat, amt?.toLocaleString()]);
 
         doc.autoTable({
             startY: yPos,
@@ -5390,9 +5390,9 @@ export const generateRiderStatementPdf = async (
     const transBody = transactions.map((t: any) => [
         new Date(t.date).toLocaleDateString(),
         t.description || (t.type === 'credit' ? 'Delivery Fee' : 'Payment'),
-        t.type === 'credit' ? t.amount.toLocaleString() : '-',
-        t.type === 'debit' ? t.amount.toLocaleString() : '-',
-        t.balance.toLocaleString()
+        t.type === 'credit' ? t.amount?.toLocaleString() : '-',
+        t.type === 'debit' ? t.amount?.toLocaleString() : '-',
+        t.balance?.toLocaleString()
     ]);
 
     doc.autoTable({
@@ -5465,7 +5465,7 @@ export const generatePaymentSchedulePdf = async (
             farmer?.phone || 'N/A',
             farmer?.accountNumber || farmer?.phone || 'N/A',
             (farmer?.paymentMethod || 'mpesa').toUpperCase(),
-            `KES ${p.netPayout.toLocaleString()}`
+            `KES ${p.netPayout?.toLocaleString()}`
         ];
     });
 
@@ -5486,7 +5486,7 @@ export const generatePaymentSchedulePdf = async (
     
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text(`TOTAL SETTLEMENT: KES ${total.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`TOTAL SETTLEMENT: KES ${total?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
@@ -5522,9 +5522,9 @@ export const generatePharmacyInventoryReportPdf = async (
         item.sku || 'N/A',
         item.name,
         item.category || 'Medication',
-        item.stockQuantity.toLocaleString(),
-        item.unitPrice.toLocaleString(),
-        (item.stockQuantity * item.unitPrice).toLocaleString()
+        item.stockQuantity?.toLocaleString(),
+        item.unitPrice?.toLocaleString(),
+        (item.stockQuantity * item.unitPrice)?.toLocaleString()
     ]);
 
     doc.autoTable({
@@ -5545,7 +5545,7 @@ export const generatePharmacyInventoryReportPdf = async (
     yPos = (doc as any).lastAutoTable.finalY + 10;
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text(`TOTAL INVENTORY VALUATION: KES ${totalValue.toLocaleString()}`, pageWidth - 14, yPos, { align: 'right' });
+    doc.text(`TOTAL INVENTORY VALUATION: KES ${totalValue?.toLocaleString()}`, pageWidth - 14, yPos, { align: 'right' });
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
@@ -5592,7 +5592,7 @@ export const generatePharmacyExpiryReportPdf = async (
             batch.batchNumber,
             item?.name || 'Unknown Item',
             new Date(batch.expiryDate).toLocaleDateString(),
-            batch.currentQuantity.toLocaleString(),
+            batch.currentQuantity?.toLocaleString(),
             risk
         ];
     });
@@ -5662,9 +5662,9 @@ export const generatePharmacyStaffPayslipPdf = async (
 
     const head = [['Description', 'Earnings', 'Deductions']];
     const body = [
-        ['Base Salary', staff.salary.toLocaleString(), '0.00'],
+        ['Base Salary', staff.salary?.toLocaleString(), '0.00'],
         ['Statutory Contributions', '-', '0.00'],
-        ['NET PAYABLE', { content: staff.salary.toLocaleString(), styles: { fontStyle: 'bold', fillColor: [240, 249, 255] } }, '-']
+        ['NET PAYABLE', { content: staff.salary?.toLocaleString(), styles: { fontStyle: 'bold', fillColor: [240, 249, 255] } }, '-']
     ];
 
     doc.autoTable({
@@ -5736,7 +5736,7 @@ export const generatePharmacyReceiptPdf = async (
     doc.text(`RECEIPT: ${sale.id.substring(0, 12)}`, margin, yPos);
     yPos += 5;
     doc.setFont('helvetica', 'normal');
-    doc.text(`Date: ${new Date(sale.createdAt).toLocaleString()}`, margin, yPos);
+    doc.text(`Date: ${new Date(sale.createdAt)?.toLocaleString()}`, margin, yPos);
     yPos += 5;
     if (sale.customerName) {
         doc.text(`Patient: ${sale.customerName}`, margin, yPos);
@@ -5760,7 +5760,7 @@ export const generatePharmacyReceiptPdf = async (
         
         doc.text(splitName, margin, yPos);
         doc.text(item.quantity.toString(), pageWidth - 35, yPos, { align: 'right' });
-        doc.text(item.totalPrice.toLocaleString(), pageWidth - margin, yPos, { align: 'right' });
+        doc.text(item.totalPrice?.toLocaleString(), pageWidth - margin, yPos, { align: 'right' });
         
         yPos += (splitName.length * 4) + 1;
     });
@@ -5772,7 +5772,7 @@ export const generatePharmacyReceiptPdf = async (
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.text("TOTAL DUE:", margin, yPos);
-    doc.text(`KES ${sale.totalAmount.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`KES ${sale.totalAmount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 8;
 
     doc.setFontSize(8);
@@ -5832,8 +5832,8 @@ export const generatePharmacySalesReportPdf = async (
     
     doc.setFont('helvetica', 'normal');
     const summaryData = [
-        [`Total Transactions: ${sales.length}`, `Gross Revenue: KES ${totalRevenue.toLocaleString()}`],
-        [`Average Order Value: KES ${avgSale.toLocaleString()}`, `Report Period: ${new Date().toLocaleDateString()} (Full History)`]
+        [`Total Transactions: ${sales.length}`, `Gross Revenue: KES ${totalRevenue?.toLocaleString()}`],
+        [`Average Order Value: KES ${avgSale?.toLocaleString()}`, `Report Period: ${new Date().toLocaleDateString()} (Full History)`]
     ];
 
     summaryData.forEach(row => {
@@ -5875,8 +5875,8 @@ export const generatePharmacySalesReportPdf = async (
         head: [['Medication', 'Units Sold', 'Total Revenue (KES)', '% of Total']],
         body: topSelling.map(p => [
             p.name,
-            p.qty.toLocaleString(),
-            p.revenue.toLocaleString(),
+            p.qty?.toLocaleString(),
+            p.revenue?.toLocaleString(),
             ((p.revenue / totalRevenue) * 100).toFixed(1) + '%'
         ]),
         theme: 'striped',
@@ -5912,7 +5912,7 @@ export const generatePharmacySalesReportPdf = async (
         head: [['Date', 'Daily Revenue (KES)']],
         body: Array.from(dailyData.entries()).map(([date, rev]) => [
             new Date(date).toDateString(),
-            rev.toLocaleString()
+            rev?.toLocaleString()
         ]),
         theme: 'grid',
         headStyles: { fillColor: [16, 185, 129] }, // Emerald
@@ -5974,8 +5974,8 @@ export const generateDetailedPharmacySalesReportPdf = async (
         .map(item => [
             item.sku,
             item.name.toUpperCase(),
-            item.qty.toLocaleString(),
-            item.total.toLocaleString()
+            item.qty?.toLocaleString(),
+            item.total?.toLocaleString()
         ]);
 
     doc.autoTable({
@@ -5996,7 +5996,7 @@ export const generateDetailedPharmacySalesReportPdf = async (
     
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text(`TOTAL REVENUE FOR PERIOD: KES ${totalRevenue.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`TOTAL REVENUE FOR PERIOD: KES ${totalRevenue?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');

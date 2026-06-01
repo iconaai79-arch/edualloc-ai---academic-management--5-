@@ -156,7 +156,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = (props) => {
                     <div className="bg-slate-900 dark:bg-slate-800 rounded-3xl p-6 text-white relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/20 blur-3xl rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
                         <p className="text-[9px] font-bold text-indigo-300 uppercase tracking-widest mb-4">Total Earnings</p>
-                        <h3 className="text-xl font-black tracking-tighter mb-1">KES {stats.lastMonthNet.toLocaleString()}</h3>
+                        <h3 className="text-xl font-black tracking-tighter mb-1">KES {stats.lastMonthNet?.toLocaleString()}</h3>
                         <p className="text-[9px] text-slate-400 font-medium">Last Month Payout</p>
                     </div>
 
@@ -203,7 +203,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = (props) => {
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Quantity</p>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    {stats.totalQty.toLocaleString()} <span className="text-xs text-slate-400 font-bold ml-1">Units</span>
+                                    {stats.totalQty?.toLocaleString()} <span className="text-xs text-slate-400 font-bold ml-1">Units</span>
                                 </h3>
                             </div>
 
@@ -213,7 +213,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = (props) => {
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SACCO Balance</p>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    KES {(stats.saccoBalance || 0).toLocaleString()}
+                                    KES {(stats.saccoBalance || 0)?.toLocaleString()}
                                 </h3>
                             </div>
 
@@ -223,7 +223,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = (props) => {
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pending Credit</p>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    KES {stats.pendingCredit.toLocaleString()}
+                                    KES {stats.pendingCredit?.toLocaleString()}
                                 </h3>
                             </div>
 
@@ -374,7 +374,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = (props) => {
                                          <ArrowUpRight className="w-10 h-10 text-slate-100 dark:text-slate-800 transition-colors group-hover:text-indigo-500" />
                                      </div>
                                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">{acc.accountType} ACCOUNT</p>
-                                     <h4 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {(acc.balance || 0).toLocaleString()}</h4>
+                                     <h4 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {(acc.balance || 0)?.toLocaleString()}</h4>
                                      <div className="flex gap-4">
                                          <span className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[9px] font-black uppercase tracking-widest rounded-full">{acc.status || 'active'}</span>
                                      </div>
@@ -409,7 +409,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = (props) => {
                                                 <td className={`py-4 px-8 text-sm font-black ${
                                                     txn.transactionType === 'deposit' || txn.transactionType === 'dividend' ? 'text-emerald-600' : 'text-red-600'
                                                 }`}>
-                                                    {txn.transactionType === 'deposit' || txn.transactionType === 'dividend' ? '+' : '-'} {txn.amount.toLocaleString()}
+                                                    {txn.transactionType === 'deposit' || txn.transactionType === 'dividend' ? '+' : '-'} {txn.amount?.toLocaleString()}
                                                 </td>
                                             </tr>
                                         ))}
@@ -460,7 +460,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = (props) => {
                                                         {agrovetInventory.find(i => i.id === sale.itemId)?.itemName || 'Product'}
                                                     </td>
                                                     <td className="py-4 px-8 text-sm font-black text-slate-900 dark:text-white">{sale.quantity}</td>
-                                                    <td className="py-4 px-8 text-sm font-black text-slate-900 dark:text-white">KES {sale.amount.toLocaleString()}</td>
+                                                    <td className="py-4 px-8 text-sm font-black text-slate-900 dark:text-white">KES {sale.amount?.toLocaleString()}</td>
                                                     <td className="py-4 px-8">
                                                         <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-tighter rounded-full ${
                                                             sale.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-600' : 
@@ -522,7 +522,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = (props) => {
                                          }`}>{payout.status}</span>
                                      </div>
                                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{payout.payoutMonth}</p>
-                                     <h4 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {payout.netPayout.toLocaleString()}</h4>
+                                     <h4 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {payout.netPayout?.toLocaleString()}</h4>
                                      
                                      <div className="pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
                                          <button className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline flex items-center gap-2">

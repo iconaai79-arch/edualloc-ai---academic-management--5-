@@ -1431,7 +1431,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                             </span>
                                                         </td>
                                                         <td className="px-6 py-5 text-right font-black text-slate-700 dark:text-slate-300">
-                                                            {(item.quantity * (item.price || 0)).toLocaleString()}
+                                                            {(item.quantity * (item.price || 0))?.toLocaleString()}
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -1744,7 +1744,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                             <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Value Distribution</span>
                                         </div>
                                         <h4 className="text-3xl font-black mb-2">
-                                            KES {inventory.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0).toLocaleString()}
+                                            KES {inventory.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0)?.toLocaleString()}
                                         </h4>
                                         <p className="text-[10px] font-bold opacity-70 uppercase tracking-tight">Total Estimated Stock Valuation</p>
                                         <div className="mt-6 pt-6 border-t border-white/10 flex items-center justify-between">
@@ -1826,7 +1826,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                 <div key={cat} className="space-y-2">
                                                     <div className="flex justify-between text-[10px] font-black uppercase tracking-tight">
                                                         <span className="text-slate-600 dark:text-slate-400">{cat}</span>
-                                                        <span className="text-indigo-600">KES {val.toLocaleString()}</span>
+                                                        <span className="text-indigo-600">KES {val?.toLocaleString()}</span>
                                                     </div>
                                                     <div className="w-full bg-slate-50 dark:bg-slate-900/50 h-3 rounded-full overflow-hidden">
                                                         <div 
@@ -2463,7 +2463,7 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{student.staffId || 'No ID'}</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className={`font-black text-xl ${totalDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KES {totalDue.toLocaleString()}</p>
+                                                <p className={`font-black text-xl ${totalDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KES {totalDue?.toLocaleString()}</p>
                                                 <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">{totalDue > 0 ? 'ARREARS' : 'CLEARED'}</p>
                                             </div>
                                         </div>
@@ -2571,7 +2571,7 @@ export const SupplierView: React.FC<SupportStaffViewProps> = (props) => {
                         {requisitions.filter(r => r.supplierId === supplierProfile.id).map(req => (
                             <div key={req.id} className="p-8 hover:bg-slate-50/50 transition-colors">
                                 <div className="flex justify-between items-center">
-                                    <div><p className="font-black text-xl text-slate-900 dark:text-white uppercase tracking-tight">Supply LPO #{req.id.slice(-6).toUpperCase()}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Registry Value: KES {req.totalEstimatedCost.toLocaleString()}</p></div>
+                                    <div><p className="font-black text-xl text-slate-900 dark:text-white uppercase tracking-tight">Supply LPO #{req.id.slice(-6).toUpperCase()}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Registry Value: KES {req.totalEstimatedCost?.toLocaleString()}</p></div>
                                     <div className="flex gap-2">
                                         <button onClick={() => onUpdateRequisition!(req.id, { supplierResponse: 'accepted', status: 'ordered' })} className="px-6 py-2.5 bg-green-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-100">Acknowledge</button>
                                         <button onClick={() => onUpdateRequisition!(req.id, { supplierResponse: 'rejected' })} className="px-6 py-2.5 bg-red-50 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100">Decline</button>

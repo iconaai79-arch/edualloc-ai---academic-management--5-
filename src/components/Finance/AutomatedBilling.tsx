@@ -125,7 +125,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                         </div>
                         <p className="text-sm font-bold text-amber-800/80 leading-relaxed">
                             Generating billing for {students.length} students across {activeFeeStructures.length} active fee categories. 
-                            Estimated revenue projection: <span className="font-black">KES {totalProjectedRevenue.toLocaleString()}</span>.
+                            Estimated revenue projection: <span className="font-black">KES {totalProjectedRevenue?.toLocaleString()}</span>.
                         </p>
                     </div>
 
@@ -153,7 +153,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                         <p className="text-sm font-bold text-slate-700">{f.name}</p>
                                         {f.courseId && <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Course Restricted</p>}
                                     </div>
-                                    <span className="text-sm font-black text-slate-900">KES {f.amount.toLocaleString()}</span>
+                                    <span className="text-sm font-black text-slate-900">KES {f.amount?.toLocaleString()}</span>
                                 </div>
                             ))
                         )}

@@ -342,7 +342,7 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
                                     >
                                         {categories.map(cat => (
                                             <option key={cat.id} value={cat.id}>
-                                                {cat.name} ({cat.distanceKm}K) - KES {Number(cat.registrationFee).toLocaleString()}
+                                                {cat.name} ({cat.distanceKm}K) - KES {Number(cat.registrationFee)?.toLocaleString()}
                                             </option>
                                         ))}
                                     </select>
@@ -409,7 +409,7 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
                                 type="submit"
                                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2"
                             >
-                                Proceed to Payment (KES { (Number(activeCategory?.registrationFee || 0) + Number(formData.initialPledge || 0)).toLocaleString() })
+                                Proceed to Payment (KES { (Number(activeCategory?.registrationFee || 0) + Number(formData.initialPledge || 0))?.toLocaleString() })
                             </button>
                         </form>
                     )}
@@ -421,7 +421,7 @@ export const EventRegistrationModal: React.FC<EventRegistrationModalProps> = ({
                             </div>
                             <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Record Payment Reference</h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-                                Please enter the Bank Code or M-PESA Transaction Reference Code for KES {(Number(activeCategory?.registrationFee || 0) + Number(formData.initialPledge || 0)).toLocaleString()} below to complete registration.
+                                Please enter the Bank Code or M-PESA Transaction Reference Code for KES {(Number(activeCategory?.registrationFee || 0) + Number(formData.initialPledge || 0))?.toLocaleString()} below to complete registration.
                             </p>
 
                             <div className="w-full space-y-4">

@@ -76,7 +76,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                         </div>
                         <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Processed Payout</p>
-                            <p className="text-lg font-black text-indigo-600">KES {stats.totalPayout.toLocaleString()}</p>
+                            <p className="text-lg font-black text-indigo-600">KES {stats.totalPayout?.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>
@@ -134,10 +134,10 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6 text-right font-bold text-slate-600 text-sm">
-                                                KES {record?.basicSalary.toLocaleString() || '---'}
+                                                KES {record?.basicSalary?.toLocaleString() || '---'}
                                             </td>
                                             <td className="px-8 py-6 text-right font-black text-slate-900 text-sm">
-                                                KES {record?.netSalary.toLocaleString() || '---'}
+                                                KES {record?.netSalary?.toLocaleString() || '---'}
                                             </td>
                                             <td className="px-8 py-6">
                                                 {record ? (
@@ -172,7 +172,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                 <div key={i} className="space-y-2">
                                     <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
                                         <span className="text-slate-400">{d.label}</span>
-                                        <span>KES {d.amount.toLocaleString()}</span>
+                                        <span>KES {d.amount?.toLocaleString()}</span>
                                     </div>
                                     <div className="h-1 bg-white/10 rounded-full overflow-hidden">
                                         <div className={`${d.color} h-full`} style={{ width: '40%' }} />

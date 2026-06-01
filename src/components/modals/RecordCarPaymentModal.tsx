@@ -249,7 +249,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     <div className="flex justify-between items-end">
                         <div>
                             <p className="text-[8px] font-black uppercase text-emerald-600 tracking-[0.2em] mb-1">Current Balance</p>
-                            <h3 className="text-2xl font-black text-slate-800 dark:text-white italic">KES {selectedInvoice ? selectedInvoice.balanceAmount.toLocaleString() : '0.00'}</h3>
+                            <h3 className="text-2xl font-black text-slate-800 dark:text-white italic">KES {selectedInvoice ? selectedInvoice.balanceAmount?.toLocaleString() : '0.00'}</h3>
                         </div>
                         <div className="text-right">
                             <p className="text-[8px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Invoice</p>
@@ -308,7 +308,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                                             const carDetails = listing ? ` - ${listing.make} ${listing.model} (${listing.year})` : '';
                                             return (
                                                 <option key={i.id} value={i.id}>
-                                                    {i.invoiceNumber} - {i.clientName}{carDetails} (Bal: KES {i.balanceAmount.toLocaleString()})
+                                                    {i.invoiceNumber} - {i.clientName}{carDetails} (Bal: KES {i.balanceAmount?.toLocaleString()})
                                                 </option>
                                             );
                                         })}

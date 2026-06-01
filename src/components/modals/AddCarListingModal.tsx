@@ -492,15 +492,15 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                                 <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1.5"><Ship className="w-3 h-3"/> FOB Price</p>
-                                    <p className="text-lg font-black text-slate-900 dark:text-white">KES {(formData.fobPrice || 0).toLocaleString()}</p>
+                                    <p className="text-lg font-black text-slate-900 dark:text-white">KES {(formData.fobPrice || 0)?.toLocaleString()}</p>
                                 </div>
                                 <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800">
                                     <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest mb-1 flex items-center gap-1.5"><Calculator className="w-3 h-3"/> Total Landed Cost</p>
-                                    <p className="text-lg font-black text-indigo-700 dark:text-indigo-400">KES {(formData.totalLandedCost || 0).toLocaleString()}</p>
+                                    <p className="text-lg font-black text-indigo-700 dark:text-indigo-400">KES {(formData.totalLandedCost || 0)?.toLocaleString()}</p>
                                 </div>
                                 <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 flex items-center gap-1.5"><Wallet className="w-3 h-3"/> Floor Price (Break-Even)</p>
-                                    <p className="text-lg font-black text-slate-900 dark:text-white">KES {(formData.floorPrice || 0).toLocaleString()}</p>
+                                    <p className="text-lg font-black text-slate-900 dark:text-white">KES {(formData.floorPrice || 0)?.toLocaleString()}</p>
                                 </div>
                                 <div className={`p-4 rounded-2xl border ${(formData.targetMargin || 0) >= 15 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800'}`}>
                                     <p className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1.5 ${(formData.targetMargin || 0) >= 15 ? 'text-emerald-500' : 'text-amber-500'}`}><Banknote className="w-3 h-3"/> Est. Margin</p>
@@ -560,7 +560,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                         <div className="flex items-center gap-2 ml-auto">
                                             <div className="text-right mr-4">
                                                 <p className="text-[9px] font-black uppercase text-slate-400">Total KES</p>
-                                                <p className="text-sm font-black text-indigo-600">{(exp.amount * exp.exchangeRate).toLocaleString()}</p>
+                                                <p className="text-sm font-black text-indigo-600">{(exp.amount * exp.exchangeRate)?.toLocaleString()}</p>
                                             </div>
                                             {exp.documentUrl ? (
                                                 <a href={exp.documentUrl} target="_blank" rel="noreferrer" className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-100" title="View Document">

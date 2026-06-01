@@ -207,7 +207,7 @@ const ContractStatusManager: React.FC<{
                                         })()}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={contract.status} /></td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{contract.acceptanceTimestamp ? new Date(contract.acceptanceTimestamp).toLocaleString() : 'N/A'}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{contract.acceptanceTimestamp ? new Date(contract.acceptanceTimestamp)?.toLocaleString() : 'N/A'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
                                         <button onClick={() => setPreviewingContract(contract)} className="text-sky-600 hover:text-sky-800">Preview</button>
                                         <button onClick={() => handleDownload(contract)} disabled={isGeneratingPdf} className="text-green-600 hover:text-green-800 disabled:opacity-50">Download</button>

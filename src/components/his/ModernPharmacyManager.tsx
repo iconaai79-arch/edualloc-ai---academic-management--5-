@@ -723,14 +723,14 @@ export const ModernPharmacyManager: React.FC<{
                         <div className={`glass-morphism-dark p-10 rounded-[3.5rem] border border-white/5 group hover:${theme.border} transition-all duration-700`}>
                             <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Daily Yield</p>
                             <div className="flex items-end gap-4">
-                                <h3 className="text-4xl font-black italic tracking-tighter">KES {metrics.todayRevenue.toLocaleString()}</h3>
+                                <h3 className="text-4xl font-black italic tracking-tighter">KES {metrics.todayRevenue?.toLocaleString()}</h3>
                                 <span className={`${theme.text} text-[10px] font-black mb-2 px-1`}>+14% ↗</span>
                             </div>
                         </div>
                         <div className="glass-morphism-dark p-10 rounded-[3.5rem] border border-white/5">
                             <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Financial Health</p>
                             <h3 className={`text-4xl font-black italic tracking-tighter ${metrics.netProfit >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
-                                KES {metrics.netProfit.toLocaleString()}
+                                KES {metrics.netProfit?.toLocaleString()}
                             </h3>
                         </div>
                         <div className="glass-morphism-dark p-10 rounded-[3.5rem] border border-white/5 relative overflow-hidden group">
@@ -822,7 +822,7 @@ export const ModernPharmacyManager: React.FC<{
                                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{new Date(s.createdAt).toLocaleTimeString()}</p>
                                             </div>
                                         </div>
-                                        <p className="text-xs font-black text-white italic">KES {Number(s.totalAmount).toLocaleString()}</p>
+                                        <p className="text-xs font-black text-white italic">KES {Number(s.totalAmount)?.toLocaleString()}</p>
                                     </div>
                                 ))}
                             </div>
@@ -876,7 +876,7 @@ export const ModernPharmacyManager: React.FC<{
                                     <h4 className="text-sm font-black uppercase italic tracking-tighter text-white mb-2 line-clamp-1">{item.name}</h4>
                                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-6">{item.category}</p>
                                     <div className="flex justify-between items-center">
-                                        <p className="text-lg font-black italic text-indigo-400">KES {item.unitPrice.toLocaleString()}</p>
+                                        <p className="text-lg font-black italic text-indigo-400">KES {item.unitPrice?.toLocaleString()}</p>
                                         <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all">
                                             <PlusIcon className="w-4 h-4" />
                                         </div>
@@ -949,7 +949,7 @@ export const ModernPharmacyManager: React.FC<{
                                                 setPosCart(nc);
                                             }} className="w-6 h-6 flex items-center justify-center hover:text-white transition-colors">+</button>
                                         </div>
-                                        <p className="text-xs font-black text-indigo-400 w-20 text-right italic">KES {(item.unitPrice * item.quantity).toLocaleString()}</p>
+                                        <p className="text-xs font-black text-indigo-400 w-20 text-right italic">KES {(item.unitPrice * item.quantity)?.toLocaleString()}</p>
                                     </div>
                                 </div>
                             ))}
@@ -965,7 +965,7 @@ export const ModernPharmacyManager: React.FC<{
                              <div className="space-y-3">
                                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
                                      <span>Sub-Analysis</span>
-                                     <span className="text-white">KES {posCart.reduce((s, i) => s + (i.unitPrice * i.quantity), 0).toLocaleString()}</span>
+                                     <span className="text-white">KES {posCart.reduce((s, i) => s + (i.unitPrice * i.quantity), 0)?.toLocaleString()}</span>
                                  </div>
                                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
                                      <span>Taxation Node (0%)</span>
@@ -974,7 +974,7 @@ export const ModernPharmacyManager: React.FC<{
                                  <div className="h-px bg-white/5 w-full"></div>
                                  <div className="flex justify-between items-center text-2xl font-black italic tracking-tighter">
                                      <span className="text-slate-400 uppercase text-[11px] not-italic tracking-[0.3em]">Total Yield</span>
-                                     <span className="text-indigo-400">KES {posCart.reduce((s, i) => s + (i.unitPrice * i.quantity), 0).toLocaleString()}</span>
+                                     <span className="text-indigo-400">KES {posCart.reduce((s, i) => s + (i.unitPrice * i.quantity), 0)?.toLocaleString()}</span>
                                  </div>
                              </div>
 
@@ -1054,7 +1054,7 @@ export const ModernPharmacyManager: React.FC<{
                                             <span className={item.stockQuantity <= item.reorderLevel ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}>{item.stockQuantity}</span>
                                             <span className="text-[9px] text-slate-600 ml-2 uppercase">Units</span>
                                         </td>
-                                        <td className="px-8 py-10 font-black italic text-indigo-400">KES {item.unitPrice.toLocaleString()}</td>
+                                        <td className="px-8 py-10 font-black italic text-indigo-400">KES {item.unitPrice?.toLocaleString()}</td>
                                         <td className="px-12 py-10 text-right">
                                             <div className="flex items-center justify-end gap-4">
                                                 <button 
@@ -1106,7 +1106,7 @@ export const ModernPharmacyManager: React.FC<{
                              <div className="space-y-6">
                                  <div className="p-8 bg-black/40 rounded-[2.5rem] border border-white/5">
                                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Core Payroll Commitment</p>
-                                     <h4 className="text-3xl font-black italic tracking-tighter">KES {staff.reduce((s, st) => s + (st.salary || 0), 0).toLocaleString()}</h4>
+                                     <h4 className="text-3xl font-black italic tracking-tighter">KES {staff.reduce((s, st) => s + (st.salary || 0), 0)?.toLocaleString()}</h4>
                                  </div>
                                  <button onClick={() => setIsAddStaffOpen(true)} className="w-full py-5 rounded-[2rem] bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-[0.3em] hover:scale-105 transition-all shadow-xl shadow-emerald-500/20">Recruit New Operator</button>
                              </div>
@@ -1134,7 +1134,7 @@ export const ModernPharmacyManager: React.FC<{
                                              </div>
                                          </div>
                                          <div className="text-right flex flex-col items-end gap-3">
-                                             <p className="text-sm font-black italic tracking-tighter text-white">KES {s.salary.toLocaleString()}</p>
+                                             <p className="text-sm font-black italic tracking-tighter text-white">KES {s.salary?.toLocaleString()}</p>
                                              <div className="flex gap-2">
                                                  <button 
                                                     onClick={() => { setEditingStaff(s); setIsAddStaffOpen(true); }}
@@ -1165,12 +1165,12 @@ export const ModernPharmacyManager: React.FC<{
                              <div className="space-y-8">
                                  <div>
                                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Total Liquidity Flow</p>
-                                     <h4 className="text-4xl font-black italic tracking-tighter text-white">KES {metrics.totalRevenue.toLocaleString()}</h4>
+                                     <h4 className="text-4xl font-black italic tracking-tighter text-white">KES {metrics.totalRevenue?.toLocaleString()}</h4>
                                  </div>
                                  <div className="h-px bg-white/5 w-full"></div>
                                  <div>
                                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Total Absorption (Exp)</p>
-                                     <h4 className="text-4xl font-black italic tracking-tighter text-rose-400">KES {metrics.totalExpenses.toLocaleString()}</h4>
+                                     <h4 className="text-4xl font-black italic tracking-tighter text-rose-400">KES {metrics.totalExpenses?.toLocaleString()}</h4>
                                  </div>
                                  <div className="h-px bg-white/5 w-full"></div>
                                  <button onClick={() => setIsAddLedgerOpen(true)} className="w-full py-6 rounded-[2rem] bg-indigo-500 text-white text-[11px] font-black uppercase tracking-[0.4em] shadow-22xl shadow-indigo-500/20 hover:scale-105 transition-all">Record New Entry</button>
@@ -1213,9 +1213,9 @@ export const ModernPharmacyManager: React.FC<{
                                                      </span>
                                                  </td>
                                                  <td className={`px-6 py-6 font-black italic text-lg ${l.type === 'Income' ? 'text-indigo-400' : 'text-rose-400'}`}>
-                                                     {l.type === 'Income' ? '+' : '-'} {Number(l.amount).toLocaleString()}
+                                                     {l.type === 'Income' ? '+' : '-'} {Number(l.amount)?.toLocaleString()}
                                                  </td>
-                                                 <td className="px-10 py-6 text-right text-[10px] font-bold text-slate-600 italic">{new Date(l.createdAt).toLocaleString()}</td>
+                                                 <td className="px-10 py-6 text-right text-[10px] font-bold text-slate-600 italic">{new Date(l.createdAt)?.toLocaleString()}</td>
                                              </tr>
                                          ))}
                                      </tbody>
@@ -1525,7 +1525,7 @@ export const ModernPharmacyManager: React.FC<{
                                                             <span className="px-4 py-1.5 rounded-full bg-white/5 text-[10px] font-black text-white">{item.qty} Units</span>
                                                         </td>
                                                         <td className={`px-10 py-6 text-right font-black italic text-base text-${theme.accent}`}>
-                                                            {item.total.toLocaleString()}
+                                                            {item.total?.toLocaleString()}
                                                         </td>
                                                     </tr>
                                                 ));
@@ -1656,7 +1656,7 @@ export const ModernPharmacyManager: React.FC<{
                                                         <span className="px-4 py-1.5 rounded-full bg-white/5 text-[10px] font-black text-white">{item.qty} Units</span>
                                                     </td>
                                                     <td className={`px-10 py-6 text-right font-black italic text-base text-${theme.accent}`}>
-                                                        {item.total.toLocaleString()}
+                                                        {item.total?.toLocaleString()}
                                                     </td>
                                                 </tr>
                                             ));

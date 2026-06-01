@@ -514,7 +514,7 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                             </div>
                             <div>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Live Inventory Value</p>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {liveInventoryValue.toLocaleString()}</h3>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {liveInventoryValue?.toLocaleString()}</h3>
                             </div>
                         </div>
 
@@ -524,7 +524,7 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                             </div>
                             <div>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Gross Showroom Revenue</p>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {grossShowroomRevenue.toLocaleString()}</h3>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {grossShowroomRevenue?.toLocaleString()}</h3>
                             </div>
                         </div>
 
@@ -534,7 +534,7 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                             </div>
                             <div>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Outstanding Balances</p>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {outstandingBalances.toLocaleString()}</h3>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {outstandingBalances?.toLocaleString()}</h3>
                             </div>
                         </div>
 
@@ -701,10 +701,10 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                                                 </div>
                                             </td>
                                             <td className="p-6 text-sm font-bold text-slate-800 dark:text-slate-200">
-                                                {(item.mileage || 0).toLocaleString()} KM
+                                                {(item.mileage || 0)?.toLocaleString()} KM
                                             </td>
                                             <td className="p-6 text-sm font-black text-slate-900 dark:text-white">
-                                                KES {(item.price || 0).toLocaleString()}
+                                                KES {(item.price || 0)?.toLocaleString()}
                                             </td>
                                             <td className="p-6">
                                                 <div className="flex items-center gap-4 text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -817,13 +817,13 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                                                     {inv.registrationNumber || 'N/A'}
                                                 </td>
                                                 <td className="p-6 text-sm font-black text-slate-900 dark:text-white">
-                                                    KES {(inv.totalAmount || 0).toLocaleString()}
+                                                    KES {(inv.totalAmount || 0)?.toLocaleString()}
                                                 </td>
                                                 <td className="p-6 text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                                                    KES {(inv.paidAmount || 0).toLocaleString()}
+                                                    KES {(inv.paidAmount || 0)?.toLocaleString()}
                                                 </td>
                                                 <td className="p-6 text-sm font-bold text-rose-600 dark:text-rose-400">
-                                                    KES {(inv.balanceAmount || 0).toLocaleString()}
+                                                    KES {(inv.balanceAmount || 0)?.toLocaleString()}
                                                 </td>
                                                 <td className="p-6">
                                                     <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
@@ -892,11 +892,11 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-4">
                                 <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100/10">
                                     <span className="block text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Total Revenue Collected</span>
-                                    <span className="text-sm font-black text-slate-900 dark:text-white mt-1 block">KES {salesTotals.collected.toLocaleString()}</span>
+                                    <span className="text-sm font-black text-slate-900 dark:text-white mt-1 block">KES {salesTotals.collected?.toLocaleString()}</span>
                                 </div>
                                 <div className="p-4 bg-rose-50/50 dark:bg-rose-950/20 rounded-2xl border border-rose-100/10">
                                     <span className="block text-[8px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest">Total Outstanding Due</span>
-                                    <span className="text-sm font-black text-slate-900 dark:text-white mt-1 block">KES {salesTotals.due.toLocaleString()}</span>
+                                    <span className="text-sm font-black text-slate-900 dark:text-white mt-1 block">KES {salesTotals.due?.toLocaleString()}</span>
                                 </div>
                             </div>
                         </div>
@@ -1047,12 +1047,12 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                             <div className="p-5 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 rounded-2xl">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-rose-500 mb-1">Total Showroom Expenses</p>
-                                <h4 className="text-2xl font-black text-rose-600 dark:text-rose-400">KES {expenseTotals.totalKes.toLocaleString()}</h4>
+                                <h4 className="text-2xl font-black text-rose-600 dark:text-rose-400">KES {expenseTotals.totalKes?.toLocaleString()}</h4>
                             </div>
                             <div className="p-5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-indigo-500 mb-1">Top Expense Category</p>
                                 <h4 className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">{expenseTotals.topCategory[0]}</h4>
-                                <p className="text-xs text-indigo-500/70 font-bold mt-1">KES {Number(expenseTotals.topCategory[1]).toLocaleString()}</p>
+                                <p className="text-xs text-indigo-500/70 font-bold mt-1">KES {Number(expenseTotals.topCategory[1])?.toLocaleString()}</p>
                             </div>
                             <div className="p-5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Expenses Logged</p>
@@ -1096,10 +1096,10 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                                                     {exp.description || '-'}
                                                 </td>
                                                 <td className="p-4 text-xs font-black text-slate-500 text-right">
-                                                    {exp.currency} {Number(exp.amount).toLocaleString()}
+                                                    {exp.currency} {Number(exp.amount)?.toLocaleString()}
                                                 </td>
                                                 <td className="p-4 text-sm font-black text-rose-600 dark:text-rose-400 text-right">
-                                                    {Number(exp.amountInKes).toLocaleString()}
+                                                    {Number(exp.amountInKes)?.toLocaleString()}
                                                 </td>
                                             </tr>
                                         ))
@@ -1145,15 +1145,15 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                             <div className="p-5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 rounded-2xl">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600 mb-1">Gross Revenue</p>
-                                <h4 className="text-xl font-black text-emerald-700 dark:text-emerald-400">KES {pnlData.totalRevenue.toLocaleString()}</h4>
+                                <h4 className="text-xl font-black text-emerald-700 dark:text-emerald-400">KES {pnlData.totalRevenue?.toLocaleString()}</h4>
                             </div>
                             <div className="p-5 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 rounded-2xl">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-rose-600 mb-1">Cost of Goods (COGS)</p>
-                                <h4 className="text-xl font-black text-rose-700 dark:text-rose-400">KES {pnlData.totalCogs.toLocaleString()}</h4>
+                                <h4 className="text-xl font-black text-rose-700 dark:text-rose-400">KES {pnlData.totalCogs?.toLocaleString()}</h4>
                             </div>
                             <div className="p-5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-indigo-600 mb-1">Gross Profit</p>
-                                <h4 className="text-xl font-black text-indigo-700 dark:text-indigo-400">KES {pnlData.grossProfit.toLocaleString()}</h4>
+                                <h4 className="text-xl font-black text-indigo-700 dark:text-indigo-400">KES {pnlData.grossProfit?.toLocaleString()}</h4>
                             </div>
                             <div className="p-5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Avg Net Margin</p>
@@ -1191,13 +1191,13 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                                                     <p className="text-[10px] font-mono text-slate-400">{item.registration}</p>
                                                 </td>
                                                 <td className="p-4 text-sm font-black text-slate-700 dark:text-slate-300 text-right">
-                                                    {Number(item.revenue).toLocaleString()}
+                                                    {Number(item.revenue)?.toLocaleString()}
                                                 </td>
                                                 <td className="p-4 text-sm font-black text-rose-600 dark:text-rose-400 text-right">
-                                                    {Number(item.cogs).toLocaleString()}
+                                                    {Number(item.cogs)?.toLocaleString()}
                                                 </td>
                                                 <td className="p-4 text-sm font-black text-emerald-600 dark:text-emerald-400 text-right">
-                                                    {Number(item.grossProfit).toLocaleString()}
+                                                    {Number(item.grossProfit)?.toLocaleString()}
                                                 </td>
                                                 <td className="p-4 text-right">
                                                     <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider ${

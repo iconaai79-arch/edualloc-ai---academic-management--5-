@@ -711,7 +711,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{unit.unitType}</span>
                                                 <p className="text-xs font-bold text-slate-500 italic mt-1">Floor {unit.floorNumber || 'G'}</p>
                                             </td>
-                                            <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">{unit.rentAmount.toLocaleString()}</td>
+                                            <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">{unit.rentAmount?.toLocaleString()}</td>
                                             <td className="p-6">
                                                 <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${unit.status === 'Vacant' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : unit.status === 'Occupied' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'}`}>{unit.status}</span>
                                             </td>
@@ -741,7 +741,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         </div>
                                         <div className="flex flex-col items-end">
                                             <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest italic ${unit.status === 'Vacant' ? 'bg-emerald-100 text-emerald-600' : unit.status === 'Occupied' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>{unit.status}</span>
-                                            <p className="text-xs font-black text-slate-900 dark:text-white mt-2 italic whitespace-nowrap">KES {unit.rentAmount.toLocaleString()}</p>
+                                            <p className="text-xs font-black text-slate-900 dark:text-white mt-2 italic whitespace-nowrap">KES {unit.rentAmount?.toLocaleString()}</p>
                                         </div>
                                     </div>
                                     <div className="mt-4 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
@@ -1239,7 +1239,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <td className="p-6 font-mono text-xs font-black text-slate-400 uppercase">#{lease.id.split('_')[1]}</td>
                                         <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</td>
                                         <td className="p-6 text-sm font-bold text-slate-500">UNIT {unit?.unitNumber || 'N/A'}</td>
-                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount.toLocaleString()}</td>
+                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount?.toLocaleString()}</td>
                                         <td className="p-6">
                                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'} `}>
                                                 {lease.status}
@@ -1277,7 +1277,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest italic">Unit {unit?.unitNumber || 'N/A'}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-xs font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount.toLocaleString()}</p>
+                                        <p className="text-xs font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount?.toLocaleString()}</p>
                                         <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Monthly Rent</p>
                                     </div>
                                 </div>
@@ -1428,7 +1428,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">{tenant?.name || 'N/A'}</p>
                                             <p className="text-[9px] text-blue-600 font-bold uppercase">{payment.paymentType}</p>
                                         </td>
-                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {payment.amount.toLocaleString()}</td>
+                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</td>
                                         <td className="p-6 font-bold text-slate-500 uppercase text-[10px]">{payment.paymentMethod}</td>
                                         <td className="p-6 text-xs font-bold text-slate-500 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</td>
                                         <td className="p-6 text-right">
@@ -1461,7 +1461,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{payment.paymentType}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {payment.amount.toLocaleString()}</p>
+                                        <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</p>
                                         <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">{payment.paymentMethod}</p>
                                     </div>
                                 </div>
@@ -1511,7 +1511,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 const publicUrl = await apiService.uploadBlob(fileName, blob);
                 
                 if (tenant.phoneNumber) {
-                    const msg = `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount.toLocaleString()} is ready. View here: ${publicUrl}`;
+                    const msg = `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${publicUrl}`;
                     await apiService.sendSms(tenant.phoneNumber, msg, currentInstitution.smsConfig, 1, institutionId);
                     alert("Invoice link sent via SMS!");
                 }
@@ -1554,7 +1554,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <div className="space-y-2 mb-6">
                                     <div className="flex justify-between text-[11px] font-bold">
                                         <span className="text-slate-400 uppercase">Amount</span>
-                                        <span className="text-slate-900 dark:text-white uppercase italic">KES {inv.amount.toLocaleString()}</span>
+                                        <span className="text-slate-900 dark:text-white uppercase italic">KES {inv.amount?.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between text-[11px] font-bold">
                                         <span className="text-slate-400 uppercase">Due Date</span>
@@ -1605,7 +1605,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             </div>
                             <div className="text-right">
                                 <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Est. Cost</p>
-                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {(ticket.cost || 0).toLocaleString()}</p>
+                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {(ticket.cost || 0)?.toLocaleString()}</p>
                             </div>
                         </div>
                     </div>
@@ -1651,7 +1651,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <div className="text-[10px] text-slate-400 font-bold uppercase">{landlord?.phoneNumber}</div>
                                         </td>
                                         <td className="p-6 text-xs text-slate-500 dark:text-slate-400 max-w-xs truncate">{d.bankDetails || landlord?.bankDetails || 'N/A'}</td>
-                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {d.amount.toLocaleString()}</td>
+                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {d.amount?.toLocaleString()}</td>
                                         <td className="p-6">
                                             <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic ${d.status === 'Paid' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' :
                                                 d.status === 'Pending' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30' :
@@ -1664,7 +1664,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             {d.status === 'Pending' && (
                                                 <button
                                                     onClick={async () => {
-                                                        if (!confirm(`Mark KES ${d.amount.toLocaleString()} as paid? This will update associated payment records.`)) return;
+                                                        if (!confirm(`Mark KES ${d.amount?.toLocaleString()} as paid? This will update associated payment records.`)) return;
                                                         try {
                                                             const updatedDisb: PMDisbursement = {
                                                                 ...d,
@@ -2280,14 +2280,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         {startDate} to {endDate}
                                     </p>
                                     <span className="text-[10px] text-blue-600 font-black uppercase italic">
-                                        Opening Bal: KES {openingBal.toLocaleString()}
+                                        Opening Bal: KES {openingBal?.toLocaleString()}
                                     </span>
                                 </div>
                             </div>
                             {targetId && (
                                 <div className="text-right">
                                     <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest italic">{targetType === 'tenant' ? 'Closing Balance' : 'Net Collections'}</p>
-                                    <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {totals.balance.toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {totals.balance?.toLocaleString()}</p>
                                 </div>
                             )}
                         </div>
@@ -2313,24 +2313,24 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 <td className="p-6 text-[10px] font-bold text-slate-400">{startDate}</td>
                                                 <td className="p-6 text-xs font-black text-slate-400 uppercase tracking-widest" colSpan={3}>Opening Balance Brought Forward</td>
                                                 <td className="p-6 text-right text-sm font-black text-slate-400">---</td>
-                                                <td className="p-6 text-right text-sm font-black text-slate-400">KES {openingBal.toLocaleString()}</td>
+                                                <td className="p-6 text-right text-sm font-black text-slate-400">KES {openingBal?.toLocaleString()}</td>
                                             </tr>
                                             {transactions.map(t => (
                                                 <tr key={t.id} className="border-b border-slate-50 dark:border-slate-700/50">
                                                     <td className="p-6 text-[10px] font-bold text-slate-500">{new Date(t.date).toLocaleDateString()}</td>
                                                     <td className="p-6">
                                                         <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{t.description}</p>
-                                                        {t.commission > 0 && <p className="text-[9px] text-purple-600 font-bold uppercase">Mgt Fee: KES {t.commission.toLocaleString()}</p>}
+                                                        {t.commission > 0 && <p className="text-[9px] text-purple-600 font-bold uppercase">Mgt Fee: KES {t.commission?.toLocaleString()}</p>}
                                                     </td>
                                                     <td className="p-6 text-[10px] font-mono font-bold text-slate-400">#{t.ref}</td>
                                                     <td className="p-6 text-right text-sm font-black text-rose-500 italic">
-                                                        {t.type === 'debit' ? `KES ${t.amount.toLocaleString()}` : '---'}
+                                                        {t.type === 'debit' ? `KES ${t.amount?.toLocaleString()}` : '---'}
                                                     </td>
                                                     <td className="p-6 text-right text-sm font-black text-emerald-600 italic">
-                                                        {t.type === 'credit' ? `KES ${t.amount.toLocaleString()}` : '---'}
+                                                        {t.type === 'credit' ? `KES ${t.amount?.toLocaleString()}` : '---'}
                                                     </td>
                                                     <td className="p-6 text-right text-sm font-black text-blue-600 italic">
-                                                        KES {t.balance.toLocaleString()}
+                                                        KES {t.balance?.toLocaleString()}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -2346,7 +2346,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
                                         <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 flex justify-between items-center italic">
                                             <span className="text-[10px] font-bold text-slate-400">Opening Balance</span>
-                                            <span className="text-sm font-black text-slate-400">KES {openingBal.toLocaleString()}</span>
+                                            <span className="text-sm font-black text-slate-400">KES {openingBal?.toLocaleString()}</span>
                                         </div>
                                         {transactions.map(t => (
                                             <div key={t.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
@@ -2355,15 +2355,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                     <span className="text-[10px] font-black text-slate-400 uppercase italic">#{t.ref}</span>
                                                 </div>
                                                 <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic mb-1">{t.description}</p>
-                                                {t.commission > 0 && <p className="text-[9px] text-purple-600 font-bold uppercase mb-2">Mgt Fee: KES {t.commission.toLocaleString()}</p>}
+                                                {t.commission > 0 && <p className="text-[9px] text-purple-600 font-bold uppercase mb-2">Mgt Fee: KES {t.commission?.toLocaleString()}</p>}
                                                 <div className="flex justify-between items-center mt-4">
                                                     <div>
                                                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.type === 'debit' ? 'Debit' : 'Credit'}</p>
-                                                        <p className={`text-sm font-black italic ${t.type === 'debit' ? 'text-rose-500' : 'text-emerald-600'}`}>KES {t.amount.toLocaleString()}</p>
+                                                        <p className={`text-sm font-black italic ${t.type === 'debit' ? 'text-rose-500' : 'text-emerald-600'}`}>KES {t.amount?.toLocaleString()}</p>
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Balance</p>
-                                                        <p className="text-sm font-black text-blue-600 italic">KES {t.balance.toLocaleString()}</p>
+                                                        <p className="text-sm font-black text-blue-600 italic">KES {t.balance?.toLocaleString()}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2421,7 +2421,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             {[45, 60, 85, 30, 95, 70, 90, 100].map((h, i) => (
                                 <div key={i} className="flex-1 bg-blue-600 rounded-t-xl hover:bg-blue-400 transition-all cursor-pointer relative group" style={{ height: `${h}% ` }}>
                                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                                        KES {(h * 1000).toLocaleString()}
+                                        KES {(h * 1000)?.toLocaleString()}
                                     </div>
                                 </div>
                             ))}
@@ -2606,14 +2606,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
                             Total Collection
                         </h4>
-                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {totalRentCollected.toLocaleString()}</p>
+                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {totalRentCollected?.toLocaleString()}</p>
                         <div className="mt-4 flex items-center justify-between">
                             <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-full">
                                 <TrendingUpIcon className="w-4 h-4" /> +12%
                             </div>
                             <div className="text-right">
                                 <p className="text-[9px] font-black uppercase text-purple-600 tracking-wider mb-0.5">Admin Fee</p>
-                                <p className="text-xs font-black text-purple-600 italic">KES {totalCommissionEarned.toLocaleString()}</p>
+                                <p className="text-xs font-black text-purple-600 italic">KES {totalCommissionEarned?.toLocaleString()}</p>
                             </div>
                         </div>
                     </div>
@@ -3073,8 +3073,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <section>
                                     <h2 className="font-black uppercase tracking-widest border-b border-slate-200 pb-2 mb-4 text-xs italic">3. FINANCIAL OBLIGATIONS</h2>
                                     <div className="space-y-4">
-                                        <p><strong>A. RENT:</strong> The Tenant shall pay the Landlord a monthly rent of <strong>KES {selectedLeaseForPreview.rentAmount.toLocaleString()}</strong> payable on or before the 1st of every month.</p>
-                                        <p><strong>B. DEPOSIT:</strong> A security deposit of <strong>KES {selectedLeaseForPreview.depositAmount.toLocaleString()}</strong> has been paid and shall be held by the Landlord until the expiration of the lease.</p>
+                                        <p><strong>A. RENT:</strong> The Tenant shall pay the Landlord a monthly rent of <strong>KES {selectedLeaseForPreview.rentAmount?.toLocaleString()}</strong> payable on or before the 1st of every month.</p>
+                                        <p><strong>B. DEPOSIT:</strong> A security deposit of <strong>KES {selectedLeaseForPreview.depositAmount?.toLocaleString()}</strong> has been paid and shall be held by the Landlord until the expiration of the lease.</p>
                                         <p><strong>C. LATE FEES:</strong> Payments made after the 5th day of the month shall incur a late fee penalty of <strong>{selectedLeaseForPreview.lateFeePercentage || 5}%</strong> of the outstanding balance.</p>
                                     </div>
                                 </section>

@@ -41,7 +41,7 @@ export const generateInvoiceEmailBody = (invoice: Invoice, institution: Institut
 Dear ${institution.name},
 
 New invoice ${invoice.invoiceNumber} from ${companyDetails.name}.
-Amount Due: KES ${invoice.totalAmount.toLocaleString()}
+Amount Due: KES ${invoice.totalAmount?.toLocaleString()}
 Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}
 
 Regards,
@@ -54,7 +54,7 @@ export const generateReceiptEmailBody = (receipt: Receipt, institution: Institut
 Dear ${institution.name},
 
 Official receipt ${receipt.receiptNumber}.
-Amount Paid: KES ${receipt.amountPaid.toLocaleString()}
+Amount Paid: KES ${receipt.amountPaid?.toLocaleString()}
 Payment Date: ${new Date(receipt.paymentDate).toLocaleDateString()}
 Paid For: ${receipt.paidFor}
 

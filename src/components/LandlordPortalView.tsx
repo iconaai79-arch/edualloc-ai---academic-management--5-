@@ -178,7 +178,7 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
             setPayments(updatedPayments);
 
             setShowWithdrawModal(false);
-            alert(`Withdrawal request for KES ${amount.toLocaleString()} has been submitted. Status: Pending.`);
+            alert(`Withdrawal request for KES ${amount?.toLocaleString()} has been submitted. Status: Pending.`);
         } catch (err) {
             console.error("Withdrawal request failed:", err);
             alert("Failed to submit withdrawal request. Please try again later.");
@@ -272,7 +272,7 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                     </div>
                     <div className="flex flex-col items-end mr-4">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Net Portfolio Value</p>
-                        <p className="text-xl font-black text-slate-800">KES {netEarnings.toLocaleString()}</p>
+                        <p className="text-xl font-black text-slate-800">KES {netEarnings?.toLocaleString()}</p>
                     </div>
                     <button className="w-12 h-12 bg-white rounded-2xl border border-slate-100 flex items-center justify-center relative shadow-sm hover:shadow-md transition-all">
                         <BellIcon className="w-5 h-5 text-slate-400" />
@@ -285,12 +285,12 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                             <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 group hover:scale-[1.02] transition-transform">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Total Earnings</p>
-                                <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">KES {totalRevenue.toLocaleString()}</h3>
+                                <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">KES {totalRevenue?.toLocaleString()}</h3>
                                 <p className="text-[10px] font-bold text-emerald-500 mt-2 flex items-center gap-1"><TrendingUpIcon className="w-3 h-3" /> +12.5% this month</p>
                             </div>
                             <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 group hover:scale-[1.02] transition-transform">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Commission Paid</p>
-                                <h3 className="text-2xl font-black text-red-400 tracking-tighter uppercase italic">KES {totalCommission.toLocaleString()}</h3>
+                                <h3 className="text-2xl font-black text-red-400 tracking-tighter uppercase italic">KES {totalCommission?.toLocaleString()}</h3>
                                 <p className="text-[10px] font-bold text-slate-400 mt-2 italic">Standard Agency Rates</p>
                             </div>
                             <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 group hover:scale-[1.02] transition-transform">
@@ -305,7 +305,7 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                                     <SparklesIcon className="w-20 h-20" />
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Net Portfolio Payout</p>
-                                <h3 className="text-2xl font-black tracking-tighter uppercase italic">KES {netEarnings.toLocaleString()}</h3>
+                                <h3 className="text-2xl font-black tracking-tighter uppercase italic">KES {netEarnings?.toLocaleString()}</h3>
                                 <button
                                     onClick={() => setShowWithdrawModal(true)}
                                     className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase rounded-xl transition-all shadow-lg shadow-emerald-900/40"
@@ -452,7 +452,7 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                                         <div className="space-y-4 pt-4 border-t border-slate-50">
                                             <div className="flex items-center justify-between text-xs">
                                                 <p className="font-bold text-slate-400 uppercase italic">Monthly Rent</p>
-                                                <p className="font-black text-slate-800">KES {u.rentAmount.toLocaleString()}</p>
+                                                <p className="font-black text-slate-800">KES {u.rentAmount?.toLocaleString()}</p>
                                             </div>
                                             <div className="flex items-center justify-between text-xs">
                                                 <p className="font-bold text-slate-400 uppercase italic">Current Tenant</p>
@@ -557,9 +557,9 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                                                     <p className="text-xs font-black text-slate-800 uppercase italic">{u?.unitNumber}</p>
                                                     <p className="text-[10px] text-slate-400 font-bold uppercase">{prop?.name}</p>
                                                 </td>
-                                                <td className="p-6 font-bold text-slate-600">KES {p.amount.toLocaleString()}</td>
-                                                <td className="p-6 font-bold text-red-400">-{(p.commissionAmount || 0).toLocaleString()}</td>
-                                                <td className="p-6 text-right font-black text-emerald-600">KES {(p.amount - (p.commissionAmount || 0)).toLocaleString()}</td>
+                                                <td className="p-6 font-bold text-slate-600">KES {p.amount?.toLocaleString()}</td>
+                                                <td className="p-6 font-bold text-red-400">-{(p.commissionAmount || 0)?.toLocaleString()}</td>
+                                                <td className="p-6 text-right font-black text-emerald-600">KES {(p.amount - (p.commissionAmount || 0))?.toLocaleString()}</td>
                                             </tr>
                                         );
                                     })}
@@ -651,7 +651,7 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                                 <CurrencyIcon className="w-8 h-8 text-emerald-600" />
                             </div>
                             <h3 className="text-2xl font-black text-slate-800 italic uppercase underline decoration-emerald-200 decoration-4 underline-offset-4">Request Portfolio Payout</h3>
-                            <p className="text-slate-400 text-xs font-bold uppercase mt-2">Available for withdrawal: <span className="text-emerald-600">KES {netEarnings.toLocaleString()}</span></p>
+                            <p className="text-slate-400 text-xs font-bold uppercase mt-2">Available for withdrawal: <span className="text-emerald-600">KES {netEarnings?.toLocaleString()}</span></p>
                         </div>
 
                         <div className="space-y-6">

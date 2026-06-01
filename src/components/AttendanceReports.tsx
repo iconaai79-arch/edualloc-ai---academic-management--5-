@@ -208,7 +208,7 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(80);
-                doc.text(`Report Generated: ${new Date().toLocaleString()}`, margin, lineY + 15);
+                doc.text(`Report Generated: ${new Date()?.toLocaleString()}`, margin, lineY + 15);
 
                 return lineY + 25;
             };
@@ -325,7 +325,7 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(80);
-                doc.text(`Report Generated: ${new Date().toLocaleString()}`, margin, lineY + 15);
+                doc.text(`Report Generated: ${new Date()?.toLocaleString()}`, margin, lineY + 15);
 
                 return lineY + 25;
             };

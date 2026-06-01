@@ -265,7 +265,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
                                         <h4 className="text-[10px] font-black uppercase text-amber-600 tracking-widest mb-2 ml-1">Financial Status</h4>
                                         <div className="flex items-center gap-4">
                                             <div className={`text-2xl font-black leading-none ${feeBalance && feeBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                                {feeBalance && feeBalance > 0 ? `-KES ${feeBalance.toLocaleString()}` : 'CLEARED'}
+                                                {feeBalance && feeBalance > 0 ? `-KES ${feeBalance?.toLocaleString()}` : 'CLEARED'}
                                             </div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Closing Balance</p>
                                         </div>

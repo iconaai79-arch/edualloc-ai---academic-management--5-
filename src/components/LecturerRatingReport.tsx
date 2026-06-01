@@ -100,7 +100,7 @@ export const LecturerRatingReport: React.FC<LecturerRatingReportProps> = ({ rati
                                                 <p className="italic">"{c.comment}"</p>
                                                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                                                     {/* Subject info is not directly on rating; would need to find timetable entry. Omitting for now for simplicity. */}
-                                                    {new Date(c.timestamp).toLocaleString()}
+                                                    {new Date(c.timestamp)?.toLocaleString()}
                                                 </p>
                                             </li>
                                         )})}

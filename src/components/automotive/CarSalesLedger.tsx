@@ -97,7 +97,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
     const replacePlaceholders = (template: string, invoice: CarInvoice, listing?: CarListing) => {
         return template
             .replace(/{client_name}/g, invoice.clientName || '')
-            .replace(/{amount_due}/g, (invoice.balanceAmount ?? (invoice.totalAmount - invoice.paidAmount)).toLocaleString())
+            .replace(/{amount_due}/g, (invoice.balanceAmount ?? (invoice.totalAmount - invoice.paidAmount))?.toLocaleString())
             .replace(/{registration_number}/g, invoice.registrationNumber || listing?.registrationNumber || 'N/A')
             .replace(/{invoice_number}/g, invoice.invoiceNumber || '')
             .replace(/{due_date}/g, invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'N/A');
@@ -366,7 +366,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Sales Value</span>
                     </div>
-                    <p className="text-3xl font-black text-slate-900 dark:text-white leading-none">KES {stats.totalSales.toLocaleString()}</p>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white leading-none">KES {stats.totalSales?.toLocaleString()}</p>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-2">{invoices.length} Invoices Generated</p>
                 </div>
                 <div className="bg-emerald-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-emerald-100 dark:shadow-none">
@@ -376,7 +376,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Revenue Collected</span>
                     </div>
-                    <p className="text-3xl font-black leading-none">KES {stats.totalCollected.toLocaleString()}</p>
+                    <p className="text-3xl font-black leading-none">KES {stats.totalCollected?.toLocaleString()}</p>
                     <p className="text-[9px] font-bold text-white/60 uppercase tracking-widest mt-2">{payments.length} Payments Recorded</p>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
@@ -386,7 +386,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Outstanding</span>
                     </div>
-                    <p className="text-3xl font-black text-slate-900 dark:text-white leading-none">KES {stats.outstanding.toLocaleString()}</p>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white leading-none">KES {stats.outstanding?.toLocaleString()}</p>
                     <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest mt-2 italic font-black">Requires Follow-up</p>
                 </div>
             </div>
@@ -649,7 +649,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6 text-right">
-                                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {inv.totalAmount.toLocaleString()}</p>
+                                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {inv.totalAmount?.toLocaleString()}</p>
                                                 <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mt-1">Net Payable</p>
                                             </td>
                                             <td className="px-8 py-6 text-center">
@@ -786,7 +786,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                             {/* Amount */}
                                             <td className="px-8 py-6 text-right">
                                                 <p className="text-sm font-black text-emerald-600 italic">
-                                                    KES {pay.amount.toLocaleString()}
+                                                    KES {pay.amount?.toLocaleString()}
                                                 </p>
                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
                                                     Paid
@@ -1094,7 +1094,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                 </div>
                                                 <div className="text-right">
                                                     <span className="px-3 py-1 bg-amber-50 dark:bg-slate-850 text-amber-600 rounded-full text-[9px] font-black uppercase tracking-widest">
-                                                        KES {(inv.balanceAmount ?? (inv.totalAmount - inv.paidAmount)).toLocaleString()} Due
+                                                        KES {(inv.balanceAmount ?? (inv.totalAmount - inv.paidAmount))?.toLocaleString()} Due
                                                     </span>
                                                 </div>
                                             </div>

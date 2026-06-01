@@ -175,7 +175,7 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
                         <h3 className="text-2xl font-black">
                             KES {((activeFeed === 'bank' ? filteredBank : filteredMpesa) || [])
                                 .filter(t => (t as any).status === 'unreconciled' || (t as any).status === 'completed')
-                                .reduce((sum, t) => sum + (Number(t.amount) || 0), 0).toLocaleString()}
+                                .reduce((sum, t) => sum + (Number(t.amount) || 0), 0)?.toLocaleString()}
                         </h3>
                     </div>
                     <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
@@ -219,7 +219,7 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
                                 </td>
                                 <td className="px-10 py-6 text-right">
                                     <p className="text-sm font-black text-slate-900 dark:text-white">
-                                        KES {(t.amount ?? 0).toLocaleString()}
+                                        KES {(t.amount ?? 0)?.toLocaleString()}
                                     </p>
                                 </td>
                                 <td className="px-10 py-6">

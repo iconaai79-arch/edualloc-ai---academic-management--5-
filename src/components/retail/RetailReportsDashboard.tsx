@@ -308,7 +308,7 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                 <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">
                                     {isEducation ? 'Total Issued Value' : 'Total Revenue'}
                                 </p>
-                                <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {filteredSales.reduce((acc, s) => acc + s.totalAmount, 0).toLocaleString()}</p>
+                                <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {filteredSales.reduce((acc, s) => acc + s.totalAmount, 0)?.toLocaleString()}</p>
                             </div>
                         </div>
 
@@ -336,7 +336,7 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                                 <span className="px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg text-[8px] font-black uppercase tracking-widest">{t.paymentMethod}</span>
                                             </td>
                                             <td className="p-6 text-right text-sm font-black text-emerald-600 italic">
-                                                KES {t.totalAmount.toLocaleString()}
+                                                KES {t.totalAmount?.toLocaleString()}
                                             </td>
                                         </tr>
                                     ))}
@@ -391,12 +391,12 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-indigo-600 p-8 rounded-[2.5rem] shadow-xl text-white">
                         <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Total Inventory Value (SRP)</p>
-                        <h3 className="text-3xl font-black italic">KES {totalRetailValue.toLocaleString()}</h3>
+                        <h3 className="text-3xl font-black italic">KES {totalRetailValue?.toLocaleString()}</h3>
                         <p className="text-[10px] font-bold text-indigo-100 uppercase mt-4">Across {totalInventoryUnits} units</p>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Asset Cost</p>
-                        <h3 className="text-3xl font-black text-slate-900 dark:text-white italic">KES {totalCostValue.toLocaleString()}</h3>
+                        <h3 className="text-3xl font-black text-slate-900 dark:text-white italic">KES {totalCostValue?.toLocaleString()}</h3>
                         <p className="text-[10px] font-bold text-emerald-600 uppercase mt-4">Margin: {((projectedProfit/totalRetailValue)*100).toFixed(1)}%</p>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
@@ -458,9 +458,9 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                                 {item.quantity} {item.unit}
                                             </span>
                                         </td>
-                                        <td className="p-6 text-right text-xs font-bold text-slate-400 italic">KES {item.costPrice.toLocaleString()}</td>
-                                        <td className="p-6 text-right text-xs font-bold text-indigo-600 italic">KES {item.srpPrice.toLocaleString()}</td>
-                                        <td className="p-6 text-right text-sm font-black text-slate-900 dark:text-white italic">KES {(item.srpPrice * item.quantity).toLocaleString()}</td>
+                                        <td className="p-6 text-right text-xs font-bold text-slate-400 italic">KES {item.costPrice?.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-xs font-bold text-indigo-600 italic">KES {item.srpPrice?.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-sm font-black text-slate-900 dark:text-white italic">KES {(item.srpPrice * item.quantity)?.toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -540,7 +540,7 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition-all">
                                 <div className="relative z-10">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Gross Revenue</p>
-                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalRevenue.toLocaleString()}</h3>
+                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalRevenue?.toLocaleString()}</h3>
                                     <div className="mt-4 flex items-center gap-2 text-emerald-600 bg-emerald-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
                                         <ArrowUpRight className="w-3 h-3" /> +12.5% this week
                                     </div>
@@ -589,7 +589,7 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-black text-slate-900 dark:text-white">KES {prod.revenue.toLocaleString()}</p>
+                                                <p className="font-black text-slate-900 dark:text-white">KES {prod.revenue?.toLocaleString()}</p>
                                                 <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Revenue</p>
                                             </div>
                                         </div>
@@ -608,16 +608,16 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                             <div className="bg-gradient-to-br from-indigo-900 to-indigo-700 p-6 rounded-3xl shadow-xl relative overflow-hidden group text-white">
                                 <div className="relative z-10">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Total Retail Value</p>
-                                    <h3 className="text-3xl font-black">KES {totalRetailValue.toLocaleString()}</h3>
+                                    <h3 className="text-3xl font-black">KES {totalRetailValue?.toLocaleString()}</h3>
                                     <div className="mt-4 flex items-center gap-2 text-indigo-900 bg-white w-fit px-3 py-1 rounded-full text-[10px] font-bold">
-                                        Projected Profit: KES {projectedProfit.toLocaleString()}
+                                        Projected Profit: KES {projectedProfit?.toLocaleString()}
                                     </div>
                                 </div>
                             </div>
 
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Cost Basis</p>
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalCostValue.toLocaleString()}</h3>
+                                <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalCostValue?.toLocaleString()}</h3>
                             </div>
 
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
@@ -703,12 +703,12 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                                     {agent.salesCount} Deals
                                                 </td>
                                                 <td className="py-4 font-black text-teal-600 text-right">
-                                                    KES {agent.totalRevenue.toLocaleString()}
+                                                    KES {agent.totalRevenue?.toLocaleString()}
                                                 </td>
                                                 <td className="py-4 text-right">
                                                     {agent.pendingCommission > 0 ? (
                                                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-rose-50 text-rose-600">
-                                                            KES {agent.pendingCommission.toLocaleString()} Pend.
+                                                            KES {agent.pendingCommission?.toLocaleString()} Pend.
                                                         </span>
                                                     ) : (
                                                         <span className="text-slate-400 text-sm font-medium">KES 0.00</span>

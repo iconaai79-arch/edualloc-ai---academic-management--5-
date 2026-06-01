@@ -766,7 +766,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
 
 
-                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-2">KES {(totalPaid || 0).toLocaleString()}</h3>
+                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-2">KES {(totalPaid || 0)?.toLocaleString()}</h3>
 
 
 
@@ -1282,7 +1282,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
 
 
-                                        <p className="text-2xl md:text-4xl font-black tracking-tight">KES {(totalInvoiced || 0).toLocaleString()}</p>
+                                        <p className="text-2xl md:text-4xl font-black tracking-tight">KES {(totalInvoiced || 0)?.toLocaleString()}</p>
 
 
 
@@ -1298,7 +1298,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
 
 
-                                        <p className="text-2xl md:text-4xl font-black tracking-tight">KES {(totalPaid || 0).toLocaleString()}</p>
+                                        <p className="text-2xl md:text-4xl font-black tracking-tight">KES {(totalPaid || 0)?.toLocaleString()}</p>
 
 
 

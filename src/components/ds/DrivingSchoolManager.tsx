@@ -5207,7 +5207,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         {filteredVehicles.flatMap(v => ((v as any).maintenanceLogs || []).map((log: any) => ({ ...log, vehicle: v }))).filter(l => l.type === 'Maintenance').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log, idx) => (
                                             <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                                                 <td className="px-10 py-6 text-xs font-bold text-slate-600 dark:text-slate-300">
-                                                    {new Date(log.date).toLocaleString()}
+                                                    {new Date(log.date)?.toLocaleString()}
                                                 </td>
                                                 <td className="px-10 py-6 font-bold text-slate-900 dark:text-white">
                                                     {log.vehicle.make} {log.vehicle.model} - {log.vehicle.plateNumber}
@@ -5247,7 +5247,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         {filteredVehicles.flatMap(v => ((v as any).maintenanceLogs || []).map((log: any) => ({ ...log, vehicle: v }))).filter(l => l.type === 'Fuel').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log, idx) => (
                                             <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                                                 <td className="px-10 py-6 text-xs font-bold text-slate-600 dark:text-slate-300">
-                                                    {new Date(log.date).toLocaleString()}
+                                                    {new Date(log.date)?.toLocaleString()}
                                                 </td>
                                                 <td className="px-10 py-6 font-bold text-slate-900 dark:text-white">
                                                     {log.vehicle.make} {log.vehicle.model} - {log.vehicle.plateNumber}

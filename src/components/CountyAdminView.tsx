@@ -509,7 +509,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                                                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">[{log.institutionName || 'SYSTEM'}]</span>
                                                                 <span className="text-[9px] text-slate-400">•</span>
                                                                 <span className="text-[9px] text-slate-400 uppercase font-medium">
-                                                                    {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Recent'}
+                                                                    {log.timestamp ? new Date(log.timestamp)?.toLocaleString() : 'Recent'}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -544,7 +544,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                     <div className="space-y-6 relative z-10">
                                         <div>
                                             <p className="text-3xl font-black tracking-tight">
-                                                KES {bursaryFunds.reduce((acc, f) => acc + (f.totalBudget || 0), 0).toLocaleString()}
+                                                KES {bursaryFunds.reduce((acc, f) => acc + (f.totalBudget || 0), 0)?.toLocaleString()}
                                             </p>
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">Total Allocated Budget</p>
                                         </div>

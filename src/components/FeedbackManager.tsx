@@ -80,7 +80,7 @@ export const FeedbackManager: React.FC<FeedbackManagerProps> = ({ submissions, u
                                             </span>
                                         )}
                                         <span>&bull;</span>
-                                        <span>{new Date(submission.timestamp).toLocaleString()}</span>
+                                        <span>{new Date(submission.timestamp)?.toLocaleString()}</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">

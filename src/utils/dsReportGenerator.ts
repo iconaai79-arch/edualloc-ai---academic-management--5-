@@ -91,14 +91,14 @@ export const generateStudentStatement = async (
     doc.text('BALANCE DUE:', pageWidth - margin - 65, currentY + 20);
     
     doc.setFontSize(9);
-    doc.text(`KES ${totalInvoiced.toLocaleString()}`, pageWidth - margin - 5, currentY + 3, { align: 'right' });
-    doc.text(`KES ${totalPaid.toLocaleString()}`, pageWidth - margin - 5, currentY + 10, { align: 'right' });
+    doc.text(`KES ${totalInvoiced?.toLocaleString()}`, pageWidth - margin - 5, currentY + 3, { align: 'right' });
+    doc.text(`KES ${totalPaid?.toLocaleString()}`, pageWidth - margin - 5, currentY + 10, { align: 'right' });
     
     if (balance > 0) doc.setTextColor(220, 38, 38);
     else doc.setTextColor(16, 185, 129);
     
     doc.setFontSize(11);
-    doc.text(`KES ${balance.toLocaleString()}`, pageWidth - margin - 5, currentY + 20, { align: 'right' });
+    doc.text(`KES ${balance?.toLocaleString()}`, pageWidth - margin - 5, currentY + 20, { align: 'right' });
 
     currentY += 35;
 
@@ -126,9 +126,9 @@ export const generateStudentStatement = async (
         return [
             item.date ? new Date(item.date).toLocaleDateString() : 'N/A',
             item.desc,
-            item.debit > 0 ? item.debit.toLocaleString() : '-',
-            item.credit > 0 ? item.credit.toLocaleString() : '-',
-            runningBalance.toLocaleString()
+            item.debit > 0 ? item.debit?.toLocaleString() : '-',
+            item.credit > 0 ? item.credit?.toLocaleString() : '-',
+            runningBalance?.toLocaleString()
         ];
     });
 
@@ -266,7 +266,7 @@ export const generateIncomeReport = async (
             String(p.studentName || 'N/A'),
             String(p.paymentMethod || 'N/A'),
             String(p.transactionReference || '-'),
-            amount.toLocaleString()
+            amount?.toLocaleString()
         ];
     }).filter(Boolean) as any[];
 
@@ -278,7 +278,7 @@ export const generateIncomeReport = async (
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [79, 70, 229] },
-        foot: [['', '', '', '', 'TOTAL INCOME', total.toLocaleString()]],
+        foot: [['', '', '', '', 'TOTAL INCOME', total?.toLocaleString()]],
         footStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
         columnStyles: { 5: { halign: 'right' } }
     });
@@ -333,9 +333,9 @@ export const generateBalanceReport = async (
         return [
             String(s.fullName || 'N/A'),
             String(s.phone || 'N/A'),
-            totalInvoiced.toLocaleString(),
-            totalPaid.toLocaleString(),
-            balance.toLocaleString()
+            totalInvoiced?.toLocaleString(),
+            totalPaid?.toLocaleString(),
+            balance?.toLocaleString()
         ];
     }).filter(Boolean) as any[];
 
@@ -347,7 +347,7 @@ export const generateBalanceReport = async (
         body: tableData,
         theme: 'grid',
         headStyles: { fillColor: [220, 38, 38] },
-        foot: [['', '', '', 'TOTAL ARREARS', totalBalance.toLocaleString()]],
+        foot: [['', '', '', 'TOTAL ARREARS', totalBalance?.toLocaleString()]],
         footStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
         columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
     });

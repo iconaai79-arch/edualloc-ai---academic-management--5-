@@ -1362,10 +1362,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             }
 
             // 2. Send SMS Notification
-            const smsMessage = `Hello ${disburseReseller.name}, your commission of KES ${disbursementAmount.toLocaleString()} has been disbursed. Ref: ${disbursementRef}. Thank you for your partnership.`;
+            const smsMessage = `Hello ${disburseReseller.name}, your commission of KES ${disbursementAmount?.toLocaleString()} has been disbursed. Ref: ${disbursementRef}. Thank you for your partnership.`;
             await apiService.sendSms(disburseReseller.phoneNumber, smsMessage, undefined, 1, disburseReseller.id);
 
-            alert(`Commission of KES ${disbursementAmount.toLocaleString()} disbursed successfully to ${disburseReseller.name}.`);
+            alert(`Commission of KES ${disbursementAmount?.toLocaleString()} disbursed successfully to ${disburseReseller.name}.`);
             setDisburseReseller(null);
             setDisbursementAmount(0);
             setDisbursementRef('');
@@ -1878,7 +1878,7 @@ Please change it after login.`;
                                     ? 'text-amber-500'
                                     : 'text-sky-500'
                                     }`}>
-                                    {(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0).toLocaleString()}
+                                    {(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0)?.toLocaleString()}
                                 </p>
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2 italic">Aggregated Units</p>
                             </div>
@@ -2955,7 +2955,7 @@ Please change it after login.`;
                                                                 <div className="text-[10px] font-mono text-slate-400">{req.resellerId}</div>
                                                             </td>
                                                             <td className="px-6 py-5">
-                                                                <div className="text-lg font-black text-indigo-600 font-mono">KES {req.amount.toLocaleString()}</div>
+                                                                <div className="text-lg font-black text-indigo-600 font-mono">KES {req.amount?.toLocaleString()}</div>
                                                             </td>
                                                             <td className="px-6 py-5">
                                                                 <div className="text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 px-3 py-1.5 rounded-xl inline-block border border-slate-200 dark:border-slate-600 font-mono">
@@ -4797,7 +4797,7 @@ Please change it after login.`;
                                                                     <tr key={txn.id} className="hover:bg-white/50 dark:hover:bg-white/5 transition-colors">
                                                                         <td className="px-4 py-4 whitespace-nowrap text-[10px] font-bold text-slate-500">{new Date(txn.timestamp).toLocaleDateString()}</td>
                                                                         <td className="px-4 py-4 whitespace-nowrap text-xs font-black">{txn.phoneNumber}</td>
-                                                                        <td className="px-4 py-4 whitespace-nowrap text-xs font-black">KES {txn.amount.toLocaleString()}</td>
+                                                                        <td className="px-4 py-4 whitespace-nowrap text-xs font-black">KES {txn.amount?.toLocaleString()}</td>
                                                                         <td className="px-4 py-4 whitespace-nowrap">
                                                                             {txn.transactionId && txn.transactionId !== txn.id ? (
                                                                                 <span className="font-mono text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-lg">
@@ -6319,7 +6319,7 @@ Please change it after login.`;
                                                     <div key={txn.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
                                                         <div>
                                                             <div className="text-[10px] font-black text-slate-900 dark:text-white">{txn.phoneNumber}</div>
-                                                            <div className="text-[8px] font-bold text-slate-400 uppercase">{new Date(txn.timestamp).toLocaleString()}</div>
+                                                            <div className="text-[8px] font-bold text-slate-400 uppercase">{new Date(txn.timestamp)?.toLocaleString()}</div>
                                                         </div>
                                                         <div className="text-right">
                                                             <div className="text-[10px] font-black text-indigo-600">KES {txn.amount}</div>
@@ -6645,7 +6645,7 @@ Please change it after login.`;
                             <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
                                 <div>
                                     <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Current Balance</p>
-                                    <p className="text-3xl font-black text-sky-600 tracking-tighter mt-1">{(managingSmsUnitsFor.smsBalance ?? 0).toLocaleString()}</p>
+                                    <p className="text-3xl font-black text-sky-600 tracking-tighter mt-1">{(managingSmsUnitsFor.smsBalance ?? 0)?.toLocaleString()}</p>
                                     <p className="text-[10px] text-slate-400 font-mono">SMS units</p>
                                 </div>
                                 <CreditCardIcon className="w-10 h-10 text-sky-200" />
@@ -6672,7 +6672,7 @@ Please change it after login.`;
                             </div>
                             {tenantSmsAdjustment.amount !== 0 && (
                                 <div className={`p-3 rounded-xl border text-xs font-medium ${tenantSmsAdjustment.amount > 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
-                                    New balance will be: <strong>{(Math.max(0, (managingSmsUnitsFor.smsBalance ?? 0) + tenantSmsAdjustment.amount)).toLocaleString()}</strong> units
+                                    New balance will be: <strong>{(Math.max(0, (managingSmsUnitsFor.smsBalance ?? 0) + tenantSmsAdjustment.amount))?.toLocaleString()}</strong> units
                                 </div>
                             )}
                         </div>
@@ -6731,7 +6731,7 @@ Please change it after login.`;
                                         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
                                             <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Base Rate (Monthly)</p>
                                             <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                                                KES {localSubConfig.defaultMonthlyPrice.toLocaleString()}
+                                                KES {localSubConfig.defaultMonthlyPrice?.toLocaleString()}
                                             </p>
                                         </div>
                                     </div>

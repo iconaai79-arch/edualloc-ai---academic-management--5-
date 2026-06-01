@@ -100,7 +100,7 @@ export function RetailRequisitions({
             await apiService.sendEmail(
                 supplier.email,
                 `Purchase Order - ${lpoNum}`,
-                `Dear ${supplier.name},\n\nPlease find the attached Purchase Order from ${institution.name}.\n\nRequisition ID: ${req.id}\nTotal Value: KES ${req.totalEstimatedCost.toLocaleString()}\n\nBest Regards,\n${currentUser.name}`,
+                `Dear ${supplier.name},\n\nPlease find the attached Purchase Order from ${institution.name}.\n\nRequisition ID: ${req.id}\nTotal Value: KES ${req.totalEstimatedCost?.toLocaleString()}\n\nBest Regards,\n${currentUser.name}`,
                 getInstitutionEmailConfig(institution),
                 undefined,
                 [{ filename: `LPO-${lpoNum}.pdf`, path: dataUri }]
@@ -504,7 +504,7 @@ export function RetailRequisitions({
                                 </div>
                                 <div className="space-y-1 text-right">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Value</p>
-                                    <p className="text-sm font-black text-indigo-600">KES {selectedLpo.totalEstimatedCost.toLocaleString()}</p>
+                                    <p className="text-sm font-black text-indigo-600">KES {selectedLpo.totalEstimatedCost?.toLocaleString()}</p>
                                 </div>
                             </div>
 
@@ -566,7 +566,7 @@ export function RetailRequisitions({
                                                 <tr key={idx}>
                                                     <td className="py-2">{item.name}</td>
                                                     <td className="py-2 text-center">{item.quantity} {item.unit}</td>
-                                                    <td className="py-2 text-right">KES {item.unitCost.toLocaleString()}</td>
+                                                    <td className="py-2 text-right">KES {item.unitCost?.toLocaleString()}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -650,15 +650,15 @@ export function RetailRequisitions({
                                                 <tr key={idx}>
                                                     <td className="p-4 font-bold text-slate-800">{item.name}</td>
                                                     <td className="p-4 text-center font-bold text-slate-600">{item.quantity} {item.unit}</td>
-                                                    <td className="p-4 text-right font-semibold text-slate-600">KES {item.unitCost.toLocaleString()}</td>
-                                                    <td className="p-4 text-right font-black text-indigo-600">KES {(item.quantity * item.unitCost).toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-semibold text-slate-600">KES {item.unitCost?.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-black text-indigo-600">KES {(item.quantity * item.unitCost)?.toLocaleString()}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                         <tfoot>
                                             <tr className="bg-slate-50 font-black">
                                                 <td colSpan={3} className="p-4 text-right uppercase text-[9px] tracking-wider text-slate-400">Total Value</td>
-                                                <td className="p-4 text-right text-indigo-600 text-sm">KES {selectedReqForReview.totalEstimatedCost.toLocaleString()}</td>
+                                                <td className="p-4 text-right text-indigo-600 text-sm">KES {selectedReqForReview.totalEstimatedCost?.toLocaleString()}</td>
                                             </tr>
                                         </tfoot>
                                     </table>
@@ -689,7 +689,7 @@ export function RetailRequisitions({
                                                         for (const fu of financeUsers) {
                                                             await apiService.createNotification(
                                                                 fu.id, 
-                                                                `Stock Requisition approved by Principal Newton (Value: KES ${selectedReqForReview.totalEstimatedCost.toLocaleString()}). Please dispatch LPO.`, 
+                                                                `Stock Requisition approved by Principal Newton (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}). Please dispatch LPO.`, 
                                                                 'success'
                                                             );
                                                         }
@@ -737,7 +737,7 @@ export function RetailRequisitions({
                                                             // Notify Sender
                                                             await apiService.createNotification(
                                                                 selectedReqForReview.requestedBy,
-                                                                `Your Requisition (Value: KES ${selectedReqForReview.totalEstimatedCost.toLocaleString()}) was rejected by Principal Newton. Note: ${rejectReason}`,
+                                                                `Your Requisition (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}) was rejected by Principal Newton. Note: ${rejectReason}`,
                                                                 'warning'
                                                             );
                                                             

@@ -108,7 +108,7 @@ export const HISBillingView: React.FC<{ institutionId?: string }> = ({ instituti
                                     <div className="mt-4 flex justify-between items-end border-t border-white/5 pt-4">
                                         <div>
                                             <p className="text-[8px] text-slate-500 uppercase">Unit Price: {item.unitPrice}</p>
-                                            <p className="text-lg font-black text-white">KES {item.totalAmount.toLocaleString()}</p>
+                                            <p className="text-lg font-black text-white">KES {item.totalAmount?.toLocaleString()}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[8px] font-bold text-slate-600 uppercase">QTY</p>
@@ -126,7 +126,7 @@ export const HISBillingView: React.FC<{ institutionId?: string }> = ({ instituti
                              <div className="flex justify-between items-end">
                                 <div>
                                     <p className="text-xs text-indigo-300 uppercase font-black italic">Total Payable</p>
-                                    <p className="text-3xl font-black text-white italic">KES {billingItems.filter(i => i.status === 'pending').reduce((s, i) => s + i.totalAmount, 0).toLocaleString()}</p>
+                                    <p className="text-3xl font-black text-white italic">KES {billingItems.filter(i => i.status === 'pending').reduce((s, i) => s + i.totalAmount, 0)?.toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>

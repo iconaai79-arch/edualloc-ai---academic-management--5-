@@ -654,7 +654,7 @@ const LPOPreviewModal = ({ req, suppliers, onClose, onPrint }: { req: Requisitio
                                     <tr key={i}>
                                         <td className="px-4 py-3 text-[10px] font-bold text-slate-700 uppercase">{item.name}</td>
                                         <td className="px-4 py-3 text-[10px] font-black text-slate-900 text-center">{item.quantity} {item.unit}</td>
-                                        <td className="px-4 py-3 text-[10px] font-black text-slate-900 text-right">KES {(item.quantity * (item.unitCost || 0)).toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-[10px] font-black text-slate-900 text-right">KES {(item.quantity * (item.unitCost || 0))?.toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>

@@ -797,7 +797,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Inventory Valuation</span>
                                     <h4 className="text-3xl font-black text-indigo-600 dark:text-indigo-400 mt-2">
-                                        KES {inventoryItems.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0).toLocaleString()}
+                                        KES {inventoryItems.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0)?.toLocaleString()}
                                     </h4>
                                 </div>
                             </div>
@@ -870,10 +870,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                                                     {item.quantity} <span className="text-[10px] text-slate-400 font-bold">{item.unit}</span>
                                                                 </td>
                                                                 <td className="p-5 text-xs font-black text-right text-slate-800 dark:text-slate-300">
-                                                                    {item.price ? `KES ${item.price.toLocaleString()}` : '-'}
+                                                                    {item.price ? `KES ${item.price?.toLocaleString()}` : '-'}
                                                                 </td>
                                                                 <td className="p-5 text-xs font-black text-right text-slate-900 dark:text-white">
-                                                                    KES {(item.quantity * (item.price || 0)).toLocaleString()}
+                                                                    KES {(item.quantity * (item.price || 0))?.toLocaleString()}
                                                                 </td>
                                                                 <td className="p-5">
                                                                     {isLow ? (

@@ -609,7 +609,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                             </p>
                                         </div>
                                         <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
-                                            <span>Reserve: KES {((product as any).source === 'cafe' ? (product as any).basePrice : ((product as any).basePrice || (product as any).costPrice || 0)).toLocaleString()}</span>
+                                            <span>Reserve: KES {((product as any).source === 'cafe' ? (product as any).basePrice : ((product as any).basePrice || (product as any).costPrice || 0))?.toLocaleString()}</span>
                                             {(product as any).source !== 'cafe' && <span>{(product as any).quantity} Left</span>}
                                         </div>
                                     </div>
@@ -663,7 +663,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                     <div className="flex flex-col">
                                         <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 mb-1">Agent Yield</span>
                                         <span className="text-2xl font-black text-emerald-600">
-                                            KES {Math.max(0, parseFloat(negotiatedPrice || '0') - ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))).toLocaleString()}
+                                            KES {Math.max(0, parseFloat(negotiatedPrice || '0') - ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)))?.toLocaleString()}
                                         </span>
                                     </div>
                                     <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
@@ -674,7 +674,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                 {parseFloat(negotiatedPrice) < ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)) && (
                                     <div className="flex gap-3 p-5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl border border-rose-100 dark:border-rose-900/30">
                                         <AlertCircle className="w-5 h-5 flex-shrink-0 animate-bounce" />
-                                        <p className="text-xs font-bold leading-relaxed">System blocked: Price is below base KES {((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)).toLocaleString()}</p>
+                                        <p className="text-xs font-bold leading-relaxed">System blocked: Price is below base KES {((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))?.toLocaleString()}</p>
                                     </div>
                                 )}
 
@@ -719,12 +719,12 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                         {isEducation ? (
                                             <p className="text-[10px] font-bold text-indigo-500 italic">Qty: {cartItem.quantity} {(cartItem.item as any).unit || 'units'}</p>
                                         ) : (
-                                            <p className="text-[10px] font-bold text-indigo-500 italic">KES {cartItem.finalPrice.toLocaleString()} {cartItem.quantity > 1 ? `x ${cartItem.quantity}` : ''}</p>
+                                            <p className="text-[10px] font-bold text-indigo-500 italic">KES {cartItem.finalPrice?.toLocaleString()} {cartItem.quantity > 1 ? `x ${cartItem.quantity}` : ''}</p>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-4">
                                         {!isEducation ? (
-                                            <p className="font-black text-slate-900 dark:text-white text-sm">KES {(cartItem.finalPrice * cartItem.quantity).toLocaleString()}</p>
+                                            <p className="font-black text-slate-900 dark:text-white text-sm">KES {(cartItem.finalPrice * cartItem.quantity)?.toLocaleString()}</p>
                                         ) : (
                                             <p className="font-black text-slate-900 dark:text-white text-xs">Qty: {cartItem.quantity}</p>
                                         )}
@@ -745,7 +745,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                                         <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Unrealized Comms</span>
                                     </div>
-                                    <span className="text-sm font-black text-emerald-600">KES {totalCommission.toLocaleString()}</span>
+                                    <span className="text-sm font-black text-emerald-600">KES {totalCommission?.toLocaleString()}</span>
                                 </div>
                             )}
 
@@ -763,7 +763,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Total Liability</span>
                                     <div className="flex items-end gap-1">
                                         <span className="text-sm font-black text-slate-400 mb-1">KES</span>
-                                        <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{totalAmount.toLocaleString()}</span>
+                                        <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{totalAmount?.toLocaleString()}</span>
                                     </div>
                                 </div>
                             )}
@@ -1178,7 +1178,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                 <span className="text-[10px] font-black uppercase tracking-[.4em] text-slate-400">
                                                     Net Liability
                                                 </span>
-                                                <h4 className="text-3xl font-black text-white tracking-tighter">KES {totalAmount.toLocaleString()}</h4>
+                                                <h4 className="text-3xl font-black text-white tracking-tighter">KES {totalAmount?.toLocaleString()}</h4>
                                             </div>
                                             <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
                                                 <ShoppingCart className="w-8 h-8 text-white/50" />

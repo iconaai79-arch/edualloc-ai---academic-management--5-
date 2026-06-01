@@ -269,7 +269,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-8">
-                                                    <p className="text-sm font-black text-white">KES {item.unitPrice.toLocaleString()}</p>
+                                                    <p className="text-sm font-black text-white">KES {item.unitPrice?.toLocaleString()}</p>
                                                 </td>
                                                 <td className="px-10 py-8">
                                                     <p className="text-sm font-black text-white">{item.stockQuantity} <span className="text-[10px] text-slate-500 uppercase">{item.unit}s</span></p>
@@ -343,7 +343,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                             <div className="space-y-6">
                                 <div>
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Inventory Value</p>
-                                    <p className="text-3xl font-black italic">KES {inventory.reduce((s, i) => s + (i.unitPrice * i.stockQuantity), 0).toLocaleString()}</p>
+                                    <p className="text-3xl font-black italic">KES {inventory.reduce((s, i) => s + (i.unitPrice * i.stockQuantity), 0)?.toLocaleString()}</p>
                                 </div>
                                 <div className="h-px w-full bg-white/5"></div>
                                 <div>
@@ -408,7 +408,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-xs font-black text-emerald-400">x{item.quantity}</p>
-                                                <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1">KES {item.totalPrice.toLocaleString()}</p>
+                                                <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1">KES {item.totalPrice?.toLocaleString()}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -433,7 +433,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
 
                                 <div className="p-6 bg-white/5 rounded-2xl mb-8 flex justify-between items-center border border-white/5">
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Billing Impact</p>
-                                    <p className="text-lg font-black text-indigo-400 italic">KES {selectedPrescription.items?.reduce((s, i) => s + i.totalPrice, 0).toLocaleString()}</p>
+                                    <p className="text-lg font-black text-indigo-400 italic">KES {selectedPrescription.items?.reduce((s, i) => s + i.totalPrice, 0)?.toLocaleString()}</p>
                                 </div>
 
                                 <div className="flex gap-4">
@@ -473,9 +473,9 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                             <tbody className="divide-y divide-white/5">
                                 {historyPrescs.map(p => (
                                     <tr key={p.id} className="hover:bg-white/[0.02]">
-                                        <td className="px-10 py-6 text-xs font-bold text-slate-400">{new Date(p.createdAt).toLocaleString()}</td>
+                                        <td className="px-10 py-6 text-xs font-bold text-slate-400">{new Date(p.createdAt)?.toLocaleString()}</td>
                                         <td className="px-6 py-6 font-black text-white">{p.patientName}</td>
-                                        <td className="px-6 py-6 font-black text-indigo-400 italic">KES {p.items?.reduce((s, i) => s + i.totalPrice, 0).toLocaleString()}</td>
+                                        <td className="px-6 py-6 font-black text-indigo-400 italic">KES {p.items?.reduce((s, i) => s + i.totalPrice, 0)?.toLocaleString()}</td>
                                         <td className="px-10 py-6 text-right">
                                             <span className="px-4 py-1.5 rounded-full bg-slate-500/20 text-slate-400 text-[9px] font-black uppercase tracking-widest border border-white/10">COMPLETED</span>
                                         </td>

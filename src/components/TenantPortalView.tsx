@@ -212,7 +212,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                             <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 group hover:scale-[1.02] transition-transform">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Rental Balance</p>
                                 <h3 className={`text-4xl font-black tracking-tighter ${balance > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                    KES {Math.abs(balance).toLocaleString()}
+                                    KES {Math.abs(balance)?.toLocaleString()}
                                 </h3>
                                 <p className="text-xs font-bold text-slate-400 mt-2">{balance > 0 ? 'Outstanding Dues' : 'Account in Good Standing'}</p>
                             </div>
@@ -256,7 +256,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                                                     <p className="text-[10px] text-slate-400 font-bold">{new Date(payment.paymentDate).toLocaleDateString()}</p>
                                                 </div>
                                             </div>
-                                            <p className="font-black text-slate-800">+{payment.amount.toLocaleString()}</p>
+                                            <p className="font-black text-slate-800">+{payment.amount?.toLocaleString()}</p>
                                         </div>
                                     ))}
                                     {payments.length === 0 && <p className="text-center text-slate-400 py-8 font-bold italic">No recent payments found.</p>}
@@ -307,11 +307,11 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Rent Amount</p>
-                                            <p className="font-black text-indigo-600">KES {activeLease.rentAmount.toLocaleString()}/mo</p>
+                                            <p className="font-black text-indigo-600">KES {activeLease.rentAmount?.toLocaleString()}/mo</p>
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Deposit Paid</p>
-                                            <p className="font-black text-slate-800">KES {activeLease.depositAmount.toLocaleString()}</p>
+                                            <p className="font-black text-slate-800">KES {activeLease.depositAmount?.toLocaleString()}</p>
                                         </div>
                                     </div>
 
@@ -359,7 +359,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                                             <td className="p-6">
                                                 <span className="bg-white border border-slate-100 px-3 py-1 rounded-lg text-[10px] font-black text-slate-400 uppercase">{p.paymentMethod}</span>
                                             </td>
-                                            <td className="p-6 text-right font-black text-slate-800">KES {p.amount.toLocaleString()}</td>
+                                            <td className="p-6 text-right font-black text-slate-800">KES {p.amount?.toLocaleString()}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -388,7 +388,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                                             <p className="text-sm text-slate-400 font-bold mt-1 max-w-md line-clamp-1">{t.description}</p>
                                             <div className="flex items-center gap-4 mt-3">
                                                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${t.priority === 'High' ? 'bg-red-50 text-red-500' : 'bg-slate-50 text-slate-400'}`}>{t.priority}</span>
-                                                <span className="text-[10px] font-bold text-slate-300 uppercase underline decoration-dotted">{new Date(t.createdAt).toLocaleString()}</span>
+                                                <span className="text-[10px] font-bold text-slate-300 uppercase underline decoration-dotted">{new Date(t.createdAt)?.toLocaleString()}</span>
                                             </div>
                                         </div>
                                     </div>

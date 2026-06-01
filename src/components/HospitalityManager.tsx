@@ -214,7 +214,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                                         <div className="flex-1">
                                             <div className="flex justify-between">
                                                 <p className="font-black text-slate-800 dark:text-white text-xs uppercase tracking-tight">{item.name}</p>
-                                                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">KES {item.price.toLocaleString()}</span>
+                                                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">KES {item.price?.toLocaleString()}</span>
                                             </div>
                                             <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">
                                                 {item.category} • Confirmed
@@ -377,7 +377,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Price</p>
-                                    <p className="text-sm font-black text-indigo-600 tracking-tighter">KES {item.price.toLocaleString()}</p>
+                                    <p className="text-sm font-black text-indigo-600 tracking-tighter">KES {item.price?.toLocaleString()}</p>
                                 </div>
                             </div>
                             <button 

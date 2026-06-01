@@ -265,7 +265,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                         <div className="bg-slate-900 p-8 rounded-[3rem] text-white space-y-4">
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Asset Replacement Value</p>
-                            <p className="text-3xl font-black tracking-tighter">KES {analytics.totalAssetRisk.toLocaleString()}</p>
+                            <p className="text-3xl font-black tracking-tighter">KES {analytics.totalAssetRisk?.toLocaleString()}</p>
                             <div className="pt-4 border-t border-white/10">
                                 <span className="text-[9px] font-bold text-rose-400 uppercase">Risk Level: High</span>
                             </div>

@@ -120,7 +120,7 @@ export const CivilWorksDashboard: React.FC = () => {
                                         <div className="grid grid-cols-2 gap-4 mb-8">
                                             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900">
                                                 <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Stock Level</div>
-                                                <div className="text-xl font-black text-slate-900 dark:text-white">{product.currentStock.toLocaleString()}</div>
+                                                <div className="text-xl font-black text-slate-900 dark:text-white">{product.currentStock?.toLocaleString()}</div>
                                             </div>
                                             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900">
                                                 <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Strength</div>
@@ -167,7 +167,7 @@ export const CivilWorksDashboard: React.FC = () => {
                                         <div className="flex-1 flex justify-around w-full border-y md:border-y-0 md:border-x border-white/10 py-4 md:py-0 px-8 text-center">
                                             <div className="text-center">
                                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Contract Total</p>
-                                                <p className="text-2xl font-black tracking-tighter">KES {sale.totalAmount.toLocaleString()}</p>
+                                                <p className="text-2xl font-black tracking-tighter">KES {sale.totalAmount?.toLocaleString()}</p>
                                             </div>
                                             <div className="text-center">
                                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Logistics</p>

@@ -263,7 +263,7 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
                 <div className="p-10 border-t border-white/5 flex justify-between items-center bg-black/40">
                     <div>
                         <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Estimated Financial Impact</p>
-                        <p className="text-2xl font-black text-indigo-400 italic">KES {selectedItems.reduce((s, i) => s + i.totalPrice, 0).toLocaleString()}</p>
+                        <p className="text-2xl font-black text-indigo-400 italic">KES {selectedItems.reduce((s, i) => s + i.totalPrice, 0)?.toLocaleString()}</p>
                     </div>
                     <div className="flex gap-4">
                         <button onClick={onClose} className="px-10 py-4 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all text-slate-400">Abort</button>

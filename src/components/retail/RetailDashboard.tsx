@@ -195,7 +195,7 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
                         <div>
                             <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Inventory Value</p>
                             <h3 className="text-3xl font-black text-white leading-tight">
-                                KES {stats.totalInventoryValue.toLocaleString()}
+                                KES {stats.totalInventoryValue?.toLocaleString()}
                             </h3>
                             <p className="text-[10px] font-bold text-indigo-400 mt-4 uppercase tracking-widest flex items-center gap-2">
                                 <span className="flex relative w-2 h-2">
@@ -276,7 +276,7 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
                                         <div key={idx} className="space-y-2 group">
                                             <div className="flex justify-between items-end">
                                                 <span className="text-[10px] font-black uppercase tracking-tight text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{data.storeName}</span>
-                                                <span className="text-xs font-black text-slate-900 dark:text-white">KES {data.amount.toLocaleString()}</span>
+                                                <span className="text-xs font-black text-slate-900 dark:text-white">KES {data.amount?.toLocaleString()}</span>
                                             </div>
                                             <div className="w-full h-2.5 bg-slate-50 dark:bg-slate-700 rounded-full overflow-hidden">
                                                 <div

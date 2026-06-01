@@ -81,7 +81,7 @@ export const CarReceiptModal: React.FC<CarReceiptModalProps> = ({ isOpen, onClos
                             <div>
                                 <p className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter">Reference #{invoice.invoiceNumber}</p>
                                 <p className="text-xs font-bold text-slate-500 mt-1">Reg No: {invoice.registrationNumber || 'N/A'}</p>
-                                <p className="text-xs font-bold text-slate-500 mt-1">Total Agreed: KES {invoice.totalAmount.toLocaleString()}</p>
+                                <p className="text-xs font-bold text-slate-500 mt-1">Total Agreed: KES {invoice.totalAmount?.toLocaleString()}</p>
                                 <p className="text-xs font-bold text-indigo-600 mt-1 uppercase tracking-widest">Status: {invoice.status.replace('_', ' ')}</p>
                             </div>
                         </div>
@@ -92,7 +92,7 @@ export const CarReceiptModal: React.FC<CarReceiptModalProps> = ({ isOpen, onClos
                         <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] space-y-4 border border-slate-100 dark:border-slate-700">
                             <div className="flex justify-between items-center text-sm">
                                 <span className="font-bold text-slate-500">Amount Paid</span>
-                                <span className="font-black text-slate-900 dark:text-white italic">KES {payment.amount.toLocaleString()}</span>
+                                <span className="font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
                                 <span className="font-bold text-slate-500">Payment Method</span>
@@ -104,7 +104,7 @@ export const CarReceiptModal: React.FC<CarReceiptModalProps> = ({ isOpen, onClos
                             </div>
                             <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                 <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Remaining Balance</span>
-                                <span className="text-xl font-black text-slate-900 dark:text-white italic">KES {invoice.balanceAmount.toLocaleString()}</span>
+                                <span className="text-xl font-black text-slate-900 dark:text-white italic">KES {invoice.balanceAmount?.toLocaleString()}</span>
                             </div>
                         </div>
                     </div>

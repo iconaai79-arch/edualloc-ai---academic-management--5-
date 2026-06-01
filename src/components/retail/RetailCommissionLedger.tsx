@@ -112,7 +112,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Earned (Gross)</p>
                     <div className="flex justify-between items-end">
-                        <h3 className="text-3xl font-black text-slate-900">KES {totalEarned.toLocaleString()}</h3>
+                        <h3 className="text-3xl font-black text-slate-900">KES {totalEarned?.toLocaleString()}</h3>
                         <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
                             <HandCoins className="w-5 h-5" />
                         </div>
@@ -122,7 +122,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Pending Payouts</p>
                     <div className="flex justify-between items-end">
-                        <h3 className="text-3xl font-black text-amber-600">KES {totalPending.toLocaleString()}</h3>
+                        <h3 className="text-3xl font-black text-amber-600">KES {totalPending?.toLocaleString()}</h3>
                         <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
                             <Clock className="w-5 h-5" />
                         </div>
@@ -132,7 +132,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 border-l-4 border-l-emerald-500">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Settled</p>
                     <div className="flex justify-between items-end">
-                        <h3 className="text-3xl font-black text-emerald-600">KES {totalPaid.toLocaleString()}</h3>
+                        <h3 className="text-3xl font-black text-emerald-600">KES {totalPaid?.toLocaleString()}</h3>
                         <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
                             <CheckCircleIcon className="w-5 h-5" />
                         </div>

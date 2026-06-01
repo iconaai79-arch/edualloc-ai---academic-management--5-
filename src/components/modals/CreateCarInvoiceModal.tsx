@@ -206,7 +206,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                     >
                                         <option value="">Choose a vehicle...</option>
                                         {filteredListings.map(l => (
-                                            <option key={l.id} value={l.id}>{l.year} {l.make} {l.model} - KES {l.price.toLocaleString()}</option>
+                                            <option key={l.id} value={l.id}>{l.year} {l.make} {l.model} - KES {l.price?.toLocaleString()}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -393,7 +393,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                     {formData.totalInstallments && formData.totalInstallments > 0 && (
                                         <div className="col-span-full pt-4 border-t border-slate-100 dark:border-slate-800">
                                             <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
-                                                Installment Amount: KES {((formData.totalAmount || 0) / formData.totalInstallments).toLocaleString()} / {formData.installmentFrequency || 'monthly'}
+                                                Installment Amount: KES {((formData.totalAmount || 0) / formData.totalInstallments)?.toLocaleString()} / {formData.installmentFrequency || 'monthly'}
                                             </p>
                                         </div>
                                     )}
@@ -496,7 +496,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                                     {formData.registrationNumber || 'N/A'}
                                                 </td>
                                                 <td className="px-4 py-4 text-xs font-black text-slate-900 dark:text-white text-right">
-                                                    KES {(formData.totalAmount || 0).toLocaleString()}
+                                                    KES {(formData.totalAmount || 0)?.toLocaleString()}
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -518,7 +518,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                                         Installment #{inst.num} ({inst.date})
                                                     </span>
                                                     <span className="font-black text-slate-850 dark:text-slate-200">
-                                                        KES {inst.amount.toLocaleString()}
+                                                        KES {inst.amount?.toLocaleString()}
                                                     </span>
                                                 </div>
                                             ))}
@@ -532,7 +532,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                 <div className="flex justify-between items-center text-xs">
                                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Net Amount:</span>
                                     <span className="text-base font-black text-indigo-600 dark:text-indigo-400">
-                                        KES {(formData.totalAmount || 0).toLocaleString()}
+                                        KES {(formData.totalAmount || 0)?.toLocaleString()}
                                     </span>
                                 </div>
 

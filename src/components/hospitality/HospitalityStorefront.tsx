@@ -563,11 +563,11 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                 <div className="space-y-4 py-8">
                                     <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase">
                                         <span>{selectedItem.category === 'Safari' ? 'Package Price' : 'Subtotal'}</span>
-                                        <span>KES {selectedItem.price.toLocaleString()}</span>
+                                        <span>KES {selectedItem.price?.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs font-black text-indigo-600 uppercase border-t border-slate-200 dark:border-slate-700 pt-4">
                                         <span>Total Est.</span>
-                                        <span className="text-lg">KES {selectedItem.price.toLocaleString()}</span>
+                                        <span className="text-lg">KES {selectedItem.price?.toLocaleString()}</span>
                                     </div>
                                 </div>
                                 <div className="space-y-3">

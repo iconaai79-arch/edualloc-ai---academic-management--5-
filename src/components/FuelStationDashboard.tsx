@@ -192,7 +192,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                 alert(`DENIED: Geofence violation. Vehicle is outside authorized zone.`);
                 return;
             }
-            alert(`Card Verified: ${account.companyName}\nVehicle: ${card.vehiclePlate}\nCredit Limit: KES ${account.creditLimit.toLocaleString()}\nCurrent Balance: KES ${account.creditBalance.toLocaleString()}`);
+            alert(`Card Verified: ${account.companyName}\nVehicle: ${card.vehiclePlate}\nCredit Limit: KES ${account.creditLimit?.toLocaleString()}\nCurrent Balance: KES ${account.creditBalance?.toLocaleString()}`);
         } else {
             alert('Error: Card not recognized by network.');
         }
@@ -496,9 +496,9 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
             setIsCheckingOut(false);
             
             // Trigger Loyalty SMS
-            sendSMS('0712345678', `Thank you for fueling at ${currentStation.name}! KES ${cartTotal.toLocaleString()} spent. You earned 24 points. Current balance: 450 pts.`, 'loyalty');
+            sendSMS('0712345678', `Thank you for fueling at ${currentStation.name}! KES ${cartTotal?.toLocaleString()} spent. You earned 24 points. Current balance: 450 pts.`, 'loyalty');
             
-            alert(`Sale Completed at ${currentStation.name}!\nTotal: KES ${cartTotal.toLocaleString()}\nMethod: ${paymentMethod.toUpperCase()}`);
+            alert(`Sale Completed at ${currentStation.name}!\nTotal: KES ${cartTotal?.toLocaleString()}\nMethod: ${paymentMethod.toUpperCase()}`);
         }, 800);
     };
 
@@ -537,9 +537,9 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
 
                 <div className="flex items-end space-x-2 mb-2">
                     <span className="text-3xl font-black tracking-tight text-slate-800 dark:text-white">
-                        {tank.currentLevelLiters.toLocaleString()}
+                        {tank.currentLevelLiters?.toLocaleString()}
                     </span>
-                    <span className="text-slate-500 font-medium mb-1">/ {tank.capacityLiters.toLocaleString()} L</span>
+                    <span className="text-slate-500 font-medium mb-1">/ {tank.capacityLiters?.toLocaleString()} L</span>
                 </div>
 
                 <div className="mt-4 relative h-4 bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
@@ -810,7 +810,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                             </div>
                                             <div className="text-right">
                                                 <p className="font-black text-sm text-slate-800 dark:text-white">
-                                                    KES {sale.totalAmount.toLocaleString()}
+                                                    KES {sale.totalAmount?.toLocaleString()}
                                                 </p>
                                             </div>
                                         </div>
@@ -1018,7 +1018,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                         <div className="p-3 bg-slate-50 dark:bg-slate-700 rounded-2xl flex flex-col justify-center">
                                             <span className="text-[9px] font-bold text-slate-400 uppercase mb-1">Stock</span>
                                             <span className="text-sm font-black text-slate-800 dark:text-slate-200">
-                                                {tank.currentLevelLiters.toLocaleString()} L
+                                                {tank.currentLevelLiters?.toLocaleString()} L
                                             </span>
                                         </div>
                                         <button 
@@ -1086,7 +1086,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                         </div>
                                         <div className="text-center">
                                             <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Order Vol</p>
-                                            <p className="text-sm font-black text-white">{pred.recommendedQuantity.toLocaleString()} L</p>
+                                            <p className="text-sm font-black text-white">{pred.recommendedQuantity?.toLocaleString()} L</p>
                                         </div>
                                     </div>
 
@@ -1149,7 +1149,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                         <div>
                                             <div className="font-black text-lg">Potential {alert.severity.toUpperCase()} Variance</div>
                                             <div className="text-xs font-bold opacity-70">
-                                                Tank: {tanks.find(t => t.id === alert.tankId)?.name} • Detected: {new Date(alert.detectedAt).toLocaleString()}
+                                                Tank: {tanks.find(t => t.id === alert.tankId)?.name} • Detected: {new Date(alert.detectedAt)?.toLocaleString()}
                                             </div>
                                         </div>
                                     </div>
@@ -1243,7 +1243,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                             </div>
                                             <div className="mt-5 flex items-center justify-between">
                                                 <span className="text-xl font-black text-slate-800 dark:text-white">
-                                                    KES {item.price.toLocaleString()}
+                                                    KES {item.price?.toLocaleString()}
                                                 </span>
                                                 <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-colors">
                                                     <Plus className="w-4 h-4" />
@@ -1275,7 +1275,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                             <div key={cartItem.item.id} className="flex gap-3 items-center bg-slate-50 dark:bg-slate-700/20 p-3 rounded-2xl">
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-bold text-sm text-slate-800 dark:text-white truncate">{cartItem.item.name}</p>
-                                                    <p className="text-indigo-600 dark:text-indigo-400 font-black text-sm mt-0.5">KES {cartItem.item.price.toLocaleString()}</p>
+                                                    <p className="text-indigo-600 dark:text-indigo-400 font-black text-sm mt-0.5">KES {cartItem.item.price?.toLocaleString()}</p>
                                                 </div>
                                                 <div className="flex items-center bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden shrink-0">
                                                     <button onClick={() => updateQuantity(cartItem.item.id, -1)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300">
@@ -1299,7 +1299,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                         <span className="font-semibold text-slate-500">Total Amount</span>
                                         <span className="text-3xl font-black text-slate-800 dark:text-white">
                                             <span className="text-lg mr-1 text-slate-400">KES</span>
-                                            {cartTotal.toLocaleString()}
+                                            {cartTotal?.toLocaleString()}
                                         </span>
                                     </div>
                                     <div className="mb-4">
@@ -1314,7 +1314,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                         </div>
                                     </div>
                                     <button onClick={handleCheckout} disabled={cart.length === 0 || isCheckingOut} className="w-full relative flex items-center justify-center py-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-2xl font-black text-lg transition-all">
-                                        {isCheckingOut ? <RefreshCcw className="w-6 h-6 animate-spin" /> : <>Pay KES {cartTotal.toLocaleString()} <ArrowRight className="w-5 h-5 ml-2" /></>}
+                                        {isCheckingOut ? <RefreshCcw className="w-6 h-6 animate-spin" /> : <>Pay KES {cartTotal?.toLocaleString()} <ArrowRight className="w-5 h-5 ml-2" /></>}
                                     </button>
                                 </div>
                             </div>
@@ -1391,7 +1391,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                             <Car className="w-6 h-6" />
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-2xl font-black text-slate-800 dark:text-white">KES {service.price.toLocaleString()}</div>
+                                            <div className="text-2xl font-black text-slate-800 dark:text-white">KES {service.price?.toLocaleString()}</div>
                                             <div className="text-xs font-bold text-slate-500 flex items-center justify-end mt-1">
                                                 <Clock className="w-3 h-3 mr-1" /> {service.estimatedDurationMinutes} mins
                                             </div>
@@ -1460,7 +1460,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                             <Wrench className="w-6 h-6" />
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-2xl font-black text-slate-800 dark:text-white">KES {pkg.price.toLocaleString()}</div>
+                                            <div className="text-2xl font-black text-slate-800 dark:text-white">KES {pkg.price?.toLocaleString()}</div>
                                             <div className="text-xs font-bold text-slate-500 flex items-center justify-end mt-1">
                                                 <Clock className="w-3 h-3 mr-1" /> {pkg.estimatedDurationMinutes} mins
                                             </div>
@@ -1680,11 +1680,11 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/30">
                                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Credit Limit</div>
-                                                    <div className="text-lg font-black text-slate-800 dark:text-white">KES {account.creditLimit.toLocaleString()}</div>
+                                                    <div className="text-lg font-black text-slate-800 dark:text-white">KES {account.creditLimit?.toLocaleString()}</div>
                                                 </div>
                                                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/30">
                                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Consumption Rate (7d)</div>
-                                                    <div className="text-lg font-black text-indigo-500">KES {account.currentBalance.toLocaleString()}</div>
+                                                    <div className="text-lg font-black text-indigo-500">KES {account.currentBalance?.toLocaleString()}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1778,7 +1778,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                         <div className="flex justify-between items-start mb-8">
                                             <div>
                                                 <span className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">Live P&L Summary</span>
-                                                <h3 className="text-2xl font-black text-slate-800 dark:text-white mt-2">KES {report.netProfit.toLocaleString()}</h3>
+                                                <h3 className="text-2xl font-black text-slate-800 dark:text-white mt-2">KES {report.netProfit?.toLocaleString()}</h3>
                                                 <p className="text-slate-500 font-bold text-xs uppercase tracking-tight">Net Estimated Profit for {new Date(report.periodStart).toLocaleDateString()}</p>
                                             </div>
                                             <div className="text-right">
@@ -1792,15 +1792,15 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                         <div className="grid grid-cols-3 gap-6">
                                             <div className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-700/30">
                                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Gross Sales</div>
-                                                <div className="text-lg font-black text-slate-800 dark:text-white">KES {report.totalSales.toLocaleString()}</div>
+                                                <div className="text-lg font-black text-slate-800 dark:text-white">KES {report.totalSales?.toLocaleString()}</div>
                                             </div>
                                             <div className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-700/30">
                                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tax Liability (VAT)</div>
-                                                <div className="text-lg font-black text-red-500">KES {report.totalTax.toLocaleString()}</div>
+                                                <div className="text-lg font-black text-red-500">KES {report.totalTax?.toLocaleString()}</div>
                                             </div>
                                             <div className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-700/30">
                                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Staff Commissions</div>
-                                                <div className="text-lg font-black text-amber-500">KES {report.totalCommission.toLocaleString()}</div>
+                                                <div className="text-lg font-black text-amber-500">KES {report.totalCommission?.toLocaleString()}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -2005,7 +2005,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                             </div>
                                             <div className="md:w-40 flex flex-col justify-center text-center p-4 bg-white/5 rounded-2xl border border-white/10">
                                                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Est. Cost</div>
-                                                <div className="text-lg font-black text-white">KES {log.maintenanceCost.toLocaleString()}</div>
+                                                <div className="text-lg font-black text-white">KES {log.maintenanceCost?.toLocaleString()}</div>
                                             </div>
                                         </div>
                                     ))}
@@ -2104,15 +2104,15 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                 <div className="flex-1 flex justify-around w-full border-y md:border-y-0 md:border-x border-slate-200 dark:border-slate-700 py-4 md:py-0 px-4 text-center">
                                     <div>
                                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Expected</p>
-                                        <p className="text-xl font-black text-slate-700 dark:text-slate-300">KES {shift.expectedCash.toLocaleString()}</p>
+                                        <p className="text-xl font-black text-slate-700 dark:text-slate-300">KES {shift.expectedCash?.toLocaleString()}</p>
                                     </div>
                                     <div>
                                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Actual</p>
-                                        <p className="text-xl font-black text-slate-700 dark:text-slate-300">{shift.status === 'active' ? '—' : `KES ${shift.actualCash.toLocaleString()}`}</p>
+                                        <p className="text-xl font-black text-slate-700 dark:text-slate-300">{shift.status === 'active' ? '—' : `KES ${shift.actualCash?.toLocaleString()}`}</p>
                                     </div>
                                     <div>
                                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Discrepancy</p>
-                                        <p className={`text-xl font-black ${shift.discrepancy < 0 ? 'text-red-500' : shift.status === 'active' ? 'text-slate-400' : 'text-emerald-500'}`}>{shift.status === 'active' ? '—' : `KES ${shift.discrepancy.toLocaleString()}`}</p>
+                                        <p className={`text-xl font-black ${shift.discrepancy < 0 ? 'text-red-500' : shift.status === 'active' ? 'text-slate-400' : 'text-emerald-500'}`}>{shift.status === 'active' ? '—' : `KES ${shift.discrepancy?.toLocaleString()}`}</p>
                                     </div>
                                 </div>
                                 <div className="w-full md:w-auto text-right">
@@ -2163,7 +2163,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <div className="text-lg font-black">{staff.points.toLocaleString()}</div>
+                                                <div className="text-lg font-black">{staff.points?.toLocaleString()}</div>
                                                 <div className="text-[9px] font-black text-slate-500 uppercase">XP Earned</div>
                                             </div>
                                         </div>
