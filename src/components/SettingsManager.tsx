@@ -653,7 +653,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [localNcbaConfig, setLocalNcbaConfig] = useState<NcbaConfig>(
         props.companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' }
     );
-    const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(props.companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
+    const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(props.companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultQuarterlyPrice: 15000, defaultYearlyPrice: 50000 });
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(props.companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(props.companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     const [localKcbConfig, setLocalKcbConfig] = useState<KcbConfig>(props.companyDetails?.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
@@ -695,7 +695,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             setLocalEmailConfig(props.companyDetails.emailConfig || { provider: 'smtp', host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
             setLocalMpesaConfig(props.companyDetails.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
             setLocalNcbaConfig(props.companyDetails.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' });
-            setLocalSubConfig(props.companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
+            setLocalSubConfig(props.companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultQuarterlyPrice: 15000, defaultYearlyPrice: 50000 });
             setLocalFtpConfig(props.companyDetails.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
             setLocalGoogleDriveConfig(props.companyDetails.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
             setLocalKcbConfig(props.companyDetails.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
@@ -1694,6 +1694,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">Standard Subscription Pricing</h4>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Monthly License (KES)</label><input type="number" value={localSubConfig.defaultMonthlyPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, defaultMonthlyPrice: Number(e.target.value) })} className="form-input font-bold" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Quarterly License (KES)</label><input type="number" value={localSubConfig.defaultQuarterlyPrice || 15000} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, defaultQuarterlyPrice: Number(e.target.value) })} className="form-input font-bold" /></div>
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Yearly License (KES)</label><input type="number" value={localSubConfig.defaultYearlyPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, defaultYearlyPrice: Number(e.target.value) })} className="form-input font-bold" /></div>
                                         </div>
                                         <div><label className="block text-[10px] font-black uppercase text-indigo-600 mb-1.5 ml-1">Base Cost Per Additional Student (KES)</label><input type="number" value={localSubConfig.baseCostPerStudent || 0} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, baseCostPerStudent: Number(e.target.value) })} className="form-input font-bold border-indigo-200 focus:ring-indigo-500" /></div>

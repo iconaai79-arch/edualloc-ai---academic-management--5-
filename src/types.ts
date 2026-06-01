@@ -395,7 +395,7 @@ export interface Institution {
     footerImageUrl?: string | null;
     letterheadConfig?: LetterheadConfig;
     location?: { latitude: number; longitude: number };
-    customSubscriptionPrice?: { monthly?: number; yearly?: number };
+    customSubscriptionPrice?: { monthly?: number; quarterly?: number; yearly?: number };
     gradingSystems?: GradingSystem[];
     gradingSystem?: GradeDefinition[];
     activeGradingSystemId?: string;
@@ -774,6 +774,7 @@ export interface InstitutionModuleState {
 
 export interface SubscriptionConfig {
     defaultMonthlyPrice: number;
+    defaultQuarterlyPrice?: number;
     defaultYearlyPrice: number;
     baseCostPerStudent?: number;
     libraryCostPerStudent?: number;

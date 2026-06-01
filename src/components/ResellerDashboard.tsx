@@ -63,12 +63,14 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     const [newTenantCategory, setNewTenantCategory] = useState('Primary');
     const [newTenantSubType, setNewTenantSubType] = useState<Institution['businessSubType']>('');
     const [newTenantMonthlyPrice, setNewTenantMonthlyPrice] = useState(companyDetails.subscriptionConfig.defaultMonthlyPrice);
+    const [newTenantQuarterlyPrice, setNewTenantQuarterlyPrice] = useState(companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3);
     const [newTenantYearlyPrice, setNewTenantYearlyPrice] = useState(companyDetails.subscriptionConfig.defaultYearlyPrice);
 
     // Edit Pricing State
     const [isEditPricingModalOpen, setIsEditPricingModalOpen] = useState(false);
     const [selectedTenantForPricing, setSelectedTenantForPricing] = useState<Institution | null>(null);
     const [editMonthlyPrice, setEditMonthlyPrice] = useState(0);
+    const [editQuarterlyPrice, setEditQuarterlyPrice] = useState(0);
     const [editYearlyPrice, setEditYearlyPrice] = useState(0);
     const [isUpdatingPricing, setIsUpdatingPricing] = useState(false);
 
@@ -122,6 +124,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 useAllocationRequests: true,
                 customSubscriptionPrice: {
                     monthly: newTenantMonthlyPrice,
+                    quarterly: newTenantQuarterlyPrice,
                     yearly: newTenantYearlyPrice
                 }
             };
@@ -169,6 +172,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             setNewTenantCategory('Primary');
             setNewTenantSubType('');
             setNewTenantMonthlyPrice(companyDetails.subscriptionConfig.defaultMonthlyPrice);
+            setNewTenantQuarterlyPrice(companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3);
             setNewTenantYearlyPrice(companyDetails.subscriptionConfig.defaultYearlyPrice);
 
             alert('Congratulations! The tenant and admin account have been successfully created.');
@@ -188,6 +192,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 ...selectedTenantForPricing,
                 customSubscriptionPrice: {
                     monthly: editMonthlyPrice,
+                    quarterly: editQuarterlyPrice,
                     yearly: editYearlyPrice
                 }
             };
@@ -207,6 +212,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
         setSelectedTenantForPerspective(null);
         setSelectedTenantForPricing(tenant);
         setEditMonthlyPrice(tenant.customSubscriptionPrice?.monthly || companyDetails.subscriptionConfig.defaultMonthlyPrice);
+        setEditQuarterlyPrice(tenant.customSubscriptionPrice?.quarterly || companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3);
         setEditYearlyPrice(tenant.customSubscriptionPrice?.yearly || companyDetails.subscriptionConfig.defaultYearlyPrice);
         setIsEditPricingModalOpen(true);
     };
@@ -758,7 +764,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                     <h4 className="text-xs font-black uppercase text-indigo-500 mb-4 tracking-widest flex items-center gap-2">
                                         <SparklesIcon className="w-4 h-4" /> Custom Subscription Pricing
                                     </h4>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Monthly Price (KES)</label>
                                             <input
@@ -770,6 +776,18 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                 className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                             />
                                             <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice.toLocaleString()}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Quarterly Price (KES)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                min={companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3}
+                                                value={newTenantQuarterlyPrice}
+                                                onChange={(e) => setNewTenantQuarterlyPrice(Number(e.target.value))}
+                                                className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantQuarterlyPrice < (companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3) ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                            />
+                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {(companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3).toLocaleString()}</p>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly Price (KES)</label>
@@ -842,7 +860,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                     </p>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Monthly (KES)</label>
                                         <input
@@ -854,6 +872,18 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                             className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                         />
                                         <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice.toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Quarterly (KES)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min={companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3}
+                                            value={editQuarterlyPrice}
+                                            onChange={(e) => setEditQuarterlyPrice(Number(e.target.value))}
+                                            className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editQuarterlyPrice < (companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3) ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                        />
+                                        <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {(companyDetails.subscriptionConfig.defaultQuarterlyPrice || companyDetails.subscriptionConfig.defaultMonthlyPrice * 3).toLocaleString()}</p>
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly (KES)</label>
