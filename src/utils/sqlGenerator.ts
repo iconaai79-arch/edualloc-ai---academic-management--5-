@@ -1766,7 +1766,7 @@ CREATE TABLE IF NOT EXISTS car_sales_listings (
     inspection_report_url TEXT,
     ai_valuation_status TEXT DEFAULT 'pending',
     estimated_market_value DECIMAL(15, 2),
-    inspection_score DECIMAL(3, 2),
+    inspection_score INTEGER,
     registration_number TEXT,
     vin_number TEXT,
     verified_history BOOLEAN DEFAULT FALSE,
@@ -1777,7 +1777,7 @@ CREATE TABLE IF NOT EXISTS car_sales_listings (
     import_expenses JSONB DEFAULT '[]'::jsonb,
     fob_price DECIMAL(15, 2),
     total_landed_cost DECIMAL(15, 2),
-    target_margin DECIMAL(5, 2),
+    target_margin DECIMAL(10, 2),
     floor_price DECIMAL(15, 2),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

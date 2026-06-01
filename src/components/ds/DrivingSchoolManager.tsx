@@ -2578,6 +2578,19 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             setIsActionLoading(false);
         }
     };
+    const handleViewStudentPassword = (student: DSStudent) => {
+        const u = (users || []).find(u => 
+            (student.userId && u.id === student.userId) || 
+            (student.email && u.email === student.email) || 
+            (student.phone && u.phoneNumber === student.phone)
+        );
+        if (u && u.password) {
+            alert(`Password for ${student.fullName} is: ${u.password}`);
+        } else {
+            alert(`No user account found for ${student.fullName}, or password is not set. They might be using the default password 'student123'.`);
+        }
+    };
+
     const handleResetStudentPassword = async (student: DSStudent) => {
         if (!student.phone && !student.email) {
             toastError("Student has no linked email or phone number to receive the new password.");
@@ -3850,6 +3863,15 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 >
                                                                     <KeyIconLucide className="w-4 h-4" />
                                                                 </button>
+                                                                {isSuperAdmin && (
+                                                                    <button 
+                                                                        onClick={() => handleViewStudentPassword(student)}
+                                                                        className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                        title="View Password"
+                                                                    >
+                                                                        <EyeIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
                                                                 {isSuperAdmin && getStudentMilestoneStatus(student.id)?.noInvoice && student.status !== 'Graduated' && (
                                                                     <button 
                                                                         onClick={async () => {

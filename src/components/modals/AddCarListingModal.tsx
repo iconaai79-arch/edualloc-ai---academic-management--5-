@@ -61,7 +61,9 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
         if (formData.importExpenses) {
             const fob = formData.importExpenses.find(e => e.category === 'FOB')?.kshAmount || 0;
             const totalLanded = formData.importExpenses.reduce((sum, exp) => sum + (exp.amount * exp.exchangeRate), 0);
-            const targetMargin = totalLanded > 0 && formData.price ? ((formData.price - totalLanded) / totalLanded) * 100 : 0;
+            let targetMargin = totalLanded > 0 && formData.price ? ((formData.price - totalLanded) / totalLanded) * 100 : 0;
+            // Bound to prevent numeric field overflow on DECIMAL(5,2) or similar in db
+            if (targetMargin > 999) targetMargin = 999;
             
             // Only update if changed to avoid infinite loop
             if (formData.fobPrice !== fob || formData.totalLandedCost !== totalLanded || formData.targetMargin !== targetMargin) {
