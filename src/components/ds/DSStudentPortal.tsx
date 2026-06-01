@@ -30,15 +30,15 @@ const statusColor: Record<string, string> = {
     Completed: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
     Cancelled: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
     'No Show': 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-};
-
 export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
     currentUser,
     currentInstitution,
     onLogout,
 }) => {
     const { students, lessons, invoices, mastery, instructors, vehicles, addLesson, updateStudent } = useDrivingSchool();
-    const [activeTab, setActiveTab] = useState<'home' | 'lessons' | 'finance' | 'progress' | 'book'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'lessons' | 'finance' | 'progress' | 'book' | 'exams' | 'id'>('home');
+    const [mockExamStatus, setMockExamStatus] = useState<'idle' | 'taking' | 'completed'>('idle');
+    const [mockExamScore, setMockExamScore] = useState<number | null>(null);
     const [bookingDate, setBookingDate] = useState('');
     const [bookingType, setBookingType] = useState<'Practical' | 'Theory'>('Practical');
     const [bookingStart, setBookingStart] = useState('08:00');
@@ -159,6 +159,8 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         { id: 'finance', label: 'Finance', icon: CurrencyIcon },
         { id: 'progress', label: 'Progress', icon: TrendingUpIcon },
         { id: 'book', label: 'Book', icon: ClipboardListIcon },
+        { id: 'exams', label: 'Exams', icon: AcademicCapIcon },
+        { id: 'id', label: 'ID Card', icon: UsersIcon },
     ] as const;
 
     return (
@@ -343,15 +345,14 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                             </div>
                         )}
 
-                        {/* Quick Actions */}
                         <div className="grid grid-cols-2 gap-3">
                             <button onClick={() => setActiveTab('book')} className="bg-indigo-600 p-5 rounded-[1.5rem] text-white flex flex-col items-center gap-2 hover:scale-105 transition-all shadow-lg shadow-indigo-600/25 active:scale-95">
                                 <CalendarDaysIcon className="w-6 h-6" />
                                 <span className="text-[10px] font-black uppercase tracking-widest">Book Lesson</span>
                             </button>
-                            <button onClick={() => setActiveTab('progress')} className="bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] text-slate-700 dark:text-white flex flex-col items-center gap-2 hover:scale-105 transition-all border border-slate-100 dark:border-slate-800 shadow-sm active:scale-95">
-                                <StarIcon className="w-6 h-6 text-amber-500" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">My Skills</span>
+                            <button onClick={() => setActiveTab('id')} className="bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] text-slate-700 dark:text-white flex flex-col items-center gap-2 hover:scale-105 transition-all border border-slate-100 dark:border-slate-800 shadow-sm active:scale-95">
+                                <UsersIcon className="w-6 h-6 text-indigo-500" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Digital ID</span>
                             </button>
                         </div>
                         
@@ -726,6 +727,144 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                 </button>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* MOCK EXAMS TAB */}
+                {activeTab === 'exams' && (
+                    <div className="space-y-5 animate-fade-in">
+                        <h2 className="text-lg font-black text-slate-900 dark:text-white mb-4">NTSA Mock Exams</h2>
+
+                        {mockExamStatus === 'idle' && (
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 text-center space-y-4">
+                                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mx-auto">
+                                    <AcademicCapIcon className="w-8 h-8 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Take a Practice Test</h3>
+                                    <p className="text-xs text-slate-500 mt-2">Test your knowledge with a timed 10-question mock exam based on the NTSA syllabus.</p>
+                                </div>
+                                <button
+                                    onClick={() => setMockExamStatus('taking')}
+                                    className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all"
+                                >
+                                    Start Exam
+                                </button>
+                            </div>
+                        )}
+
+                        {mockExamStatus === 'taking' && (
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 space-y-5 animate-fade-in text-center">
+                                <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white">Exam in Progress</h3>
+                                <p className="text-xs text-slate-500">Simulating interactive exam environment...</p>
+                                <button
+                                    onClick={() => {
+                                        setMockExamScore(Math.floor(Math.random() * 41) + 60); // 60 to 100
+                                        setMockExamStatus('completed');
+                                    }}
+                                    className="px-6 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-xs hover:bg-slate-200 transition-colors"
+                                >
+                                    Finish Simulation
+                                </button>
+                            </div>
+                        )}
+
+                        {mockExamStatus === 'completed' && (
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 text-center space-y-4 animate-fade-in">
+                                <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto ${(mockExamScore || 0) >= 70 ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-rose-100 dark:bg-rose-900/30'}`}>
+                                    <span className={`text-3xl font-black ${(mockExamScore || 0) >= 70 ? 'text-emerald-600' : 'text-rose-600'}`}>{mockExamScore}%</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                                        {(mockExamScore || 0) >= 70 ? 'Passed!' : 'Keep Practicing'}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 mt-2">You scored {mockExamScore}%. You need 70% to pass the NTSA exam.</p>
+                                </div>
+                                <button
+                                    onClick={() => setMockExamStatus('idle')}
+                                    className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all"
+                                >
+                                    Try Again
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* DIGITAL ID TAB */}
+                {activeTab === 'id' && (
+                    <div className="space-y-5 animate-fade-in">
+                        <h2 className="text-lg font-black text-slate-900 dark:text-white mb-4">Digital Student ID</h2>
+
+                        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-blue-800 rounded-[2.5rem] p-6 text-white shadow-2xl shadow-indigo-600/30 relative overflow-hidden group">
+                            {/* Decorative background elements */}
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 group-hover:scale-110 transition-transform duration-1000" />
+                            <div className="absolute bottom-0 left-0 w-40 h-40 bg-white/5 rounded-full -ml-10 -mb-10 group-hover:scale-110 transition-transform duration-1000" />
+                            
+                            <div className="relative z-10">
+                                <div className="flex justify-between items-start mb-8">
+                                    <div className="flex items-center gap-3">
+                                        {currentInstitution.logoUrl ? (
+                                            <img src={currentInstitution.logoUrl} className="w-10 h-10 rounded-xl object-cover" alt="logo" />
+                                        ) : (
+                                            <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                                                <TruckIcon className="w-6 h-6 text-white" />
+                                            </div>
+                                        )}
+                                        <div>
+                                            <h3 className="text-[11px] font-black uppercase tracking-widest text-indigo-200">{currentInstitution.name}</h3>
+                                            <p className="text-[8px] font-black text-white/50 uppercase tracking-widest">Driving School</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white/20 backdrop-blur px-3 py-1 rounded-full border border-white/10">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-white">Student</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-5 mb-8">
+                                    <div className="w-20 h-20 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center text-3xl font-black uppercase overflow-hidden shrink-0 border-2 border-white/20">
+                                        {studentRecord?.passportPhoto ? (
+                                            <img src={studentRecord.passportPhoto as string} className="w-full h-full object-cover" alt="Photo" />
+                                        ) : (
+                                            (studentRecord?.fullName || currentUser.name)?.charAt(0)
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-black tracking-tight leading-tight">{studentRecord?.fullName || currentUser.name}</h2>
+                                        <div className="mt-2 space-y-1">
+                                            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest flex justify-between">
+                                                <span>ADM NO:</span> <span className="text-white">{studentRecord?.admissionNumber || 'PENDING'}</span>
+                                            </p>
+                                            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest flex justify-between">
+                                                <span>CATEGORY:</span> <span className="text-white">{studentRecord?.licenseCategory || 'A2'}</span>
+                                            </p>
+                                            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest flex justify-between">
+                                                <span>STATUS:</span> <span className="text-emerald-300">{studentRecord?.status || 'Active'}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-center bg-white p-4 rounded-3xl mx-4 mb-2">
+                                    <svg viewBox="0 0 100 100" className="w-[120px] h-[120px]" fill="currentColor">
+                                        <path d="M0,0 h30 v30 h-30 z m5,5 v20 h20 v-20 z m5,5 h10 v10 h-10 z" />
+                                        <path d="M70,0 h30 v30 h-30 z m5,5 v20 h20 v-20 z m5,5 h10 v10 h-10 z" />
+                                        <path d="M0,70 h30 v30 h-30 z m5,5 v20 h20 v-20 z m5,5 h10 v10 h-10 z" />
+                                        <path d="M40,0 h20 v10 h-20 z M40,20 h10 v10 h-10 z M60,10 h10 v20 h-10 z" />
+                                        <path d="M0,40 h20 v10 h-20 z M20,50 h10 v20 h-10 z M10,60 h10 v10 h-10 z" />
+                                        <path d="M40,40 h20 v20 h-20 z" />
+                                        <path d="M70,40 h30 v10 h-30 z M80,50 h20 v10 h-20 z M70,60 h10 v20 h-10 z M90,70 h10 v30 h-10 z M80,80 h10 v20 h-10 z M40,70 h20 v10 h-20 z M50,80 h20 v10 h-20 z M40,90 h10 v10 h-10 z M60,90 h10 v10 h-10 z" />
+                                    </svg>
+                                </div>
+                                <p className="text-center text-[8px] font-bold text-indigo-200 uppercase tracking-widest mt-2">Scan at Kiosk to check-in</p>
+                            </div>
+                        </div>
+
+                        <button className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
+                            <ArrowUpTrayIcon className="w-4 h-4" />
+                            Add to Apple Wallet
+                        </button>
                     </div>
                 )}
             </div>

@@ -2820,6 +2820,32 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
     };
 
+    const exportNTSARoster = () => {
+        const studentsToExport = students || [];
+        const headers = ["Admission Number", "Full Name", "ID Number", "Phone", "PDL Status", "Theory Progress", "Practical Progress", "Status"];
+        const rows = studentsToExport.map(s => [
+            s.admissionNumber || '',
+            `"${s.fullName || ''}"`,
+            s.idNumber || '',
+            s.phone || '',
+            s.pdlStatus || 'Pending',
+            `${s.theoryProgressPercent || 0}%`,
+            `${s.practicalProgressPercent || 0}%`,
+            s.status || 'Active'
+        ]);
+        
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+            
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `NTSA_Roster_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const activeTab = externalTab || internalTab;
     const setActiveTab = (tab: any) => setInternalTab(tab);
 
@@ -3927,6 +3953,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 </svg>
                                             </div>
                                         </div>
+                                        <button 
+                                            onClick={exportNTSARoster}
+                                            className="px-6 py-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center min-w-max"
+                                        >
+                                            Export NTSA Roster
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -4049,6 +4081,17 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                         NTSA: {student.ntsaBookingStatus}
                                                                     </span>
                                                                 )}
+                                                                
+                                                                {((student as any).masteredSkills || []).length > 0 && (
+                                                                    <div className="flex flex-wrap gap-1 mt-2 justify-end w-full max-w-[120px]">
+                                                                        {((student as any).masteredSkills || []).slice(0, 3).map((skill: string) => (
+                                                                            <span key={skill} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[7px] font-black uppercase truncate max-w-full" title={skill}>{skill}</span>
+                                                                        ))}
+                                                                        {((student as any).masteredSkills || []).length > 3 && (
+                                                                            <span className="px-1.5 py-0.5 bg-slate-50 text-slate-400 rounded text-[7px] font-black uppercase">+{((student as any).masteredSkills || []).length - 3}</span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </td>
                                                         <td className="px-10 py-8 text-right min-w-[245px]">
@@ -4140,6 +4183,24 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                         </button>
                                                                     </>
                                                                 )}
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        const skill = window.prompt("Enter a skill the student has mastered (e.g. Parallel Parking):");
+                                                                        if (skill) {
+                                                                            const currentSkills = (student as any).masteredSkills || [];
+                                                                            if (!currentSkills.includes(skill)) {
+                                                                                await onUpdateStudent({ ...student, masteredSkills: [...currentSkills, skill] });
+                                                                                success(`Skill "${skill}" logged successfully!`);
+                                                                            } else {
+                                                                                toastError(`Skill "${skill}" is already logged.`);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg text-slate-400 hover:text-emerald-600 transition-colors"
+                                                                    title="Log Mastered Skill"
+                                                                >
+                                                                    <CheckCircleIcon className="w-4 h-4" />
+                                                                </button>
                                                                 <button 
                                                                     onClick={() => setActionModal({ type: 'student', initialData: student })}
                                                                     className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
@@ -5022,6 +5083,45 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <p className="text-xs font-bold">{vehicle.vehicleType || 'Car'}</p>
                                         </div>
                                     </div>
+                                    <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-800 flex flex-col gap-2">
+                                        <button 
+                                            onClick={async () => {
+                                                const note = window.prompt("Enter Maintenance Note / Cost:");
+                                                if(note) {
+                                                    const newLogs = [...((vehicle as any).maintenanceLogs || []), { date: new Date().toISOString(), type: 'Maintenance', note }];
+                                                    await onUpdateVehicle({ ...vehicle, maintenanceLogs: newLogs });
+                                                    alert("Maintenance logged successfully!");
+                                                }
+                                            }} 
+                                            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                        >
+                                            Log Maintenance
+                                        </button>
+                                        <button 
+                                            onClick={async () => {
+                                                const liters = window.prompt("Enter Fuel amount / Cost:");
+                                                if(liters) {
+                                                    const newLogs = [...((vehicle as any).maintenanceLogs || []), { date: new Date().toISOString(), type: 'Fuel', note: liters }];
+                                                    await onUpdateVehicle({ ...vehicle, maintenanceLogs: newLogs });
+                                                    alert("Fuel logged successfully!");
+                                                }
+                                            }} 
+                                            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                        >
+                                            Log Fuel
+                                        </button>
+                                        
+                                        {((vehicle as any).maintenanceLogs || []).length > 0 && (
+                                            <div className="mt-2 space-y-2 max-h-24 overflow-y-auto custom-scrollbar">
+                                                {((vehicle as any).maintenanceLogs || []).slice().reverse().map((log: any, idx: number) => (
+                                                    <div key={idx} className="flex justify-between items-center text-[9px] p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+                                                        <span className="font-bold text-slate-600 dark:text-slate-300">{log.type}: {log.note}</span>
+                                                        <span className="text-slate-400">{new Date(log.date).toLocaleDateString()}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -5029,25 +5129,47 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     {activeTab === 'instructors' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
-                            {filteredInstructors.map(instructor => (
-                                <div key={instructor.id} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm text-center group hover:border-indigo-500 transition-all">
-                                    <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center font-black text-2xl text-indigo-600 mx-auto mb-6 group-hover:scale-110 transition-transform">
-                                        {instructor.name.charAt(0)}
+                            {filteredInstructors.map(instructor => {
+                                const instructorLessons = (lessons || []).filter(l => l.instructorId === instructor.id && l.status === 'Completed');
+                                const totalTaught = instructorLessons.length;
+                                const commissionRate = 500; // Configurable per lesson rate
+                                const totalCommission = totalTaught * commissionRate;
+
+                                return (
+                                    <div key={instructor.id} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm text-center group hover:border-indigo-500 transition-all flex flex-col h-full">
+                                        <div className="flex-1">
+                                            <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center font-black text-2xl text-indigo-600 mx-auto mb-6 group-hover:scale-110 transition-transform">
+                                                {instructor.name.charAt(0)}
+                                            </div>
+                                            <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{instructor.name}</h4>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 mb-4">{instructor.specialization || 'Master Instructor'}</p>
+                                            <div className="flex items-center justify-center gap-1 text-amber-400 mb-6">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <span key={i} className={i < instructor.rating ? 'opacity-100' : 'opacity-20'}>★</span>
+                                                ))}
+                                            </div>
+                                            <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-6 ${
+                                                instructor.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'
+                                            }`}>
+                                                {instructor.status}
+                                            </span>
+                                        </div>
+                                        
+                                        <div className="mt-auto pt-6 border-t border-slate-50 dark:border-slate-800 grid grid-cols-2 gap-2 text-left">
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Taught</p>
+                                                <p className="text-sm font-black text-slate-900 dark:text-white mt-1">{totalTaught} <span className="text-[9px] text-slate-400">lessons</span></p>
+                                            </div>
+                                            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-2xl">
+                                                <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Earned</p>
+                                                <p className="text-sm font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                                                    {new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(totalCommission)}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{instructor.name}</h4>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 mb-4">{instructor.specialization || 'Master Instructor'}</p>
-                                    <div className="flex items-center justify-center gap-1 text-amber-400 mb-6">
-                                        {[...Array(5)].map((_, i) => (
-                                            <span key={i} className={i < instructor.rating ? 'opacity-100' : 'opacity-20'}>★</span>
-                                        ))}
-                                    </div>
-                                    <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                        instructor.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'
-                                    }`}>
-                                        {instructor.status}
-                                    </span>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
 
