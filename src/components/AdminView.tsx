@@ -106,6 +106,7 @@ import { ArrowRightIcon } from './icons/ArrowRightIcon';
 import { HomeIcon } from './icons/HomeIcon';
 import { MagnifyingGlassIcon as SearchIcon } from './icons/MagnifyingGlassIcon';
 import { GlobeAltIcon } from './icons/GlobeAltIcon';
+import { SmartphoneIcon } from './icons/SmartphoneIcon';
 
 const DirectAssignModal = lazy(() => import('./DirectAssignModal').then(m => ({ default: m.DirectAssignModal })));
 const AcademicYearManager = lazy(() => import('./AcademicYearManager').then(m => ({ default: m.AcademicYearManager })));
@@ -790,6 +791,24 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             ];
         }
 
+        if (isEdu && activeScope === 'inventory') {
+            return [
+                { id: 'inv_dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_inventory', label: 'Inventory', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_pos', label: 'Issue Desk', icon: <SmartphoneIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_teachers', label: 'Teachers', icon: <UserIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_students', label: 'Students', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_logistics', label: 'Logistics', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_stores', label: 'Departments', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_expenses', label: 'Expenses', icon: <DocumentTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_requisitions', label: 'Requests', icon: <DocumentTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_vendors', label: 'Suppliers', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_transfers', label: 'Transfers', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_config', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            ];
+        }
+
         let filteredTabs = baseTabs.filter(tab => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
@@ -805,11 +824,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     return academicsTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
-                    const inventoryTabs = ['settings', 'reports'];
-                    if (isModuleActive('school_store')) {
-                        inventoryTabs.push('retail', 'procurement');
-                    }
-                    return inventoryTabs.includes(tab.id);
+                    return false; // Handled separately
                 }
                 if (activeScope === 'boarding') {
                     const boardingTabs = ['settings', 'reports'];
@@ -1137,7 +1152,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 return;
                                             }
                                             setActiveScope('inventory'); 
-                                            setActiveTab('retail'); 
+                                            setActiveTab('inv_dashboard'); 
                                         }}
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-emerald-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
@@ -2172,32 +2187,29 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     )
                 )}
 
-                {activeTab === 'retail' && (
-                    isRetailAgency ? (
-                        <RetailManager
-                            institutionId={props.currentInstitution?.id || ''}
-                            businessSubType={props.currentInstitution?.businessSubType}
-                            currentUser={props.currentUser!}
-                            retailStores={retailStores}
-                            inventory={inventory}
-                            retailExpenses={retailExpenses}
-                            onAddRetailExpense={props.onAddRetailExpense}
-                            requisitions={props.requisitions}
-                            onAddRequisition={props.onAddRequisition}
-                            onUpdateRequisition={props.onUpdateRequisition}
-                            isEducation={isEdu}
-                            allUsers={props.users || []}
-                            allCourses={props.courses || []}
-                            currentInstitution={props.currentInstitution}
-                        />
-                    ) : (
-                        <ModuleAccessGuard
-                            moduleId="school_store"
-                            moduleName="School Inventory"
-                            description="Track and manage school supply inventory, uniform/stationery stock, student requests, and suppliers."
-                            institution={props.currentInstitution}
-                            onActivateTrial={onActivateModuleTrial}
-                        >
+                {(() => {
+                    const retailTabMap: Record<string, string> = {
+                        'inv_dashboard': 'dashboard',
+                        'inv_inventory': 'inventory',
+                        'inv_pos': 'pos',
+                        'inv_teachers': 'teachers',
+                        'inv_students': 'students',
+                        'inv_reports': 'reports',
+                        'inv_logistics': 'logistics',
+                        'inv_stores': 'stores',
+                        'inv_expenses': 'expenses',
+                        'inv_requisitions': 'requisitions',
+                        'inv_vendors': 'vendors',
+                        'inv_transfers': 'transfers',
+                        'inv_config': 'config'
+                    };
+
+                    const isRetailTab = (isEdu && activeScope === 'inventory' && activeTab in retailTabMap) || activeTab === 'retail';
+                    
+                    if (isRetailTab) {
+                        const mappedTab = (isEdu && activeScope === 'inventory') ? retailTabMap[activeTab] : undefined;
+
+                        return isRetailAgency && activeTab === 'retail' ? (
                             <RetailManager
                                 institutionId={props.currentInstitution?.id || ''}
                                 businessSubType={props.currentInstitution?.businessSubType}
@@ -2214,9 +2226,41 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 allCourses={props.courses || []}
                                 currentInstitution={props.currentInstitution}
                             />
-                        </ModuleAccessGuard>
-                    )
-                )}
+                        ) : (
+                            <ModuleAccessGuard
+                                moduleId="school_store"
+                                moduleName="School Inventory"
+                                description="Track and manage school supply inventory, uniform/stationery stock, student requests, and suppliers."
+                                institution={props.currentInstitution}
+                                onActivateTrial={onActivateModuleTrial}
+                            >
+                                <RetailManager
+                                    institutionId={props.currentInstitution?.id || ''}
+                                    businessSubType={props.currentInstitution?.businessSubType}
+                                    currentUser={props.currentUser!}
+                                    retailStores={retailStores}
+                                    inventory={inventory}
+                                    retailExpenses={retailExpenses}
+                                    onAddRetailExpense={props.onAddRetailExpense}
+                                    requisitions={props.requisitions}
+                                    onAddRequisition={props.onAddRequisition}
+                                    onUpdateRequisition={props.onUpdateRequisition}
+                                    isEducation={isEdu}
+                                    allUsers={props.users || []}
+                                    allCourses={props.courses || []}
+                                    currentInstitution={props.currentInstitution}
+                                    activeTab={mappedTab}
+                                    onTabChange={mappedTab ? (tab) => {
+                                        const reverseMap = Object.entries(retailTabMap).find(([_, value]) => value === tab)?.[0];
+                                        if (reverseMap) setActiveTab(reverseMap as any);
+                                    } : undefined}
+                                    hideNavigation={!!mappedTab}
+                                />
+                            </ModuleAccessGuard>
+                        );
+                    }
+                    return null;
+                })()}
 
                 {(() => {
                     const coopTabMap: Record<string, string> = {

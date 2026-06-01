@@ -9,6 +9,7 @@ import { PlusIcon } from '../icons/PlusIcon';
 import { TrashIcon } from '../icons/TrashIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { XIcon } from '../icons/XIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -487,10 +488,98 @@ function CategoryManagerPanel({ institutionId, currentUser, isPrincipal }: {
     );
 }
 
+// ─── Document Prefix Sub-panel ─────────────────────────────────────────────
+
+function DocumentPrefixPanel({ institutionId, currentInstitution, isPrincipal }: {
+    institutionId: string; currentInstitution?: any; isPrincipal: boolean;
+}) {
+    const [prefixes, setPrefixes] = useState({
+        lpoPrefix: currentInstitution?.lpoPrefix || 'LPO-',
+        grnPrefix: currentInstitution?.grnPrefix || 'GRN-',
+        requisitionPrefix: currentInstitution?.requisitionPrefix || 'REQ-',
+        dispatchPrefix: currentInstitution?.dispatchPrefix || 'DIS-',
+        expensePrefix: currentInstitution?.expensePrefix || 'EXP-',
+    });
+    const [isSaving, setIsSaving] = useState(false);
+    const [savedAt, setSavedAt] = useState<string | null>(null);
+    const [isDirty, setIsDirty] = useState(false);
+
+    const update = (field: keyof typeof prefixes, value: string) => {
+        setPrefixes(prev => ({ ...prev, [field]: value }));
+        setIsDirty(true);
+        setSavedAt(null);
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await apiService.saveModuleRecord('institutions', {
+                id: institutionId,
+                lpoPrefix: prefixes.lpoPrefix,
+                grnPrefix: prefixes.grnPrefix,
+                requisitionPrefix: prefixes.requisitionPrefix,
+                dispatchPrefix: prefixes.dispatchPrefix,
+                expensePrefix: prefixes.expensePrefix,
+            });
+            setSavedAt(new Date().toLocaleTimeString());
+            setIsDirty(false);
+        } catch (err: any) {
+            alert('Failed to save prefixes: ' + err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="space-y-5 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+                <p className="text-xs text-slate-500">Configure the prefixes for automatically generated document numbers.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {[
+                    { key: 'lpoPrefix', label: 'Local Purchase Order (LPO)', placeholder: 'LPO-' },
+                    { key: 'grnPrefix', label: 'Goods Received Note (GRN)', placeholder: 'GRN-' },
+                    { key: 'requisitionPrefix', label: 'Requisition Note', placeholder: 'REQ-' },
+                    { key: 'dispatchPrefix', label: 'Dispatch / Issue Note', placeholder: 'DIS-' },
+                    { key: 'expensePrefix', label: 'Expense Voucher', placeholder: 'EXP-' },
+                ].map(({ key, label, placeholder }) => (
+                    <div key={key} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{label}</label>
+                        <input
+                            type="text"
+                            value={(prefixes as any)[key]}
+                            onChange={e => isPrincipal && update(key as any, e.target.value)}
+                            disabled={!isPrincipal}
+                            placeholder={placeholder}
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60 disabled:cursor-not-allowed uppercase"
+                        />
+                    </div>
+                ))}
+            </div>
+
+            {isPrincipal && (
+                <div className="flex items-center justify-between mt-6">
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${isDirty ? 'text-amber-500' : savedAt ? 'text-emerald-600' : 'text-transparent'}`}>
+                        {isDirty ? 'Unsaved changes' : savedAt ? `✓ Saved at ${savedAt}` : '.'}
+                    </span>
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving || !isDirty}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                        {isSaving ? <><div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving...</> : <><CheckCircleIcon className="w-3.5 h-3.5" /> Save Prefixes</>}
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Main StoreConfigManager ────────────────────────────────────────────────
 
 export function StoreConfigManager({ institutionId, currentUser, currentInstitution }: Props) {
-    const [activeTab, setActiveTab] = useState<'hours' | 'categories'>('hours');
+    const [activeTab, setActiveTab] = useState<'hours' | 'categories' | 'prefixes'>('hours');
 
     const isPrincipal = PRINCIPAL_ROLES.includes(currentUser.role) ||
         currentUser.roles?.some(r => PRINCIPAL_ROLES.includes(r)) || false;
@@ -498,6 +587,7 @@ export function StoreConfigManager({ institutionId, currentUser, currentInstitut
     const tabs = [
         { id: 'hours', label: 'Operation Hours', icon: <ClockIcon className="w-4 h-4" /> },
         { id: 'categories', label: 'Item Categories', icon: <TagIcon className="w-4 h-4" /> },
+        { id: 'prefixes', label: 'Document Prefixes', icon: <DocumentTextIcon className="w-4 h-4" /> },
     ];
 
     return (
@@ -541,6 +631,13 @@ export function StoreConfigManager({ institutionId, currentUser, currentInstitut
                     <CategoryManagerPanel
                         institutionId={institutionId}
                         currentUser={currentUser}
+                        isPrincipal={isPrincipal}
+                    />
+                )}
+                {activeTab === 'prefixes' && (
+                    <DocumentPrefixPanel
+                        institutionId={institutionId}
+                        currentInstitution={currentInstitution}
                         isPrincipal={isPrincipal}
                     />
                 )}

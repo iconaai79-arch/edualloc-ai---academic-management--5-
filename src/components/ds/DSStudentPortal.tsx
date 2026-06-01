@@ -161,8 +161,8 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         { id: 'finance', label: 'Finance', icon: CurrencyIcon },
         { id: 'progress', label: 'Progress', icon: TrendingUpIcon },
         { id: 'book', label: 'Book', icon: ClipboardListIcon },
-        { id: 'exams', label: 'Exams', icon: AcademicCapIcon },
-        { id: 'id', label: 'ID Card', icon: UsersIcon },
+        { id: 'exams', label: 'Testing Center', icon: AcademicCapIcon },
+        { id: 'id', label: 'Digital ID', icon: UsersIcon },
     ] as const;
 
     return (

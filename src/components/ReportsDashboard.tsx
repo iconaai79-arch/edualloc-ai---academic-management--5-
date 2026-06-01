@@ -1217,8 +1217,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             generatedTimetable={filteredTimetableEntries || []}
                             timetableSettings={timetableSettings}
                             letterheadConfig={letterheadConfig}
-                            logoUrl={logoUrl}
-                            footerImageUrl={footerImageUrl}
+                            logoUrl={logoUrl || null}
+                            footerImageUrl={footerImageUrl || null}
                             onPreviewPdf={(url: string, filename: string) => {
                                 setPreviewPdfUrl(url);
                                 setPreviewPdfFilename(filename);
@@ -1229,10 +1229,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         <AdvisoryReportView
                             generatedTimetable={filteredTimetableEntries || []}
                             rooms={rooms || []}
+                            timetableSettings={gridSettings}
                             letterheadConfig={letterheadConfig}
-                            logoUrl={logoUrl}
-                            footerImageUrl={footerImageUrl}
-                            onPreviewPdf={(url, filename) => {
+                            logoUrl={logoUrl || null}
+                            footerImageUrl={footerImageUrl || null}
+                            onPreviewPdf={(url: string, filename: string) => {
                                 setPreviewPdfUrl(url);
                                 setPreviewPdfFilename(filename);
                             }}
