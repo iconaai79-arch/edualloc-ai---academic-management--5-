@@ -5161,7 +5161,7 @@ export const App: React.FC = () => {
                                             }
                                         }}
                                         smsConfig={companyDetails.smsConfig}
-                                        smsBalance={smsBalance}
+                                        smsBalance={activeInstitution?.smsBalance || 0}
                                         onAddJob={async (j) => { await apiService.saveModuleRecord('carwash_jobs', { ...j, id: `job_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
                                         onUpdateJobStatus={async (id, status) => { const existing = jobs.find(x => x.id === id); if (existing) { await apiService.saveModuleRecord('carwash_jobs', { ...existing, status }); loadData(); } }}
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
