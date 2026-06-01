@@ -2143,6 +2143,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
     const [leadStatusFilter, setLeadStatusFilter] = useState<string>('All');
     const [studentSubTab, setStudentSubTab] = useState<'enrolled' | 'graduated' | 'dropped' | 'all' | 'preview'>('enrolled');
+    const [fleetSubTab, setFleetSubTab] = useState<'directory' | 'maintenance' | 'fuel'>('directory');
     const [studentSortBy, setStudentSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc' | 'progress_desc' | 'progress_asc'>('name_asc');
     const [studentPage, setStudentPage] = useState(1);
     const [selectedPreviewStudent, setSelectedPreviewStudent] = useState<DSStudent | null>(null);
@@ -5057,8 +5058,30 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     )}
 
                     {activeTab === 'fleet' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in">
-                            {filteredVehicles.map(vehicle => (
+                        <div className="space-y-8 animate-fade-in">
+                            <div className="flex gap-4 border-b border-slate-100 dark:border-slate-800 pb-4 overflow-x-auto custom-scrollbar-horizontal">
+                                {[
+                                    { id: 'directory', label: 'Fleet Directory' },
+                                    { id: 'maintenance', label: 'Maintenance Tracking' },
+                                    { id: 'fuel', label: 'Fuel Logs' }
+                                ].map(sub => (
+                                    <button
+                                        key={sub.id}
+                                        onClick={() => setFleetSubTab(sub.id as any)}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${
+                                            fleetSubTab === sub.id 
+                                                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50' 
+                                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                        }`}
+                                    >
+                                        {sub.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {fleetSubTab === 'directory' && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {filteredVehicles.map(vehicle => (
                                 <div key={vehicle.id} className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
                                     <div className="absolute top-6 right-8 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button 
@@ -5166,6 +5189,88 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     </div>
                                 </div>
                             ))}
+                            </div>
+                        )}
+
+                        {fleetSubTab === 'maintenance' && (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left min-w-[800px]">
+                                    <thead>
+                                        <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                            <th className="px-10 py-8">Date</th>
+                                            <th className="px-10 py-8">Vehicle</th>
+                                            <th className="px-10 py-8">Log Type</th>
+                                            <th className="px-10 py-8">Details / Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                        {filteredVehicles.flatMap(v => ((v as any).maintenanceLogs || []).map((log: any) => ({ ...log, vehicle: v }))).filter(l => l.type === 'Maintenance').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                                                <td className="px-10 py-6 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                    {new Date(log.date).toLocaleString()}
+                                                </td>
+                                                <td className="px-10 py-6 font-bold text-slate-900 dark:text-white">
+                                                    {log.vehicle.make} {log.vehicle.model} - {log.vehicle.plateNumber}
+                                                </td>
+                                                <td className="px-10 py-6">
+                                                    <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black uppercase tracking-widest">{log.type}</span>
+                                                </td>
+                                                <td className="px-10 py-6 text-xs font-bold text-slate-500">
+                                                    {log.note}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {filteredVehicles.flatMap(v => ((v as any).maintenanceLogs || [])).filter(l => l.type === 'Maintenance').length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="px-10 py-8 text-center text-xs font-bold text-slate-400">
+                                                    No maintenance logs found.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {fleetSubTab === 'fuel' && (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left min-w-[800px]">
+                                    <thead>
+                                        <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                            <th className="px-10 py-8">Date</th>
+                                            <th className="px-10 py-8">Vehicle</th>
+                                            <th className="px-10 py-8">Log Type</th>
+                                            <th className="px-10 py-8">Details / Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                        {filteredVehicles.flatMap(v => ((v as any).maintenanceLogs || []).map((log: any) => ({ ...log, vehicle: v }))).filter(l => l.type === 'Fuel').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                                                <td className="px-10 py-6 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                    {new Date(log.date).toLocaleString()}
+                                                </td>
+                                                <td className="px-10 py-6 font-bold text-slate-900 dark:text-white">
+                                                    {log.vehicle.make} {log.vehicle.model} - {log.vehicle.plateNumber}
+                                                </td>
+                                                <td className="px-10 py-6">
+                                                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase tracking-widest">{log.type}</span>
+                                                </td>
+                                                <td className="px-10 py-6 text-xs font-bold text-slate-500">
+                                                    {log.note}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {filteredVehicles.flatMap(v => ((v as any).maintenanceLogs || [])).filter(l => l.type === 'Fuel').length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="px-10 py-8 text-center text-xs font-bold text-slate-400">
+                                                    No fuel logs found.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                         </div>
                     )}
 
