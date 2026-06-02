@@ -525,9 +525,17 @@ CREATE TABLE IF NOT EXISTS mpesa_transactions (
     balance DECIMAL(12, 2),
     narration TEXT,
     credit_account_identifier TEXT,
-    organization_short_code TEXT,
     till_number TEXT
 );
+
+CREATE TABLE IF NOT EXISTS integration_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider TEXT NOT NULL,
+    payload JSONB,
+    status TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 
 CREATE TABLE IF NOT EXISTS institution_extension_requests (
     id TEXT PRIMARY KEY,
@@ -1829,6 +1837,11 @@ CREATE TABLE IF NOT EXISTS car_sales_invoices (
     installment_amount DECIMAL(15, 2),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE car_sales_invoices ADD COLUMN IF NOT EXISTS is_installment BOOLEAN DEFAULT FALSE;
+ALTER TABLE car_sales_invoices ADD COLUMN IF NOT EXISTS installment_frequency TEXT;
+ALTER TABLE car_sales_invoices ADD COLUMN IF NOT EXISTS total_installments INTEGER;
+ALTER TABLE car_sales_invoices ADD COLUMN IF NOT EXISTS installment_amount DECIMAL(15, 2);
 
 CREATE TABLE IF NOT EXISTS car_sales_payments (
     id TEXT PRIMARY KEY,
