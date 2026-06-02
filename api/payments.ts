@@ -212,7 +212,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .eq('id', resolvedInstitutionId)
                 .maybeSingle();
             if (instData?.kcb_config) {
-                kcbConfig = instData.kcb_config;
+                try {
+                    kcbConfig = typeof instData.kcb_config === 'string' ? JSON.parse(instData.kcb_config) : instData.kcb_config;
+                } catch (e) {
+                    console.error('[KCB STK] Failed to parse kcb_config:', e);
+                }
             }
         }
 
@@ -225,7 +229,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     .eq('id', 1)
                     .maybeSingle();
                 if (sData?.data?.kcb_config || sData?.data?.kcbConfig) {
-                    kcbConfig = sData.data.kcb_config || sData.data.kcbConfig || {};
+                    let sc = sData.data.kcb_config || sData.data.kcbConfig;
+                    kcbConfig = typeof sc === 'string' ? JSON.parse(sc) : sc;
                 }
             } catch (err) {
                 console.error('[KCB STK] Failed to fetch global settings:', err);
@@ -234,7 +239,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Fallback to body.config for backward compatibility
         if (Object.keys(kcbConfig).length === 0 && (body.config || body.kcbConfig)) {
-            kcbConfig = body.config || body.kcbConfig || {};
+            let sc = body.config || body.kcbConfig;
+            kcbConfig = typeof sc === 'string' ? JSON.parse(sc) : sc;
         }
 
         const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
