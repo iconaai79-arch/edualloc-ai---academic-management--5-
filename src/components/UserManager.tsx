@@ -35,7 +35,7 @@ import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 
 import { analyzeUserSpreadsheet } from '../services/geminiService';
 import { apiService } from '../services/apiService';
-import { generateMemberQrCodesPdf } from '../services/pdfService';
+import { generateMemberQrCodesPdf, generateStudentIdCardPdf } from '../services/pdfService';
 import { EditUserModal } from './EditUserModal';
 import { ManageLessonsModal } from './ManageLessonsModal';
 import { TimeOffRequestModal } from './TimeOffRequestModal';
@@ -1580,13 +1580,29 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end items-center gap-2">
                                             {activeTab === 'student' && (
-                                                <button
-                                                    onClick={() => setManagingParentsFor(u)}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-md text-xs font-bold transition-all"
-                                                >
-                                                    <UserGroupIcon className="w-3.5 h-3.5" />
-                                                    Parents
-                                                </button>
+                                                <>
+                                                    <button
+                                                        onClick={() => setManagingParentsFor(u)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-md text-xs font-bold transition-all"
+                                                    >
+                                                        <UserGroupIcon className="w-3.5 h-3.5" />
+                                                        Parents
+                                                    </button>
+                                                    <button
+                                                        onClick={async () => {
+                                                            const uri = await generateStudentIdCardPdf(u, currentInstitution!);
+                                                            const link = document.createElement('a');
+                                                            link.href = uri;
+                                                            link.download = `ID_${u.name.replace(/\s+/g, '_')}.pdf`;
+                                                            link.click();
+                                                            props.onLogAction?.(`Generated and downloaded Digital ID for student: ${u.name}`);
+                                                        }}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-50 text-cyan-600 hover:bg-cyan-100 dark:bg-cyan-900/30 dark:text-cyan-300 rounded-md text-xs font-bold transition-all"
+                                                    >
+                                                        <PrinterIcon className="w-3.5 h-3.5" />
+                                                        Print ID
+                                                    </button>
+                                                </>
                                             )}
                                             {isEdu && (u.role === 'teacher' || u.role === 'lecturer' || u.role === 'head_teacher' || u.role === 'dos') && (
                                                 <button
