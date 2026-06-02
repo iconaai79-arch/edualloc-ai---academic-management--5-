@@ -311,12 +311,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     body: 'grant_type=client_credentials'
                 };
             } else {
-                tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://accounts.buni.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
+                tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://api.buni.kcbgroup.com/token';
                 fetchOptions = {
-                    method: 'GET',
+                    method: 'POST',
                     headers: {
-                        'Authorization': `Basic ${authHeaderVal}`
-                    }
+                        'Authorization': `Basic ${authHeaderVal}`,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: 'grant_type=client_credentials'
                 };
             }
             
@@ -561,12 +563,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     body: 'grant_type=client_credentials'
                 };
             } else {
-                tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://accounts.buni.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
+                tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://api.buni.kcbgroup.com/token';
                 fetchOptions = {
-                    method: 'GET',
+                    method: 'POST',
                     headers: {
-                        'Authorization': `Basic ${authHeaderVal}`
-                    }
+                        'Authorization': `Basic ${authHeaderVal}`,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: 'grant_type=client_credentials'
                 };
             }
             
