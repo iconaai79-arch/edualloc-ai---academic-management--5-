@@ -237,12 +237,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             kcbConfig = body.config || body.kcbConfig || {};
         }
 
-        const appKey = (kcbConfig.appKey || kcbConfig.app_key || '').trim();
-        const appSecret = (kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
-        const baseUrl = (kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
-        const stkPushUrl = (kcbConfig.stkPushUrl || kcbConfig.stk_push_url || '').trim();
-        const shortCode = (kcbConfig.shortCode || kcbConfig.short_code || organizationShortCode || '').trim();
-        const passkey = (kcbConfig.passkey || kcbConfig.pass_key || '').trim();
+        const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
+        const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
+        const baseUrl = String(kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
+        const stkPushUrl = String(kcbConfig.stkPushUrl || kcbConfig.stk_push_url || '').trim();
+        const shortCode = String(kcbConfig.shortCode || kcbConfig.short_code || organizationShortCode || '').trim();
+        const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
         const rawPhone = resolvedPhone;
 
         // Normalize phone to KCB-required international format: 2547XXXXXXXX
@@ -259,7 +259,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const transactionDesc = narration || body.transactionDesc || '';
         const institutionId = resolvedInstitutionId;
 
-        const environment = (kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
+        const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
         const isKcbDemo = environment === 'mock' ||
                           environment === 'demo' ||
                           !appKey || !appSecret || 
@@ -521,14 +521,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (subRoute === 'kcb-query') {
         const kcbConfig = req.body.config || {};
         const checkoutRequestId = req.body.checkoutRequestId || '';
-        const appKey = (kcbConfig.appKey || kcbConfig.app_key || '').trim();
-        const appSecret = (kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
-        const baseUrl = (kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
-        const queryUrl = (kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
-        const shortCode = (kcbConfig.shortCode || kcbConfig.short_code || '').trim();
-        const passkey = (kcbConfig.passkey || kcbConfig.pass_key || '').trim();
+        const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
+        const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
+        const baseUrl = String(kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
+        const queryUrl = String(kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
+        const shortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
+        const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
 
-        const environment = (kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
+        const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
         const isKcbQueryDemo = environment === 'mock' ||
                                environment === 'demo' ||
                                !appKey || !appSecret || 
