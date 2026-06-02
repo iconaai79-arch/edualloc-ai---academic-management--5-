@@ -3,7 +3,8 @@ import {
     Droplet, Fuel, Activity, TrendingUp, AlertTriangle, CheckCircle2, 
     RefreshCcw, ChevronRight, BarChart3, Clock, DollarSign,
     Box, Settings, ArrowRight, ShieldCheck, ShoppingCart, Tag, User, Search, PackageSearch, Plus, Minus, Trash2, CreditCard, Banknote,
-    Waves, Wrench, Car, Play, CheckCircle, MapPin, ChevronDown, ArrowDownToLine, Truck, BrainCircuit, History, MessageSquare, ShieldAlert, Trophy, Star
+    Waves, Wrench, Car, Play, CheckCircle, MapPin, ChevronDown, ArrowDownToLine, Truck, BrainCircuit, History, MessageSquare, ShieldAlert, Trophy, Star,
+    Smartphone, FileText, PlusCircle, ClipboardList, Calendar, Zap
 } from 'lucide-react';
 import type { 
     FuelStation, FuelTank, FuelPump, FuelSale, StationShift, StationItem, 
@@ -18,28 +19,28 @@ interface FuelStationDashboardProps {
 
 // Mock Data for Demo Purposes
 const MOCK_STATIONS: FuelStation[] = [
-    { id: 'st1', institutionId: 'TEST', name: 'Nairobi Central Station', location: 'Haile Selassie Ave', contactNumber: '+254711222333', isActive: true },
-    { id: 'st2', institutionId: 'TEST', name: 'Westlands Hub', location: 'Waiyaki Way', contactNumber: '+254722333444', isActive: true },
-    { id: 'st3', institutionId: 'TEST', name: 'Mombasa Road Expressway', location: 'Near Syokimau', contactNumber: '+254733444555', isActive: true },
+    { id: 'st1', institutionId: 'TEST', name: 'Nairobi Central Station', location: 'Haile Selassie Ave', contactNumber: '+254711222333', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'st2', institutionId: 'TEST', name: 'Westlands Hub', location: 'Waiyaki Way', contactNumber: '+254722333444', isActive: true, createdAt: new Date().toISOString() },
+    { id: 'st3', institutionId: 'TEST', name: 'Mombasa Road Expressway', location: 'Near Syokimau', contactNumber: '+254733444555', isActive: true, createdAt: new Date().toISOString() },
 ];
 
 const MOCK_TANKS: FuelTank[] = [
-    { id: '1', institutionId: 'TEST', stationId: 'st1', name: 'Tank 1 - Premium', fuelType: 'Petrol' as any, capacityLiters: 10000, currentLevelLiters: 7500, lastTemperature: 24.2, lowLevelThreshold: 1500, sensorId: 'ATG-P-001', sensorVendor: 'Veeder-Root' },
-    { id: '2', institutionId: 'TEST', stationId: 'st1', name: 'Tank 2 - Diesel', fuelType: 'Diesel' as any, capacityLiters: 15000, currentLevelLiters: 3200, lastTemperature: 23.8, lowLevelThreshold: 2000, sensorId: 'ATG-D-002', sensorVendor: 'Veeder-Root' },
-    { id: '3', institutionId: 'TEST', stationId: 'st1', name: 'Tank 3 - V-Power', fuelType: 'V-Power' as any, capacityLiters: 5000, currentLevelLiters: 800, lastTemperature: 24.5, lowLevelThreshold: 1000, sensorId: 'ATG-V-003', sensorVendor: 'Veeder-Root' },
-    { id: '4', institutionId: 'TEST', stationId: 'st2', name: 'Westlands Tank 1', fuelType: 'Petrol' as any, capacityLiters: 12000, currentLevelLiters: 10000, lastTemperature: 25.1, lowLevelThreshold: 1500, sensorId: 'ATG-W-004', sensorVendor: 'OCIO' },
+    { id: '1', institutionId: 'TEST', stationId: 'st1', name: 'Tank 1 - Premium', fuelType: 'Petrol' as any, capacityLiters: 10000, currentLevelLiters: 7500, lastTemperature: 24.2, lowLevelThreshold: 1500, sensorId: 'ATG-P-001', sensorVendor: 'Veeder-Root', createdAt: new Date().toISOString() },
+    { id: '2', institutionId: 'TEST', stationId: 'st1', name: 'Tank 2 - Diesel', fuelType: 'Diesel' as any, capacityLiters: 15000, currentLevelLiters: 3200, lastTemperature: 23.8, lowLevelThreshold: 2000, sensorId: 'ATG-D-002', sensorVendor: 'Veeder-Root', createdAt: new Date().toISOString() },
+    { id: '3', institutionId: 'TEST', stationId: 'st1', name: 'Tank 3 - V-Power', fuelType: 'V-Power' as any, capacityLiters: 5000, currentLevelLiters: 800, lastTemperature: 24.5, lowLevelThreshold: 1000, sensorId: 'ATG-V-003', sensorVendor: 'Veeder-Root', createdAt: new Date().toISOString() },
+    { id: '4', institutionId: 'TEST', stationId: 'st2', name: 'Westlands Tank 1', fuelType: 'Petrol' as any, capacityLiters: 12000, currentLevelLiters: 10000, lastTemperature: 25.1, lowLevelThreshold: 1500, sensorId: 'ATG-W-004', sensorVendor: 'OCIO', createdAt: new Date().toISOString() },
 ];
 
 const MOCK_PUMPS: FuelPump[] = [
-    { id: 'p1', tankId: '1', stationId: 'st1', pumpNumber: 'Pump 1', nozzleCount: 2, currentTotalizerReading: 24500, status: 'active' },
-    { id: 'p2', tankId: '2', stationId: 'st1', pumpNumber: 'Pump 2', nozzleCount: 2, currentTotalizerReading: 18200, status: 'active' },
-    { id: 'p3', tankId: '3', stationId: 'st1', pumpNumber: 'Pump 3', nozzleCount: 1, currentTotalizerReading: 5000, status: 'maintenance' },
+    { id: 'p1', tankId: '1', stationId: 'st1', pumpNumber: 'Pump 1', nozzleCount: 2, currentTotalizerReading: 24500, status: 'active', createdAt: new Date().toISOString() },
+    { id: 'p2', tankId: '2', stationId: 'st1', pumpNumber: 'Pump 2', nozzleCount: 2, currentTotalizerReading: 18200, status: 'active', createdAt: new Date().toISOString() },
+    { id: 'p3', tankId: '3', stationId: 'st1', pumpNumber: 'Pump 3', nozzleCount: 1, currentTotalizerReading: 5000, status: 'maintenance', createdAt: new Date().toISOString() },
 ];
 
 const MOCK_SALES: FuelSale[] = [
-    { id: 's1', institutionId: 'TEST', stationId: 'st1', fuelType: 'Petrol', litersSold: 45.5, pricePerLiter: 195.5, totalAmount: 8895.25, paymentMethod: 'mpesa', paymentStatus: 'completed', createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString() },
-    { id: 's2', institutionId: 'TEST', stationId: 'st1', fuelType: 'Diesel', litersSold: 80.0, pricePerLiter: 180.0, totalAmount: 14400.00, paymentMethod: 'card', paymentStatus: 'completed', createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString() },
-    { id: 's3', institutionId: 'TEST', stationId: 'st1', fuelType: 'V-Power', litersSold: 20.0, pricePerLiter: 210.0, totalAmount: 4200.00, paymentMethod: 'cash', paymentStatus: 'completed', createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString() },
+    { id: 's1', institutionId: 'TEST', stationId: 'st1', pumpId: 'p1', fuelType: 'Petrol', litersSold: 45.5, pricePerLiter: 195.5, totalAmount: 8895.25, paymentMethod: 'mpesa', paymentStatus: 'completed', createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString() },
+    { id: 's2', institutionId: 'TEST', stationId: 'st1', pumpId: 'p2', fuelType: 'Diesel', litersSold: 80.0, pricePerLiter: 180.0, totalAmount: 14400.00, paymentMethod: 'card', paymentStatus: 'completed', createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString() },
+    { id: 's3', institutionId: 'TEST', stationId: 'st1', pumpId: 'p1', fuelType: 'V-Power', litersSold: 20.0, pricePerLiter: 210.0, totalAmount: 4200.00, paymentMethod: 'cash', paymentStatus: 'completed', createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString() },
 ];
 
 const MOCK_SHIFTS: StationShift[] = [
@@ -77,7 +78,7 @@ const MOCK_SERVICING_PACKAGES: CarServicingPackage[] = [
     { id: 'cs3', institutionId: 'TEST', stationId: 'st1', name: 'Tire Rotation & Alignment', description: 'Improve tire longevity and handling', price: 2000, estimatedDurationMinutes: 45 },
 ];
 
-type TabType = 'overview' | 'tanks' | 'sales' | 'pos' | 'carwash' | 'servicing' | 'reconciliation' | 'fleet' | 'maintenance';
+type TabType = 'overview' | 'tanks' | 'sales' | 'pos' | 'carwash' | 'servicing' | 'reconciliation' | 'fleet' | 'maintenance' | 'finance';
 
 const MOCK_FLEET_ACCOUNTS: FleetAccount[] = [
     { id: 'fa1', institutionId: 'TEST', companyName: 'City Logistics Ltd', contactPerson: 'Jane Doe', creditLimit: 250000, currentBalance: 45200, isActive: true },
@@ -89,6 +90,12 @@ const MOCK_PRICE_HISTORY: PriceHistory[] = [
     { id: 'ph2', stationId: 'st1', fuelType: 'Diesel' as any, oldPrice: 178.5, newPrice: 180.0, changedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString() },
 ];
 
+const MOCK_FLEET_CARDS = [
+    { id: 'fc1', fleetAccountId: 'fa1', cardNumber: '1234', vehiclePlate: 'KAA 001B', isBlocked: false, geofenceEnabled: true },
+    { id: 'fc2', fleetAccountId: 'fa1', cardNumber: '5678', vehiclePlate: 'KBZ 555C', isBlocked: false, geofenceEnabled: true },
+    { id: 'fc3', fleetAccountId: 'fa2', cardNumber: '9012', vehiclePlate: 'KDJ 123A', isBlocked: false, geofenceEnabled: false },
+];
+
 interface CartItem {
     item: StationItem;
     quantity: number;
@@ -97,6 +104,9 @@ interface CartItem {
 export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ institution }) => {
     const [stations] = useState<FuelStation[]>(MOCK_STATIONS);
     const [selectedStationId, setSelectedStationId] = useState<string>(MOCK_STATIONS[0].id);
+    
+    const currentStation = stations.find(st => st.id === selectedStationId) || stations[0];
+    const [fleetCards] = useState<(FleetCard & { geofenceEnabled?: boolean })[]>(MOCK_FLEET_CARDS);
     
     const [tanks, setTanks] = useState<FuelTank[]>(MOCK_TANKS);
     const filteredTanks = tanks.filter(t => t.stationId === selectedStationId);
@@ -192,7 +202,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                 alert(`DENIED: Geofence violation. Vehicle is outside authorized zone.`);
                 return;
             }
-            alert(`Card Verified: ${account.companyName}\nVehicle: ${card.vehiclePlate}\nCredit Limit: KES ${account.creditLimit?.toLocaleString()}\nCurrent Balance: KES ${account.creditBalance?.toLocaleString()}`);
+            alert(`Card Verified: ${account.companyName}\nVehicle: ${card.vehiclePlate}\nCredit Limit: KES ${account.creditLimit?.toLocaleString()}\nCurrent Balance: KES ${account.currentBalance?.toLocaleString()}`);
         } else {
             alert('Error: Card not recognized by network.');
         }
@@ -568,6 +578,35 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
     };
 
     const [showDipModal, setShowDipModal] = useState<string | null>(null);
+
+    const renderFuelLevelIndicator = (tank: FuelTank) => {
+        const percentage = Math.round((tank.currentLevelLiters / tank.capacityLiters) * 100);
+        const isLow = tank.currentLevelLiters <= tank.lowLevelThreshold;
+        return (
+            <div>
+                <div className="flex items-end space-x-2 mb-2">
+                    <span className="text-3xl font-black tracking-tight text-slate-800 dark:text-white">
+                        {tank.currentLevelLiters?.toLocaleString()}
+                    </span>
+                    <span className="text-slate-500 font-medium mb-1">/ {tank.capacityLiters?.toLocaleString()} L</span>
+                </div>
+
+                <div className="mt-4 relative h-4 bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
+                    <div 
+                        className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${getFuelColor(tank.fuelType)} ${isLow ? 'animate-pulse' : ''}`}
+                        style={{ width: `${percentage}%` }}
+                    />
+                </div>
+                
+                <div className="flex justify-between mt-3 mb-2">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Digital Level</span>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{percentage}% Capacity</span>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="w-full h-full flex flex-col pt-6 pb-20 px-4 md:px-8 max-w-7xl mx-auto space-y-6">

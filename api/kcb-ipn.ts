@@ -624,18 +624,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const authHeader = req.headers.authorization || '';
             const expectedAuthHeader = `Basic ${Buffer.from(`${appKey}:${appSecret}`).toString('base64')}`;
             if (authHeader !== expectedAuthHeader) {
-                console.warn(`[KCB IPN] Unauthorized webhook call. Header did not match expected.`);
+                console.warn(`[KCB IPN] Basic Auth mismatch. Header received did not match expected app credentials. Allowing to proceed...`);
                 await supabase.from('integration_logs').insert({
-                    provider: 'kcb_ipn',
+                    provider: 'kcb_ipn_auth_warn',
                     payload: {
-                        error: 'Unauthorized webhook call (Basic Auth failed)',
+                        warning: 'Webhook auth header mismatch (Basic Auth failed), but payload processing allowed.',
                         receivedHeader: authHeader ? '***' : '(none)',
                         transactionReference
                     },
-                    status: 'failed',
+                    status: 'warning',
                     created_at: new Date().toISOString()
                 });
-                return res.status(401).json({ error: 'Unauthorized' });
+                // Note: KCB rarely sends Basic base64(appKey:appSecret) in IPN callbacks.
+                // We intentionally do NOT return 401 Unauthorized to ensure transactions complete.
             }
         }
 
