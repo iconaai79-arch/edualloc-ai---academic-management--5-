@@ -442,9 +442,11 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     vehicles={props.vehicles || []}
                     vehicleLogs={props.vehicleLogs || []}
                     users={props.users || []}
+                    visitors={props.visitors || []}
                     currentUser={user}
                     currentInstitution={props.currentInstitution!}
                     onLogGateAction={props.onLogGateAction!}
+                    onAddVisitor={props.onAddVisitor}
                 />
             )}
 

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { SearchIcon } from './icons/SearchIcon';
@@ -6,32 +5,108 @@ import { TruckIcon } from './icons/TruckIcon';
 import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { UserIcon } from './icons/UserIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
 
-import type { TransportVehicle, VehicleLog, User, Institution } from '../types';
+import type { TransportVehicle, VehicleLog, User, Institution, Visitor } from '../types';
 
 interface SecurityGatePassViewProps {
     vehicles: TransportVehicle[];
     vehicleLogs: VehicleLog[];
     users: User[];
+    visitors?: Visitor[];
     currentUser: User;
     currentInstitution: Institution;
     onLogGateAction: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
+    onAddVisitor?: (visitor: Omit<Visitor, 'id'>) => Promise<void> | void;
 }
 
 export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
-    vehicles, vehicleLogs, users, currentUser, currentInstitution, onLogGateAction
+    vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor
 }) => {
+    const [activeTab, setActiveTab] = useState<'vehicle' | 'parent'>('vehicle');
+
+    // Vehicle State
     const [searchTerm, setSearchTerm] = useState('');
     const [scanning, setScanning] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState<TransportVehicle | null>(null);
     const [notes, setNotes] = useState('');
+
+    // Parent State
+    const [parentSearchTerm, setParentSearchTerm] = useState('');
+    const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
+    const [selectedParent, setSelectedParent] = useState<User | null>(null);
 
     const filteredVehicles = vehicles.filter(v =>
         v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.model.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const handleAction = async (type: 'entry' | 'exit') => {
+    // Parent Search Logic
+    const handleSearchParent = () => {
+        if (parentSearchTerm.length < 3) return;
+        
+        const term = parentSearchTerm.toLowerCase();
+        
+        // 1. Search by Student Admission Number or Name
+        const studentMatch = users.find(u => 
+            u.role === 'student' && 
+            (u.admissionNumber?.toLowerCase() === term || u.admission_number?.toLowerCase() === term || u.name.toLowerCase().includes(term))
+        );
+
+        if (studentMatch) {
+            setSelectedStudent(studentMatch);
+            // Find parent
+            if (studentMatch.parentIds && studentMatch.parentIds.length > 0) {
+                const parentMatch = users.find(u => u.id === studentMatch.parentIds![0]);
+                if (parentMatch) {
+                    setSelectedParent(parentMatch);
+                    return;
+                }
+            } else if (studentMatch.parentPhone) {
+                 // Try finding parent by phone if IDs are not there
+                 const parentMatch = users.find(u => u.role === 'parent' && u.phoneNumber === studentMatch.parentPhone);
+                 if (parentMatch) {
+                     setSelectedParent(parentMatch);
+                     return;
+                 }
+                 // If no user object, create a mock for display
+                 setSelectedParent({
+                    id: 'temp',
+                    name: studentMatch.parentName || 'Unknown Parent',
+                    phoneNumber: studentMatch.parentPhone,
+                    role: 'parent',
+                    email: studentMatch.parentEmail || '',
+                    institutionId: currentInstitution.id
+                 } as any);
+                 return;
+            }
+        }
+
+        // 2. Search by Parent Phone Number or Name directly
+        const parentDirectMatch = users.find(u => 
+            u.role === 'parent' && 
+            (u.phoneNumber?.includes(term) || u.name.toLowerCase().includes(term))
+        );
+
+        if (parentDirectMatch) {
+            setSelectedParent(parentDirectMatch);
+            // Find associated student
+            const childMatch = users.find(u => u.role === 'student' && (u.parentIds?.includes(parentDirectMatch.id) || u.parentPhone === parentDirectMatch.phoneNumber));
+            if (childMatch) {
+                setSelectedStudent(childMatch);
+            } else {
+                setSelectedStudent(null);
+            }
+            return;
+        }
+
+        // Reset if nothing found
+        setSelectedParent(null);
+        setSelectedStudent(null);
+    };
+
+    const handleVehicleAction = async (type: 'entry' | 'exit') => {
         if (!selectedVehicle) return;
         try {
             await onLogGateAction(selectedVehicle.id, type, notes);
@@ -44,114 +119,242 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         }
     };
 
+    const handleVerifyParent = async () => {
+        if (!selectedParent || !onAddVisitor) return;
+        try {
+            await onAddVisitor({
+                name: selectedParent.name,
+                phoneNumber: selectedParent.phoneNumber,
+                purpose: `Event Check-In: Parent of ${selectedStudent?.name || 'Student'}`,
+                visitDate: new Date().toISOString().split('T')[0],
+                timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                institutionId: currentInstitution.id,
+                hostId: selectedStudent?.id || currentUser.id
+            });
+            alert('Parent verified and logged successfully for entry.');
+            setSelectedParent(null);
+            setSelectedStudent(null);
+            setParentSearchTerm('');
+        } catch (err: any) {
+            alert(err.message || 'Error logging parent entry');
+        }
+    };
+
     const recentLogs = (vehicleLogs || [])
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 10);
 
     return (
         <div className="p-6 max-w-4xl mx-auto">
-            <div className="flex items-center gap-4 mb-8">
+            <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 bg-blue-100 rounded-2xl">
                     <QrCodeIcon className="w-8 h-8 text-blue-600" />
                 </div>
                 <div>
                     <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Security Gate Access</h2>
-                    <p className="text-sm text-slate-500 font-medium">Scan Vehicle QR or Search Plate Number</p>
+                    <p className="text-sm text-slate-500 font-medium">Verify Vehicles and Event Attendees</p>
                 </div>
+            </div>
+
+            {/* Segmented Control */}
+            <div className="flex mb-8 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-full max-w-md">
+                <button
+                    onClick={() => setActiveTab('vehicle')}
+                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'vehicle' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                >
+                    <TruckIcon className="w-5 h-5" /> Vehicles
+                </button>
+                <button
+                    onClick={() => setActiveTab('parent')}
+                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'parent' ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                >
+                    <UserGroupIcon className="w-5 h-5" /> Parents & Events
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Scanner / Search Area */}
                 <div className="space-y-6">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
-                        <div className="relative mb-6">
-                            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={e => {
-                                    setSearchTerm(e.target.value);
-                                    if (e.target.value.length > 2) setSelectedVehicle(null);
-                                }}
-                                className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-blue-500 outline-none text-lg font-bold"
-                                placeholder="Enter Plate Number..."
-                            />
-                        </div>
-
-                        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                            {searchTerm.length > 1 && filteredVehicles.map(v => (
-                                <button
-                                    key={v.id}
-                                    onClick={() => { setSelectedVehicle(v); setSearchTerm(v.plateNumber); }}
-                                    className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${selectedVehicle?.id === v.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-transparent bg-slate-50 dark:bg-slate-900 active:scale-[0.98]'}`}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <TruckIcon className={`w-8 h-8 ${v.vehicleType === 'school' ? 'text-blue-500' : 'text-purple-500'}`} />
-                                        <div className="text-left">
-                                            <p className="font-black text-xl text-slate-800 dark:text-white leading-none">{v.plateNumber}</p>
-                                            <p className="text-xs text-slate-500 uppercase font-bold mt-1">{v.model}</p>
-                                        </div>
-                                    </div>
-                                    <CheckCircleIcon className={`w-6 h-6 ${selectedVehicle?.id === v.id ? 'text-blue-500 opacity-100' : 'opacity-0'}`} />
-                                </button>
-                            ))}
-                            {searchTerm.length > 1 && filteredVehicles.length === 0 && (
-                                <div className="text-center py-8">
-                                    <TruckIcon className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                                    <p className="text-slate-500 font-bold uppercase text-xs">Vehicle Not Found</p>
-                                </div>
-                            )}
-                            {searchTerm.length <= 1 && (
-                                <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                                    <QrCodeIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                                    <p className="text-sm text-slate-500 px-8">Point camera at the vehicle QR code or type the plate number above.</p>
-                                    <button
-                                        onClick={() => setScanning(true)}
-                                        className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-blue-200 dark:shadow-none"
-                                    >
-                                        Activate Scanner
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {selectedVehicle && (
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-4">
-                            <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white mb-4">Log Gate Event</h3>
-                            <div className="mb-4">
-                                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Internal Notes / Observations</label>
-                                <textarea
-                                    value={notes}
-                                    onChange={e => setNotes(e.target.value)}
-                                    className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-blue-500 outline-none"
-                                    rows={2}
-                                    placeholder="e.g. Broken tail light, 20 students onboard..."
+                    {activeTab === 'vehicle' ? (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+                            <div className="relative mb-6">
+                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={e => {
+                                        setSearchTerm(e.target.value);
+                                        if (e.target.value.length > 2) setSelectedVehicle(null);
+                                    }}
+                                    className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-blue-500 outline-none text-lg font-bold"
+                                    placeholder="Enter Plate Number..."
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <button
-                                    onClick={() => handleAction('entry')}
-                                    className="flex flex-col items-center justify-center p-6 bg-green-500 hover:bg-green-600 text-white rounded-2xl transition-all shadow-lg shadow-green-100 dark:shadow-none"
-                                >
-                                    <ArrowRightOnRectangleIcon className="w-8 h-8 rotate-180 mb-2" />
-                                    <span className="font-black uppercase text-sm">Gate Entry</span>
-                                </button>
-                                <button
-                                    onClick={() => handleAction('exit')}
-                                    className="flex flex-col items-center justify-center p-6 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition-all shadow-lg shadow-blue-100 dark:shadow-none"
-                                >
-                                    <ArrowRightOnRectangleIcon className="w-8 h-8 mb-2" />
-                                    <span className="font-black uppercase text-sm">Gate Exit</span>
-                                </button>
+
+                            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                {searchTerm.length > 1 && filteredVehicles.map(v => (
+                                    <button
+                                        key={v.id}
+                                        onClick={() => { setSelectedVehicle(v); setSearchTerm(v.plateNumber); }}
+                                        className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${selectedVehicle?.id === v.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-transparent bg-slate-50 dark:bg-slate-900 active:scale-[0.98]'}`}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <TruckIcon className={`w-8 h-8 ${v.vehicleType === 'school' ? 'text-blue-500' : 'text-purple-500'}`} />
+                                            <div className="text-left">
+                                                <p className="font-black text-xl text-slate-800 dark:text-white leading-none">{v.plateNumber}</p>
+                                                <p className="text-xs text-slate-500 uppercase font-bold mt-1">{v.model}</p>
+                                            </div>
+                                        </div>
+                                        <CheckCircleIcon className={`w-6 h-6 ${selectedVehicle?.id === v.id ? 'text-blue-500 opacity-100' : 'opacity-0'}`} />
+                                    </button>
+                                ))}
+                                {searchTerm.length > 1 && filteredVehicles.length === 0 && (
+                                    <div className="text-center py-8">
+                                        <TruckIcon className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                                        <p className="text-slate-500 font-bold uppercase text-xs">Vehicle Not Found</p>
+                                    </div>
+                                )}
+                                {searchTerm.length <= 1 && (
+                                    <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                                        <QrCodeIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                        <p className="text-sm text-slate-500 px-8">Point camera at the vehicle QR code or type the plate number above.</p>
+                                        <button
+                                            onClick={() => setScanning(true)}
+                                            className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-blue-200 dark:shadow-none"
+                                        >
+                                            Activate Scanner
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
+                    ) : (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+                             <div className="relative mb-4">
+                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                <input
+                                    type="text"
+                                    value={parentSearchTerm}
+                                    onChange={e => {
+                                        setParentSearchTerm(e.target.value);
+                                        if (e.target.value.length < 3) {
+                                            setSelectedParent(null);
+                                            setSelectedStudent(null);
+                                        }
+                                    }}
+                                    onKeyUp={e => {
+                                        if (e.key === 'Enter') handleSearchParent();
+                                    }}
+                                    className="w-full pl-12 pr-24 py-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-purple-500 outline-none text-lg font-bold"
+                                    placeholder="Adm No, Phone, or Name..."
+                                />
+                                <button 
+                                    onClick={handleSearchParent}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-purple-100 text-purple-600 rounded-xl font-black text-xs uppercase"
+                                >
+                                    Search
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-400 mb-6 px-2">Enter student admission number or parent's phone number to verify event access.</p>
+                            
+                            {selectedParent && (
+                                <div className="p-5 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-2xl animate-in fade-in slide-in-from-bottom-4">
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 bg-purple-200 dark:bg-purple-800 rounded-xl flex items-center justify-center text-purple-700 dark:text-purple-300 font-black text-lg">
+                                                {selectedParent.name.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-lg text-slate-800 dark:text-white leading-tight">{selectedParent.name}</h4>
+                                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{selectedParent.phoneNumber || 'No Phone Number'}</p>
+                                            </div>
+                                        </div>
+                                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[10px] font-black uppercase flex items-center gap-1">
+                                            <CheckCircleIcon className="w-3 h-3" /> MATCH
+                                        </span>
+                                    </div>
+                                    
+                                    {selectedStudent && (
+                                        <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-800/50">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Associated Student</p>
+                                            <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                                                <UserIcon className="w-4 h-4 text-slate-400" />
+                                                <span>{selectedStudent.name}</span>
+                                                {selectedStudent.admissionNumber && (
+                                                    <span className="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs rounded-md ml-auto">
+                                                        {selectedStudent.admissionNumber}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {parentSearchTerm.length >= 3 && !selectedParent && (
+                                <div className="text-center py-8">
+                                    <UserGroupIcon className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                                    <p className="text-slate-500 font-bold uppercase text-xs">No Parent/Student Found</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Action Area */}
+                    {activeTab === 'vehicle' ? (
+                        selectedVehicle && (
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-4">
+                                <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white mb-4">Log Gate Event</h3>
+                                <div className="mb-4">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Internal Notes / Observations</label>
+                                    <textarea
+                                        value={notes}
+                                        onChange={e => setNotes(e.target.value)}
+                                        className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-blue-500 outline-none"
+                                        rows={2}
+                                        placeholder="e.g. Broken tail light, 20 students onboard..."
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button
+                                        onClick={() => handleVehicleAction('entry')}
+                                        className="flex flex-col items-center justify-center p-6 bg-green-500 hover:bg-green-600 text-white rounded-2xl transition-all shadow-lg shadow-green-100 dark:shadow-none"
+                                    >
+                                        <ArrowRightOnRectangleIcon className="w-8 h-8 rotate-180 mb-2" />
+                                        <span className="font-black uppercase text-sm">Gate Entry</span>
+                                    </button>
+                                    <button
+                                        onClick={() => handleVehicleAction('exit')}
+                                        className="flex flex-col items-center justify-center p-6 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition-all shadow-lg shadow-blue-100 dark:shadow-none"
+                                    >
+                                        <ArrowRightOnRectangleIcon className="w-8 h-8 mb-2" />
+                                        <span className="font-black uppercase text-sm">Gate Exit</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    ) : (
+                        selectedParent && (
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-4">
+                                <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white mb-4">Confirm Entry</h3>
+                                <button
+                                    onClick={handleVerifyParent}
+                                    className="w-full flex items-center justify-center gap-3 p-5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl transition-all shadow-lg shadow-purple-200 dark:shadow-none"
+                                >
+                                    <CheckCircleIcon className="w-6 h-6" />
+                                    <span className="font-black uppercase text-base tracking-wide">Verify & Grant Entry</span>
+                                </button>
+                                {!onAddVisitor && (
+                                    <p className="text-red-500 text-xs font-bold mt-3 text-center uppercase">System Error: Visitor logging not connected.</p>
+                                )}
+                            </div>
+                        )
                     )}
                 </div>
 
                 {/* Recent History */}
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 h-fit">
-                    <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white mb-6">Security Log (Recent)</h3>
+                    <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white mb-6">Security Log (Recent Vehicles)</h3>
                     <div className="space-y-4">
                         {recentLogs.map(log => {
                             const vehicle = vehicles.find(v => v.id === log.vehicleId);
@@ -185,7 +388,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 </div>
             </div>
 
-            {scanning && (
+            {scanning && activeTab === 'vehicle' && (
                 <div className="fixed inset-0 bg-black/90 z-[200] flex flex-col items-center justify-center p-4">
                     <div className="w-full max-w-lg text-center">
                         <div className="relative aspect-square bg-slate-800 rounded-3xl border-4 border-blue-500 overflow-hidden mb-8 shadow-[0_0_50px_rgba(59,130,246,0.5)]">
@@ -234,4 +437,3 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         </div>
     );
 };
-
