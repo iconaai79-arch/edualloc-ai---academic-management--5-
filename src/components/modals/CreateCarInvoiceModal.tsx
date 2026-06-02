@@ -106,8 +106,9 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
         try {
             await onSave(formData);
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save invoice:", error);
+            alert("Error saving invoice: " + (error.message || error));
         } finally {
             setIsSaving(false);
         }

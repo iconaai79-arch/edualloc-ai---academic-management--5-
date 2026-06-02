@@ -4046,6 +4046,7 @@ export const App: React.FC = () => {
             }
 
             await loadData(false, true);
+            success('Car invoice generated successfully!');
         },
         onAddCarPayment: async (data: Partial<CarPayment>) => {
             const instId = activeInstitution?.id || currentUser?.institutionId;
