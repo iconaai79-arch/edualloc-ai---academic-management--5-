@@ -237,12 +237,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             kcbConfig = body.config || body.kcbConfig || {};
         }
 
-        const appKey = (kcbConfig.appKey || '').trim();
-        const appSecret = (kcbConfig.appSecret || '').trim();
-        const baseUrl = (kcbConfig.baseUrl || '').trim();
-        const stkPushUrl = (kcbConfig.stkPushUrl || '').trim();
-        const shortCode = (kcbConfig.shortCode || organizationShortCode || '').trim();
-        const passkey = (kcbConfig.passkey || '').trim();
+        const appKey = (kcbConfig.appKey || kcbConfig.app_key || '').trim();
+        const appSecret = (kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
+        const baseUrl = (kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
+        const stkPushUrl = (kcbConfig.stkPushUrl || kcbConfig.stk_push_url || '').trim();
+        const shortCode = (kcbConfig.shortCode || kcbConfig.short_code || organizationShortCode || '').trim();
+        const passkey = (kcbConfig.passkey || kcbConfig.pass_key || '').trim();
         const rawPhone = resolvedPhone;
 
         // Normalize phone to KCB-required international format: 2547XXXXXXXX
@@ -259,7 +259,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const transactionDesc = narration || body.transactionDesc || '';
         const institutionId = resolvedInstitutionId;
 
-        const environment = (kcbConfig.environment || 'sandbox').trim();
+        const environment = (kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
         const isKcbDemo = environment === 'mock' ||
                           environment === 'demo' ||
                           !appKey || !appSecret || 
@@ -335,10 +335,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const tokenData = await tokenRes.json() as any;
             const access_token = tokenData.access_token;
 
-            const finalStkUrl = stkPushUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/processrequest` : (
+            const finalStkUrl = stkPushUrl || (baseUrl ? `${baseUrl}/mm/api/request/1.0.0/stkpush` : (
                 environment === 'sandbox'
                 ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
-                : 'https://api.kcbgroup.com/kcb/stkpush/v1/processrequest'
+                : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
             ));
             console.log(`[KCB STK] Initiating STK push to ${finalStkUrl}`);
             
@@ -521,14 +521,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (subRoute === 'kcb-query') {
         const kcbConfig = req.body.config || {};
         const checkoutRequestId = req.body.checkoutRequestId || '';
-        const appKey = (kcbConfig.appKey || '').trim();
-        const appSecret = (kcbConfig.appSecret || '').trim();
-        const baseUrl = (kcbConfig.baseUrl || '').trim();
-        const queryUrl = (kcbConfig.queryUrl || '').trim();
-        const shortCode = (kcbConfig.shortCode || '').trim();
-        const passkey = (kcbConfig.passkey || '').trim();
+        const appKey = (kcbConfig.appKey || kcbConfig.app_key || '').trim();
+        const appSecret = (kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
+        const baseUrl = (kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
+        const queryUrl = (kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
+        const shortCode = (kcbConfig.shortCode || kcbConfig.short_code || '').trim();
+        const passkey = (kcbConfig.passkey || kcbConfig.pass_key || '').trim();
 
-        const environment = (kcbConfig.environment || 'sandbox').trim();
+        const environment = (kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
         const isKcbQueryDemo = environment === 'mock' ||
                                environment === 'demo' ||
                                !appKey || !appSecret || 
@@ -583,10 +583,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const tokenData = await tokenRes.json() as any;
             const access_token = tokenData.access_token;
 
-            const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : (
+            const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/mm/api/request/1.0.0/query` : (
                 environment === 'sandbox'
                 ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
-                : 'https://api.kcbgroup.com/kcb/stkpush/v1/query'
+                : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/query'
             ));
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
