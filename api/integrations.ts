@@ -2190,6 +2190,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         let tokenUrl = '';
                         let fetchOptions: RequestInit = {};
 
+                        // Check if checkoutRequestId is a Core T24 Funds Transfer transaction status query
+                        const isCoreTxnQuery = checkoutRequestId.includes('FT') || 
+                                               checkoutRequestId.startsWith('206') || 
+                                               kcbConfig.queryType === 'core' ||
+                                               (queryUrl && (queryUrl.includes('transactioninfo') || queryUrl.includes('querytransaction')));
+
                         if (environment === 'sandbox') {
                             tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://uat.buni.kcbgroup.com/token';
                             fetchOptions = {
@@ -2201,7 +2207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 body: 'grant_type=client_credentials'
                             };
                         } else {
-                            tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://api.kcbgroup.com/token';
+                            tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://api.buni.kcbgroup.com/token';
                             fetchOptions = {
                                 method: 'POST',
                                 headers: {
@@ -2219,39 +2225,94 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const tokenData = await tokenRes.json() as any;
                             const access_token = tokenData.access_token;
 
-                            const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : (
-                                environment === 'sandbox'
-                                ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
-                                : 'https://api.kcbgroup.com/kcb/stkpush/v1/query'
-                            ));
-                            const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-                            const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
+                            let finalQueryUrl = '';
+                            let requestBody: any;
 
-                            console.log(`[KCB Query] Querying transaction status at ${finalQueryUrl}`);
+                            if (isCoreTxnQuery) {
+                                finalQueryUrl = queryUrl || (
+                                    environment === 'sandbox'
+                                    ? 'https://uat.buni.kcbgroup.com/v1/core/t24/querytransaction/1.0.0/api/transactioninfo'
+                                    : 'https://api.buni.kcbgroup.com/v1/core/t24/querytransaction/1.0.0/api/transactioninfo'
+                                );
+                                const guid = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                const timestampStr = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+                                requestBody = {
+                                    header: {
+                                        messageID: guid,
+                                        featureCode: kcbConfig.featureCode || "101",
+                                        featureName: kcbConfig.featureName || "FinancialInquiries",
+                                        serviceCode: kcbConfig.serviceCode || "1004",
+                                        serviceName: kcbConfig.serviceName || "TransactionInfo",
+                                        serviceSubCategory: kcbConfig.serviceSubCategory || "ACCOUNT",
+                                        minorServiceVersion: kcbConfig.minorServiceVersion || "1.0",
+                                        channelCode: kcbConfig.channelCode || "206",
+                                        channelName: kcbConfig.channelName || "ibank",
+                                        routeCode: kcbConfig.routeCode || "001",
+                                        timeStamp: timestampStr,
+                                        serviceMode: "sync",
+                                        subscribeEvents: "1",
+                                        callBackURL: ""
+                                    },
+                                    requestPayload: {
+                                        transactionInfo: {
+                                            primaryData: {
+                                                businessKey: checkoutRequestId,
+                                                businessKeyType: kcbConfig.businessKeyType || "FT.REF"
+                                            },
+                                            additionalDetails: {
+                                                companyCode: kcbConfig.companyCode || "KE0010001"
+                                            }
+                                        }
+                                    }
+                                };
+                            } else {
+                                finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : (
+                                    environment === 'sandbox'
+                                    ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
+                                    : 'https://api.kcbgroup.com/kcb/stkpush/v1/query'
+                                ));
+                                const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+                                const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
+                                requestBody = {
+                                    shortCode: shortCode,
+                                    password: password,
+                                    timestamp: timestamp,
+                                    checkoutRequestID: checkoutRequestId
+                                };
+                            }
+
+                            console.log(`[KCB Query] Querying transaction status at ${finalQueryUrl} (Core query: ${isCoreTxnQuery})`);
                             const queryRes = await fetchWithTimeout(finalQueryUrl, {
                                 method: 'POST',
                                 headers: {
                                     'Authorization': `Bearer ${access_token}`,
                                     'Content-Type': 'application/json'
                                 },
-                                body: JSON.stringify({
-                                    shortCode: shortCode,
-                                    password: password,
-                                    timestamp: timestamp,
-                                    checkoutRequestID: checkoutRequestId
-                                })
+                                body: JSON.stringify(requestBody)
                             });
 
                             if (queryRes.ok) {
                                 const queryData = await queryRes.json() as any;
                                 externalData = queryData;
-                                const resultCode = queryData.ResultCode !== undefined ? String(queryData.ResultCode) : 
-                                                  (queryData.resultCode !== undefined ? String(queryData.resultCode) : 
-                                                  (queryData.Result?.ResultCode !== undefined ? String(queryData.Result.ResultCode) : ''));
-                                if (resultCode === '0' || resultCode === 'SUCCESS') {
-                                    finalStatus = 'completed';
+
+                                if (isCoreTxnQuery) {
+                                    const headerCode = queryData.header?.statusCode || queryData.header?.messageCode;
+                                    const headerMsg = queryData.header?.statusMessage || queryData.header?.statusDescription;
+                                    const processedOk = headerCode === '0' || headerCode === '00' || String(headerMsg).toLowerCase() === 'success';
+                                    if (processedOk) {
+                                        finalStatus = 'completed';
+                                    } else {
+                                        finalStatus = 'failed';
+                                    }
                                 } else {
-                                    finalStatus = 'failed';
+                                    const resultCode = queryData.ResultCode !== undefined ? String(queryData.ResultCode) : 
+                                                      (queryData.resultCode !== undefined ? String(queryData.resultCode) : 
+                                                      (queryData.Result?.ResultCode !== undefined ? String(queryData.Result.ResultCode) : ''));
+                                    if (resultCode === '0' || resultCode === 'SUCCESS') {
+                                        finalStatus = 'completed';
+                                    } else {
+                                        finalStatus = 'failed';
+                                    }
                                 }
                             }
                         }

@@ -869,6 +869,18 @@ export interface KcbConfig {
     passkey?: string;
     shortCode?: string;
     environment?: 'sandbox' | 'production';
+    queryType?: 'stk' | 'core';
+    companyCode?: string;
+    featureCode?: string;
+    featureName?: string;
+    serviceCode?: string;
+    serviceName?: string;
+    serviceSubCategory?: string;
+    minorServiceVersion?: string;
+    channelCode?: string;
+    channelName?: string;
+    routeCode?: string;
+    businessKeyType?: string;
 }
 
 export interface CoopB2bConfig {
