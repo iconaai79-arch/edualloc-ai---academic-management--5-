@@ -16,6 +16,22 @@ const getSupabase = () => {
     });
 };
 
+const resolveKcbResultCode = (data: any): string => {
+    if (!data) return '';
+    const directCode = data.ResultCode ?? data.resultCode ?? data.Result?.ResultCode;
+    if (directCode !== undefined && directCode !== null) return String(directCode);
+    const stkCallback = data.responsePayload?.stkCallback || data.Body?.stkCallback || data.stkCallback;
+    if (stkCallback) {
+        const cCode = stkCallback.ResultCode ?? stkCallback.resultCode;
+        if (cCode !== undefined && cCode !== null) return String(cCode);
+    }
+    const headerCode = data.header?.statusCode ?? data.header?.messageCode ?? data.header?.statuscode;
+    if (headerCode !== undefined && headerCode !== null) return String(headerCode);
+    const flatStatus = data.statusCode ?? data.status;
+    if (flatStatus !== undefined && flatStatus !== null) return String(flatStatus);
+    return '';
+};
+
 // --- Google Drive Shared Logic ---
 interface GoogleDriveConfig {
     clientId: string;
@@ -2167,6 +2183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const baseUrl = (kcbConfig.baseUrl || '').trim();
                 const queryUrl = (kcbConfig.queryUrl || '').trim();
                 const configShortCode = (kcbConfig.shortCode || kcbConfig.short_code || '').trim();
+                const passkey = (kcbConfig.passkey || kcbConfig.pass_key || '').trim();
                 const environment = (kcbConfig.environment || 'sandbox').trim();
 
                 let finalOrgShortCode = '522533';
@@ -2287,8 +2304,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                      ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
                                      : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/query'
                                  ));
+                                const passkeyVal = passkey || (environment === 'sandbox' ? 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919' : '');
                                 const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-                                const password = Buffer.from((shortCode || '123456') + timestamp).toString('base64');
+                                const password = Buffer.from((shortCode || '123456') + passkeyVal + timestamp).toString('base64');
                                 requestBody = {
                                     shortCode: shortCode,
                                     password: password,
@@ -2321,11 +2339,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         finalStatus = 'failed';
                                     }
                                 } else {
-                                    const resultCode = queryData.ResultCode !== undefined ? String(queryData.ResultCode) : 
-                                                      (queryData.resultCode !== undefined ? String(queryData.resultCode) : 
-                                                      (queryData.Result?.ResultCode !== undefined ? String(queryData.Result.ResultCode) : ''));
+                                    const resultCode = resolveKcbResultCode(queryData);
                                     if (resultCode === '0' || resultCode === 'SUCCESS') {
                                         finalStatus = 'completed';
+                                    } else if (resultCode === '1' || resultCode === '' || resultCode.toLowerCase() === 'pending' || resultCode.toLowerCase() === 'processing') {
+                                        finalStatus = 'pending';
                                     } else {
                                         finalStatus = 'failed';
                                     }

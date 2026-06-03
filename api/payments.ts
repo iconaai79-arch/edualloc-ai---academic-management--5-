@@ -11,6 +11,22 @@ const getSupabase = () => {
     });
 };
 
+const resolveKcbResultCode = (data: any): string => {
+    if (!data) return '';
+    const directCode = data.ResultCode ?? data.resultCode ?? data.Result?.ResultCode;
+    if (directCode !== undefined && directCode !== null) return String(directCode);
+    const stkCallback = data.responsePayload?.stkCallback || data.Body?.stkCallback || data.stkCallback;
+    if (stkCallback) {
+        const cCode = stkCallback.ResultCode ?? stkCallback.resultCode;
+        if (cCode !== undefined && cCode !== null) return String(cCode);
+    }
+    const headerCode = data.header?.statusCode ?? data.header?.messageCode ?? data.header?.statuscode;
+    if (headerCode !== undefined && headerCode !== null) return String(headerCode);
+    const flatStatus = data.statusCode ?? data.status;
+    if (flatStatus !== undefined && flatStatus !== null) return String(flatStatus);
+    return '';
+};
+
 /**
  * Unified Payments API Gateway
  * Handles:
@@ -280,6 +296,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const stkPushUrl = String(kcbConfig.stkPushUrl || kcbConfig.stk_push_url || '').trim();
         const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
         const configTillNumber = String(kcbConfig.tillNumber || kcbConfig.till_number || '').trim();
+        const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
         const rawPhone = resolvedPhone;
         const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
  
@@ -434,17 +451,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
             ));
             console.log(`[KCB STK] Initiating STK push to ${finalStkUrl}`);
-            
+            const passkeyVal = passkey || (environment === 'sandbox' ? 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919' : '');
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-            const password = Buffer.from((shortCode || '123456') + timestamp).toString('base64');
+            const password = Buffer.from((shortCode || '123456') + passkeyVal + timestamp).toString('base64');
 
             const rawInvoiceNumber = accountReference || transactionReference || `INV_${Date.now()}`;
             let formattedInvoiceNumber = rawInvoiceNumber;
-            if ((kcbConfig.sharedShortCode !== undefined ? kcbConfig.sharedShortCode : finalSharedShortCode) && finalTillNumber) {
+            const useSharedShortCode = environment === 'sandbox'
+                ? true
+                : (kcbConfig.sharedShortCode !== undefined
+                    ? Boolean(kcbConfig.sharedShortCode)
+                    : finalSharedShortCode);
+
+            if (useSharedShortCode && finalTillNumber) {
                 const tillPrefix = `${finalTillNumber}-`;
                 if (!rawInvoiceNumber.startsWith(tillPrefix)) {
-                    formattedInvoiceNumber = `${finalTillNumber}-${rawInvoiceNumber}`;
+                    const prefixLength = tillPrefix.length;
+                    const allowedSuffixLength = Math.max(1, 12 - prefixLength);
+                    const suffix = rawInvoiceNumber.length > allowedSuffixLength
+                        ? rawInvoiceNumber.substring(rawInvoiceNumber.length - allowedSuffixLength)
+                        : rawInvoiceNumber.padStart(allowedSuffixLength, '0');
+                    formattedInvoiceNumber = `${finalTillNumber}-${suffix}`;
+                } else {
+                    formattedInvoiceNumber = rawInvoiceNumber.substring(0, 12);
                 }
+            } else {
+                formattedInvoiceNumber = rawInvoiceNumber.substring(0, 12);
             }
 
             // Resolve callback URL — prefer explicitly-configured URL, then x-forwarded-host, then host header
@@ -457,20 +489,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 phoneNumber: phoneNumber,
                 amount: String(Math.round(amount)),
                 invoiceNumber: formattedInvoiceNumber,
-                sharedShortCode: environment === 'sandbox'
-                    ? true
-                    : (kcbConfig.sharedShortCode !== undefined
-                        ? Boolean(kcbConfig.sharedShortCode)
-                        : finalSharedShortCode),
+                sharedShortCode: useSharedShortCode,
                 orgShortCode: shortCode || '522533',
+                orgPassKey: passkeyVal || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
                 callbackUrl: callbackUrl,
-                transactionDescription: (transactionDesc || 'Payment').substring(0, 50)
+                transactionDescription: (transactionDesc || 'Payment').substring(0, 13)
             };
 
-
-
             // Include tillNumber only when using shared shortcode — required for routing
-            if (finalSharedShortCode && finalTillNumber) {
+            if (useSharedShortCode && finalTillNumber) {
                 stkPayload.tillNumber = finalTillNumber;
             }
 
@@ -674,6 +701,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const baseUrl = String(kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
         const queryUrl = String(kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
         const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
+        const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
         const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
         let finalOrgShortCode = '522533';
         if (environment === 'sandbox') {
@@ -772,8 +800,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
                 : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/query'
             ));
+            const passkeyVal = passkey || (environment === 'sandbox' ? 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919' : '');
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-            const password = Buffer.from((shortCode || '123456') + timestamp).toString('base64');
+            const password = Buffer.from((shortCode || '123456') + passkeyVal + timestamp).toString('base64');
 
             console.log(`[KCB Query] Querying transaction status at ${finalQueryUrl}`);
             const queryRes = await fetch(finalQueryUrl, {
@@ -812,9 +841,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (true) {
-                const resultCode = queryData.ResultCode !== undefined ? String(queryData.ResultCode) : 
-                                  (queryData.resultCode !== undefined ? String(queryData.resultCode) : 
-                                  (queryData.Result?.ResultCode !== undefined ? String(queryData.Result.ResultCode) : ''));
+                const resultCode = resolveKcbResultCode(queryData);
                 const resultDesc = queryData.ResultDesc || queryData.resultDesc || queryData.ResultDescription || queryData.responseDescription || 'Transaction checked successfully.';
 
                 // Extract M-Pesa receipt number from ResultParameters (Safaricom-standard format)
@@ -841,9 +868,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         null;
                 }
 
+                let status = 'FAILED';
+                if (resultCode === '0' || resultCode === 'SUCCESS') {
+                    status = 'COMPLETED';
+                } else if (resultCode === '1' || resultCode === '' || resultCode.toLowerCase() === 'pending' || resultCode.toLowerCase() === 'processing') {
+                    status = 'PENDING';
+                }
+
                 return res.status(200).json({
                     success: true,
-                    status: resultCode === '0' || resultCode === 'SUCCESS' ? 'COMPLETED' : 'FAILED',
+                    status: status,
                     message: resultDesc,
                     mpesaReceiptNumber,
                     rawResponse: queryData

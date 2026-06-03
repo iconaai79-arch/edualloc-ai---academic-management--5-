@@ -4785,6 +4785,18 @@ Please change it after login.`;
                                                                     placeholder="e.g. https://api.buni.kcbgroup.com/authorize"
                                                                 />
                                                             </div>
+                                                         <div className="grid grid-cols-2 gap-4">
+                                                             <div>
+                                                                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom Passkey / orgPassKey (Optional)</label>
+                                                                 <input
+                                                                     type="password"
+                                                                     value={localKcbConfig.passkey || ''}
+                                                                     onChange={e => setLocalKcbConfig({ ...localKcbConfig, passkey: e.target.value })}
+                                                                     className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                     placeholder="Lipa Na M-Pesa Passkey (Required if Dedicated)"
+                                                                 />
+                                                             </div>
+                                                         </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -6313,6 +6325,10 @@ Please change it after login.`;
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Custom Authorize URL (Optional)</label>
                                     <input type="text" value={tenantKcbConfig.authorizeUrl || ''} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, authorizeUrl: e.target.value }))} className="form-input" placeholder="e.g. https://api.buni.kcbgroup.com/authorize" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Custom Passkey / orgPassKey (Optional)</label>
+                                    <input type="password" value={tenantKcbConfig.passkey || ''} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, passkey: e.target.value }))} className="form-input" placeholder="Lipa Na M-Pesa Passkey (Required if Dedicated)" />
                                 </div>
                             </div>
 
