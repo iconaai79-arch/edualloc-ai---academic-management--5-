@@ -4699,7 +4699,7 @@ Please change it after login.`;
                                                         </div>
                                                         <div className="grid grid-cols-3 gap-4">
                                                             <div>
-                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Lipa Na M-Pesa Passkey <span className="text-red-500">*Required</span></label>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Lipa Na M-Pesa Passkey (Optional)</label>
                                                                 <input
                                                                     type="password"
                                                                     value={localKcbConfig.passkey || ''}

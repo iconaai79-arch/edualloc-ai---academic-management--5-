@@ -459,18 +459,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 transactionDescription: (transactionDesc || 'Payment').substring(0, 50)
             };
 
-            // orgPassKey is REQUIRED by KCB Buni for production — validate before sending
-            if (!passkey) {
-                console.error('[KCB STK] orgPassKey (passkey) is missing from KCB config — cannot proceed.');
-                return res.status(200).json({
-                    success: false,
-                    message: 'KCB STK Push failed: orgPassKey (Lipa Na M-Pesa Passkey) is not configured. ' +
-                             'Log in to the KCB Buni Portal → My Applications → select your app → ' +
-                             'STK Push section to find your Passkey, then save it in your KCB configuration.',
-                    details: { missingField: 'orgPassKey / passkey', hint: 'Find this on the KCB Buni portal under your App → Lipa Na M-Pesa settings.' }
-                });
+            // Include orgPassKey only if configured
+            if (passkey) {
+                stkPayload.orgPassKey = passkey;
             }
-            stkPayload.orgPassKey = passkey;
 
             // Include tillNumber only when using shared shortcode — required for routing
             if (finalSharedShortCode && finalTillNumber) {
