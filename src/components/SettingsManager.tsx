@@ -1974,6 +1974,50 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             </select>
                                                         </div>
                                                     </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom Base URL (Optional)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localKcbConfig.baseUrl || ''}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, baseUrl: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="e.g. https://api.kcbgroup.com"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom Passkey (Optional)</label>
+                                                            <input
+                                                                type="password"
+                                                                value={localKcbConfig.passkey || ''}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, passkey: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Lipa Na M-Pesa Passkey"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom STK Push URL (Optional)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localKcbConfig.stkPushUrl || ''}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, stkPushUrl: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Custom STK Endpoint URL"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom STK Query URL (Optional)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localKcbConfig.queryUrl || ''}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, queryUrl: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Custom Status Query URL"
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
 
