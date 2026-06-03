@@ -441,49 +441,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
+            // Resolve callback URL — prefer explicitly-configured URL, then x-forwarded-host, then host header
+            const callbackUrl = kcbConfig.callbackUrl ||
+                `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`;
+
+            // Build a clean Buni API payload — only send fields that KCB Buni spec expects.
+            // Sending unknown/extra fields causes KCB to return HTTP 500 "Internal Server Error".
+            const stkPayload: Record<string, any> = {
+                phoneNumber: phoneNumber,
+                amount: String(Math.round(amount)),
+                invoiceNumber: formattedInvoiceNumber,
+                sharedShortCode: kcbConfig.sharedShortCode !== undefined
+                    ? Boolean(kcbConfig.sharedShortCode)
+                    : finalSharedShortCode,
+                orgShortCode: shortCode || '522533',
+                callbackUrl: callbackUrl,
+                transactionDescription: (transactionDesc || 'Payment').substring(0, 50)
+            };
+
+            // Only include orgPassKey if it has a value — empty string causes KCB 500
+            if (passkey) {
+                stkPayload.orgPassKey = passkey;
+            }
+
+            // Include tillNumber only when using shared shortcode — required for routing
+            if (finalSharedShortCode && finalTillNumber) {
+                stkPayload.tillNumber = finalTillNumber;
+            }
+
+            console.log('[KCB STK] Sending Buni payload:', JSON.stringify(stkPayload));
+
             const stkPushRes = await fetch(finalStkUrl, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${access_token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    // Buni API Format parameters
-                    phoneNumber: phoneNumber,
-                    amount: String(Math.round(amount)),
-                    invoiceNumber: formattedInvoiceNumber,
-                    sharedShortCode: kcbConfig.sharedShortCode !== undefined ? kcbConfig.sharedShortCode : finalSharedShortCode,
-                    orgShortCode: shortCode || '522533',
-                    orgPassKey: passkey || '',
-                    callbackUrl: kcbConfig.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
-                    transactionDescription: transactionDesc || 'Payment',
-
-                    // Original/Other KCB Format parameters (for backward compatibility)
-                    transactionReference: transactionReference || accountReference || `TXN_${Date.now()}`,
-                    requestId: requestId || `req_${Date.now()}`,
-                    channelCode: channelCode || '202',
-                    timestamp: timestamp,
-                    transactionAmount: String(Math.round(amount)),
-                    currency: currency || 'KES',
-                    customerReference: accountReference || 'Payment',
-                    customerName: customerName || 'Valued Customer',
-                    customerMobileNumber: phoneNumber, // already normalized to 2547XXXXXXXX
-                    phone: phoneNumber, // Added for compatibility
-                    balance: balance || '0.00',
-                    narration: transactionDesc || 'Payment',
-                    creditAccountIdentifier: creditAccountIdentifier || shortCode,
-                    organizationShortCode: shortCode || '522533',
-                    tillNumber: finalTillNumber || ''
-                })
+                body: JSON.stringify(stkPayload)
             });
 
             const stkPushText = await stkPushRes.text();
             if (!stkPushRes.ok) {
                 console.error(`[KCB STK] Push request failed with status ${stkPushRes.status}:`, stkPushText);
+                // Try to parse the error body for a cleaner message
+                let parsedError: any = null;
+                try { parsedError = JSON.parse(stkPushText); } catch (_) {}
+                const errorMessage = parsedError?.message || parsedError?.description || parsedError?.errorDescription ||
+                                     parsedError?.fault?.description || parsedError?.fault?.faultstring ||
+                                     `KCB STK push failed with status ${stkPushRes.status}.`;
                 return res.status(200).json({
                     success: false,
-                    message: `KCB STK push failed with status ${stkPushRes.status}.`,
-                    details: stkPushText
+                    message: errorMessage,
+                    details: parsedError || stkPushText,
+                    sentPayload: stkPayload
                 });
             }
 

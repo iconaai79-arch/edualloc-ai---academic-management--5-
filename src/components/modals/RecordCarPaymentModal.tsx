@@ -200,7 +200,9 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     }
                 }, 5000);
             } else {
-                throw new Error(res.message || "Gateway rejected the push request.");
+                const errorMsg = res.message || "Gateway rejected the push request.";
+                const errorDetails = res.details ? ` Details: ${typeof res.details === 'object' ? JSON.stringify(res.details) : res.details}` : '';
+                throw new Error(`${errorMsg}${errorDetails}`);
             }
         } catch (err: any) {
             console.error("STK Push error:", err);

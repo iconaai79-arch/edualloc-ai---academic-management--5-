@@ -238,7 +238,8 @@ export const PublicInvoiceView: React.FC<PublicInvoiceViewProps> = ({ invoiceId 
                 });
             } else {
                 setPaymentStatus('failed');
-                setStatusMessage(response.message || "Failed to trigger payment prompt. Try again or contact support.");
+                const detailsMsg = response.details ? ` (${typeof response.details === 'object' ? JSON.stringify(response.details) : response.details})` : '';
+                setStatusMessage((response.message || "Failed to trigger payment prompt. Try again or contact support.") + detailsMsg);
                 setPaying(false);
             }
         } catch (err: any) {

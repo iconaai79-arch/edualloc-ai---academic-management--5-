@@ -1049,7 +1049,8 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                 }, 3000);
                                             } else {
                                                 setStkStatus('failed');
-                                                setStkMessage(response.message || "Failed to trigger payment prompt. Gateway rejected request.");
+                                                const detailsMsg = response.details ? ` (${typeof response.details === 'object' ? JSON.stringify(response.details) : response.details})` : '';
+                                                setStkMessage((response.message || "Failed to trigger payment prompt. Gateway rejected request.") + detailsMsg);
                                             }
                                         } catch (err: any) {
                                             setStkStatus('failed');

@@ -6387,7 +6387,8 @@ Please change it after login.`;
                                                     alert("KCB STK Push initiated successfully for this tenant. Check your phone.");
                                                     if (props.onRefreshData) props.onRefreshData();
                                                 } else {
-                                                    alert(`KCB STK Push failed: ${result.message || 'Unknown error'}`);
+                                                    const detailsLine = result.details ? `\n\nDetails:\n${typeof result.details === 'object' ? JSON.stringify(result.details) : result.details}` : '';
+                                                    alert(`KCB STK Push failed: ${result.message || 'Unknown error'}${detailsLine}`);
                                                 }
                                             } catch (e: any) {
                                                 alert(`KCB Gateway test failed: ${e.message}`);
