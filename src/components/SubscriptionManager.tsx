@@ -601,7 +601,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                     institutionId={institution.id}
                     institutionCode={institution.institutionCode || 'SYSTEM'}
                     institutionName={institution.name}
-                    smsUnitPrice={institution.customSmsPrice || (smsConfig as any)?.smsUnitPrice || 2}
+                    smsUnitPrice={institution.customSmsPrice || (institution as any)?.custom_sms_price || (smsConfig as any)?.smsUnitPrice || (smsConfig as any)?.sms_unit_price || companyDetails?.smsConfig?.smsUnitPrice || (companyDetails?.smsConfig as any)?.sms_unit_price || (companyDetails as any)?.smsUnitPrice || (companyDetails as any)?.sms_unit_price || 2}
                     minSmsUnits={(smsConfig as any)?.minSmsUnits || 0}
                 />
             )}

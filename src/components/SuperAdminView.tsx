@@ -5126,9 +5126,9 @@ Please change it after login.`;
                                                                 KES {localSmsConfig.smsUnitPrice?.toFixed(2) || '1.00'}
                                                             </td>
                                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                                {inst.customSmsPrice ? (
+                                                                {(inst.customSmsPrice || (inst as any).custom_sms_price) ? (
                                                                     <span className="px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-black uppercase tracking-tighter">
-                                                                        KES {inst.customSmsPrice.toFixed(2)}
+                                                                        KES {Number(inst.customSmsPrice || (inst as any).custom_sms_price).toFixed(2)}
                                                                     </span>
                                                                 ) : (
                                                                     <span className="text-[10px] text-slate-300 uppercase font-bold tracking-widest italic">No Override</span>

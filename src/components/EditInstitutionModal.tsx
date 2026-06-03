@@ -41,7 +41,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
           yearly: (institution.customSubscriptionPrice?.yearly ?? (institution as any).custom_subscription_price?.yearly)?.toString() || '',
         },
         isOtpEnabled: institution.isOtpEnabled ?? false,
-        customSmsPrice: institution.customSmsPrice?.toString() || '',
+        customSmsPrice: (institution.customSmsPrice ?? (institution as any).custom_sms_price)?.toString() || '',
         category: institution.category || institution.businessSubType || '',
         businessSubType: institution.businessSubType || '',
       });

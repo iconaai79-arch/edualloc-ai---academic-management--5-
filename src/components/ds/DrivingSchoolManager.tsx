@@ -8456,7 +8456,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         institutionId={currentInstitution?.id || ''}
                         institutionCode={currentInstitution?.institutionCode || currentInstitution?.id || ''}
                         institutionName={currentInstitution?.name || 'Driving School'}
-                        smsUnitPrice={currentInstitution?.smsUnitPrice || 2}
+                        smsUnitPrice={currentInstitution?.customSmsPrice || (currentInstitution as any)?.custom_sms_price || currentInstitution?.smsConfig?.smsUnitPrice || (currentInstitution?.smsConfig as any)?.sms_unit_price || 2}
                         mpesaConfig={currentInstitution?.mpesaConfig}
                         ncbaConfig={currentInstitution?.ncbaConfig}
                     />

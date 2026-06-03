@@ -934,7 +934,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     institutionId={currentInstitution?.id || 'SYSTEM'}
                     institutionCode={currentInstitution?.institutionCode || 'SYSTEM'}
                     institutionName={currentInstitution?.name || 'Education AI Portal'}
-                    smsUnitPrice={currentInstitution?.customSmsPrice || (smsConfig as any)?.smsUnitPrice || companyDetails?.sms_unit_price || companyDetails?.smsUnitPrice || 2}
+                    smsUnitPrice={currentInstitution?.customSmsPrice || (currentInstitution as any)?.custom_sms_price || (smsConfig as any)?.smsUnitPrice || (smsConfig as any)?.sms_unit_price || companyDetails?.smsConfig?.smsUnitPrice || (companyDetails?.smsConfig as any)?.sms_unit_price || (companyDetails as any)?.smsUnitPrice || (companyDetails as any)?.sms_unit_price || 2}
                     minSmsUnits={(smsConfig as any)?.minSmsUnits || 0}
                     requesterId={currentUser?.id}
                 />
