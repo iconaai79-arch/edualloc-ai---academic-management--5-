@@ -1951,17 +1951,40 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             placeholder="Enter KCB App Secret"
                                                         />
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-4">
+                                                    <div className="grid grid-cols-3 gap-4">
                                                         <div>
-                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Short Code (Paybill)</label>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Short Code / Paybill</label>
                                                             <input
                                                                 type="text"
                                                                 value={localKcbConfig.shortCode || ''}
                                                                 onChange={e => setLocalKcbConfig({ ...localKcbConfig, shortCode: e.target.value })}
                                                                 className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
-                                                                placeholder="e.g. 123456"
+                                                                placeholder="e.g. 522533"
                                                             />
                                                         </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Till Number (Optional)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localKcbConfig.tillNumber || ''}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, tillNumber: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="e.g. 876543"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Short Code Type</label>
+                                                            <select
+                                                                value={localKcbConfig.sharedShortCode === false ? 'custom' : 'shared'}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, sharedShortCode: e.target.value === 'shared' })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                            >
+                                                                <option value="shared">Shared Paybill (e.g. 522533)</option>
+                                                                <option value="custom">Dedicated Paybill</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-4">
                                                         <div>
                                                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Environment</label>
                                                             <select
@@ -1972,6 +1995,28 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                 <option value="sandbox">Sandbox (Test)</option>
                                                                 <option value="production">Production (Live)</option>
                                                             </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Query Type</label>
+                                                            <select
+                                                                value={localKcbConfig.queryType || 'stk'}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, queryType: e.target.value as any })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                            >
+                                                                <option value="stk">STK Push Status Query</option>
+                                                                <option value="core">Core Bank T24 Transaction Query</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Company Code (Core)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localKcbConfig.companyCode || ''}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, companyCode: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="e.g. KE0010001"
+                                                                disabled={localKcbConfig.queryType !== 'core'}
+                                                            />
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-4">

@@ -4697,17 +4697,40 @@ Please change it after login.`;
                                                                 placeholder="Enter KCB App Secret"
                                                             />
                                                         </div>
-                                                        <div className="grid grid-cols-2 gap-4">
+                                                        <div className="grid grid-cols-3 gap-4">
                                                             <div>
-                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Short Code</label>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Short Code / Paybill</label>
                                                                 <input
                                                                     type="text"
                                                                     value={localKcbConfig.shortCode || ''}
                                                                     onChange={e => setLocalKcbConfig({ ...localKcbConfig, shortCode: e.target.value })}
                                                                     className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
-                                                                    placeholder="Till/Paybill"
+                                                                    placeholder="e.g. 522533"
                                                                 />
                                                             </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Till Number (Optional)</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={localKcbConfig.tillNumber || ''}
+                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, tillNumber: e.target.value })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                    placeholder="e.g. 876543"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Short Code Type</label>
+                                                                <select
+                                                                    value={localKcbConfig.sharedShortCode === false ? 'custom' : 'shared'}
+                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, sharedShortCode: e.target.value === 'shared' })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                >
+                                                                    <option value="shared">Shared Paybill (522533)</option>
+                                                                    <option value="custom">Dedicated Paybill</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
                                                             <div>
                                                                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Environment</label>
                                                                 <select
@@ -4718,18 +4741,6 @@ Please change it after login.`;
                                                                     <option value="sandbox">Sandbox</option>
                                                                     <option value="production">Production</option>
                                                                 </select>
-                                                            </div>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div>
-                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom Base URL (Optional)</label>
-                                                                <input
-                                                                    type="text"
-                                                                    value={localKcbConfig.baseUrl || ''}
-                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, baseUrl: e.target.value })}
-                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
-                                                                    placeholder="e.g. https://api.kcbgroup.com"
-                                                                />
                                                             </div>
                                                             <div>
                                                                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom Passkey (Optional)</label>
@@ -4744,6 +4755,16 @@ Please change it after login.`;
                                                         </div>
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom Base URL (Optional)</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={localKcbConfig.baseUrl || ''}
+                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, baseUrl: e.target.value })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                    placeholder="e.g. https://api.kcbgroup.com"
+                                                                />
+                                                            </div>
+                                                            <div>
                                                                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom STK Push URL (Optional)</label>
                                                                 <input
                                                                     type="text"
@@ -4753,16 +4774,16 @@ Please change it after login.`;
                                                                     placeholder="Custom STK Endpoint URL"
                                                                 />
                                                             </div>
-                                                            <div>
-                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom STK Query URL (Optional)</label>
-                                                                <input
-                                                                    type="text"
-                                                                    value={localKcbConfig.queryUrl || ''}
-                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, queryUrl: e.target.value })}
-                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
-                                                                    placeholder="Custom Status Query URL"
-                                                                />
-                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom STK Query URL (Optional)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localKcbConfig.queryUrl || ''}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, queryUrl: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Custom Status Query URL"
+                                                            />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -6261,8 +6282,19 @@ Please change it after login.`;
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Short Code (Till/Paybill)</label>
-                                    <input type="text" value={tenantKcbConfig.shortCode || ''} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, shortCode: e.target.value }))} className="form-input" placeholder="e.g. 123456" />
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Short Code (Paybill)</label>
+                                    <input type="text" value={tenantKcbConfig.shortCode || ''} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, shortCode: e.target.value }))} className="form-input" placeholder="e.g. 522533" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Till Number (Optional)</label>
+                                    <input type="text" value={tenantKcbConfig.tillNumber || ''} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, tillNumber: e.target.value }))} className="form-input" placeholder="e.g. 876543" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Short Code Type</label>
+                                    <select value={tenantKcbConfig.sharedShortCode === false ? 'custom' : 'shared'} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, sharedShortCode: e.target.value === 'shared' }))} className="form-select font-bold text-xs">
+                                        <option value="shared">Shared Paybill (522533)</option>
+                                        <option value="custom">Dedicated Paybill</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Custom Base URL (Optional)</label>

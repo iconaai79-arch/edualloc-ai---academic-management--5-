@@ -247,9 +247,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
         const baseUrl = String(kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
         const stkPushUrl = String(kcbConfig.stkPushUrl || kcbConfig.stk_push_url || '').trim();
-        const shortCode = String(kcbConfig.shortCode || kcbConfig.short_code || organizationShortCode || '').trim();
+        const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
+        const configTillNumber = String(kcbConfig.tillNumber || kcbConfig.till_number || '').trim();
         const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
         const rawPhone = resolvedPhone;
+
+        let finalOrgShortCode = '522533';
+        let finalTillNumber = tillNumber || configTillNumber;
+        let finalSharedShortCode = true;
+
+        if (configShortCode) {
+            if (configShortCode === '522533') {
+                finalOrgShortCode = '522533';
+                finalSharedShortCode = true;
+            } else {
+                const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
+                if (isCustomPaybill) {
+                    finalOrgShortCode = configShortCode;
+                    finalSharedShortCode = false;
+                } else {
+                    finalOrgShortCode = '522533';
+                    finalTillNumber = finalTillNumber || configShortCode;
+                    finalSharedShortCode = true;
+                }
+            }
+        } else if (organizationShortCode) {
+            if (organizationShortCode === '522533') {
+                finalOrgShortCode = '522533';
+                finalSharedShortCode = true;
+            } else {
+                finalOrgShortCode = '522533';
+                finalTillNumber = finalTillNumber || organizationShortCode;
+                finalSharedShortCode = true;
+            }
+        }
+
+        const shortCode = finalOrgShortCode;
 
         // Normalize phone to KCB-required international format: 2547XXXXXXXX
         const normalizePhone = (p: string): string => {
@@ -308,25 +341,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (environment === 'sandbox') {
                 tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://uat.buni.kcbgroup.com/token';
-                fetchOptions = {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Basic ${authHeaderVal}`,
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: 'grant_type=client_credentials'
-                };
             } else {
-                tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://api.kcbgroup.com/token';
-                fetchOptions = {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Basic ${authHeaderVal}`,
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: 'grant_type=client_credentials'
-                };
+                tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://api.buni.kcbgroup.com/token';
             }
+
+            // Ensure grant_type=client_credentials is query parameter appended to the URL per KCB spec
+            if (!tokenUrl.includes('grant_type=')) {
+                tokenUrl += (tokenUrl.includes('?') ? '&' : '?') + 'grant_type=client_credentials';
+            }
+
+            fetchOptions = {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Basic ${authHeaderVal}`,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'grant_type=client_credentials'
+            };
             
             console.log(`[KCB STK] Fetching OAuth token from ${tokenUrl} (${environment} mode)`);
             const tokenRes = await fetch(tokenUrl, fetchOptions);
@@ -364,7 +395,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     phoneNumber: phoneNumber,
                     amount: String(Math.round(amount)),
                     invoiceNumber: accountReference || transactionReference || `INV_${Date.now()}`,
-                    sharedShortCode: kcbConfig.sharedShortCode !== undefined ? kcbConfig.sharedShortCode : true,
+                    sharedShortCode: kcbConfig.sharedShortCode !== undefined ? kcbConfig.sharedShortCode : finalSharedShortCode,
                     orgShortCode: shortCode || '522533',
                     orgPassKey: passkey || '',
                     callbackUrl: kcbConfig.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
@@ -385,7 +416,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     narration: transactionDesc || 'Payment',
                     creditAccountIdentifier: creditAccountIdentifier || shortCode,
                     organizationShortCode: shortCode || '522533',
-                    tillNumber: tillNumber || ''
+                    tillNumber: finalTillNumber || ''
                 })
             });
 
@@ -533,8 +564,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
         const baseUrl = String(kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
         const queryUrl = String(kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
-        const shortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
+        const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
         const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
+
+        let finalOrgShortCode = '522533';
+        if (configShortCode) {
+            if (configShortCode === '522533') {
+                finalOrgShortCode = '522533';
+            } else {
+                const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
+                if (isCustomPaybill) {
+                    finalOrgShortCode = configShortCode;
+                } else {
+                    finalOrgShortCode = '522533';
+                }
+            }
+        }
+        const shortCode = finalOrgShortCode;
 
         const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
         const isKcbQueryDemo = environment === 'mock' ||
@@ -560,25 +606,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (environment === 'sandbox') {
                 tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://uat.buni.kcbgroup.com/token';
-                fetchOptions = {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Basic ${authHeaderVal}`,
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: 'grant_type=client_credentials'
-                };
             } else {
-                tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://api.kcbgroup.com/token';
-                fetchOptions = {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Basic ${authHeaderVal}`,
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: 'grant_type=client_credentials'
-                };
+                tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://api.buni.kcbgroup.com/token';
             }
+
+            // Ensure grant_type=client_credentials is query parameter appended to the URL per KCB spec
+            if (!tokenUrl.includes('grant_type=')) {
+                tokenUrl += (tokenUrl.includes('?') ? '&' : '?') + 'grant_type=client_credentials';
+            }
+
+            fetchOptions = {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Basic ${authHeaderVal}`,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'grant_type=client_credentials'
+            };
             
             console.log(`[KCB Query] Fetching OAuth token from ${tokenUrl} (${environment} mode)`);
             const tokenRes = await fetch(tokenUrl, fetchOptions);

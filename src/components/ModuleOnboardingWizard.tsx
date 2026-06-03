@@ -109,6 +109,16 @@ const EDU_MODULES: EduModule[] = [
         gradient: 'from-violet-500 to-indigo-600',
         features: ['Category setup', 'BIB & Kit desk', 'Timing splits', 'Printable certificates'],
     },
+    {
+        id: 'enrollment_manager',
+        name: 'Enrollment Manager',
+        tagline: 'Student Registry & Cohorts',
+        description: 'Unified student registry and enrollment portal supporting both academic and driving school curriculums with biometric scanner integration.',
+        icon: '👤',
+        color: 'indigo',
+        gradient: 'from-indigo-500 to-blue-600',
+        features: ['Dynamic registries', 'Spreadsheet import', 'Biometric passkeys', 'Cohorts mapping'],
+    },
 ];
 
 // ─── Props ────────────────────────────────────────────────────────────────────

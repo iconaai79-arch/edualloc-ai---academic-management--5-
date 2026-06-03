@@ -2166,9 +2166,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const appSecret = (kcbConfig.appSecret || '').trim();
                 const baseUrl = (kcbConfig.baseUrl || '').trim();
                 const queryUrl = (kcbConfig.queryUrl || '').trim();
-                const shortCode = (kcbConfig.shortCode || '').trim();
+                const configShortCode = (kcbConfig.shortCode || kcbConfig.short_code || '').trim();
                 const passkey = (kcbConfig.passkey || '').trim();
                 const environment = (kcbConfig.environment || 'sandbox').trim();
+
+                let finalOrgShortCode = '522533';
+                if (configShortCode) {
+                    if (configShortCode === '522533') {
+                        finalOrgShortCode = '522533';
+                    } else {
+                        const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
+                        if (isCustomPaybill) {
+                            finalOrgShortCode = configShortCode;
+                        } else {
+                            finalOrgShortCode = '522533';
+                        }
+                    }
+                }
+                const shortCode = finalOrgShortCode;
 
                 const isKcbQueryDemo = environment === 'mock' ||
                                        environment === 'demo' ||
@@ -2198,25 +2213,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         if (environment === 'sandbox') {
                             tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://uat.buni.kcbgroup.com/token';
-                            fetchOptions = {
-                                method: 'POST',
-                                headers: {
-                                    'Authorization': `Basic ${authHeaderVal}`,
-                                    'Content-Type': 'application/x-www-form-urlencoded'
-                                },
-                                body: 'grant_type=client_credentials'
-                            };
                         } else {
                             tokenUrl = baseUrl ? (baseUrl.includes('token') ? baseUrl : `${baseUrl}/token`) : 'https://api.buni.kcbgroup.com/token';
-                            fetchOptions = {
-                                method: 'POST',
-                                headers: {
-                                    'Authorization': `Basic ${authHeaderVal}`,
-                                    'Content-Type': 'application/x-www-form-urlencoded'
-                                },
-                                body: 'grant_type=client_credentials'
-                            };
                         }
+
+                        // Ensure grant_type=client_credentials is query parameter appended to the URL per KCB spec
+                        if (!tokenUrl.includes('grant_type=')) {
+                            tokenUrl += (tokenUrl.includes('?') ? '&' : '?') + 'grant_type=client_credentials';
+                        }
+
+                        fetchOptions = {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Basic ${authHeaderVal}`,
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: 'grant_type=client_credentials'
+                        };
                         
                         console.log(`[KCB Query] Fetching OAuth token from ${tokenUrl} (${environment} mode)`);
                         const tokenRes = await fetchWithTimeout(tokenUrl, fetchOptions);
@@ -2353,6 +2366,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                       externalData.MpesaReceiptNumber ||
                                       externalData.transactionId ||
                                       externalData.TransactionID ||
+                                      externalData.responsePayload?.transactionInfo?.additionalDetails?.retrievalRefNo ||
+                                      externalData.responsePayload?.transactionInfo?.additionalDetails?.uniqueID ||
+                                      externalData.responsePayload?.transactionInfo?.additionalDetails?.offlineUniqueID ||
+                                      externalData.responsePayload?.transactionInfo?.orderingCustomer?.debitAccountNo ||
                                       null;
                     }
                     if (kcbMpesaRef) {
@@ -2361,8 +2378,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 
                 // Extract Payer Info if available
-                const payerName = externalData.PayerName || externalData.CustomerName || externalData.Payer;
-                const payerPhone = externalData.PhoneNumber || externalData.Phone || externalData.MSISDN;
+                const payerName = externalData.PayerName || 
+                                  externalData.CustomerName || 
+                                  externalData.Payer ||
+                                  externalData.responsePayload?.transactionInfo?.beneficiaryCustomer?.beneficiaryName ||
+                                  externalData.responsePayload?.transactionInfo?.orderingCustomer?.debitorReference;
+                const payerPhone = externalData.PhoneNumber || 
+                                   externalData.Phone || 
+                                   externalData.MSISDN ||
+                                   externalData.responsePayload?.transactionInfo?.orderingCustomer?.debitAccountNo;
 
                 await supabase.from(table).update({ 
                     status: finalStatus,

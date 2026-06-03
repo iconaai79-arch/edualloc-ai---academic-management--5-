@@ -2451,12 +2451,28 @@ export const App: React.FC = () => {
                 slug: `sim-${modId}-${Date.now()}`,
                 moduleStates: [
                     {
-                        id: `ms_${Date.now()}`,
+                        id: `ms_${Date.now()}_1`,
                         institutionId: instId,
                         moduleId: modId,
                         status: 'active',
                         subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
-                    }
+                    },
+                    ...(modId === 'academics' || modId === 'timetable' ? [
+                        {
+                            id: `ms_${Date.now()}_2`,
+                            institutionId: instId,
+                            moduleId: modId === 'academics' ? 'timetable' : 'academics',
+                            status: 'active',
+                            subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
+                        },
+                        {
+                            id: `ms_${Date.now()}_3`,
+                            institutionId: instId,
+                            moduleId: 'enrollment_manager',
+                            status: 'active',
+                            subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
+                        }
+                    ] : [])
                 ],
                 gradingSystems: DEFAULT_GRADING_SYSTEMS
             };

@@ -868,6 +868,8 @@ export interface KcbConfig {
     queryUrl?: string;
     passkey?: string;
     shortCode?: string;
+    tillNumber?: string;
+    sharedShortCode?: boolean;
     environment?: 'sandbox' | 'production';
     queryType?: 'stk' | 'core';
     companyCode?: string;

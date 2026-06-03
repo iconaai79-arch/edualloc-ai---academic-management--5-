@@ -1028,7 +1028,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
-            {(!isEdu || !isSchool || activeScope !== 'console_hub') && (
+            {(!(isEdu || isSchool) || activeScope !== 'console_hub') && (
                 <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar-horizontal pb-2 no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 items-center">
                     {(isEdu || isSchool) && !isDS && activeScope !== 'console_hub' && (
                         <button
