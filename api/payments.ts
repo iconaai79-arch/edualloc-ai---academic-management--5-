@@ -432,6 +432,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
 
+            const rawInvoiceNumber = accountReference || transactionReference || `INV_${Date.now()}`;
+            let formattedInvoiceNumber = rawInvoiceNumber;
+            if ((kcbConfig.sharedShortCode !== undefined ? kcbConfig.sharedShortCode : finalSharedShortCode) && finalTillNumber) {
+                const tillPrefix = `${finalTillNumber}-`;
+                if (!rawInvoiceNumber.startsWith(tillPrefix)) {
+                    formattedInvoiceNumber = `${finalTillNumber}-${rawInvoiceNumber}`;
+                }
+            }
+
             const stkPushRes = await fetch(finalStkUrl, {
                 method: 'POST',
                 headers: {
@@ -442,7 +451,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // Buni API Format parameters
                     phoneNumber: phoneNumber,
                     amount: String(Math.round(amount)),
-                    invoiceNumber: accountReference || transactionReference || `INV_${Date.now()}`,
+                    invoiceNumber: formattedInvoiceNumber,
                     sharedShortCode: kcbConfig.sharedShortCode !== undefined ? kcbConfig.sharedShortCode : finalSharedShortCode,
                     orgShortCode: shortCode || '522533',
                     orgPassKey: passkey || '',
