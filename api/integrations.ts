@@ -2170,15 +2170,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const environment = (kcbConfig.environment || 'sandbox').trim();
 
                 let finalOrgShortCode = '522533';
-                if (configShortCode) {
-                    if (configShortCode === '522533') {
-                        finalOrgShortCode = '522533';
-                    } else {
-                        const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
-                        if (isCustomPaybill) {
-                            finalOrgShortCode = configShortCode;
-                        } else {
+                if (environment === 'sandbox') {
+                    finalOrgShortCode = '522533';
+                } else {
+                    if (configShortCode) {
+                        if (configShortCode === '522533') {
                             finalOrgShortCode = '522533';
+                        } else {
+                            const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
+                            if (isCustomPaybill) {
+                                finalOrgShortCode = configShortCode;
+                            } else {
+                                finalOrgShortCode = '522533';
+                            }
                         }
                     }
                 }

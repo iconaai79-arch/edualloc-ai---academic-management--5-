@@ -281,34 +281,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
         const configTillNumber = String(kcbConfig.tillNumber || kcbConfig.till_number || '').trim();
         const rawPhone = resolvedPhone;
-
+        const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
+ 
         let finalOrgShortCode = '522533';
         let finalTillNumber = tillNumber || configTillNumber;
         let finalSharedShortCode = true;
-
-        if (configShortCode) {
-            if (configShortCode === '522533') {
-                finalOrgShortCode = '522533';
-                finalSharedShortCode = true;
-            } else {
-                const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
-                if (isCustomPaybill) {
-                    finalOrgShortCode = configShortCode;
-                    finalSharedShortCode = false;
+ 
+        if (environment === 'sandbox') {
+            finalOrgShortCode = '522533';
+            finalSharedShortCode = true;
+            finalTillNumber = configTillNumber || (configShortCode !== '522533' ? configShortCode : '');
+        } else {
+            if (configShortCode) {
+                if (configShortCode === '522533') {
+                    finalOrgShortCode = '522533';
+                    finalSharedShortCode = true;
+                } else {
+                    const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
+                    if (isCustomPaybill) {
+                        finalOrgShortCode = configShortCode;
+                        finalSharedShortCode = false;
+                    } else {
+                        finalOrgShortCode = '522533';
+                        finalTillNumber = finalTillNumber || configShortCode;
+                        finalSharedShortCode = true;
+                    }
+                }
+            } else if (organizationShortCode) {
+                if (organizationShortCode === '522533') {
+                    finalOrgShortCode = '522533';
+                    finalSharedShortCode = true;
                 } else {
                     finalOrgShortCode = '522533';
-                    finalTillNumber = finalTillNumber || configShortCode;
+                    finalTillNumber = finalTillNumber || organizationShortCode;
                     finalSharedShortCode = true;
                 }
-            }
-        } else if (organizationShortCode) {
-            if (organizationShortCode === '522533') {
-                finalOrgShortCode = '522533';
-                finalSharedShortCode = true;
-            } else {
-                finalOrgShortCode = '522533';
-                finalTillNumber = finalTillNumber || organizationShortCode;
-                finalSharedShortCode = true;
             }
         }
 
@@ -328,7 +335,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const transactionDesc = narration || body.transactionDesc || '';
         const institutionId = resolvedInstitutionId;
 
-        const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
+        // environment is already declared above
         const isKcbDemo = environment === 'mock' ||
                           environment === 'demo' ||
                           !appKey || !appSecret || 
@@ -450,9 +457,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 phoneNumber: phoneNumber,
                 amount: String(Math.round(amount)),
                 invoiceNumber: formattedInvoiceNumber,
-                sharedShortCode: kcbConfig.sharedShortCode !== undefined
-                    ? Boolean(kcbConfig.sharedShortCode)
-                    : finalSharedShortCode,
+                sharedShortCode: environment === 'sandbox'
+                    ? true
+                    : (kcbConfig.sharedShortCode !== undefined
+                        ? Boolean(kcbConfig.sharedShortCode)
+                        : finalSharedShortCode),
                 orgShortCode: shortCode || '522533',
                 callbackUrl: callbackUrl,
                 transactionDescription: (transactionDesc || 'Payment').substring(0, 50)
@@ -665,23 +674,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const baseUrl = String(kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
         const queryUrl = String(kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
         const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
-
+        const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
         let finalOrgShortCode = '522533';
-        if (configShortCode) {
-            if (configShortCode === '522533') {
-                finalOrgShortCode = '522533';
-            } else {
-                const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
-                if (isCustomPaybill) {
-                    finalOrgShortCode = configShortCode;
-                } else {
+        if (environment === 'sandbox') {
+            finalOrgShortCode = '522533';
+        } else {
+            if (configShortCode) {
+                if (configShortCode === '522533') {
                     finalOrgShortCode = '522533';
+                } else {
+                    const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
+                    if (isCustomPaybill) {
+                        finalOrgShortCode = configShortCode;
+                    } else {
+                        finalOrgShortCode = '522533';
+                    }
                 }
             }
         }
         const shortCode = finalOrgShortCode;
 
-        const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
         const isKcbQueryDemo = environment === 'mock' ||
                                environment === 'demo' ||
                                !appKey || !appSecret || 
