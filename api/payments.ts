@@ -79,16 +79,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 headers: { 'Authorization': `Basic ${authStr}` }
             });
 
+            const oauthText = await oauth.text();
             if (!oauth.ok) {
-                const errText = await oauth.text();
                 return res.status(200).json({
                     success: false,
                     message: 'M-Pesa authentication failed. Check Consumer Key/Secret.',
-                    details: errText
+                    details: oauthText
                 });
             }
 
-            const { access_token } = (await oauth.json()) as any;
+            let oauthData: any;
+            try {
+                oauthData = JSON.parse(oauthText);
+            } catch (e) {
+                console.error('[M-Pesa STK] Failed to parse oauth response:', e);
+                return res.status(200).json({
+                    success: false,
+                    message: 'M-Pesa authentication response is not valid JSON.',
+                    details: oauthText
+                });
+            }
+            const { access_token } = oauthData;
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
 
@@ -111,8 +122,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 })
             });
 
-            const stkData = (await stkRes.json()) as any;
-            if (stkRes.ok && stkData.ResponseCode === '0') {
+            const stkText = await stkRes.text();
+            if (!stkRes.ok) {
+                return res.status(200).json({
+                    success: false,
+                    message: `M-Pesa STK push request failed (Status ${stkRes.status}).`,
+                    details: stkText
+                });
+            }
+
+            let stkData: any;
+            try {
+                stkData = JSON.parse(stkText);
+            } catch (e) {
+                console.error('[M-Pesa STK] Failed to parse STK response:', e);
+                return res.status(200).json({
+                    success: false,
+                    message: 'M-Pesa STK push response is not valid JSON.',
+                    details: stkText
+                });
+            }
+
+            if (stkData.ResponseCode === '0') {
                 return res.status(200).json({
                     success: true,
                     ResponseCode: '0',
@@ -362,17 +393,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[KCB STK] Fetching OAuth token from ${tokenUrl} (${environment} mode)`);
             const tokenRes = await fetch(tokenUrl, fetchOptions);
 
+            const tokenText = await tokenRes.text();
             if (!tokenRes.ok) {
-                const errText = await tokenRes.text();
                 return res.status(200).json({
                     success: false,
                     message: `KCB Authentication failed (Status ${tokenRes.status}). Verify App Key and Secret.`,
-                    details: errText
+                    details: tokenText
                 });
             }
 
-            const tokenData = await tokenRes.json() as any;
+            let tokenData: any;
+            try {
+                tokenData = JSON.parse(tokenText);
+            } catch (e) {
+                console.error('[KCB STK] Failed to parse token response:', e);
+                return res.status(200).json({
+                    success: false,
+                    message: `KCB Authentication response is not valid JSON (Status ${tokenRes.status}).`,
+                    details: tokenText
+                });
+            }
             const access_token = tokenData.access_token;
+            if (!access_token) {
+                return res.status(200).json({
+                    success: false,
+                    message: 'KCB Authentication succeeded but did not return an access_token.',
+                    details: tokenText
+                });
+            }
 
             const finalStkUrl = stkPushUrl || (baseUrl ? `${baseUrl}/mm/api/request/1.0.0/stkpush` : (
                 environment === 'sandbox'
@@ -420,8 +468,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 })
             });
 
-            const stkPushData = await stkPushRes.json() as any;
-            if (stkPushRes.ok) {
+            const stkPushText = await stkPushRes.text();
+            if (!stkPushRes.ok) {
+                console.error(`[KCB STK] Push request failed with status ${stkPushRes.status}:`, stkPushText);
+                return res.status(200).json({
+                    success: false,
+                    message: `KCB STK push failed with status ${stkPushRes.status}.`,
+                    details: stkPushText
+                });
+            }
+
+            let stkPushData: any;
+            try {
+                stkPushData = JSON.parse(stkPushText);
+            } catch (e) {
+                console.error('[KCB STK] Failed to parse STK push response:', e);
+                return res.status(200).json({
+                    success: false,
+                    message: `KCB STK push returned invalid response format (Status ${stkPushRes.status}).`,
+                    details: stkPushText
+                });
+            }
+
+            if (true) {
                 const checkoutRequestId = stkPushData.CheckoutRequestID || stkPushData.checkoutRequestID || stkPushData.checkoutRequestId || `KCB_CO_${Date.now()}`;
                 
                 // KCB may return response codes or result codes in various casing
@@ -627,15 +696,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[KCB Query] Fetching OAuth token from ${tokenUrl} (${environment} mode)`);
             const tokenRes = await fetch(tokenUrl, fetchOptions);
 
+            const tokenText = await tokenRes.text();
             if (!tokenRes.ok) {
                 return res.status(200).json({
                     success: false,
-                    message: 'KCB Auth failed during status query.'
+                    message: 'KCB Auth failed during status query.',
+                    details: tokenText
                 });
             }
 
-            const tokenData = await tokenRes.json() as any;
+            let tokenData: any;
+            try {
+                tokenData = JSON.parse(tokenText);
+            } catch (e) {
+                console.error('[KCB Query] Failed to parse token response:', e);
+                return res.status(200).json({
+                    success: false,
+                    message: 'KCB Auth failed during status query: invalid response format.',
+                    details: tokenText
+                });
+            }
             const access_token = tokenData.access_token;
+            if (!access_token) {
+                return res.status(200).json({
+                    success: false,
+                    message: 'KCB Auth failed during status query: access_token missing.',
+                    details: tokenText
+                });
+            }
 
             const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/mm/api/request/1.0.0/query` : (
                 environment === 'sandbox'
@@ -660,8 +748,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 })
             });
 
-            const queryData = await queryRes.json() as any;
-            if (queryRes.ok) {
+            const queryText = await queryRes.text();
+            if (!queryRes.ok) {
+                return res.status(200).json({
+                    success: false,
+                    message: `KCB Status query failed with status ${queryRes.status}.`,
+                    details: queryText
+                });
+            }
+
+            let queryData: any;
+            try {
+                queryData = JSON.parse(queryText);
+            } catch (e) {
+                console.error('[KCB Query] Failed to parse query response:', e);
+                return res.status(200).json({
+                    success: false,
+                    message: 'KCB Status query response is not valid JSON.',
+                    details: queryText
+                });
+            }
+
+            if (true) {
                 const resultCode = queryData.ResultCode !== undefined ? String(queryData.ResultCode) : 
                                   (queryData.resultCode !== undefined ? String(queryData.resultCode) : 
                                   (queryData.Result?.ResultCode !== undefined ? String(queryData.Result.ResultCode) : ''));

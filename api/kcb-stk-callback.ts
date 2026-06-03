@@ -57,6 +57,62 @@ const getParam = (body: any, query: any, key: string): string => {
     return '';
 };
 
+// Recursive helper to extract M-Pesa receipt number from nested structures
+const findMpesaReceipt = (obj: any): string => {
+    if (!obj || typeof obj !== 'object') return '';
+    
+    // Check if standard key directly exists
+    const directKeys = [
+        'mpesaReceiptNumber', 'MpesaReceiptNumber', 'mpesareceiptnumber',
+        'receiptNumber', 'ReceiptNumber', 'transactionId', 'TransactionID',
+        'mpesaRef', 'MpesaRef', 'mpesaref', 'receipt', 'Receipt'
+    ];
+    for (const key of directKeys) {
+        if (obj[key] && typeof obj[key] !== 'object') {
+            const val = String(obj[key]).trim();
+            if (val && !val.toLowerCase().includes('not provided') && !val.toLowerCase().includes('null') && !val.toLowerCase().includes('undefined')) {
+                return val;
+            }
+        }
+    }
+
+    // Check if it's CallbackMetadata Item array
+    if (obj.Item && Array.isArray(obj.Item)) {
+        for (const item of obj.Item) {
+            if (item && /mpesa.*receipt|receipt.*number/i.test(item.Name || item.Key || '')) {
+                if (item.Value && typeof item.Value !== 'object') {
+                    const val = String(item.Value).trim();
+                    if (val) return val;
+                }
+            }
+        }
+    }
+
+    // Check if it's ResultParameter array
+    if (obj.ResultParameter) {
+        const list = Array.isArray(obj.ResultParameter) ? obj.ResultParameter : [obj.ResultParameter];
+        for (const p of list) {
+            if (p && /mpesa.*receipt|receipt.*number|transactionId|mpesaref/i.test(p.Key || p.Name || '')) {
+                if (p.Value && typeof p.Value !== 'object') {
+                    const val = String(p.Value).trim();
+                    if (val) return val;
+                }
+            }
+        }
+    }
+
+    // Recurse into children
+    for (const key in obj) {
+        if (obj[key] && typeof obj[key] === 'object') {
+            const found = findMpesaReceipt(obj[key]);
+            if (found) return found;
+        }
+    }
+
+    return '';
+};
+
+
 /**
  * KCB STK Push Callback Handler
  * 
@@ -160,11 +216,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const originatorConversationID = header.originatorConversationID || header.conversationID || '';
         const primaryData = body.requestPayload?.primaryData || {};
         const businessKey = primaryData.businessKey || '';
+        const stkCallback = body.Body?.stkCallback || {};
 
-        // ResultCode / status: check multiple formats KCB may send
         // ResultCode / status: check multiple formats KCB may send
         let resultCode = String(
             body.ResultCode ?? body.resultCode ??
+            stkCallback.ResultCode ??
             body.Result?.ResultCode ?? primaryData.resultCode ?? 
             getParam(body, req.query, 'statusCode') ?? ''
         );
@@ -172,13 +229,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!resultCode && (getParam(body, req.query, 'transactionReference') || getParam(body, req.query, 'requestId'))) {
             resultCode = '0';
         }
-        const resultDesc = body.ResultDesc || body.resultDesc || body.Result?.ResultDesc || primaryData.resultDescription || '';
+        const resultDesc = body.ResultDesc || body.resultDesc || stkCallback.ResultDesc || body.Result?.ResultDesc || primaryData.resultDescription || '';
 
         // Checkout request ID - used to match the pending transaction
         const checkoutRequestId = 
             body.CheckoutRequestID ||
             body.checkoutRequestID ||
             body.checkoutRequestId ||
+            stkCallback.CheckoutRequestID ||
+            stkCallback.MerchantRequestID ||
             primaryData.checkoutRequestID ||
             originatorConversationID ||
             getParam(body, req.query, 'requestId') ||
@@ -186,26 +245,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             '';
 
         // ---- Extract M-Pesa receipt reference ----
-        // KCB/Safaricom format 1: CallbackMetadata.Item array
+        // KCB/Safaricom format 1: CallbackMetadata.Item array (root or nested under Body.stkCallback)
         let mpesaReceiptNumber = '';
-        if (body.CallbackMetadata?.Item && Array.isArray(body.CallbackMetadata.Item)) {
-            for (const item of body.CallbackMetadata.Item) {
+        const callbackMetadata = body.CallbackMetadata || stkCallback.CallbackMetadata;
+        if (callbackMetadata?.Item && Array.isArray(callbackMetadata.Item)) {
+            for (const item of callbackMetadata.Item) {
                 if (/mpesa.*receipt|receipt.*number/i.test(item.Name || item.Key || '')) {
                     mpesaReceiptNumber = String(item.Value || '');
                     break;
                 }
             }
         }
-        // KCB Buni format 2: ResultParameters.ResultParameter array
-        if (!mpesaReceiptNumber && body.ResultParameters?.ResultParameter) {
-            for (const p of body.ResultParameters.ResultParameter) {
-                if (/mpesa.*receipt|receipt.*number|transactionId|mpesaref/i.test(p.Key || p.Name || '')) {
+        // KCB Buni format 2: ResultParameters.ResultParameter array (root or nested)
+        const resultParams = body.ResultParameters || body.Result?.ResultParameters || stkCallback.ResultParameters;
+        if (!mpesaReceiptNumber && resultParams?.ResultParameter) {
+            const list = Array.isArray(resultParams.ResultParameter) ? resultParams.ResultParameter : [resultParams.ResultParameter];
+            for (const p of list) {
+                if (p && /mpesa.*receipt|receipt.*number|transactionId|mpesaref/i.test(p.Key || p.Name || '')) {
                     mpesaReceiptNumber = String(p.Value || '');
                     break;
                 }
             }
         }
-        // KCB Buni format 3: primaryData.mpesaReceiptNumber or businessKey
+        // KCB Buni format 3: primaryData.mpesaReceiptNumber or businessKey or query param
         if (!mpesaReceiptNumber) {
             mpesaReceiptNumber =
                 primaryData.mpesaReceiptNumber ||
@@ -218,9 +280,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 '';
         }
 
+        // Fallback: Deep recursive search in case the receipt is in a custom or differently nested field
+        if (!mpesaReceiptNumber || mpesaReceiptNumber.toLowerCase().includes('not provided') || mpesaReceiptNumber.toLowerCase() === 'null') {
+            const scanResult = findMpesaReceipt(body);
+            if (scanResult) {
+                mpesaReceiptNumber = scanResult;
+            }
+        }
+
         console.log(`[KCB STK Callback] CheckoutRequestID: ${checkoutRequestId}`);
         console.log(`[KCB STK Callback] ResultCode: ${resultCode}`);
         console.log(`[KCB STK Callback] M-Pesa Receipt: ${mpesaReceiptNumber || '(not provided)'}`);
+
 
         // --- Caller Authentication Check for Production Setups ---
         let resolvedInstitutionId = 'SYSTEM';
