@@ -2174,11 +2174,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             onSubmit: async (reason) => {
                 try {
                     setIsActionLoading(true);
+                    const requesterName = (currentUser?.name && !['super_admin', 'superadmin', 'super admin', 'admin', 'director'].includes(currentUser.name.toLowerCase()))
+                        ? currentUser.name
+                        : (currentUser?.email || 'Admin');
                     await onUpdatePayment({
                         ...payment,
                         status: 'Pending Deletion',
                         deletionReason: reason,
-                        deletionRequestedBy: currentUser?.name || currentUser?.email || 'Admin'
+                        deletionRequestedBy: requesterName
                     });
                 } catch (err) {
                     console.error(err);
@@ -2216,6 +2219,41 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         } finally {
             setIsActionLoading(false);
         }
+    };
+
+    const getRequesterName = (requestedBy?: string) => {
+        if (!requestedBy) return 'Admin';
+        
+        const matchedUser = (users || []).find(u => 
+            (u.name && u.name.toLowerCase() === requestedBy.toLowerCase()) ||
+            (u.email && u.email.toLowerCase() === requestedBy.toLowerCase()) ||
+            u.id === requestedBy
+        );
+
+        if (matchedUser && matchedUser.name) {
+            const isRoleVal = ['super_admin', 'superadmin', 'super admin', 'admin', 'director'].includes(matchedUser.name.toLowerCase());
+            if (!isRoleVal) {
+                return matchedUser.name;
+            }
+        }
+
+        if (['super_admin', 'superadmin', 'super admin', 'admin', 'director'].includes(requestedBy.toLowerCase())) {
+            const userWithRole = (users || []).find(u => 
+                (u.role && u.role.toLowerCase() === requestedBy.toLowerCase()) ||
+                (Array.isArray(u.roles) && u.roles.some(r => r.toLowerCase() === requestedBy.toLowerCase()))
+            );
+            if (userWithRole && userWithRole.name) {
+                const isRoleVal = ['super_admin', 'superadmin', 'super admin', 'admin', 'director'].includes(userWithRole.name.toLowerCase());
+                if (!isRoleVal) {
+                    return userWithRole.name;
+                }
+            }
+            if (requestedBy.toLowerCase().includes('super')) {
+                return 'System Super Admin';
+            }
+        }
+
+        return requestedBy;
     };
     const [financeTab, setFinanceTab] = useState<'invoices' | 'payments' | 'feeds'>('invoices');
     const [invoiceSearch, setInvoiceSearch] = useState('');
@@ -5602,7 +5640,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                      Pending Deletion Requests
                                                  </h4>
                                                  <p className="text-[10px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-widest mt-1">
-                                                     Awaiting director or super admin confirmation before full deletion
+                                                     Awaiting director confirmation before full deletion
                                                  </p>
                                              </div>
                                              <div className="overflow-x-auto">
@@ -5624,7 +5662,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                  <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">{payment.studentName}</td>
                                                                  <td className="px-6 py-4 font-bold text-sm text-slate-900 dark:text-white">KES {(payment.amount ?? 0)?.toLocaleString()}</td>
                                                                  <td className="px-6 py-4 text-xs italic text-rose-600 dark:text-rose-400">{payment.deletionReason}</td>
-                                                                 <td className="px-6 py-4 text-xs text-slate-500">{payment.deletionRequestedBy || 'Admin'}</td>
+                                                                 <td className="px-6 py-4 text-xs text-slate-500">{getRequesterName(payment.deletionRequestedBy)}</td>
                                                                  <td className="px-6 py-4 text-right space-x-2">
                                                                      {(isDirector || isSuperAdmin) ? (
                                                                          <>
@@ -5643,7 +5681,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                          </>
                                                                      ) : (
                                                                          <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded">
-                                                                             Awaiting Director / Super Admin
+                                                                             Awaiting Director
                                                                          </span>
                                                                      )}
                                                                  </td>
