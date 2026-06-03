@@ -2279,11 +2279,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     }
                                 };
                             } else {
-                                finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : (
-                                    environment === 'sandbox'
-                                    ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
-                                    : 'https://api.kcbgroup.com/kcb/stkpush/v1/query'
-                                ));
+                                 finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : (
+                                     environment === 'sandbox'
+                                     ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
+                                     : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/query'
+                                 ));
                                 const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
                                 const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
                                 requestBody = {

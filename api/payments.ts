@@ -377,7 +377,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const finalStkUrl = stkPushUrl || (baseUrl ? `${baseUrl}/mm/api/request/1.0.0/stkpush` : (
                 environment === 'sandbox'
                 ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
-                : 'https://api.kcbgroup.com/mm/api/request/1.0.0/stkpush'
+                : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
             ));
             console.log(`[KCB STK] Initiating STK push to ${finalStkUrl}`);
             
@@ -640,7 +640,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/mm/api/request/1.0.0/query` : (
                 environment === 'sandbox'
                 ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
-                : 'https://api.kcbgroup.com/mm/api/request/1.0.0/query'
+                : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/query'
             ));
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');

@@ -870,6 +870,7 @@ export interface KcbConfig {
     shortCode?: string;
     tillNumber?: string;
     sharedShortCode?: boolean;
+    authorizeUrl?: string;
     environment?: 'sandbox' | 'production';
     queryType?: 'stk' | 'core';
     companyCode?: string;
