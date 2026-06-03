@@ -257,6 +257,33 @@ export interface User {
     admission_number?: string;
 }
 
+export interface StudentEnrollment {
+    id: string;
+    institutionId: string;
+    userId: string;
+    enrollmentType: 'academic' | 'driving_school';
+    admissionNumber?: string;
+    status: 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped';
+    enrollmentDate: string;
+    metadata: {
+        licenseTypeInterested?: string;
+        licenseCategory?: string;
+        preferredInstructorId?: string;
+        theoryProgressPercent?: number;
+        practicalProgressPercent?: number;
+        ntsaBookingStatus?: string;
+        priorAttendedDays?: number;
+        gradeLevel?: string;
+        stream?: string;
+        subjects?: string[];
+        parentName?: string;
+        parentPhone?: string;
+        parentEmail?: string;
+    } | any;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 export interface GradeDefinition {
     id: string;
     grade: string;

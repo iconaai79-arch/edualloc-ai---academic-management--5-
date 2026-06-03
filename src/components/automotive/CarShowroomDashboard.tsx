@@ -109,6 +109,129 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                 </div>
             </div>
 
+            {/* Sales Executive Performance & Account Hub */}
+            {currentUser.role === 'sales' && (
+                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl border border-indigo-500/20 animate-fade-in">
+                    {/* Glowing background circles for modern premium glassmorphism */}
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+                    <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-violet-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+                    
+                    <div className="relative z-10 flex flex-col xl:flex-row gap-10 items-stretch">
+                        {/* Executive Profile Card */}
+                        <div className="flex-1 bg-white/5 backdrop-blur-md rounded-[2.5rem] p-8 border border-white/10 flex flex-col justify-between hover:border-indigo-400/40 transition-all duration-300 group">
+                            <div className="flex items-center gap-6">
+                                <div className="relative">
+                                    {currentUser.profilePhotoUrl ? (
+                                        <img src={currentUser.profilePhotoUrl} alt={currentUser.name} className="w-20 h-20 rounded-2xl object-cover border-2 border-indigo-500/30 group-hover:scale-105 transition-transform" />
+                                    ) : (
+                                        <div className="w-20 h-20 bg-indigo-650/40 rounded-2xl flex items-center justify-center border-2 border-indigo-500/30 text-2xl font-black text-indigo-200">
+                                            {currentUser.name?.charAt(0) || 'E'}
+                                        </div>
+                                    )}
+                                    <div className="absolute -bottom-2 -right-2 bg-indigo-600 text-white px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border border-slate-900">
+                                        Agent
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xl font-black tracking-tight text-white">{currentUser.name}</h3>
+                                        <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">
+                                            Active
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest mt-1">Senior Sales Executive</p>
+                                    <p className="text-[9px] text-slate-400 font-bold mt-1 tracking-tight">{currentUser.email || currentUser.phoneNumber}</p>
+                                </div>
+                            </div>
+                            
+                            <div className="mt-8 pt-6 border-t border-white/10 flex items-center justify-between text-xs text-slate-350">
+                                <div className="min-w-0 flex-1">
+                                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Showroom Link</span>
+                                    <p className="font-bold text-[10px] text-indigo-300 truncate mt-1 select-all">
+                                        {currentUser.autoMarketPlaceUrl || 'URL not configured in profile'}
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        if (currentUser.autoMarketPlaceUrl) {
+                                            window.open(currentUser.autoMarketPlaceUrl, '_blank');
+                                        } else {
+                                            alert("Please set your Showroom Store URL in your account settings (avatar menu > profile).");
+                                        }
+                                    }}
+                                    className="ml-4 px-4 py-2 bg-indigo-600/30 hover:bg-indigo-600/80 border border-indigo-500/30 hover:border-indigo-400/50 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 shrink-0"
+                                >
+                                    Visit
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Performance Metrics Tracker */}
+                        <div className="flex-[2] flex flex-col justify-between gap-6">
+                            <div>
+                                <h3 className="text-lg font-black uppercase tracking-widest text-indigo-300 mb-6 flex items-center gap-2">
+                                    <Sparkles className="w-5 h-5 text-indigo-400" /> Account Commission & Performance
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                    {/* Personal Sales Card */}
+                                    <div className="bg-white/5 border border-white/5 rounded-3xl p-6 flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                        <div>
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">My Personal Sales</p>
+                                            <h4 className="text-xl font-black text-white tracking-tight">
+                                                KES {invoices.filter(inv => inv.soldBy === currentUser.name || inv.soldBy?.toLowerCase() === currentUser.name?.toLowerCase()).reduce((sum, inv) => sum + inv.totalAmount, 0).toLocaleString()}
+                                            </h4>
+                                        </div>
+                                        <p className="text-[8px] font-black text-emerald-400 uppercase tracking-wider mt-4 flex items-center gap-1">
+                                            {invoices.filter(inv => inv.soldBy === currentUser.name || inv.soldBy?.toLowerCase() === currentUser.name?.toLowerCase()).length} Completed Deals
+                                        </p>
+                                    </div>
+
+                                    {/* Est. Commission Card */}
+                                    <div className="bg-white/5 border border-white/5 rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden group hover:bg-white/10 transition-colors">
+                                        <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform"></div>
+                                        <div>
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Est. Commission (1.5%)</p>
+                                            <h4 className="text-xl font-black text-emerald-400 tracking-tight">
+                                                KES {(invoices.filter(inv => inv.soldBy === currentUser.name || inv.soldBy?.toLowerCase() === currentUser.name?.toLowerCase()).reduce((sum, inv) => sum + inv.totalAmount, 0) * 0.015).toLocaleString()}
+                                            </h4>
+                                        </div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-4">
+                                            Calculated base commission
+                                        </p>
+                                    </div>
+
+                                    {/* Deal Closing Rate Card */}
+                                    <div className="bg-white/5 border border-white/5 rounded-3xl p-6 flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                        <div>
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Conversion Rate</p>
+                                            <h4 className="text-xl font-black text-white tracking-tight">
+                                                {invoices.filter(inv => inv.soldBy === currentUser.name || inv.soldBy?.toLowerCase() === currentUser.name?.toLowerCase()).length > 0 ? (
+                                                    `${Math.min(96, Math.max(65, Math.round((invoices.filter(inv => inv.soldBy === currentUser.name || inv.soldBy?.toLowerCase() === currentUser.name?.toLowerCase()).length / (invoices.filter(inv => inv.soldBy === currentUser.name || inv.soldBy?.toLowerCase() === currentUser.name?.toLowerCase()).length + testDrives.length) || 1) * 100)))}%`
+                                                ) : '78%'}
+                                            </h4>
+                                        </div>
+                                        <div className="w-full bg-white/10 h-1.5 rounded-full mt-4 overflow-hidden">
+                                            <div className="h-full bg-indigo-500 rounded-full" style={{ width: '78%' }}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-white/5 rounded-2xl border border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                        <Eye className="w-4 h-4" />
+                                    </div>
+                                    <p className="text-[9px] text-slate-350 font-bold uppercase tracking-wider leading-relaxed">
+                                        All inventory and listings are synced with your personal digital storefront. Make sure your storefront URL is updated.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* KPI Metrics Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">

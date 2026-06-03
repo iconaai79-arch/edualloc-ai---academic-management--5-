@@ -23,7 +23,8 @@ import {
     Clock,
     Heart,
     Plus,
-    Printer
+    Printer,
+    Hash
 } from 'lucide-react';
 import type { CarListing } from '../types';
 import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';

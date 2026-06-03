@@ -420,7 +420,8 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                 { id: 'library', name: 'Library Management', description: 'Comprehensive library system with cataloging, issuing, returning, and fine tracking features.' },
                                 { id: 'academics', name: 'Academics & Grading', description: 'Advanced academic tracking, grading systems, report card generation, and student performance analytics.' },
                                 { id: 'finance', name: 'Finance & Accounting', description: 'Integrated financial management, fee collection, invoicing, expense tracking, and financial reporting.' },
-                                { id: 'timetable', name: 'Smart Timetable', description: 'Automated timetable generation, conflict resolution, and teacher schedule management.' }
+                                { id: 'timetable', name: 'Smart Timetable', description: 'Automated timetable generation, conflict resolution, and teacher schedule management.' },
+                                { id: 'enrollment_manager', name: 'Student Enrollment Manager', description: 'Unified, context-aware student registry and enrollment portal supporting both academic and driving school curriculums with biometric scanner integration.' }
                             ].map(module => {
                                 const state = institution.moduleStates?.find(m => m.moduleId === module.id);
                                 const isInactive = !state || state.status === 'inactive';

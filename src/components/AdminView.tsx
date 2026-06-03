@@ -60,6 +60,7 @@ const CarSalesLedger = lazy(() => import('./automotive/CarSalesLedger').then(m =
 const BankFeedsManager = lazy(() => import('./automotive/BankFeedsManager').then(m => ({ default: m.BankFeedsManager })));
 const ShowroomConfigManager = lazy(() => import('./automotive/ShowroomConfigManager').then(m => ({ default: m.ShowroomConfigManager })));
 const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
+const StudentEnrollmentManager = lazy(() => import('./common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager })));
 
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
@@ -466,7 +467,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds'>('console_hub');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
@@ -747,6 +748,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'fuel_station', label: 'Fuel Station', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'showcase', label: 'Digital Presence', icon: <GlobeAltIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
+            { id: 'enrollment', label: 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
         ];
 
 
@@ -762,7 +764,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         }
 
         if (isDS || activeScope === 'ds') {
-            return [
+            const dsTabs = [
                 { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_students', label: 'Students', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_leads', label: 'Enquiries', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
@@ -772,9 +774,15 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 { id: 'ds_instructors', label: 'Instructors', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_finance', label: 'Finance', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_broadcaster', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
-                { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
-                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             ];
+            if (isModuleActive('enrollment_manager')) {
+                dsTabs.push({ id: 'enrollment', label: 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> });
+            }
+            dsTabs.push(
+                { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> }
+            );
+            return dsTabs;
         }
 
         if (isCoop) {
@@ -821,6 +829,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     const academicsTabs = ['settings', 'reports'];
                     if (isModuleActive('timetable')) academicsTabs.push('timetable');
                     if (isModuleActive('academics')) academicsTabs.push('courses');
+                    if (isModuleActive('enrollment_manager')) academicsTabs.push('enrollment');
                     return academicsTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
@@ -916,6 +925,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 return (isSchool || isEdu) && !isDS && ['admin', 'head_teacher', 'dos', 'super_admin'].includes(roleToUse || '');
             }
 
+            if (tab.id === 'enrollment') {
+                return isModuleActive('enrollment_manager');
+            }
+
             return true;
         });
 
@@ -1007,6 +1020,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         else if (tabId === 'boarding' || tabId === 'leaveout') moduleId = 'boarding';
         else if (tabId === 'transport') moduleId = 'transport';
         else if (tabId === 'retail') moduleId = 'school_store';
+        else if (tabId === 'enrollment') moduleId = 'enrollment_manager';
         
         if (!moduleId) return null;
         return props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
@@ -1047,7 +1061,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded font-black tracking-wider uppercase flex items-center gap-1 animate-pulse">
                                         Trial
                                     </span>
-                                ) : (tab.id === 'timetable' || tab.id === 'courses' || tab.id === 'boarding' || tab.id === 'leaveout' || tab.id === 'transport' || tab.id === 'retail') && (!modState || modState.status !== 'active') ? (
+                                ) : (tab.id === 'timetable' || tab.id === 'courses' || tab.id === 'boarding' || tab.id === 'leaveout' || tab.id === 'transport' || tab.id === 'retail' || tab.id === 'enrollment') && (!modState || modState.status !== 'active') ? (
                                     <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded font-medium normal-case flex items-center gap-1">
                                         <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                         Unlock
@@ -1607,6 +1621,58 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 );
                             })()}
 
+                            {/* Card 11: Student Enrollment Manager */}
+                            {(() => {
+                                const isActive = isModuleActive('enrollment_manager');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The Student Enrollment module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            setActiveScope('academics'); 
+                                            setActiveTab('enrollment'); 
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-indigo-600 text-white rounded-2xl w-fit shadow-lg shadow-indigo-100 dark:shadow-none">
+                                                <UserPlusIcon className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Enrollment Manager</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Onboard student identity registries, manage course cohorts, record license class requirements, and verify biometric scan keys.
+                                                </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('enrollment_manager');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate enrollment trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-indigo-600 hover:bg-indigo-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                         </div>
                     </div>
                 ) : (
@@ -2017,6 +2083,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </ModuleAccessGuard>
                 )}
 
+                {activeTab === 'enrollment' && (
+                    <ModuleAccessGuard
+                        moduleId="enrollment_manager"
+                        moduleName="Student Enrollment Manager"
+                        description="Unified student registry and enrollment portal supporting both academic and driving school curriculums with biometric scanner integration."
+                        institution={props.currentInstitution}
+                        onActivateTrial={onActivateModuleTrial}
+                    >
+                        <StudentEnrollmentManager
+                            context={isDS ? 'driving_school' : 'academic'}
+                            currentInstitution={props.currentInstitution!}
+                        />
+                    </ModuleAccessGuard>
+                )}
+
                 {activeTab === 'users' && (
                     <UserManager {...props as any}
                         {...props}
@@ -2145,7 +2226,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         mpesaConfig={props.companyDetails?.mpesaConfig}
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
-                        moduleContext={(isCoop ? 'cooperative' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school')) as any}
+                        moduleContext={(isCoop ? 'cooperative' : (isAutoMarket ? 'auto_marketplace' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school'))) as any}
                         courses={props.courses || []}
                     />
                 )}

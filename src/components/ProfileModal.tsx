@@ -132,7 +132,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, current
 
   if (!currentUser) return null;
 
-  const isCarShowroom = currentInstitution?.institutionType === 'Car Showroom';
+  const type = currentInstitution?.institutionType;
+  const cat = currentInstitution?.category;
+  const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
+  const instName = currentInstitution?.name?.toLowerCase() || '';
+  const isCarShowroom = type === 'Car Showroom' || cat === 'Automotive Marketplace' || cat === 'Car Showroom' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || instName.includes('motors') || instName.includes('car sales') || subType.includes('showroom');
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>

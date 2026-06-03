@@ -18,7 +18,7 @@ interface CommunicationsManagerProps {
     mpesaConfig?: MpesaConfig;
     smsConfig?: SmsConfig;
     onRefreshData?: () => void;
-    moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet' | 'cooperative' | 'church';
+    moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet' | 'cooperative' | 'church' | 'auto_marketplace';
     companyDetails?: any;
     transactions?: MpesaTransaction[];
 }
@@ -118,17 +118,20 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const filteredUsersForIndividualSelection = useMemo(() => {
         if (!searchTerm) return [];
         let availableUsers = users;
+        if (!isSuperAdminView && currentInstitution) {
+            availableUsers = availableUsers.filter(u => u.institutionId === currentInstitution.id);
+        }
 
         // Filter for HOD
         if (currentUser && (currentUser.role === 'hod' || currentUser.role === 'dos') && currentUser.departmentId) {
-            availableUsers = users.filter(u => u.departmentId === currentUser.departmentId || (u.role === 'student' && courses.some(c => c.id === u.courseId && c.departmentId === currentUser.departmentId)));
+            availableUsers = availableUsers.filter(u => u.departmentId === currentUser.departmentId || (u.role === 'student' && courses.some(c => c.id === u.courseId && c.departmentId === currentUser.departmentId)));
         }
 
         return availableUsers.filter(u =>
             u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             u.staffId?.toLowerCase().includes(searchTerm.toLowerCase())
         ).slice(0, 100); // Limit to 100 results for performance
-    }, [users, searchTerm, currentUser, courses]);
+    }, [users, searchTerm, currentUser, courses, isSuperAdminView, currentInstitution]);
 
     const smsTransactions = useMemo(() => {
         if (!transactions) return [];
@@ -175,22 +178,29 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
 
     const leadModelOptions = useMemo(() => {
         const models = new Set<string>();
-        users.filter(u => u.role === 'lead' && u.metadata?.enquiredModels).forEach(u => {
+        let availableUsers = users;
+        if (!isSuperAdminView && currentInstitution) {
+            availableUsers = availableUsers.filter(u => u.institutionId === currentInstitution.id);
+        }
+        availableUsers.filter(u => u.role === 'lead' && u.metadata?.enquiredModels).forEach(u => {
             u.metadata.enquiredModels.forEach((m: string) => models.add(m));
         });
         return Array.from(models).sort();
-    }, [users]);
+    }, [users, isSuperAdminView, currentInstitution]);
 
     const [leadModelFilter, setLeadModelFilter] = useState('all');
 
     const recipientList = useMemo(() => {
         let baseUsers = users;
+        if (!isSuperAdminView && currentInstitution) {
+            baseUsers = baseUsers.filter(u => u.institutionId === currentInstitution.id);
+        }
 
         // Apply base filter for HOD
         if (currentUser && (currentUser.role === 'hod' || currentUser.role === 'dos') && currentUser.departmentId) {
             // HODs can message: staff in dept, students in dept courses
             const allowedCourseIds = new Set(courses.filter(c => c.departmentId === currentUser.departmentId).map(c => c.id));
-            baseUsers = users.filter(u =>
+            baseUsers = baseUsers.filter(u =>
                 u.departmentId === currentUser.departmentId ||
                 (u.role === 'student' && u.courseId && allowedCourseIds.has(u.courseId))
             );
@@ -202,7 +212,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 return user ? [user] : [];
             }
             case 'all_staff':
-                return (moduleContext === 'school' || isChurch) ? baseUsers.filter(u => u.role !== 'student' && u.role !== 'member' && u.role !== 'church_member') : baseUsers.filter(u => String(u.role) !== 'customer');
+                return (moduleContext === 'school' || isChurch) ? baseUsers.filter(u => u.role !== 'student' && u.role !== 'member' && u.role !== 'church_member') : baseUsers.filter(u => String(u.role) !== 'customer' && String(u.role) !== 'lead');
             case 'all_students':
                 return baseUsers.filter(u => u.role === 'student' || u.role === 'member' || u.role === 'church_member');
             case 'all_customers':
@@ -261,7 +271,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             default:
                 return [];
         }
-    }, [recipientTarget, selectedId, selectedInstitutionRoleFilter, users, courses, currentUser, leadModelFilter]);
+    }, [recipientTarget, selectedId, selectedInstitutionRoleFilter, users, courses, currentUser, leadModelFilter, isSuperAdminView, currentInstitution, moduleContext, isChurch]);
 
     const validRecipients = useMemo(() => {
         const unique = new Map<string, User>();
@@ -806,6 +816,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                         <option value="all_riders">All Riders (Logistics)</option>
                                         <option value="all_coop_staff">Cooperative Staff / Admins</option>
                                         <option value="all_coop_members">All Cooperative Members</option>
+                                    </>
+                                ) : moduleContext === 'auto_marketplace' ? (
+                                    <>
+                                        <option value="individual">Individual Recipient</option>
+                                        <option value="all_staff">All Staff (Admins & Sales)</option>
+                                        <option value="all_leads">Showroom Leads (Prospects)</option>
+                                        <option value="all_customers">All Customers (Buyers)</option>
                                     </>
                                 ) : (
                                     <>

@@ -591,7 +591,7 @@ export const App: React.FC = () => {
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
 
-    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager'].includes(activeRole || '');
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -5021,7 +5021,7 @@ export const App: React.FC = () => {
                                             } as any}
                                         />
                                     </ModuleAccessGuard>
-                                ) : (activeRole === 'finance_officer' || activeRole === 'finance') ? (
+                                ) : (activeRole === 'finance_officer' || (activeRole === 'finance' && !isAutoMarket)) ? (
                                     <ModuleAccessGuard
                                         moduleId="finance"
                                         moduleName="Finance & Fees"
