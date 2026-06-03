@@ -280,7 +280,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const stkPushUrl = String(kcbConfig.stkPushUrl || kcbConfig.stk_push_url || '').trim();
         const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
         const configTillNumber = String(kcbConfig.tillNumber || kcbConfig.till_number || '').trim();
-        const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
         const rawPhone = resolvedPhone;
 
         let finalOrgShortCode = '522533';
@@ -430,7 +429,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[KCB STK] Initiating STK push to ${finalStkUrl}`);
             
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-            const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
+            const password = Buffer.from((shortCode || '123456') + timestamp).toString('base64');
 
             const rawInvoiceNumber = accountReference || transactionReference || `INV_${Date.now()}`;
             let formattedInvoiceNumber = rawInvoiceNumber;
@@ -459,10 +458,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 transactionDescription: (transactionDesc || 'Payment').substring(0, 50)
             };
 
-            // Include orgPassKey only if configured
-            if (passkey) {
-                stkPayload.orgPassKey = passkey;
-            }
+
 
             // Include tillNumber only when using shared shortcode — required for routing
             if (finalSharedShortCode && finalTillNumber) {
@@ -498,10 +494,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // Provide actionable guidance for common KCB error codes
                 if (kcbStatusDesc?.toLowerCase().includes('wrong credentials') || kcbStatusCode === '1') {
-                    errorMessage = 'KCB STK Push rejected: Wrong credentials (orgPassKey). ' +
-                                  'The Passkey saved in your KCB configuration does not match the one ' +
-                                  'registered in the KCB Buni Portal for this shortcode. ' +
-                                  'Go to KCB Buni Portal → My Applications → your app → Lipa Na M-Pesa to copy the correct Passkey.';
+                    errorMessage = 'KCB STK Push rejected: Wrong credentials. ' +
+                                  'Please verify that your App Key, App Secret, and Short Code / Till Number configurations are correct.';
                 } else if (kcbStatusDesc?.toLowerCase().includes('subscription') || kcbStatusCode === '900') {
                     errorMessage = 'KCB STK Push rejected: Your KCB Buni application is not subscribed to the MpesaExpressAPIService. ' +
                                   'Log in to the KCB Buni Portal and subscribe your application to the correct API service.';
@@ -671,7 +665,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const baseUrl = String(kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
         const queryUrl = String(kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
         const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
-        const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
 
         let finalOrgShortCode = '522533';
         if (configShortCode) {
@@ -768,7 +761,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/query'
             ));
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-            const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
+            const password = Buffer.from((shortCode || '123456') + timestamp).toString('base64');
 
             console.log(`[KCB Query] Querying transaction status at ${finalQueryUrl}`);
             const queryRes = await fetch(finalQueryUrl, {

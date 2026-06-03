@@ -866,7 +866,6 @@ export interface KcbConfig {
     baseUrl?: string;
     stkPushUrl?: string;
     queryUrl?: string;
-    passkey?: string;
     shortCode?: string;
     tillNumber?: string;
     sharedShortCode?: boolean;

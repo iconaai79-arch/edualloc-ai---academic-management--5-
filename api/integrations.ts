@@ -2167,7 +2167,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const baseUrl = (kcbConfig.baseUrl || '').trim();
                 const queryUrl = (kcbConfig.queryUrl || '').trim();
                 const configShortCode = (kcbConfig.shortCode || kcbConfig.short_code || '').trim();
-                const passkey = (kcbConfig.passkey || '').trim();
                 const environment = (kcbConfig.environment || 'sandbox').trim();
 
                 let finalOrgShortCode = '522533';
@@ -2285,7 +2284,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                      : 'https://api.buni.kcbgroup.com/mm/api/request/1.0.0/query'
                                  ));
                                 const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-                                const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
+                                const password = Buffer.from((shortCode || '123456') + timestamp).toString('base64');
                                 requestBody = {
                                     shortCode: shortCode,
                                     password: password,
