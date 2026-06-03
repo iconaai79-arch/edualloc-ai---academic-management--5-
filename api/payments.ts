@@ -459,10 +459,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 transactionDescription: (transactionDesc || 'Payment').substring(0, 50)
             };
 
-            // Only include orgPassKey if it has a value — empty string causes KCB 500
-            if (passkey) {
-                stkPayload.orgPassKey = passkey;
+            // orgPassKey is REQUIRED by KCB Buni for production — validate before sending
+            if (!passkey) {
+                console.error('[KCB STK] orgPassKey (passkey) is missing from KCB config — cannot proceed.');
+                return res.status(200).json({
+                    success: false,
+                    message: 'KCB STK Push failed: orgPassKey (Lipa Na M-Pesa Passkey) is not configured. ' +
+                             'Log in to the KCB Buni Portal → My Applications → select your app → ' +
+                             'STK Push section to find your Passkey, then save it in your KCB configuration.',
+                    details: { missingField: 'orgPassKey / passkey', hint: 'Find this on the KCB Buni portal under your App → Lipa Na M-Pesa settings.' }
+                });
             }
+            stkPayload.orgPassKey = passkey;
 
             // Include tillNumber only when using shared shortcode — required for routing
             if (finalSharedShortCode && finalTillNumber) {
@@ -483,12 +491,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const stkPushText = await stkPushRes.text();
             if (!stkPushRes.ok) {
                 console.error(`[KCB STK] Push request failed with status ${stkPushRes.status}:`, stkPushText);
-                // Try to parse the error body for a cleaner message
+                // Parse KCB Buni envelope format: {"header":{"statusCode":"1","statusDescription":"..."},"response":{}}
                 let parsedError: any = null;
                 try { parsedError = JSON.parse(stkPushText); } catch (_) {}
-                const errorMessage = parsedError?.message || parsedError?.description || parsedError?.errorDescription ||
-                                     parsedError?.fault?.description || parsedError?.fault?.faultstring ||
-                                     `KCB STK push failed with status ${stkPushRes.status}.`;
+
+                // Extract message from KCB Buni envelope or fallback formats
+                const kcbStatusDesc = parsedError?.header?.statusDescription || parsedError?.header?.statusdescription;
+                const kcbStatusCode = parsedError?.header?.statusCode || parsedError?.header?.statuscode;
+                let errorMessage = kcbStatusDesc ||
+                                   parsedError?.message || parsedError?.description ||
+                                   parsedError?.errorDescription ||
+                                   parsedError?.fault?.description || parsedError?.fault?.faultstring ||
+                                   `KCB STK push failed with status ${stkPushRes.status}.`;
+
+                // Provide actionable guidance for common KCB error codes
+                if (kcbStatusDesc?.toLowerCase().includes('wrong credentials') || kcbStatusCode === '1') {
+                    errorMessage = 'KCB STK Push rejected: Wrong credentials (orgPassKey). ' +
+                                  'The Passkey saved in your KCB configuration does not match the one ' +
+                                  'registered in the KCB Buni Portal for this shortcode. ' +
+                                  'Go to KCB Buni Portal → My Applications → your app → Lipa Na M-Pesa to copy the correct Passkey.';
+                } else if (kcbStatusDesc?.toLowerCase().includes('subscription') || kcbStatusCode === '900') {
+                    errorMessage = 'KCB STK Push rejected: Your KCB Buni application is not subscribed to the MpesaExpressAPIService. ' +
+                                  'Log in to the KCB Buni Portal and subscribe your application to the correct API service.';
+                }
+
                 return res.status(200).json({
                     success: false,
                     message: errorMessage,
