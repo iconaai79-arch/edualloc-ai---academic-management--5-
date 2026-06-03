@@ -5001,8 +5001,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                         onClick={() => {
                                                                             const ms = getStudentMilestoneStatus(lesson.studentId);
                                                                             if (ms && !ms.noInvoice && !ms.isCleared) {
-                                                                                if (!isDirector) {
-                                                                                    toastError(`⛔ Payment Required: Student must pay KES ${ms.shortfall?.toLocaleString()} before Session ${ms.nextSession}. Expected: KES ${ms.expectedByNextSession?.toLocaleString()}, Paid: KES ${ms.paidAmount?.toLocaleString()}. Contact the director to override.`);
+                                                                                if (!isDirector && !isSuperAdmin) {
+                                                                                    toastError(`⛔ Payment Required: Student must pay KES ${ms.shortfall?.toLocaleString()} before Session ${ms.nextSession}. Expected: KES ${ms.expectedByNextSession?.toLocaleString()}, Paid: KES ${ms.paidAmount?.toLocaleString()}. Contact the director or super admin to override.`);
                                                                                     return;
                                                                                 }
                                                                                 setPendingAttendanceOverride({ lesson, ms });
@@ -5602,7 +5602,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                      Pending Deletion Requests
                                                  </h4>
                                                  <p className="text-[10px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-widest mt-1">
-                                                     Awaiting director confirmation before full deletion
+                                                     Awaiting director or super admin confirmation before full deletion
                                                  </p>
                                              </div>
                                              <div className="overflow-x-auto">
@@ -5626,7 +5626,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                  <td className="px-6 py-4 text-xs italic text-rose-600 dark:text-rose-400">{payment.deletionReason}</td>
                                                                  <td className="px-6 py-4 text-xs text-slate-500">{payment.deletionRequestedBy || 'Admin'}</td>
                                                                  <td className="px-6 py-4 text-right space-x-2">
-                                                                     {isDirector ? (
+                                                                     {(isDirector || isSuperAdmin) ? (
                                                                          <>
                                                                              <button 
                                                                                  onClick={() => handleConfirmDeletion(payment.id)}
@@ -5643,7 +5643,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                          </>
                                                                      ) : (
                                                                          <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded">
-                                                                             Awaiting Director
+                                                                             Awaiting Director / Super Admin
                                                                          </span>
                                                                      )}
                                                                  </td>
@@ -5675,7 +5675,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     />
                                                     <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                                 </div>
-                                                {isDirector && selectedPaymentIds.length > 0 && (
+                                                {(isDirector || isSuperAdmin) && selectedPaymentIds.length > 0 && (
                                                     <button 
                                                         onClick={async () => {
                                                             if (window.confirm(`Are you sure you want to confirm all ${selectedPaymentIds.length} selected payments?`)) {
@@ -5796,7 +5796,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 <td className="px-10 py-6 font-bold text-sm">KES {(payment.amount ?? 0)?.toLocaleString()}</td>
                                                                 <td className="px-10 py-6 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
                                                                 <td className="px-10 py-6 text-right space-x-2">
-                                                                    {isDirector && payment.status === 'Pending Confirmation' && (
+                                                                    {(isDirector || isSuperAdmin) && payment.status === 'Pending Confirmation' && (
                                                                         <button 
                                                                             onClick={async () => {
                                                                                 if (window.confirm("Confirm this payment? This will mark it as Completed/Approved.")) {
