@@ -6312,7 +6312,7 @@ Please change it after login.`;
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Custom Passkey (Optional)</label>
-                                    <input type="password" value={tenantKcbConfig.passkey || ''} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, passkey: e.target.value }))} className="form-input" placeholder="From KCB Buni Portal → My App → Lipa Na M-Pesa (Required)" />
+                                    <input type="password" value={tenantKcbConfig.passkey || ''} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, passkey: e.target.value }))} className="form-input" placeholder="From KCB Buni Portal → My App → Lipa Na M-Pesa" />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Custom STK Push URL (Optional)</label>
