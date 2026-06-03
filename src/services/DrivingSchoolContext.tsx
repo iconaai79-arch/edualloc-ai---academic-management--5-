@@ -40,6 +40,7 @@ interface DrivingSchoolContextType {
     addMastery: (data: any) => Promise<void>;
     updateSettings: (data: any) => Promise<void>;
     addInvoice: (data: any) => Promise<void>;
+    updateInvoice: (data: any) => Promise<void>;
     addPayment: (data: any) => Promise<void>;
     updatePayment: (data: any) => Promise<void>;
     deletePayment: (id: string) => Promise<void>;
@@ -934,15 +935,18 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 }
             }
 
+            const totalDiscount = Number(data.discountAmount || 0);
+            const totalSponsor = Number(data.sponsorAmount || 0);
+            const initialBalance = Math.max(0, (data.totalAmount || 0) - totalDiscount - totalSponsor);
             const inv = {
                 ...data,
                 id: `inv_${Date.now()}`,
                 institutionId,
                 invoiceNumber: invNumber,
                 items: (data.items || []).map((it: any) => ({ ...it, paidAmount: 0 })),
-                status: 'Pending',
+                status: initialBalance <= 0 ? 'Fully Paid' : 'Pending',
                 paidAmount: 0,
-                balance: data.totalAmount || 0,
+                balance: initialBalance,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('ds_invoices', inv);
@@ -957,6 +961,78 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             throw err;
         }
     }, [institutionId, onRefresh, success, error, students, settings, invoices, sendDocumentNotification]);
+
+    const recalculateInvoicePayments = useCallback((invoice: DSInvoice, invoicePayments: DSPayment[]) => {
+        let updatedPaidAmount = 0;
+        const updatedItems = (invoice.items || []).map(item => ({
+            ...item,
+            paidAmount: 0
+        }));
+
+        const sortedPayments = [...invoicePayments]
+            .filter(p => p.status !== 'Pending Deletion')
+            .sort((a, b) => new Date(a.paymentDate || 0).getTime() - new Date(b.paymentDate || 0).getTime());
+
+        sortedPayments.forEach(payRecord => {
+            let remainingAmount = Number(payRecord.amount);
+            
+            const itemsWithIndices = updatedItems.map((item, idx) => ({ item, idx }));
+            itemsWithIndices.sort((a, b) => (a.item.priority || 99) - (b.item.priority || 99));
+
+            itemsWithIndices.forEach(({ item }) => {
+                const itemBalance = item.amount - (item.paidAmount || 0);
+                if (remainingAmount <= 0) return;
+                
+                const distribution = Math.min(remainingAmount, itemBalance);
+                item.paidAmount = (item.paidAmount || 0) + distribution;
+                remainingAmount -= distribution;
+            });
+
+            updatedPaidAmount += Number(payRecord.amount);
+        });
+
+        const totalDiscount = Number((invoice as any).discountAmount || 0);
+        const totalSponsor = Number((invoice as any).sponsorAmount || 0);
+        const updatedBalance = Math.max(0, invoice.totalAmount - totalDiscount - totalSponsor - updatedPaidAmount);
+        const newStatus = updatedBalance <= 0 ? 'Fully Paid' : (updatedPaidAmount > 0 ? 'Partially Paid' : 'Pending');
+
+        return {
+            ...invoice,
+            items: updatedItems,
+            paidAmount: updatedPaidAmount,
+            balance: updatedBalance,
+            status: newStatus,
+            updatedAt: new Date().toISOString()
+        };
+    }, []);
+
+    const updateInvoice = useCallback(async (data: any) => {
+        if (!institutionId || !data.id) return;
+        try {
+            const oldInvoice = invoices.find(inv => inv.id === data.id);
+            if (!oldInvoice) {
+                error("Invoice to update not found");
+                return;
+            }
+
+            // Find all payments linked to this invoice
+            const invoicePayments = payments.filter(p => p.invoiceId === data.id);
+
+            // Re-apply recalculateInvoicePayments with the updated items and invoice properties
+            const recalculatedInvoice = recalculateInvoicePayments({
+                ...oldInvoice,
+                ...data,
+                updatedAt: new Date().toISOString()
+            }, invoicePayments);
+
+            await apiService.saveModuleRecord('ds_invoices', recalculatedInvoice);
+            success("Invoice updated successfully");
+            await onRefresh();
+        } catch (err) {
+            error("Failed to update invoice");
+            throw err;
+        }
+    }, [institutionId, invoices, payments, onRefresh, success, error, recalculateInvoicePayments]);
 
     const addPayment = useCallback(async (data: any) => {
         try {
@@ -998,6 +1074,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 id: `pay_${Date.now()}`, 
                 institutionId,
                 receiptNumber: recNumber,
+                status: data.status || 'Completed',
                 paymentDate: new Date().toISOString()
             };
 
@@ -1068,48 +1145,6 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             throw err;
         }
     }, [institutionId, onRefresh, success, error, students, settings, invoices, payments, sendDocumentNotification]);
-
-    const recalculateInvoicePayments = useCallback((invoice: DSInvoice, invoicePayments: DSPayment[]) => {
-        let updatedPaidAmount = 0;
-        const updatedItems = (invoice.items || []).map(item => ({
-            ...item,
-            paidAmount: 0
-        }));
-
-        const sortedPayments = [...invoicePayments]
-            .filter(p => p.status !== 'Pending Deletion')
-            .sort((a, b) => new Date(a.paymentDate || 0).getTime() - new Date(b.paymentDate || 0).getTime());
-
-        sortedPayments.forEach(payRecord => {
-            let remainingAmount = Number(payRecord.amount);
-            
-            const itemsWithIndices = updatedItems.map((item, idx) => ({ item, idx }));
-            itemsWithIndices.sort((a, b) => (a.item.priority || 99) - (b.item.priority || 99));
-
-            itemsWithIndices.forEach(({ item }) => {
-                const itemBalance = item.amount - (item.paidAmount || 0);
-                if (remainingAmount <= 0) return;
-                
-                const distribution = Math.min(remainingAmount, itemBalance);
-                item.paidAmount = (item.paidAmount || 0) + distribution;
-                remainingAmount -= distribution;
-            });
-
-            updatedPaidAmount += Number(payRecord.amount);
-        });
-
-        const updatedBalance = Math.max(0, invoice.totalAmount - updatedPaidAmount);
-        const newStatus = updatedBalance <= 0 ? 'Fully Paid' : (updatedPaidAmount > 0 ? 'Partially Paid' : 'Pending');
-
-        return {
-            ...invoice,
-            items: updatedItems,
-            paidAmount: updatedPaidAmount,
-            balance: updatedBalance,
-            status: newStatus,
-            updatedAt: new Date().toISOString()
-        };
-    }, []);
 
     const updatePayment = useCallback(async (data: any) => {
         if (!institutionId || !data.id) return;
@@ -1188,7 +1223,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         mpesaTransactions, bankTransactions, leads,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads,
-        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead,
         sendLessonNotification,
         refreshData, stats
     };

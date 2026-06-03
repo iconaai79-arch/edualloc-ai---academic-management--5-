@@ -4016,6 +4016,9 @@ export interface DSInvoice {
     invoiceNumber: string;
     dueDate?: string;
     notes?: string;
+    discountAmount?: number;
+    sponsorName?: string;
+    sponsorAmount?: number;
     createdAt: string;
     updatedAt: string;
 }

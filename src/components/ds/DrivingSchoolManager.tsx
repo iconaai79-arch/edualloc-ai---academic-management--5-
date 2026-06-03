@@ -451,7 +451,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             if (type === 'vehicle') return { ...base, transmission: 'Manual', capacity: 1 };
             if (type === 'instructor') return { ...base, rating: 5, instructorType: 'Driving Instructor' };
             if (type === 'invoice') return { ...base, items: [{ name: 'Tuition Fee', amount: 0, priority: 1 }], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
-            if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
+            if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa', status: 'Completed' };
             if (type === 'fee_structure') {
                 return { 
                     className: 'CLASS C1', 
@@ -1416,16 +1416,25 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Fee Structure (Optional Autopopulate)</label>
                                     <select value={formData.feeStructureId || ''} onChange={e => {
                                         const fs = settings?.feeStructures?.find((x: any) => x.id === e.target.value);
+                                        const disc = Number(formData.discountAmount || 0);
+                                        const sponsor = Number(formData.sponsorAmount || 0);
+                                        const paid = Number(formData.paidAmount || 0);
                                         if (fs) {
                                             setFormData({
                                                 ...formData, 
                                                 feeStructureId: fs.id,
                                                 totalAmount: fs.totalAmount,
-                                                balance: fs.totalAmount,
+                                                balance: Math.max(0, fs.totalAmount - disc - sponsor - paid),
                                                 items: fs.items
                                             });
                                         } else {
-                                            setFormData({ ...formData, feeStructureId: '', items: [{ name: 'Tuition Fee', amount: 0, priority: 1 }], totalAmount: 0, balance: 0 });
+                                            setFormData({ 
+                                                ...formData, 
+                                                feeStructureId: '', 
+                                                items: [{ name: 'Tuition Fee', amount: 0, priority: 1 }], 
+                                                totalAmount: 0, 
+                                                balance: Math.max(0, 0 - disc - sponsor - paid) 
+                                            });
                                         }
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="">Select Fee Structure</option>
@@ -1440,6 +1449,56 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Number</label>
                                     <input required type="text" value={formData.invoiceNumber || ''} onChange={e => setFormData({...formData, invoiceNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100" placeholder="INV-DS-XXXX" />
                                 </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Discount Amount (KES)</label>
+                                    <input 
+                                        type="number" 
+                                        value={formData.discountAmount || ''} 
+                                        onChange={e => {
+                                            const disc = Number(e.target.value) || 0;
+                                            const total = (Array.isArray(formData.items) ? formData.items : []).reduce((acc: number, it: any) => acc + (Number(it.amount) || 0), 0);
+                                            const sponsor = Number(formData.sponsorAmount || 0);
+                                            const paid = Number(formData.paidAmount || 0);
+                                            setFormData({
+                                                ...formData,
+                                                discountAmount: disc,
+                                                balance: Math.max(0, total - disc - sponsor - paid)
+                                            });
+                                        }} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100" 
+                                        placeholder="0.00" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sponsor Name</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.sponsorName || ''} 
+                                        onChange={e => setFormData({...formData, sponsorName: e.target.value})} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100" 
+                                        placeholder="e.g. Ministry of Youth / Parent / Donor" 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sponsor Covered Amount (KES)</label>
+                                    <input 
+                                        type="number" 
+                                        value={formData.sponsorAmount || ''} 
+                                        onChange={e => {
+                                            const sponsor = Number(e.target.value) || 0;
+                                            const total = (Array.isArray(formData.items) ? formData.items : []).reduce((acc: number, it: any) => acc + (Number(it.amount) || 0), 0);
+                                            const disc = Number(formData.discountAmount || 0);
+                                            const paid = Number(formData.paidAmount || 0);
+                                            setFormData({
+                                                ...formData,
+                                                sponsorAmount: sponsor,
+                                                balance: Math.max(0, total - disc - sponsor - paid)
+                                            });
+                                        }} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100" 
+                                        placeholder="0.00" 
+                                    />
+                                </div>
                                 <div className="md:col-span-2 p-6 bg-slate-50/50 dark:bg-slate-900/30 rounded-[2rem] border border-slate-100 dark:border-slate-800/80 space-y-4">
                                     <div className="flex items-center justify-between flex-wrap gap-2">
                                         <div>
@@ -1452,11 +1511,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                 const current = Array.isArray(formData.items) ? formData.items : [];
                                                 const nextItems = [...current, { name: '', amount: 0, priority: current.length + 1 }];
                                                 const sum = nextItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+                                                const disc = Number(formData.discountAmount || 0);
+                                                const sponsor = Number(formData.sponsorAmount || 0);
+                                                const paid = Number(formData.paidAmount || 0);
                                                 setFormData({
                                                     ...formData,
                                                     items: nextItems,
                                                     totalAmount: sum,
-                                                    balance: sum
+                                                    balance: Math.max(0, sum - disc - sponsor - paid)
                                                 });
                                             }}
                                             className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-sm"
@@ -1480,11 +1542,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                             priority: current.length + 1 
                                                         }];
                                                         const sum = nextItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+                                                        const disc = Number(formData.discountAmount || 0);
+                                                        const sponsor = Number(formData.sponsorAmount || 0);
+                                                        const paid = Number(formData.paidAmount || 0);
                                                         setFormData({ 
                                                             ...formData, 
                                                             items: nextItems,
                                                             totalAmount: sum,
-                                                            balance: sum
+                                                            balance: Math.max(0, sum - disc - sponsor - paid)
                                                         });
                                                     }}
                                                     className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-lg text-[9px] font-bold border border-slate-200 dark:border-slate-700 hover:border-indigo-500 transition-all flex items-center gap-1"
@@ -1525,11 +1590,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                                     amount: (matchedVote && it.amount === 0) ? (matchedVote.defaultAmount ?? (matchedVote as any).default_amount ?? 0) : it.amount
                                                                 };
                                                                 const sum = nextItems.reduce((acc: number, item: any) => acc + (Number(item.amount) || 0), 0);
+                                                                const disc = Number(formData.discountAmount || 0);
+                                                                const sponsor = Number(formData.sponsorAmount || 0);
+                                                                const paid = Number(formData.paidAmount || 0);
                                                                 setFormData({ 
                                                                     ...formData, 
                                                                     items: nextItems,
                                                                     totalAmount: sum,
-                                                                    balance: sum
+                                                                    balance: Math.max(0, sum - disc - sponsor - paid)
                                                                 });
                                                             }}
                                                             placeholder="Vote Head Name"
@@ -1553,11 +1621,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                                     const nextItems = [...formData.items];
                                                                     nextItems[idx] = { ...it, amount: Number(e.target.value) };
                                                                     const sum = nextItems.reduce((acc: number, item: any) => acc + (Number(item.amount) || 0), 0);
+                                                                    const disc = Number(formData.discountAmount || 0);
+                                                                    const sponsor = Number(formData.sponsorAmount || 0);
+                                                                    const paid = Number(formData.paidAmount || 0);
                                                                     setFormData({ 
                                                                         ...formData, 
                                                                         items: nextItems,
                                                                         totalAmount: sum,
-                                                                        balance: sum
+                                                                        balance: Math.max(0, sum - disc - sponsor - paid)
                                                                     });
                                                                 }}
                                                                 placeholder="0"
@@ -1583,11 +1654,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                         onClick={() => {
                                                             const nextItems = formData.items.filter((_: any, i: number) => i !== idx);
                                                             const sum = nextItems.reduce((acc: number, item: any) => acc + (Number(item.amount) || 0), 0);
+                                                            const disc = Number(formData.discountAmount || 0);
+                                                            const sponsor = Number(formData.sponsorAmount || 0);
+                                                            const paid = Number(formData.paidAmount || 0);
                                                             setFormData({ 
                                                                 ...formData, 
                                                                 items: nextItems,
                                                                 totalAmount: sum,
-                                                                balance: sum
+                                                                balance: Math.max(0, sum - disc - sponsor - paid)
                                                             });
                                                         }}
                                                         className="p-2 text-slate-300 hover:text-red-500 rounded-xl transition-colors"
@@ -1718,6 +1792,17 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                             </button>
                                         )}
                                     </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Status</label>
+                                    <select 
+                                        value={formData.status || 'Completed'} 
+                                        onChange={e => setFormData({...formData, status: e.target.value})} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
+                                    >
+                                        <option value="Completed">Completed</option>
+                                        <option value="Pending Confirmation">Pending Confirmation</option>
+                                    </select>
                                 </div>
  
                                 {(formData.paymentMethod === 'M-Pesa' || formData.paymentMethod === 'Bank') && (
@@ -2022,6 +2107,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         addMastery: onAddMastery,
         updateSettings: onUpdateSettings,
         addInvoice: onAddInvoice,
+        updateInvoice: onUpdateInvoice,
         addPayment: onAddPayment,
         updatePayment: onUpdatePayment,
         deletePayment: onDeletePayment,
@@ -2157,6 +2243,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [previewPdf, setPreviewPdf] = useState<string | null>(null);
     const [scoringStudent, setScoringStudent] = useState<DSStudent | null>(null);
     const [pendingAttendanceOverride, setPendingAttendanceOverride] = useState<{ lesson: DSLesson; ms: any } | null>(null);
+    const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
     
     // Portal states
     const [portalStudentId, setPortalStudentId] = useState<string>('');
@@ -5447,6 +5534,15 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             >
                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                                             </button>
+                                                            {(isDirector || isSuperAdmin) && (
+                                                                <button 
+                                                                    onClick={() => setActionModal({ type: 'invoice', initialData: invoice })}
+                                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all inline-flex items-center"
+                                                                    title="Edit Invoice"
+                                                                >
+                                                                    <PencilIcon className="w-4 h-4" />
+                                                                </button>
+                                                            )}
                                                             <button 
                                                                 onClick={async () => {
                                                                     const student = (students || []).find(s => s.id === invoice.studentId);
@@ -5579,6 +5675,32 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     />
                                                     <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                                 </div>
+                                                {isDirector && selectedPaymentIds.length > 0 && (
+                                                    <button 
+                                                        onClick={async () => {
+                                                            if (window.confirm(`Are you sure you want to confirm all ${selectedPaymentIds.length} selected payments?`)) {
+                                                                setIsActionLoading(true);
+                                                                try {
+                                                                    const paymentsToConfirm = payments.filter(p => selectedPaymentIds.includes(p.id));
+                                                                    await Promise.all(
+                                                                        paymentsToConfirm.map(p => onUpdatePayment({ ...p, status: 'Completed' }))
+                                                                    );
+                                                                    success(`Successfully confirmed ${paymentsToConfirm.length} payments!`);
+                                                                    setSelectedPaymentIds([]);
+                                                                } catch (err: any) {
+                                                                    toastError(err.message || "Failed to confirm some payments");
+                                                                } finally {
+                                                                    setIsActionLoading(false);
+                                                                }
+                                                            }
+                                                        }}
+                                                        disabled={isActionLoading}
+                                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 transition-all flex items-center gap-1.5"
+                                                    >
+                                                        <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                        Confirm Selected ({selectedPaymentIds.length})
+                                                    </button>
+                                                )}
                                                 <button onClick={() => setActionModal({ type: 'payment' })} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5">
                                                     <PlusIcon className="w-3.5 h-3.5" />
                                                     Record Payment
@@ -5589,6 +5711,29 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <table className="w-full text-left">
                                                 <thead>
                                                     <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                        <th className="px-6 py-6 w-12 text-center">
+                                                            {(() => {
+                                                                const pendingPaymentsOnPage = paginatedPayments.filter(p => p.status === 'Pending Confirmation');
+                                                                const allPendingOnPageSelected = pendingPaymentsOnPage.length > 0 && pendingPaymentsOnPage.every(p => selectedPaymentIds.includes(p.id));
+                                                                return (
+                                                                    <input 
+                                                                        type="checkbox"
+                                                                        checked={allPendingOnPageSelected}
+                                                                        disabled={pendingPaymentsOnPage.length === 0}
+                                                                        onChange={(e) => {
+                                                                            if (e.target.checked) {
+                                                                                const idsToAdd = pendingPaymentsOnPage.map(p => p.id);
+                                                                                setSelectedPaymentIds(prev => Array.from(new Set([...prev, ...idsToAdd])));
+                                                                            } else {
+                                                                                const idsToRemove = pendingPaymentsOnPage.map(p => p.id);
+                                                                                setSelectedPaymentIds(prev => prev.filter(id => !idsToRemove.includes(id)));
+                                                                            }
+                                                                        }}
+                                                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer disabled:opacity-30"
+                                                                    />
+                                                                );
+                                                            })()}
+                                                        </th>
                                                         <th className="px-10 py-6">Receipt #</th>
                                                         <th className="px-10 py-6">Adm #</th>
                                                         <th className="px-10 py-6">Student</th>
@@ -5602,72 +5747,127 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     {paginatedPayments.map(payment => {
                                                         const student = (normalizedStudents || []).find(s => s.id === payment.studentId);
                                                         const admNo = student?.admissionNumber || (student as any)?.admission_number || '-';
+                                                        const isCompleted = payment.status === 'Completed';
                                                         return (
-                                                            <tr key={payment.id} className="hover:bg-slate-50/50">
+                                                            <tr key={payment.id} className={`hover:bg-slate-50/50 transition-colors ${isCompleted ? 'bg-emerald-50/30 dark:bg-emerald-950/10' : ''}`}>
+                                                                <td className="px-6 py-6 text-center w-12">
+                                                                    {payment.status === 'Pending Confirmation' ? (
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={selectedPaymentIds.includes(payment.id)}
+                                                                            onChange={(e) => {
+                                                                                if (e.target.checked) {
+                                                                                    setSelectedPaymentIds(prev => [...prev, payment.id]);
+                                                                                } else {
+                                                                                    setSelectedPaymentIds(prev => prev.filter(id => id !== payment.id));
+                                                                                }
+                                                                            }}
+                                                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                                        />
+                                                                    ) : isCompleted ? (
+                                                                        <div className="w-4 h-4 mx-auto flex items-center justify-center text-emerald-500" title="Payment Completed">
+                                                                            <CheckCircleIcon className="w-4 h-4" />
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="w-4 h-4 mx-auto" />
+                                                                    )}
+                                                                </td>
                                                                 <td className="px-10 py-6 font-bold flex items-center gap-2">
-                                                                 <span>{payment.receiptNumber}</span>
-                                                                 {payment.status === 'Pending Deletion' && (
-                                                                     <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-500 text-[8px] font-black uppercase tracking-widest border border-amber-200 dark:border-amber-800/40">
-                                                                         Pending Deletion
-                                                                     </span>
-                                                                 )}
-                                                             </td>
-                                                            <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
-                                                            <td className="px-10 py-6 text-sm">{payment.studentName}</td>
-                                                            <td className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
-                                                            <td className="px-10 py-6 font-bold text-sm">KES {(payment.amount ?? 0)?.toLocaleString()}</td>
-                                                            <td className="px-10 py-6 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
-                                                            <td className="px-10 py-6 text-right space-x-2">
-                                                                <button 
-                                                                    onClick={async () => {
-                                                                        const student = (students || []).find(s => s.id === payment.studentId);
-                                                                        if (student) {
-                                                                            const doc = await generateDSPDF('receipt', payment, student as any, settings, currentInstitution, invoices);
-                                                                            doc.save(`${payment.receiptNumber}.pdf`);
-                                                                        }
-                                                                    }}
-                                                                    className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
-                                                                    title="Download PDF"
-                                                                >
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                                                </button>
-                                                                <button 
-                                                                    onClick={async () => {
-                                                                        const student = (students || []).find(s => s.id === payment.studentId);
-                                                                        if (student) {
-                                                                            const url = await generateDSThermalReceipt(payment, student as any, currentInstitution, false, invoices);
-                                                                            const win = window.open(url, '_blank');
-                                                                            if (win) {
-                                                                                win.focus();
-                                                                                setTimeout(() => win.print(), 500);
+                                                                    <span>{payment.receiptNumber}</span>
+                                                                    {payment.status === 'Pending Deletion' && (
+                                                                        <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-500 text-[8px] font-black uppercase tracking-widest border border-amber-200 dark:border-amber-800/40">
+                                                                            Pending Deletion
+                                                                        </span>
+                                                                    )}
+                                                                    {payment.status === 'Pending Confirmation' && (
+                                                                        <span className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-500 text-[8px] font-black uppercase tracking-widest border border-blue-200 dark:border-blue-800/40 animate-pulse">
+                                                                            Pending Confirmation
+                                                                        </span>
+                                                                    )}
+                                                                    {isCompleted && (
+                                                                        <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-500 text-[8px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-800/40">
+                                                                            Completed
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
+                                                                <td className="px-10 py-6 text-sm">{payment.studentName}</td>
+                                                                <td className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
+                                                                <td className="px-10 py-6 font-bold text-sm">KES {(payment.amount ?? 0)?.toLocaleString()}</td>
+                                                                <td className="px-10 py-6 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                                                <td className="px-10 py-6 text-right space-x-2">
+                                                                    {isDirector && payment.status === 'Pending Confirmation' && (
+                                                                        <button 
+                                                                            onClick={async () => {
+                                                                                if (window.confirm("Confirm this payment? This will mark it as Completed/Approved.")) {
+                                                                                    setIsActionLoading(true);
+                                                                                    try {
+                                                                                        await onUpdatePayment({ ...payment, status: 'Completed' });
+                                                                                        success("Payment confirmed successfully!");
+                                                                                    } catch (err: any) {
+                                                                                        toastError(err.message || "Failed to confirm payment");
+                                                                                    } finally {
+                                                                                        setIsActionLoading(false);
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                            disabled={isActionLoading}
+                                                                            className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all inline-flex items-center"
+                                                                            title="Confirm Payment"
+                                                                        >
+                                                                            Confirm
+                                                                        </button>
+                                                                    )}
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            const student = (students || []).find(s => s.id === payment.studentId);
+                                                                            if (student) {
+                                                                                const doc = await generateDSPDF('receipt', payment, student as any, settings, currentInstitution, invoices);
+                                                                                doc.save(`${payment.receiptNumber}.pdf`);
                                                                             }
-                                                                        }
-                                                                    }}
-                                                                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                                                    title="Thermal Print (EPOS)"
-                                                                >
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                                                                </button>
-                                                                {isAdmin && payment.status !== 'Pending Deletion' && (
-                                                                    <>
-                                                                        <button 
-                                                                            onClick={() => setActionModal({ type: 'payment', initialData: payment })}
-                                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all inline-flex items-center"
-                                                                            title="Edit Payment"
-                                                                        >
-                                                                            <PencilIcon className="w-4 h-4" />
-                                                                        </button>
-                                                                        <button 
-                                                                            onClick={() => handleRequestDeletion(payment.id)}
-                                                                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-all inline-flex items-center"
-                                                                            title="Delete Payment"
-                                                                        >
-                                                                            <TrashIcon className="w-4 h-4" />
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </td>
-                                                        </tr>
+                                                                        }}
+                                                                        className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
+                                                                        title="Download PDF"
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            const student = (students || []).find(s => s.id === payment.studentId);
+                                                                            if (student) {
+                                                                                const url = await generateDSThermalReceipt(payment, student as any, currentInstitution, false, invoices);
+                                                                                const win = window.open(url, '_blank');
+                                                                                if (win) {
+                                                                                    win.focus();
+                                                                                    setTimeout(() => win.print(), 500);
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                                        title="Thermal Print (EPOS)"
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                                                    </button>
+                                                                    {isAdmin && payment.status !== 'Pending Deletion' && (
+                                                                        <>
+                                                                            <button 
+                                                                                onClick={() => setActionModal({ type: 'payment', initialData: payment })}
+                                                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all inline-flex items-center"
+                                                                                title="Edit Payment"
+                                                                            >
+                                                                                <PencilIcon className="w-4 h-4" />
+                                                                            </button>
+                                                                            <button 
+                                                                                onClick={() => handleRequestDeletion(payment.id)}
+                                                                                className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-all inline-flex items-center"
+                                                                                title="Delete Payment"
+                                                                            >
+                                                                                <TrashIcon className="w-4 h-4" />
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
                                                     );
                                                     })}
                                                 </tbody>
@@ -7918,8 +8118,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 else await addLead(data);
                             }
                             else if (type === 'invoice') {
-                                await onAddInvoice(data);
-                                if (enrollWizard.open) setEnrollWizard(w => ({ ...w, step: 'payment', createdInvoiceId: (data as any).id || null }));
+                                if (data.id) {
+                                    await onUpdateInvoice(data);
+                                } else {
+                                    await onAddInvoice(data);
+                                    if (enrollWizard.open) setEnrollWizard(w => ({ ...w, step: 'payment', createdInvoiceId: (data as any).id || null }));
+                                }
                             }
                             else if (type === 'payment') {
                                 if (data.id) await onUpdatePayment(data);
