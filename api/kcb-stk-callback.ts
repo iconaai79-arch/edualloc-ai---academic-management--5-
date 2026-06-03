@@ -545,6 +545,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 metadata: { ...metadata, reconciled: true, reconciled_at: new Date().toISOString() }
                             }).eq('id', transaction.id);
 
+                            // Write/Upsert to bank_transactions so it appears in Bank Feeds
+                            try {
+                                const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices';
+                                const { error: bankTxnErr } = await supabase.from('bank_transactions').upsert({
+                                    id: transaction.id,
+                                    institution_id: instId || resolvedInstitutionId,
+                                    amount: amt,
+                                    transaction_date: transaction.created_at || transaction.timestamp || new Date().toISOString(),
+                                    reference: mpesaReceiptNumber || transaction.transaction_id || '',
+                                    sender_name: metadata.payerName || transaction.payer_name || 'External Deposit',
+                                    bank_name: 'KCB',
+                                    status: isReconciledNow ? 'reconciled' : 'unreconciled',
+                                    linked_invoice_id: metadata.invoiceId || null,
+                                    reconciled_at: isReconciledNow ? new Date().toISOString() : null,
+                                    reconciled_by: isReconciledNow ? 'KCB STK Callback' : null,
+                                    created_at: transaction.created_at || new Date().toISOString()
+                                });
+                                if (bankTxnErr) console.error('[KCB STK Callback] Failed to write to bank_transactions:', bankTxnErr);
+                            } catch (bankErr) {
+                                console.error('[KCB STK Callback] Exception writing to bank_transactions:', bankErr);
+                            }
+
                             // --- Send SMS Notification with updated balance ---
                             const smsConfig = inst?.sms_config || inst?.smsConfig || settings.sms_config || settings.smsConfig;
                             const payerPhone = metadata.payerPhoneNumber || transaction.phone_number || body.phoneNumber;
