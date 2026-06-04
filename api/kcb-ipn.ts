@@ -651,7 +651,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let inst: any = null;
         let invoice: any = null;
         if (!transaction && amount > 0) {
-            // Check if customerReference or narration is an invoice number
+            // Check if customerReference or narration is an invoice number or admission number
             const referenceCode = (customerReference || narration || '').trim();
             if (referenceCode) {
                 const { data: invoiceData } = await supabase
@@ -693,6 +693,109 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             .eq('id', carInvoiceData.institution_id)
                             .maybeSingle();
                         inst = instData;
+                    }
+                }
+
+                // Fallback 1: Try ds_invoices (Driving School)
+                if (!invoice) {
+                    const { data: dsInvoiceMatch } = await supabase
+                        .from('ds_invoices')
+                        .select('*')
+                        .eq('invoice_number', referenceCode)
+                        .maybeSingle();
+                    if (dsInvoiceMatch) {
+                        invoice = dsInvoiceMatch;
+                        invoice.invoiceType = 'ds_invoice';
+                        const { data: instData } = await supabase
+                            .from('institutions')
+                            .select('*')
+                            .eq('id', dsInvoiceMatch.institution_id)
+                            .maybeSingle();
+                        inst = instData;
+                    }
+                }
+
+                // Fallback 2: Try pm_invoices (Property Management)
+                if (!invoice) {
+                    const { data: pmInvoiceMatch } = await supabase
+                        .from('pm_invoices')
+                        .select('*')
+                        .eq('invoice_number', referenceCode)
+                        .maybeSingle();
+                    if (pmInvoiceMatch) {
+                        invoice = pmInvoiceMatch;
+                        invoice.invoiceType = 'pm_invoice';
+                        const { data: instData } = await supabase
+                            .from('institutions')
+                            .select('*')
+                            .eq('id', pmInvoiceMatch.institution_id)
+                            .maybeSingle();
+                        inst = instData;
+                    }
+                }
+
+                // Fallback 3: Try matching student admission number in users table
+                if (!invoice) {
+                    const { data: matchUser } = await supabase
+                        .from('users')
+                        .select('id, institution_id, name')
+                        .or(`admission_number.eq.${referenceCode},metadata->>admissionNumber.eq.${referenceCode}`)
+                        .maybeSingle();
+                    if (matchUser) {
+                        const { data: instData } = await supabase
+                            .from('institutions')
+                            .select('*')
+                            .eq('id', matchUser.institution_id)
+                            .maybeSingle();
+                        inst = instData;
+
+                        if (inst) {
+                            // Find oldest pending standard invoice, driving school invoice, or property management invoice for this user
+                            const { data: oldestStd } = await supabase
+                                .from('invoices')
+                                .select('*')
+                                .eq('student_id', matchUser.id)
+                                .eq('status', 'pending')
+                                .order('due_date', { ascending: true })
+                                .limit(1)
+                                .maybeSingle();
+                            if (oldestStd) {
+                                invoice = oldestStd;
+                            } else {
+                                const { data: oldestDs } = await supabase
+                                    .from('ds_invoices')
+                                    .select('*')
+                                    .eq('student_id', matchUser.id)
+                                    .eq('status', 'Pending')
+                                    .order('due_date', { ascending: true })
+                                    .limit(1)
+                                    .maybeSingle();
+                                if (oldestDs) {
+                                    invoice = oldestDs;
+                                    invoice.invoiceType = 'ds_invoice';
+                                } else {
+                                    const { data: pmTenant } = await supabase
+                                        .from('pm_tenants')
+                                        .select('id')
+                                        .eq('user_id', matchUser.id)
+                                        .maybeSingle();
+                                    if (pmTenant) {
+                                        const { data: oldestPm } = await supabase
+                                            .from('pm_invoices')
+                                            .select('*')
+                                            .eq('tenant_id', pmTenant.id)
+                                            .eq('status', 'Pending')
+                                            .order('due_date', { ascending: true })
+                                            .limit(1)
+                                            .maybeSingle();
+                                        if (oldestPm) {
+                                            invoice = oldestPm;
+                                            invoice.invoiceType = 'pm_invoice';
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -741,7 +844,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (invoice) {
                     const isCar = invoice.balance_amount !== undefined;
-                    txnMetadata.type = isCar ? 'car_invoice' : 'invoice';
+                    txnMetadata.type = invoice.invoiceType || (isCar ? 'car_invoice' : 'invoice');
                     txnMetadata.invoiceId = invoice.id;
                 } else {
                     txnMetadata.type = 'sms'; // assume SMS units top-up for direct Paybill C2B payments
@@ -1003,6 +1106,132 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             });
                         }
                     }
+                } else if (type === 'ds_invoice' && metadata.invoiceId) {
+                    const { data: dsInvoice } = await supabase
+                        .from('ds_invoices')
+                        .select('*')
+                        .eq('id', metadata.invoiceId)
+                        .maybeSingle();
+
+                    if (dsInvoice) {
+                        const paidAmount = parseFloat(String(dsInvoice.paid_amount || 0)) + amt;
+                        const balanceAmount = Math.max(0, parseFloat(String(dsInvoice.total_amount || 0)) - paidAmount);
+                        const status = balanceAmount <= 0 ? 'Fully Paid' : 'Partially Paid';
+
+                        let remainingAmount = amt;
+                        const items = Array.isArray(dsInvoice.items) ? dsInvoice.items : JSON.parse(dsInvoice.items || '[]');
+                        const updatedItems = items.map((item: any) => {
+                            const itemBalance = item.amount - (item.paidAmount || 0);
+                            if (remainingAmount <= 0) return item;
+                            const distribution = Math.min(remainingAmount, itemBalance);
+                            remainingAmount -= distribution;
+                            return {
+                                ...item,
+                                paidAmount: (item.paidAmount || 0) + distribution
+                            };
+                        });
+
+                        await supabase
+                            .from('ds_invoices')
+                            .update({
+                                paid_amount: paidAmount,
+                                balance: balanceAmount,
+                                status,
+                                items: updatedItems,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', metadata.invoiceId);
+
+                        await supabase.from('ds_payments').insert({
+                            id: `pay_${Date.now()}`,
+                            institution_id: instId || dsInvoice.institution_id || 'SYSTEM',
+                            invoice_id: metadata.invoiceId,
+                            student_id: dsInvoice.student_id,
+                            student_name: dsInvoice.student_name,
+                            amount: amt,
+                            payment_method: 'KCB IPN',
+                            transaction_reference: transactionID || transaction.id,
+                            payment_date: new Date().toISOString(),
+                            receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                            received_by: 'KCB IPN Integration'
+                        });
+
+                        if (metadata.requesterId) {
+                            await supabase.from('app_notifications').insert({
+                                id: `ntf_ds_${Date.now()}`,
+                                user_id: metadata.requesterId,
+                                message: `Driving School invoice payment successful via KCB! Ref: ${transactionID || transaction.id}.`,
+                                type: 'success',
+                                is_read: false,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    }
+                } else if (type === 'pm_invoice' && metadata.invoiceId) {
+                    const { data: pmInvoice } = await supabase
+                        .from('pm_invoices')
+                        .select('*')
+                        .eq('id', metadata.invoiceId)
+                        .maybeSingle();
+
+                    if (pmInvoice) {
+                        await supabase
+                            .from('pm_invoices')
+                            .update({
+                                status: 'Paid',
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', metadata.invoiceId);
+
+                        const { data: lease } = await supabase
+                            .from('pm_leases')
+                            .select('*')
+                            .eq('id', pmInvoice.lease_id)
+                            .maybeSingle();
+
+                        let commissionAmount = 0;
+                        if (lease) {
+                            const { data: unit } = await supabase
+                                .from('pm_units')
+                                .select('*')
+                                .eq('id', lease.unit_id)
+                                .maybeSingle();
+                            if (unit) {
+                                const { data: property } = await supabase
+                                    .from('pm_properties')
+                                    .select('*')
+                                    .eq('id', unit.property_id)
+                                    .maybeSingle();
+                                if (property && property.commission_rate && parseFloat(String(property.commission_rate)) > 0) {
+                                    commissionAmount = (amt * parseFloat(String(property.commission_rate))) / 100;
+                                }
+                            }
+                        }
+
+                        await supabase.from('pm_payments').insert({
+                            id: `pay_${Date.now()}`,
+                            lease_id: pmInvoice.lease_id,
+                            amount: amt,
+                            payment_date: new Date().toISOString().split('T')[0],
+                            payment_method: 'KCB IPN',
+                            payment_type: 'Rent',
+                            status: 'Completed',
+                            commission_amount: commissionAmount,
+                            institution_id: instId || pmInvoice.institution_id || 'SYSTEM',
+                            created_at: new Date().toISOString()
+                        });
+
+                        if (metadata.requesterId) {
+                            await supabase.from('app_notifications').insert({
+                                id: `ntf_pm_${Date.now()}`,
+                                user_id: metadata.requesterId,
+                                message: `Rent payment of KES ${amt} successful via KCB! Ref: ${transactionID || transaction.id}.`,
+                                type: 'success',
+                                is_read: false,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    }
                 }
 
                 // Mark transaction as reconciled (setting reconciled: true in metadata)
@@ -1010,9 +1239,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     metadata: { ...metadata, reconciled: true, reconciled_at: new Date().toISOString() }
                 }).eq('id', transaction.id);
 
+                // Update local metadata object so that checks down below can read it correctly
+                metadata.reconciled = true;
+                metadata.reconciled_at = new Date().toISOString();
+
                 // Write/Upsert to bank_transactions so it appears in Bank Feeds
                 try {
-                    const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices';
+                    const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'ds_invoice' || type === 'pm_invoice';
                     const { error: bankTxnErr } = await supabase.from('bank_transactions').upsert({
                         id: transaction.id,
                         institution_id: instId || resolvedInstitutionId,
