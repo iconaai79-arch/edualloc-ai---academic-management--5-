@@ -6,6 +6,7 @@ import { XIcon } from './icons/XIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { EyeIcon } from './icons/EyeIcon';
 
 import { downloadInvoicePdf } from '../services/pdfService';
 
@@ -47,6 +48,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     const [statusUpdateValues, setStatusUpdateValues] = useState<Record<string, string>>({});
     const [savingStatus, setSavingStatus] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
 
     const institutionMap = useMemo(() => new Map<string, Institution>(institutions.map(i => [i.id, i])), [institutions]);
 
@@ -318,6 +320,13 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right">
                                         <div className="flex justify-end gap-3">
+                                            <button
+                                                onClick={() => setPreviewInvoice(inv)}
+                                                className="text-slate-400 hover:text-indigo-600 transition-colors"
+                                                title="Preview on Screen"
+                                            >
+                                                <EyeIcon className="w-5 h-5" />
+                                            </button>
                                             {inst && (
                                                 <button
                                                     onClick={() => downloadInvoicePdf(inv, inst, companyDetails, logoUrl)}
@@ -342,6 +351,154 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                     </tbody>
                 </table>
             </div>
+
+            {/* Preview Modal */}
+            {previewInvoice && (() => {
+                const inst = institutionMap.get(previewInvoice.institutionId);
+                const isQuote = previewInvoice.status === 'quote';
+                return (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up">
+                            
+                            {/* Modal Header */}
+                            <div className="flex justify-between items-center px-8 py-5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                                <h4 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Document Viewer — {isQuote ? 'Quotation' : 'Invoice'}
+                                </h4>
+                                <div className="flex items-center gap-3">
+                                    {inst && (
+                                        <button
+                                            onClick={() => downloadInvoicePdf(previewInvoice, inst, companyDetails, logoUrl)}
+                                            className="btn-secondary py-1.5 px-4 text-xs flex items-center gap-1.5"
+                                            title="Download PDF"
+                                        >
+                                            <DocumentArrowDownIcon className="w-4 h-4" /> Download PDF
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => setPreviewInvoice(null)} 
+                                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+                                    >
+                                        <XIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Modal Body / Document Sheet */}
+                            <div className="flex-grow p-8 overflow-y-auto bg-slate-50 dark:bg-slate-900/20">
+                                <div className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 rounded-3xl p-8 md:p-12 shadow-sm space-y-8 font-sans max-w-3xl mx-auto">
+                                    
+                                    {/* Document Header */}
+                                    <div className="flex justify-between items-start flex-wrap gap-6 border-b border-slate-100 dark:border-slate-700 pb-8">
+                                        <div className="space-y-3">
+                                            {logoUrl ? (
+                                                <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain" />
+                                            ) : (
+                                                <div className="h-12 w-12 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center font-black text-indigo-600 dark:text-indigo-400 text-lg">
+                                                    EA
+                                                </div>
+                                            )}
+                                            <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                                                <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">{companyDetails?.name || 'EduAlloc AI Ltd'}</p>
+                                                <p>{companyDetails?.address || 'Nairobi, Kenya'}</p>
+                                                <p>Email: {companyDetails?.email || 'billing@edualloc.co.ke'}</p>
+                                                <p>Phone: {companyDetails?.phone || '+254 700 000 000'}</p>
+                                                {companyDetails?.website && <p>Web: {companyDetails.website}</p>}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="text-right space-y-2">
+                                            <h2 className={`text-2xl font-black uppercase tracking-tight ${isQuote ? 'text-blue-600 dark:text-blue-400' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                                                {isQuote ? 'Pro-Forma Quotation' : 'Invoice'}
+                                            </h2>
+                                            <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                                                <p><span className="font-bold text-slate-700 dark:text-slate-300">Doc Number:</span> {previewInvoice.invoiceNumber}</p>
+                                                <p><span className="font-bold text-slate-700 dark:text-slate-300">Issue Date:</span> {new Date(previewInvoice.issueDate).toLocaleDateString()}</p>
+                                                <p><span className="font-bold text-slate-700 dark:text-slate-300">{isQuote ? 'Valid Until:' : 'Due Date:'}</span> {new Date(previewInvoice.dueDate).toLocaleDateString()}</p>
+                                                <div className="pt-1.5">
+                                                    <InvoiceStatusBadge status={previewInvoice.status} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Bill To */}
+                                    <div className="space-y-2">
+                                        <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Bill To (Client)</h5>
+                                        <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1 bg-slate-50 dark:bg-slate-900/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                            <p className="font-black text-sm text-slate-800 dark:text-white">{inst?.name || 'Unknown Institution'}</p>
+                                            <p><span className="font-semibold text-slate-400">Code:</span> {inst?.institutionCode || 'N/A'}</p>
+                                            {inst?.email && <p><span className="font-semibold text-slate-400">Email:</span> {inst.email}</p>}
+                                            {inst?.phoneNumber && <p><span className="font-semibold text-slate-400">Phone:</span> {inst.phoneNumber}</p>}
+                                        </div>
+                                    </div>
+
+                                    {/* Line Items Table */}
+                                    <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
+                                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                            <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                                <tr>
+                                                    <th className="px-5 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                                                    <th className="px-5 py-3 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-20">Qty</th>
+                                                    <th className="px-5 py-3 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest w-36">Unit Price</th>
+                                                    <th className="px-5 py-3 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest w-36">Total (KES)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                {previewInvoice.items.map((item, idx) => (
+                                                    <tr key={idx} className="text-xs text-slate-700 dark:text-slate-300">
+                                                        <td className="px-5 py-3 font-semibold text-slate-800 dark:text-white">{item.description}</td>
+                                                        <td className="px-5 py-3 text-center font-mono">{item.quantity}</td>
+                                                        <td className="px-5 py-3 text-right font-mono">{item.unitPrice?.toLocaleString()}</td>
+                                                        <td className="px-5 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">{(item.quantity * item.unitPrice)?.toLocaleString()}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Total Block */}
+                                    <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
+                                        <div className="w-80 space-y-2 text-right">
+                                            <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                                                <span>Subtotal</span>
+                                                <span className="font-mono">KES {previewInvoice.totalAmount?.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                                                <span>Tax / VAT (0%)</span>
+                                                <span className="font-mono">KES 0</span>
+                                            </div>
+                                            <div className="flex justify-between text-lg font-black text-slate-900 dark:text-white pt-2 border-t border-slate-100 dark:border-slate-800">
+                                                <span>Total Amount</span>
+                                                <span className="font-mono text-indigo-600 dark:text-indigo-400">KES {previewInvoice.totalAmount?.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Payment Notes */}
+                                    <div className="border-t border-slate-100 dark:border-slate-700 pt-8 space-y-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                        <h6 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest text-[9px]">Payment Instructions:</h6>
+                                        <p>Please pay via MPESA Paybill 400222 (Co-operative Bank), Account Name: "EduAlloc AI Limited". Or transfer directly to KCB Bank, Account Number: 1234567890, Branch: Nairobi Plaza.</p>
+                                        <p className="italic">For billing disputes or support, contact billing@edualloc.co.ke.</p>
+                                    </div>
+                                    
+                                </div>
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="px-8 py-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 flex justify-end">
+                                <button 
+                                    onClick={() => setPreviewInvoice(null)} 
+                                    className="btn-secondary px-6"
+                                >
+                                    Close Preview
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 };

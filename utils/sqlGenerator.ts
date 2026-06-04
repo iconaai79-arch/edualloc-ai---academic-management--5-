@@ -404,6 +404,21 @@ CREATE TABLE IF NOT EXISTS receipts (
     related_transaction_id TEXT,
     student_id TEXT REFERENCES users(id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS bank_transactions (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    amount DECIMAL(12, 2) NOT NULL,
+    transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    reference TEXT NOT NULL,
+    sender_name TEXT,
+    bank_name TEXT,
+    status TEXT NOT NULL DEFAULT 'unreconciled',
+    linked_invoice_id TEXT,
+    reconciled_at TIMESTAMP WITH TIME ZONE,
+    reconciled_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 \n-- 7. OPERATIONS (STORE, LIBRARY, SECURITY) --\n
 CREATE TABLE IF NOT EXISTS inventory (
     id TEXT PRIMARY KEY,
