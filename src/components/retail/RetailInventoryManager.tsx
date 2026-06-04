@@ -575,16 +575,29 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             </div>
 
             {/* Controls */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl shadow border border-white dark:border-slate-700 flex flex-col sm:flex-row gap-3 justify-between items-center">
-                <div className="relative w-full sm:flex-1">
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl shadow border border-white dark:border-slate-700 flex flex-col md:flex-row gap-3 justify-between items-center">
+                <div className="relative w-full md:flex-grow">
                     <Search className="w-4 h-4 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Search items by name, SKU, or category..."
+                        placeholder="Search items by name, SKU..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-11 pr-4 py-3 bg-slate-100 dark:bg-slate-900/50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold placeholder:text-slate-400"
                     />
+                </div>
+
+                <div className="relative w-full md:w-64">
+                    <select
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 cursor-pointer"
+                    >
+                        <option value="all">All Categories</option>
+                        {categories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                    </select>
                 </div>
 
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-xl shrink-0">
@@ -704,23 +717,6 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 </div>
             ) : (
                 <div className={`relative ${dirtyCount > 0 ? 'pb-24' : ''}`}>
-                    {/* Category filter chips */}
-                    <div className="flex items-center gap-2 flex-wrap mb-3">
-                        {['all', ...categories].map(cat => (
-                            <button
-                                key={cat}
-                                onClick={() => setCategoryFilter(cat)}
-                                className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wide transition-all border ${
-                                    categoryFilter === cat
-                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                        : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-indigo-400 hover:text-indigo-600'
-                                }`}
-                            >
-                                {cat === 'all' ? 'All Categories' : cat}
-                            </button>
-                        ))}
-                    </div>
-
                     {/* Spreadsheet table */}
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
                         <table className="w-full text-left border-collapse" style={{ minWidth: '700px' }}>
