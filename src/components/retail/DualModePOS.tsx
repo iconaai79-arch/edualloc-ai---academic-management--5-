@@ -59,7 +59,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     const [selectedCustomer, setSelectedCustomer] = useState<RetailCustomer | null>(null);
     const [categories, setCategories] = useState<string[]>([]);
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
-    const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
 
     // Education mode states
     const [students, setStudents] = useState<User[]>([]);
@@ -516,7 +516,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     }
 
     return (
-        <div className="flex flex-col md:flex-row gap-6 lg:gap-8 h-full min-h-[600px] lg:min-h-[700px] animate-in fade-in slide-in-from-bottom-8 duration-700">
+        <div className="flex flex-col md:flex-row gap-6 lg:gap-8 w-full md:h-[calc(100vh-11rem)] md:min-h-[600px] lg:min-h-[650px] md:overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700">
 
             {/* Product Arena - Left Section */}
             <div className="flex-1 flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[3rem] shadow-sm border border-white dark:border-slate-800 overflow-hidden transition-all">
@@ -771,7 +771,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
             </div>
 
             {/* Cart & Pricing Engine - Right Section */}
-            <div className="w-full md:w-[340px] lg:w-[400px] xl:w-[450px] flex flex-col gap-6 shrink-0">
+            <div className="w-full md:w-[340px] lg:w-[400px] xl:w-[450px] flex flex-col gap-6 shrink-0 md:h-full md:overflow-hidden">
 
                 {/* Negotiation / Item Focus */}
                 <div className={`overflow-hidden transition-all duration-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[3rem] border border-white dark:border-slate-800 shadow-2xl ${selectedItem ? 'h-auto opacity-100 p-8' : 'h-0 opacity-0 p-0 overflow-hidden'}`}>
@@ -832,7 +832,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 </div>
 
                 {/* Main Cart Workspace */}
-                <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-xl overflow-hidden min-h-[400px]">
+                <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-xl overflow-hidden h-[480px] md:h-auto">
                     <div className="p-4 sm:p-6 lg:p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl">
