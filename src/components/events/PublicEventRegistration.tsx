@@ -312,7 +312,11 @@ export const PublicEventRegistration: React.FC = () => {
                     
                     // Complete registration with the real M-Pesa Receipt Number!
                     const receiptNumber = statusRes.mpesaReceiptNumber || checkoutRequestId;
-                    handleCompleteRegistration(receiptNumber);
+                    handleCompleteRegistration(receiptNumber).catch(err => {
+                        console.error("Registration finalization failed:", err);
+                        setPaymentStatus('failed');
+                        setErrorMsg(err.message || 'Payment confirmed, but registration record could not be saved.');
+                    });
                 } else if (statusRes.status === 'Failed' || statusRes.resultCode === '1') {
                     clearInterval(interval);
                     setPaymentStatus('failed');
