@@ -593,10 +593,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { data: instList } = await supabase
                 .from('institutions')
                 .select('id, kcb_config')
-                .eq('kcb_config->>shortCode', organizationShortCode);
+                .not('kcb_config', 'is', null);
             if (instList && instList.length > 0) {
-                resolvedInstitutionId = instList[0].id;
-                kcbConfig = instList[0].kcb_config || {};
+                const found = instList.find(i => {
+                    const cfg = i.kcb_config || {};
+                    const sc = String(cfg.shortCode || cfg.short_code || '').trim();
+                    return sc === organizationShortCode.trim();
+                });
+                if (found) {
+                    resolvedInstitutionId = found.id;
+                    kcbConfig = found.kcb_config || {};
+                }
             }
         }
 
@@ -611,8 +618,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        const appKey = (kcbConfig.appKey || '').trim();
-        const appSecret = (kcbConfig.appSecret || '').trim();
+        const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
+        const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
         
         if (appKey && appSecret && 
             !appKey.toLowerCase().includes('test') && !appKey.toLowerCase().includes('demo') &&
@@ -709,6 +716,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const { data: instByCode } = await supabase.from('institutions').select('*').eq('code', directKey).maybeSingle();
                     inst = instByCode;
                 }
+            }
+
+            // Fallback: check resolvedInstitutionId if resolved via shortcode (KCB C2B Paybill matching)
+            if (!inst && resolvedInstitutionId) {
+                const { data: instById } = await supabase.from('institutions').select('*').eq('id', resolvedInstitutionId).maybeSingle();
+                inst = instById;
             }
 
             if (inst) {

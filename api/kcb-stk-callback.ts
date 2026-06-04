@@ -321,8 +321,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                const appKey = (kcbConfig.appKey || '').trim();
-                const appSecret = (kcbConfig.appSecret || '').trim();
+                const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
+                const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
                 
                 if (appKey && appSecret && 
                     !appKey.toLowerCase().includes('test') && !appKey.toLowerCase().includes('demo') &&

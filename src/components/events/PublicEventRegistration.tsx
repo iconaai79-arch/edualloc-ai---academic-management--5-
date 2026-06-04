@@ -109,6 +109,8 @@ export const PublicEventRegistration: React.FC = () => {
                         setCategories(uniqueCats);
                         if (uniqueCats.length > 0) {
                             setSelectedCategoryId(uniqueCats[0].id);
+                            // Bypass Step 1 (Event Details) and go straight to Step 2 (Runner Profile Form)
+                            setStep(2);
                         }
                     } else {
                         setErrorMsg('Selected athletic event could not be found.');
@@ -757,6 +759,62 @@ export const PublicEventRegistration: React.FC = () => {
                     <form onSubmit={handleFormSubmit} className="space-y-6">
                         {/* Runner profile */}
                         <div className="space-y-4">
+                            {/* Race Category Dropdown Selector if multiple categories exist, or info banner if single category exists */}
+                            {categories.length > 1 ? (
+                                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 mb-6 animate-fade-in">
+                                    <label className="block text-xs font-bold text-slate-400 mb-2">Race Distance / Category *</label>
+                                    <div className="relative">
+                                        <select
+                                            value={selectedCategoryId}
+                                            onChange={e => setSelectedCategoryId(e.target.value)}
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white font-bold tracking-wide focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
+                                        >
+                                            {categories.map(cat => (
+                                                <option key={cat.id} value={cat.id} className="bg-slate-950 text-slate-100 font-bold">
+                                                    {cat.name} ({cat.distanceKm}K) — {Number(cat.registrationFee) === 0 ? 'FREE' : `KES ${Number(cat.registrationFee)?.toLocaleString()}`}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    {activeCategory && (
+                                        <div className="mt-3 text-[11px] text-slate-500 flex flex-wrap gap-x-4 gap-y-1 items-center">
+                                            <span className="flex items-center gap-1">
+                                                <ClockIcon className="w-3.5 h-3.5 text-slate-600" />
+                                                Starts {activeCategory.startTime || '06:00 AM'}
+                                            </span>
+                                            {activeCategory.genderRestriction !== 'any' && (
+                                                <span className="capitalize">
+                                                    • {activeCategory.genderRestriction} only
+                                                </span>
+                                            )}
+                                            {activeCategory.capacity && (
+                                                <span>
+                                                    • Limit: {activeCategory.capacity} runners
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : categories.length === 1 && activeCategory ? (
+                                <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 mb-6 flex items-center justify-between text-xs">
+                                    <div>
+                                        <span className="block text-[10px] text-slate-500 uppercase tracking-wider">Race Category</span>
+                                        <span className="font-bold text-slate-200">{activeCategory.name} ({activeCategory.distanceKm}K)</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="block text-[10px] text-slate-500 uppercase tracking-wider">Registration Fee</span>
+                                        <span className="font-bold text-indigo-400 font-mono">
+                                            {Number(activeCategory.registrationFee) === 0 ? 'FREE' : `KES ${Number(activeCategory.registrationFee)?.toLocaleString()}`}
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : null}
+
                             <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-1.5">
                                 <UserIcon className="w-5 h-5 text-indigo-400" /> Runner Profile Info
                             </h3>
@@ -1213,6 +1271,15 @@ export const PublicEventRegistration: React.FC = () => {
                             >
                                 Return to Events Board
                             </button>
+                        </div>
+
+                        {/* Powered by Branding Footer */}
+                        <div className="mt-12 flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] select-none">
+                            <span>Powered by</span>
+                            <div className="w-5 h-5 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-md flex items-center justify-center text-white text-[8px] font-black tracking-normal">
+                                EA
+                            </div>
+                            <span className="text-slate-400 font-extrabold">EduAlloc AI</span>
                         </div>
                     </div>
                 )}
