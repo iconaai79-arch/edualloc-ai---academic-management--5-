@@ -703,7 +703,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     ))}
                 </div>
             ) : (
-                <div className="relative">
+                <div className={`relative ${dirtyCount > 0 ? 'pb-24' : ''}`}>
                     {/* Category filter chips */}
                     <div className="flex items-center gap-2 flex-wrap mb-3">
                         {['all', ...categories].map(cat => (
@@ -891,7 +891,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
 
                     {/* Floating save banner */}
                     {dirtyCount > 0 && (
-                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
                             <div className="flex items-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-3 rounded-2xl shadow-2xl shadow-slate-900/40 border border-slate-700 dark:border-slate-200">
                                 <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                                 <span className="text-xs font-black uppercase tracking-wide">
