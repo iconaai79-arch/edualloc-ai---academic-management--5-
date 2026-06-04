@@ -586,10 +586,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (true) {
-                const checkoutRequestId = stkPushData.CheckoutRequestID || stkPushData.checkoutRequestID || stkPushData.checkoutRequestId || `KCB_CO_${Date.now()}`;
+                const checkoutRequestId = 
+                    stkPushData.response?.CheckoutRequestID || 
+                    stkPushData.response?.checkoutRequestID || 
+                    stkPushData.response?.checkoutRequestId || 
+                    stkPushData.CheckoutRequestID || 
+                    stkPushData.checkoutRequestID || 
+                    stkPushData.checkoutRequestId || 
+                    `KCB_CO_${Date.now()}`;
                 
                 // KCB may return response codes or result codes in various casing
                 const responseCode = String(
+                    stkPushData.response?.responseCode ??
+                    stkPushData.response?.ResponseCode ??
+                    stkPushData.response?.statusCode ??
+                    stkPushData.response?.StatusCode ??
                     stkPushData.ResponseCode ?? stkPushData.responseCode ?? 
                     stkPushData.ResultCode ?? stkPushData.resultCode ??
                     stkPushData.statusCode ?? stkPushData.StatusCode ??
@@ -599,7 +610,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 );
 
                 const isSuccess = responseCode === '0' || responseCode === '00' || responseCode === 'SUCCESS' || responseCode === 'SUCCESSFUL';
-                const message = stkPushData.ResponseDescription || stkPushData.responseDescription || stkPushData.customerMessage || stkPushData.CustomerMessage || (isSuccess ? 'KCB STK Push initiated successfully.' : 'KCB Gateway rejected the request.');
+                const message = 
+                    stkPushData.response?.responseDescription ||
+                    stkPushData.response?.ResponseDescription ||
+                    stkPushData.response?.customerMessage ||
+                    stkPushData.response?.CustomerMessage ||
+                    stkPushData.ResponseDescription || 
+                    stkPushData.responseDescription || 
+                    stkPushData.customerMessage || 
+                    stkPushData.CustomerMessage || 
+                    (isSuccess ? 'KCB STK Push initiated successfully.' : 'KCB Gateway rejected the request.');
 
                 if (isSuccess) {
                     await supabase.from('integration_logs').insert({
@@ -894,7 +914,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     status = 'PENDING';
                 }
 
-                if (status === 'COMPLETED' && checkoutRequestId) {
+                if (status === 'COMPLETED' && checkoutRequestId && mpesaReceiptNumber) {
                     try {
                         const supabase = getSupabase();
                         if (supabase) {
