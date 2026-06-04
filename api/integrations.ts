@@ -2188,7 +2188,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 let finalOrgShortCode = '522533';
                 if (environment === 'sandbox') {
-                    finalOrgShortCode = '522533';
+                    const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
+                    if (isCustomPaybill) {
+                        finalOrgShortCode = configShortCode || '522533';
+                    } else {
+                        finalOrgShortCode = '522533';
+                    }
                 } else {
                     if (configShortCode) {
                         if (configShortCode === '522533') {

@@ -305,9 +305,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let finalSharedShortCode = true;
  
         if (environment === 'sandbox') {
-            finalOrgShortCode = '522533';
-            finalSharedShortCode = true;
-            finalTillNumber = configTillNumber || (configShortCode !== '522533' ? configShortCode : '');
+            const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
+            if (isCustomPaybill) {
+                finalOrgShortCode = configShortCode || '522533';
+                finalSharedShortCode = false;
+                finalTillNumber = configTillNumber;
+            } else {
+                finalOrgShortCode = '522533';
+                finalSharedShortCode = true;
+                finalTillNumber = configTillNumber || (configShortCode !== '522533' ? configShortCode : '');
+            }
         } else {
             if (configShortCode) {
                 if (configShortCode === '522533') {
@@ -457,10 +464,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const rawInvoiceNumber = accountReference || transactionReference || `INV_${Date.now()}`;
             let formattedInvoiceNumber = rawInvoiceNumber;
-            const useSharedShortCode = environment === 'sandbox'
-                ? true
-                : (kcbConfig.sharedShortCode !== undefined
-                    ? Boolean(kcbConfig.sharedShortCode)
+            const useSharedShortCode = kcbConfig.sharedShortCode !== undefined
+                ? Boolean(kcbConfig.sharedShortCode)
+                : (kcbConfig.shared_short_code !== undefined
+                    ? Boolean(kcbConfig.shared_short_code)
                     : finalSharedShortCode);
 
             if (useSharedShortCode && finalTillNumber) {
