@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../../types';
 import { apiService } from '../../services/apiService';
+import { SmartCategoryImporterModal } from './SmartCategoryImporterModal';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { LockClosedIcon } from '../icons/LockClosedIcon';
 import { ClockIcon } from '../icons/ClockIcon';
@@ -230,10 +231,23 @@ function CategoryManagerPanel({ institutionId, currentUser, isPrincipal }: {
     const [isSaving, setIsSaving] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [showAddForm, setShowAddForm] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [savedAt, setSavedAt] = useState<string | null>(null);
     const [newCat, setNewCat] = useState<Partial<InventoryCategory>>({ name: '', icon: '📦', color: '#6366f1', description: '' });
     const dragItem = useRef<number | null>(null);
     const dragOverItem = useRef<number | null>(null);
+
+    const handleImportCategories = async (imported: Omit<InventoryCategory, 'id'>[]) => {
+        const newCats = imported.map((c, i) => ({
+            ...c,
+            id: `cat_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            sortOrder: categories.length + i + 1,
+        }));
+        const updated = [...categories, ...newCats];
+        setCategories(updated);
+        setIsImportModalOpen(false);
+        await saveCategories(newCats as InventoryCategory[]);
+    };
 
     useEffect(() => { loadCategories(); }, [institutionId]);
 
@@ -325,10 +339,16 @@ function CategoryManagerPanel({ institutionId, currentUser, isPrincipal }: {
                     {savedAt && <span className="text-[10px] text-emerald-600 font-black uppercase">✓ Saved {savedAt}</span>}
                     {isSaving && <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />}
                     {isPrincipal && (
-                        <button onClick={() => setShowAddForm(true)}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wide shadow-lg shadow-indigo-200 dark:shadow-none transition-all">
-                            <PlusIcon className="w-3.5 h-3.5" /> Add Category
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setIsImportModalOpen(true)}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase tracking-wide transition-all">
+                                ✨ Smart Import
+                            </button>
+                            <button onClick={() => setShowAddForm(true)}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wide shadow-lg shadow-indigo-200 dark:shadow-none transition-all">
+                                <PlusIcon className="w-3.5 h-3.5" /> Add Category
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -484,6 +504,13 @@ function CategoryManagerPanel({ institutionId, currentUser, isPrincipal }: {
             <p className="text-[10px] text-slate-400 text-center">
                 {categories.length} {categories.length === 1 ? 'category' : 'categories'} · Drag rows to reorder
             </p>
+
+            {isImportModalOpen && (
+                <SmartCategoryImporterModal
+                    onClose={() => setIsImportModalOpen(false)}
+                    onImport={handleImportCategories}
+                />
+            )}
         </div>
     );
 }
