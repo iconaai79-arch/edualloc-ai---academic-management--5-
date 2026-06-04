@@ -151,6 +151,7 @@ export const PublicEventRegistration: React.FC = () => {
     }, []);
 
     const activeCategory = categories.find(c => c.id === selectedCategoryId);
+    const totalFee = (activeCategory ? Number(activeCategory.registrationFee) : 0) + Number(formData.initialPledge || 0);
 
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -449,8 +450,6 @@ export const PublicEventRegistration: React.FC = () => {
             setPaymentStatus('failed');
         }
     };
-
-    const totalFee = (activeCategory ? Number(activeCategory.registrationFee) : 0) + Number(formData.initialPledge || 0);
 
     const handleSelectEvent = (id: string) => {
         // Update URL query parameters cleanly
