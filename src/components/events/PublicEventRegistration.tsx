@@ -404,7 +404,18 @@ export const PublicEventRegistration: React.FC = () => {
                     metadata: { 
                         type: 'event_registration', 
                         eventId: eventId,
-                        categoryId: selectedCategoryId
+                        categoryId: selectedCategoryId,
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        email: formData.email,
+                        phone: formData.phone,
+                        gender: formData.gender,
+                        age: formData.age,
+                        tShirtSize: formData.tShirtSize,
+                        emergencyContactName: formData.emergencyContactName,
+                        emergencyContactPhone: formData.emergencyContactPhone,
+                        initialPledge: formData.initialPledge,
+                        sponsorName: formData.sponsorName
                     },
                     timestamp: new Date().toISOString()
                 }).catch(err => console.error("Failed to record pending transaction:", err));

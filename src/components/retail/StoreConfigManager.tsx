@@ -576,10 +576,251 @@ function DocumentPrefixPanel({ institutionId, currentInstitution, isPrincipal }:
     );
 }
 
+// ─── Staff Management Sub-panel ───────────────────────────────────────────
+
+const UserIcon = ({ className }: { className?: string }) => (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+    </svg>
+);
+
+function StoreStaffPanel({ institutionId, currentUser, isPrincipal }: {
+    institutionId: string; currentUser: User; isPrincipal: boolean;
+}) {
+    const [allUsers, setAllUsers] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [selectedUserId, setSelectedUserId] = useState('');
+    
+    // For creating new store staff from scratch
+    const [newStaffData, setNewStaffData] = useState({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        password: '',
+    });
+
+    useEffect(() => {
+        loadUsers();
+    }, [institutionId]);
+
+    const loadUsers = async () => {
+        setIsLoading(true);
+        try {
+            const data = await apiService.fetchModuleRecords('users', institutionId);
+            setAllUsers(data || []);
+        } catch (err) {
+            console.error('Failed to load users:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAssignStoreRole = async () => {
+        if (!selectedUserId) return;
+        setIsSaving(true);
+        try {
+            const user = allUsers.find(u => u.id === selectedUserId);
+            if (user) {
+                const updatedUser = { ...user, role: 'store' };
+                await apiService.saveModuleRecord('users', updatedUser);
+                setAllUsers(prev => prev.map(u => u.id === selectedUserId ? updatedUser : u));
+                setSelectedUserId('');
+                setShowAddForm(false);
+            }
+        } catch (err: any) {
+            alert('Failed to assign store role: ' + err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCreateStoreStaff = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newStaffData.name || !newStaffData.email || !newStaffData.password) return;
+        setIsSaving(true);
+        try {
+            const newStaffUser = {
+                id: 'usr_' + Date.now(),
+                institutionId,
+                name: newStaffData.name,
+                email: newStaffData.email,
+                phoneNumber: newStaffData.phoneNumber,
+                password: newStaffData.password,
+                role: 'store',
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('users', newStaffUser);
+            setAllUsers(prev => [...prev, newStaffUser]);
+            setNewStaffData({ name: '', email: '', phoneNumber: '', password: '' });
+            setShowAddForm(false);
+        } catch (err: any) {
+            alert('Failed to create store staff: ' + err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleRevokeStoreRole = async (userId: string) => {
+        if (userId === currentUser.id) {
+            alert('You cannot revoke your own store access.');
+            return;
+        }
+        if (!window.confirm('Are you sure you want to revoke storekeeper access for this user? They will be demoted to standard "staff".')) return;
+        setIsSaving(true);
+        try {
+            const user = allUsers.find(u => u.id === userId);
+            if (user) {
+                const updatedUser = { ...user, role: 'staff' };
+                await apiService.saveModuleRecord('users', updatedUser);
+                setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+            }
+        } catch (err: any) {
+            alert('Failed to revoke store role: ' + err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const storeStaff = allUsers.filter(u => u.role === 'store');
+    const eligibleStaff = allUsers.filter(u => u.role !== 'store' && u.role !== 'student' && u.role !== 'parent');
+
+    if (isLoading) return (
+        <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        </div>
+    );
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+                <p className="text-xs text-slate-500">
+                    Assign and manage personnel who have permission to issue and receive inventory items.
+                </p>
+                {isPrincipal && (
+                    <button onClick={() => setShowAddForm(true)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wide shadow-lg shadow-indigo-200 dark:shadow-none transition-all">
+                        <PlusIcon className="w-3.5 h-3.5" /> Add Store Keeper
+                    </button>
+                )}
+            </div>
+
+            {/* Form Modal / Dropdown selection */}
+            {showAddForm && isPrincipal && (
+                <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between mb-4">
+                        <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wide">Add Store Staff</p>
+                        <button onClick={() => setShowAddForm(false)} className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg"><XIcon className="w-4 h-4" /></button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Option A: Select Existing Staff */}
+                        <div className="space-y-3">
+                            <p className="text-xs font-bold text-slate-700 dark:text-slate-350">Option 1: Assign to Existing Staff Member</p>
+                            <div>
+                                <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Select User</label>
+                                <select 
+                                    value={selectedUserId} 
+                                    onChange={e => setSelectedUserId(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                >
+                                    <option value="">-- Choose Staff Member --</option>
+                                    {eligibleStaff.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.email || u.phoneNumber} - Role: {u.role})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <button 
+                                onClick={handleAssignStoreRole} 
+                                disabled={!selectedUserId || isSaving}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wide disabled:opacity-50 transition-all flex items-center gap-1.5"
+                            >
+                                {isSaving ? 'Assigning...' : 'Assign Store Role'}
+                            </button>
+                        </div>
+
+                        {/* Option B: Create New User */}
+                        <form onSubmit={handleCreateStoreStaff} className="space-y-3 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700 md:pl-6">
+                            <p className="text-xs font-bold text-slate-700 dark:text-slate-350">Option 2: Create New Store Keeper Profile</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Full Name *</label>
+                                    <input type="text" required value={newStaffData.name} onChange={e => setNewStaffData(p => ({ ...p, name: e.target.value }))}
+                                        placeholder="Jane Doe" className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Email Address *</label>
+                                    <input type="email" required value={newStaffData.email} onChange={e => setNewStaffData(p => ({ ...p, email: e.target.value }))}
+                                        placeholder="jane.doe@school.com" className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Phone Number</label>
+                                    <input type="text" value={newStaffData.phoneNumber} onChange={e => setNewStaffData(p => ({ ...p, phoneNumber: e.target.value }))}
+                                        placeholder="0712345678" className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white" />
+                                </div>
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Password *</label>
+                                    <input type="password" required value={newStaffData.password} onChange={e => setNewStaffData(p => ({ ...p, password: e.target.value }))}
+                                        placeholder="••••••••" className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white" />
+                                </div>
+                            </div>
+                            <button type="submit" disabled={isSaving || !newStaffData.name || !newStaffData.email || !newStaffData.password}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wide disabled:opacity-50 transition-all">
+                                {isSaving ? 'Creating...' : 'Create & Assign Role'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Staff list cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {storeStaff.map(user => (
+                    <div key={user.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-4 shadow-sm flex flex-col justify-between hover:border-indigo-200 dark:hover:border-indigo-700 transition-all">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+                                <UserIcon className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="font-black text-slate-900 dark:text-white text-sm truncate">{user.name}</p>
+                                <p className="text-[10px] text-slate-400 truncate">{user.email || 'No email'}</p>
+                                {user.phoneNumber && <p className="text-[9px] text-slate-400 font-mono mt-0.5">{user.phoneNumber}</p>}
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between border-t border-slate-105 dark:border-slate-700 mt-4 pt-3">
+                            <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-full text-[8px] font-black uppercase tracking-wide">
+                                Store Keeper
+                            </span>
+                            {isPrincipal && (
+                                <button 
+                                    onClick={() => handleRevokeStoreRole(user.id)}
+                                    disabled={user.id === currentUser.id}
+                                    className="text-[10px] font-black text-rose-500 hover:text-rose-700 uppercase tracking-wider disabled:opacity-50"
+                                >
+                                    Revoke Access
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {storeStaff.length === 0 && (
+                <div className="py-12 text-center">
+                    <UserIcon className="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-2" />
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-350 dark:text-slate-650">No store keepers assigned</p>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Main StoreConfigManager ────────────────────────────────────────────────
 
 export function StoreConfigManager({ institutionId, currentUser, currentInstitution }: Props) {
-    const [activeTab, setActiveTab] = useState<'hours' | 'categories' | 'prefixes'>('hours');
+    const [activeTab, setActiveTab] = useState<'hours' | 'categories' | 'prefixes' | 'staff'>('hours');
 
     const isPrincipal = PRINCIPAL_ROLES.includes(currentUser.role) ||
         currentUser.roles?.some(r => PRINCIPAL_ROLES.includes(r)) || false;
@@ -588,6 +829,7 @@ export function StoreConfigManager({ institutionId, currentUser, currentInstitut
         { id: 'hours', label: 'Operation Hours', icon: <ClockIcon className="w-4 h-4" /> },
         { id: 'categories', label: 'Item Categories', icon: <TagIcon className="w-4 h-4" /> },
         { id: 'prefixes', label: 'Document Prefixes', icon: <DocumentTextIcon className="w-4 h-4" /> },
+        { id: 'staff', label: 'Store Staff', icon: <UserIcon className="w-4 h-4" /> },
     ];
 
     return (
@@ -638,6 +880,13 @@ export function StoreConfigManager({ institutionId, currentUser, currentInstitut
                     <DocumentPrefixPanel
                         institutionId={institutionId}
                         currentInstitution={currentInstitution}
+                        isPrincipal={isPrincipal}
+                    />
+                )}
+                {activeTab === 'staff' && (
+                    <StoreStaffPanel
+                        institutionId={institutionId}
+                        currentUser={currentUser}
                         isPrincipal={isPrincipal}
                     />
                 )}

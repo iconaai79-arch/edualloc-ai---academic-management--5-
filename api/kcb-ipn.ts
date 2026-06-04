@@ -573,6 +573,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (instData) {
                 resolvedInstitutionId = instData.id;
                 kcbConfig = instData.kcb_config || {};
+            } else {
+                // Search in kcb_config JSON properties for a match
+                const { data: instList } = await supabase
+                    .from('institutions')
+                    .select('id, kcb_config')
+                    .not('kcb_config', 'is', null);
+                if (instList && instList.length > 0) {
+                    const found = instList.find(i => {
+                        const cfg = i.kcb_config || {};
+                        return String(cfg.shortCode || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.tillNumber || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.companyCode || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.creditAccountIdentifier || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.accountNumber || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.bank_account || '').trim() === creditAccountIdentifier.trim();
+                    });
+                    if (found) {
+                        resolvedInstitutionId = found.id;
+                        kcbConfig = found.kcb_config || {};
+                    }
+                }
             }
         }
 
@@ -598,7 +619,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const found = instList.find(i => {
                     const cfg = i.kcb_config || {};
                     const sc = String(cfg.shortCode || cfg.short_code || '').trim();
-                    return sc === organizationShortCode.trim();
+                    const tn = String(cfg.tillNumber || '').trim();
+                    const cc = String(cfg.companyCode || '').trim();
+                    return sc === organizationShortCode.trim() || 
+                           tn === organizationShortCode.trim() || 
+                           cc === organizationShortCode.trim();
                 });
                 if (found) {
                     resolvedInstitutionId = found.id;
@@ -1232,6 +1257,115 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             });
                         }
                     }
+                } else if (type === 'event_registration') {
+                    const eventId = metadata.eventId;
+                    const categoryId = metadata.categoryId;
+                    const firstName = metadata.firstName || 'Runner';
+                    const lastName = metadata.lastName || '';
+                    const email = metadata.email || '';
+                    const phone = metadata.phone || payerPhone || '';
+                    const gender = metadata.gender || 'male';
+                    const age = metadata.age ? parseInt(String(metadata.age)) : null;
+                    const tShirtSize = metadata.tShirtSize || 'M';
+                    const emergencyContactName = metadata.emergencyContactName || '';
+                    const emergencyContactPhone = metadata.emergencyContactPhone || '';
+                    const initialPledge = metadata.initialPledge ? parseFloat(String(metadata.initialPledge)) : 0;
+                    const sponsorName = metadata.sponsorName || `${firstName} ${lastName}`.trim();
+
+                    // Check if participant already exists matching categoryId + email or categoryId + phone
+                    let participant: any = null;
+                    if (email || phone) {
+                        let queryBuilder = supabase
+                            .from('event_participants')
+                            .select('*')
+                            .eq('category_id', categoryId);
+                        
+                        const orConditions: string[] = [];
+                        if (email) orConditions.push(`email.ieq.${email.trim()}`);
+                        if (phone) orConditions.push(`phone.eq.${phone.trim()}`);
+                        
+                        if (orConditions.length > 0) {
+                            queryBuilder = queryBuilder.or(orConditions.join(','));
+                            const { data: existingParticipants } = await queryBuilder;
+                            if (existingParticipants && existingParticipants.length > 0) {
+                                participant = existingParticipants[0];
+                            }
+                        }
+                    }
+
+                    if (participant) {
+                        await supabase
+                            .from('event_participants')
+                            .update({
+                                payment_status: 'paid',
+                                mpesa_reference: transactionID || transaction.transaction_id || ''
+                            })
+                            .eq('id', participant.id);
+
+                        await supabase
+                            .from('event_pledges')
+                            .update({ payment_status: 'paid' })
+                            .eq('participant_id', participant.id);
+                        
+                        console.log(`[Reconcile IPN] Updated existing event participant ${participant.id} and pledges to paid.`);
+                    } else {
+                        // Generate new BIB number
+                        const { data: allParticipants } = await supabase
+                            .from('event_participants')
+                            .select('bib_number');
+                        const existingBibs = (allParticipants || [])
+                            .map(p => parseInt(p.bib_number || '0'))
+                            .filter(b => !isNaN(b));
+                        const maxBib = existingBibs.length > 0 ? Math.max(...existingBibs) : 1000;
+                        const newBib = String(maxBib + 1);
+
+                        const participantId = `part_${Date.now()}`;
+                        const { error: insertPartErr } = await supabase
+                            .from('event_participants')
+                            .insert({
+                                id: participantId,
+                                category_id: categoryId,
+                                bib_number: newBib,
+                                first_name: firstName,
+                                last_name: lastName,
+                                email: email,
+                                phone: phone,
+                                gender: gender,
+                                age: age,
+                                t_shirt_size: tShirtSize,
+                                waiver_signed: true,
+                                payment_status: 'paid',
+                                mpesa_reference: transactionID || transaction.transaction_id || '',
+                                emergency_contact_name: emergencyContactName,
+                                emergency_contact_phone: emergencyContactPhone,
+                                status: 'registered',
+                                created_at: new Date().toISOString()
+                            });
+
+                        if (insertPartErr) {
+                            console.error('[Reconcile IPN] Failed to insert event participant:', insertPartErr.message);
+                        } else {
+                            console.log(`[Reconcile IPN] Created new event participant ${participantId}, BIB: ${newBib}`);
+                            if (initialPledge > 0) {
+                                const pledgeId = `pledge_${Date.now()}`;
+                                const { error: insertPledgeErr } = await supabase
+                                    .from('event_pledges')
+                                    .insert({
+                                        id: pledgeId,
+                                        participant_id: participantId,
+                                        sponsor_name: sponsorName,
+                                        amount: initialPledge,
+                                        payment_status: 'paid',
+                                        created_at: new Date().toISOString()
+                                    });
+                                if (insertPledgeErr) {
+                                    console.error('[Reconcile IPN] Failed to insert event pledge:', insertPledgeErr.message);
+                                } else {
+                                    console.log(`[Reconcile IPN] Created new event pledge ${pledgeId} for ${initialPledge}`);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Mark transaction as reconciled (setting reconciled: true in metadata)
@@ -1245,7 +1379,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // Write/Upsert to bank_transactions so it appears in Bank Feeds
                 try {
-                    const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'ds_invoice' || type === 'pm_invoice';
+                    const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'ds_invoice' || type === 'pm_invoice' || type === 'event_registration';
                     const { error: bankTxnErr } = await supabase.from('bank_transactions').upsert({
                         id: transaction.id,
                         institution_id: instId || resolvedInstitutionId,

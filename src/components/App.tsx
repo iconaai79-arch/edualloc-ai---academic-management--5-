@@ -805,6 +805,7 @@ export const App: React.FC = () => {
             const isLaw = isSuper || instTypeLower === 'law firm' || (activeInst?.businessSubType || '').toLowerCase().includes('law') || (activeInst?.businessSubType || '').toLowerCase().includes('legal');
             const isCoop = isSuper || ['cooperative', 'sacco'].includes(instTypeLower);
             const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'agrovet', 'car wash', 'automotive marketplace', 'car showroom', 'hardware', 'pharmacy'].includes(instTypeLower);
+            const isHigherEd = ['university', 'college', 'tvet', 'polytechnic', 'institute'].includes(instTypeLower);
 
             const isLogistics = isSuper || ['logistics', 'transport'].includes(instTypeLower);
             const isHospitality = isSuper || instTypeLower === 'hospitality';
@@ -1084,7 +1085,7 @@ export const App: React.FC = () => {
                     ]) : Promise.resolve([]),
 
                     // Car Batch
-                    isBusiness ? Promise.all([
+                    (isBusiness || isHigherEd) ? Promise.all([
                         apiService.fetchCarListings(effectiveInstIdFinal, 'all').catch(() => []),
                         apiService.fetchCarTestDrives(effectiveInstIdFinal).catch(() => []),
                         apiService.fetchCarAppraisals(effectiveInstIdFinal).catch(() => []),
@@ -1124,7 +1125,7 @@ export const App: React.FC = () => {
                 if (isCoop && coopResults) [cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = coopResults;
                 if (isLaw && legalResults) [lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements] = legalResults;
 
-                if (isBusiness && carResults) [csList, csTest, csAppr, cInvs, cPay, csBank] = carResults;
+                if ((isBusiness || isHigherEd) && carResults) [csList, csTest, csAppr, cInvs, cPay, csBank] = carResults;
                 if (systemResults) [sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads] = systemResults;
 
                 console.log("[Data Refresh] Optimized Batches Resolved");
