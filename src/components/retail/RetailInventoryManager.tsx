@@ -101,8 +101,22 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         let lastKeyTime = Date.now();
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ignore if focus is within an input or textarea
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+            // Ignore if modal is open
+            if (isAddModalOpen) {
+                return;
+            }
+
+            // Ignore if focus is within an interactive element
+            const target = e.target as HTMLElement;
+            if (
+                target && (
+                    target.tagName === 'INPUT' ||
+                    target.tagName === 'TEXTAREA' ||
+                    target.tagName === 'SELECT' ||
+                    target.tagName === 'BUTTON' ||
+                    target.isContentEditable
+                )
+            ) {
                 return;
             }
 
@@ -156,7 +170,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [items]); // Re-bind when items change so we have the latest list to search
+    }, [items, isAddModalOpen, categories]); // Re-bind when items, modal state or categories change
 
     // Custom PDF stock valuation report generator
     const generateCustomStockPdf = async () => {
