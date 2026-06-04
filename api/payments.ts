@@ -27,6 +27,29 @@ const resolveKcbResultCode = (data: any): string => {
     return '';
 };
 
+// Local phone normalization helper
+const normalizePhone = (phone: string): string => {
+    let p = String(phone).replace(/[^\d]/g, '');
+    if (p.startsWith('2540')) p = '254' + p.substring(4);
+    else if (p.startsWith('0')) p = '254' + p.substring(1);
+    else if (p.length === 9) p = '254' + p;
+    return p;
+};
+
+// Local fetch with timeout helper
+const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (e) {
+        clearTimeout(id);
+        throw e;
+    }
+};
+
 /**
  * Unified Payments API Gateway
  * Handles:
@@ -869,6 +892,315 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     status = 'COMPLETED';
                 } else if (resultCode === '1' || resultCode === '' || resultCode.toLowerCase() === 'pending' || resultCode.toLowerCase() === 'processing') {
                     status = 'PENDING';
+                }
+
+                if (status === 'COMPLETED' && checkoutRequestId) {
+                    try {
+                        const supabase = getSupabase();
+                        if (supabase) {
+                            // 1. Update status and transaction_id in mpesa_transactions
+                            const updateData: Record<string, any> = { status: 'completed' };
+                            if (mpesaReceiptNumber) {
+                                updateData.transaction_id = mpesaReceiptNumber;
+                            }
+                            const { error: updateErr } = await supabase
+                                .from('mpesa_transactions')
+                                .update(updateData)
+                                .eq('checkout_request_id', checkoutRequestId);
+
+                            if (updateErr) {
+                                console.warn('[KCB STK Query Fallback] Could not update transaction status:', updateErr.message);
+                            } else {
+                                console.log(`[KCB STK Query Fallback] ✅ Transaction updated to completed, receipt: ${mpesaReceiptNumber || 'N/A'}`);
+
+                                // 2. Fetch the transaction record for post-payment reconciliation
+                                const { data: transaction } = await supabase
+                                    .from('mpesa_transactions')
+                                    .select('*')
+                                    .eq('checkout_request_id', checkoutRequestId)
+                                    .maybeSingle();
+
+                                if (transaction) {
+                                    const metadata = transaction.metadata || {};
+                                    const isReconciled = metadata.reconciled === true || metadata.reconciled === 'true';
+
+                                    if (!isReconciled) {
+                                        const instId = transaction.institution_id;
+                                        const amt = transaction.amount || 0;
+                                        const type = metadata.type;
+
+                                        // Fetch system settings for SMS pricing/configs
+                                        let settings: any = {};
+                                        try {
+                                            const { data: sData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+                                            if (sData?.data) settings = sData.data;
+                                        } catch (e) {
+                                            console.error('[KCB STK Query Fallback] Failed to fetch settings:', e);
+                                        }
+
+                                        // Fetch institution name & branding
+                                        let inst: any = null;
+                                        if (instId && instId !== 'SYSTEM' && instId !== 'GLOBAL') {
+                                            const { data: instData } = await supabase.from('institutions').select('*').eq('id', instId).maybeSingle();
+                                            inst = instData;
+                                        }
+
+                                        let newBalance = 0;
+                                        let unitsToCredit = 0;
+
+                                        if (type === 'sms' || type === 'sms_topup') {
+                                            unitsToCredit = parseInt(String(metadata.units || "0"));
+                                            const defaultUnitPrice = parseFloat(String(settings.sms_unit_price || settings.smsUnitPrice || 2));
+                                            if (unitsToCredit <= 0 && amt > 0) {
+                                                unitsToCredit = Math.floor(amt / (defaultUnitPrice || 1));
+                                            }
+
+                                            if (unitsToCredit > 0) {
+                                                await supabase.rpc('increment_sms_balance', { 
+                                                    inst_id: instId || 'SYSTEM', 
+                                                    amount: unitsToCredit 
+                                                });
+
+                                                if (instId && instId !== 'SYSTEM') {
+                                                    const { data: updatedInst } = await supabase.from('institutions').select('sms_balance').eq('id', instId).maybeSingle();
+                                                    if (updatedInst) newBalance = updatedInst.sms_balance;
+                                                }
+                                            }
+
+                                            const invoiceId = `inv_sms_${Date.now()}`;
+                                            await supabase.from('invoices').insert({
+                                                id: invoiceId,
+                                                invoice_number: `INV-SMS-${Date.now().toString().slice(-6)}`,
+                                                institution_id: instId || 'SYSTEM',
+                                                issue_date: new Date().toISOString().split('T')[0],
+                                                due_date: new Date().toISOString().split('T')[0],
+                                                total_amount: amt,
+                                                status: 'paid',
+                                                items: JSON.stringify([{
+                                                    description: `SMS Units Purchase - ${unitsToCredit} units (KCB)`,
+                                                    quantity: 1,
+                                                    unitPrice: amt / (unitsToCredit || 1),
+                                                    amount: amt
+                                                }])
+                                            });
+
+                                            await supabase.from('receipts').insert({
+                                                id: `rec_sms_${Date.now()}`,
+                                                receipt_number: mpesaReceiptNumber || `REC-SMS-${Date.now().toString().slice(-6)}`,
+                                                institution_id: instId || 'SYSTEM',
+                                                invoice_id: invoiceId,
+                                                amount_paid: amt,
+                                                payment_date: new Date().toISOString().split('T')[0],
+                                                payment_method: 'KCB STK',
+                                                related_transaction_id: transaction.id
+                                            });
+
+                                            if (metadata.requesterId) {
+                                                await supabase.from('app_notifications').insert({
+                                                    id: `ntf_sms_${Date.now()}`,
+                                                    user_id: metadata.requesterId,
+                                                    message: `Payment successful via KCB! ${unitsToCredit.toLocaleString()} SMS units added. New Balance: ${newBalance.toLocaleString()} units.`,
+                                                    type: 'success',
+                                                    is_read: false,
+                                                    timestamp: new Date().toISOString()
+                                                });
+                                            }
+                                        } else if (type === 'subscription' || type === 'license') {
+                                            const days = metadata.plan === 'yearly' ? 365 : 30;
+                                            const currentEnd = inst?.subscription_ends_at ? new Date(inst.subscription_ends_at) : new Date();
+                                            const baseDate = Math.max(currentEnd.getTime(), Date.now());
+                                            const newEndDate = new Date(baseDate + (days * 24 * 60 * 60 * 1000));
+
+                                            await supabase.from('institutions').update({
+                                                subscription_ends_at: newEndDate.toISOString(),
+                                                status: 'active'
+                                            }).eq('id', instId);
+
+                                            const invoiceId = `inv_sub_${Date.now()}`;
+                                            await supabase.from('invoices').insert({
+                                                id: invoiceId,
+                                                invoice_number: `INV-SUB-${Date.now().toString().slice(-6)}`,
+                                                institution_id: instId,
+                                                issue_date: new Date().toISOString().split('T')[0],
+                                                due_date: new Date().toISOString().split('T')[0],
+                                                total_amount: amt,
+                                                status: 'paid',
+                                                items: JSON.stringify([{
+                                                    description: `${metadata.plan === 'yearly' ? 'Yearly' : 'Monthly'} Subscription (KCB)`,
+                                                    quantity: 1,
+                                                    unitPrice: amt,
+                                                    amount: amt
+                                                }])
+                                            });
+
+                                            await supabase.from('receipts').insert({
+                                                id: `rec_sub_${Date.now()}`,
+                                                receipt_number: mpesaReceiptNumber || `REC-SUB-${Date.now().toString().slice(-6)}`,
+                                                institution_id: instId,
+                                                invoice_id: invoiceId,
+                                                amount_paid: amt,
+                                                payment_date: new Date().toISOString().split('T')[0],
+                                                payment_method: 'KCB STK',
+                                                related_transaction_id: transaction.id
+                                            });
+                                        } else if (type === 'invoice' && metadata.invoiceId) {
+                                            await supabase.from('invoices').update({ status: 'paid' }).eq('id', metadata.invoiceId);
+
+                                            await supabase.from('receipts').insert({
+                                                id: `rec_inv_${Date.now()}`,
+                                                receipt_number: mpesaReceiptNumber || `REC-INV-${Date.now().toString().slice(-6)}`,
+                                                institution_id: instId || 'SYSTEM',
+                                                invoice_id: metadata.invoiceId,
+                                                amount_paid: amt,
+                                                payment_date: new Date().toISOString().split('T')[0],
+                                                payment_method: 'KCB STK',
+                                                related_transaction_id: transaction.id
+                                            });
+
+                                            if (metadata.requesterId) {
+                                                await supabase.from('app_notifications').insert({
+                                                    id: `ntf_inv_${Date.now()}`,
+                                                    user_id: metadata.requesterId,
+                                                    message: `Invoice payment successful via KCB STK! Ref: ${mpesaReceiptNumber || transaction.id}.`,
+                                                    type: 'success',
+                                                    is_read: false,
+                                                    timestamp: new Date().toISOString()
+                                                });
+                                            }
+                                        } else if ((type === 'car_invoice' || type === 'car_sales_invoices') && metadata.invoiceId) {
+                                            const { data: carInvoice } = await supabase
+                                                .from('car_sales_invoices')
+                                                .select('*')
+                                                .eq('id', metadata.invoiceId)
+                                                .maybeSingle();
+
+                                            if (carInvoice) {
+                                                const paidAmount = parseFloat(String(carInvoice.paid_amount || 0)) + amt;
+                                                const balanceAmount = Math.max(0, parseFloat(String(carInvoice.total_amount || 0)) - paidAmount);
+                                                const status = balanceAmount <= 0 ? 'fully_paid' : 'partially_paid';
+
+                                                await supabase
+                                                    .from('car_sales_invoices')
+                                                    .update({
+                                                        paid_amount: paidAmount,
+                                                        balance_amount: balanceAmount,
+                                                        status,
+                                                        updated_at: new Date().toISOString()
+                                                    })
+                                                    .eq('id', metadata.invoiceId);
+
+                                                await supabase.from('car_sales_payments').insert({
+                                                    id: `pay_${Date.now()}`,
+                                                    invoice_id: metadata.invoiceId,
+                                                    institution_id: instId || carInvoice.institution_id || 'SYSTEM',
+                                                    amount: amt,
+                                                    payment_method: 'KCB STK',
+                                                    transaction_reference: mpesaReceiptNumber || transaction.id,
+                                                    payment_date: new Date().toISOString().split('T')[0],
+                                                    receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                                                    received_by: 'KCB STK Integration',
+                                                    notes: `Payment received via KCB STK push. Ref: ${mpesaReceiptNumber || transaction.id}`,
+                                                    created_at: new Date().toISOString()
+                                                });
+
+                                                if (metadata.requesterId) {
+                                                    await supabase.from('app_notifications').insert({
+                                                        id: `ntf_car_${Date.now()}`,
+                                                        user_id: metadata.requesterId,
+                                                        message: `Car payment of KES ${amt} successful for Invoice ${carInvoice.invoice_number}!`,
+                                                        type: 'success',
+                                                        is_read: false,
+                                                        timestamp: new Date().toISOString()
+                                                    });
+                                                }
+                                            }
+                                        }
+
+                                        // Mark transaction as reconciled (setting reconciled: true in metadata)
+                                        await supabase.from('mpesa_transactions').update({
+                                            metadata: { ...metadata, reconciled: true, reconciled_at: new Date().toISOString() }
+                                        }).eq('id', transaction.id);
+
+                                        // Write to bank_transactions
+                                        try {
+                                            const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices';
+                                            await supabase.from('bank_transactions').upsert({
+                                                id: transaction.id,
+                                                institution_id: instId,
+                                                amount: amt,
+                                                transaction_date: transaction.created_at || transaction.timestamp || new Date().toISOString(),
+                                                reference: mpesaReceiptNumber || transaction.transaction_id || '',
+                                                sender_name: metadata.payerName || transaction.payer_name || 'External Deposit',
+                                                bank_name: 'KCB',
+                                                status: isReconciledNow ? 'reconciled' : 'unreconciled',
+                                                linked_invoice_id: metadata.invoiceId || null,
+                                                reconciled_at: isReconciledNow ? new Date().toISOString() : null,
+                                                reconciled_by: 'KCB STK Status Polling',
+                                                created_at: transaction.created_at || new Date().toISOString()
+                                            });
+                                        } catch (bankErr) {
+                                            console.error('[KCB STK Query Fallback] Bank transactions write failed:', bankErr);
+                                        }
+
+                                        // --- Send SMS Notification with updated balance ---
+                                        const smsConfig = inst?.sms_config || inst?.smsConfig || settings.sms_config || settings.smsConfig;
+                                        const payerPhone = metadata.payerPhoneNumber || transaction.phone_number;
+
+                                        if (smsConfig && payerPhone) {
+                                            let smsMessage = '';
+                                            if (type === 'sms' || type === 'sms_topup') {
+                                                smsMessage = `Payment successful via KCB! ${unitsToCredit.toLocaleString()} SMS units added. New Balance: ${newBalance.toLocaleString()} units. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing Eduai Automation.`;
+                                            } else {
+                                                smsMessage = `Payment confirmed via KCB! KES ${amt} received. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing Eduai Automation.`;
+                                            }
+
+                                            try {
+                                                const provider = smsConfig.provider || 'Zettatel';
+                                                const normalizedPayerPhone = normalizePhone(payerPhone);
+
+                                                if (provider === 'Sematime') {
+                                                    const accId = smsConfig.accountId || smsConfig.userId || smsConfig.apiKey || '';
+                                                    const authToken = smsConfig.authToken || smsConfig.apiSecret || smsConfig.password || '';
+                                                    if (accId && authToken) {
+                                                        const sematimeUrl = `https://apis.sematime.com/v1/${accId}/messages/single`;
+                                                        await fetchWithTimeout(sematimeUrl, {
+                                                            method: 'POST',
+                                                            headers: {
+                                                                'Content-Type': 'application/json',
+                                                                'AuthToken': authToken
+                                                            },
+                                                            body: JSON.stringify({
+                                                                text: smsMessage,
+                                                                recipients: normalizedPayerPhone
+                                                            })
+                                                        }, 15000);
+                                                    }
+                                                } else {
+                                                    const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
+                                                    const smsParams = new URLSearchParams({
+                                                        userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
+                                                        password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                                                        mobile: normalizedPayerPhone,
+                                                        msg: smsMessage,
+                                                        senderid: smsConfig.fromNumber || provider,
+                                                        msgType: 'text',
+                                                        output: 'json'
+                                                    });
+
+                                                    const finalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${smsParams.toString()}`;
+                                                    await fetchWithTimeout(finalUrl, { method: 'GET' }, 15000);
+                                                }
+                                            } catch (smsErr) {
+                                                console.error('[KCB STK Query Fallback] Failed to send SMS confirmation:', smsErr);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (dbErr) {
+                        console.error('[KCB STK Query Fallback] Failed to execute database update fallback:', dbErr);
+                    }
                 }
 
                 return res.status(200).json({
