@@ -671,6 +671,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 setActiveTab('sacco');
             } else if (role === 'mechanic_admin' || (isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic'))) {
                 setActiveTab('car_service');
+                if (role === 'mechanic_admin') {
+                    setActiveScope('logistics');
+                }
             } else if (isChurch || role === 'church_admin') {
                 setActiveTab('church');
             } else if (isHospitality || role === 'hospitality_admin') {
@@ -701,6 +704,19 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         }
     }, [props.currentUser?.role, props.activeRole, hasSetDefaultTab, props.currentInstitution, isChurch]);
 
+    useEffect(() => {
+        if (props.activeRole && hasSetDefaultTab) {
+            const role = props.activeRole;
+            if (role === 'mechanic_admin') {
+                setActiveTab('car_service');
+                setActiveScope('logistics');
+            } else if (role === 'admin' && (isEdu || isSchool)) {
+                setActiveTab('timetable');
+                setActiveScope('console_hub');
+            }
+        }
+    }, [props.activeRole, isEdu, isSchool, hasSetDefaultTab]);
+
 
     const isModuleActive = useCallback((moduleId: string) => {
         const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
@@ -715,7 +731,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     const isCoreAdmin = useMemo(() => {
         const role = props.currentUser?.role;
-        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto', 'director', 'finance'].includes(role || '');
+        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto', 'director', 'finance', 'mechanic_admin'].includes(role || '');
     }, [props.currentUser?.role]);
 
     const tabs = useMemo(() => {
@@ -820,6 +836,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         let filteredTabs = baseTabs.filter(tab => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
+            if (roleToUse === 'mechanic_admin') {
+                return ['dashboard', 'car_service', 'reports', 'settings'].includes(tab.id);
+            }
+
             // If it is educational (isEdu || isSchool), show dynamic tabs based on selected activeScope
             if (isEdu || isSchool) {
                 if (activeScope === 'console_hub') {
@@ -905,7 +925,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'coop') return false; // Handled by specialized tabs for Coop
             if (tab.id === 'sacco') return institutionType === 'SACCO' || businessSubType === 'SACCO';
             if (tab.id === 'agrovet') return institutionType === 'Agrovet' || businessSubType === 'Agrovet';
-            if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
+            if (tab.id === 'car_service') return (isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic')) || isHigherEdInstitution(props.currentInstitution);
             if (tab.id === 'church') return isChurch;
             if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
             if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || isDS || institutionType?.toLowerCase().includes('driving school') || activeScope === 'ds';
@@ -996,6 +1016,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (!isModuleActive('boarding')) eduAllowed = eduAllowed.filter(r => r !== 'boarding_master');
             if (!isModuleActive('transport')) eduAllowed = eduAllowed.filter(r => r !== 'transport_assistant');
             if (!isModuleActive('events')) eduAllowed = eduAllowed.filter(r => r !== 'event_manager');
+            
+            if (isHigherEdInstitution(props.currentInstitution)) {
+                if (isModuleActive('carwash_admin')) eduAllowed.push('carwash_admin');
+                if (isModuleActive('mechanic_admin')) eduAllowed.push('mechanic_admin');
+            }
             return eduAllowed.includes(opt.role);
         } else {
             // Non-educational: Hide educational portal perspectives
@@ -1663,6 +1688,108 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                             }
                                                         }}
                                                         className="bg-indigo-600 hover:bg-indigo-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 12: Car Wash Module — only for higher-ed */}
+                            {isHigherEd && (() => {
+                                const isActive = isModuleActive('carwash_admin');
+                                return (
+                                    <div
+                                        onClick={() => {
+                                            if (!isActive) {
+                                                alert("The Car Wash module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            props.onSwitchPerspective?.('carwash_admin');
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-blue-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 dark:bg-blue-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-blue-500 text-white rounded-2xl w-fit shadow-lg shadow-blue-100 dark:shadow-none">
+                                                <SparklesIcon className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Car Wash Module</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Manage car wash operations, track attendants, monitor daily jobs, and review wash services performance metrics.
+                                                </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('carwash_admin');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate car wash trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-blue-500 hover:bg-blue-600 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 13: Car Service Center — only for higher-ed */}
+                            {isHigherEd && (() => {
+                                const isActive = isModuleActive('mechanic_admin');
+                                return (
+                                    <div
+                                        onClick={() => {
+                                            if (!isActive) {
+                                                alert("The Car Service Center module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            props.onSwitchPerspective?.('mechanic_admin');
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-zinc-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-500/5 dark:bg-zinc-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-zinc-650 text-white rounded-2xl w-fit shadow-lg shadow-zinc-100 dark:shadow-none">
+                                                <Cog8ToothIcon className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-zinc-600 dark:group-hover:text-zinc-400 transition-colors">Car Service Center</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Manage vehicle repair jobs, spare parts inventory, mechanic schedules, and track vehicle repair diagnostics logs.
+                                                </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('mechanic_admin');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate car service trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-zinc-600 hover:bg-zinc-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
                                                     >
                                                         Activate Trial
                                                     </button>

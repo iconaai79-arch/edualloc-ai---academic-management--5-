@@ -75,7 +75,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Tertiary / Higher Ed
     if (isHigherEdInstitution(institution)) {
-        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager'];
+        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager', 'carwash_admin', 'mechanic_admin'];
     }
 
     // HIS / Health Information System
@@ -273,6 +273,9 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
     }
 
     // Default formatting: replace underscores with spaces and capitalize
+    if (role === 'mechanic_admin') return 'Garage Manager';
+    if (role === 'carwash_admin') return 'Car Wash Manager';
+
     return String(role)
         .replace(/_/g, ' ')
         .split(' ')

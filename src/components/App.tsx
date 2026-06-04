@@ -591,7 +591,7 @@ export const App: React.FC = () => {
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
 
-    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception'].includes(activeRole || '');
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception', 'mechanic_admin'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -804,7 +804,7 @@ export const App: React.FC = () => {
             const isHealth = isSuper || ['his', 'pharmacy'].includes(instTypeLower);
             const isLaw = isSuper || instTypeLower === 'law firm' || (activeInst?.businessSubType || '').toLowerCase().includes('law') || (activeInst?.businessSubType || '').toLowerCase().includes('legal');
             const isCoop = isSuper || ['cooperative', 'sacco'].includes(instTypeLower);
-            const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'agrovet', 'car wash', 'automotive marketplace', 'hardware', 'pharmacy'].includes(instTypeLower);
+            const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'agrovet', 'car wash', 'automotive marketplace', 'car showroom', 'hardware', 'pharmacy'].includes(instTypeLower);
 
             const isLogistics = isSuper || ['logistics', 'transport'].includes(instTypeLower);
             const isHospitality = isSuper || instTypeLower === 'hospitality';
@@ -2317,7 +2317,7 @@ export const App: React.FC = () => {
     const onLoginAsAdmin = useCallback((institutionId: string, initialRole?: Role | null) => {
         setIsTransitioning(true);
         setTimeout(() => {
-            const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager'];
+            const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'mechanic_admin'];
             let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
 
             if (!admin) {
@@ -5665,7 +5665,7 @@ export const App: React.FC = () => {
                                 }
 
                                 // Prioritize administrative roles over portal/client roles
-                                const rolePriority = ['super_admin', 'reseller', 'county_admin', 'admin', 'head_teacher', 'property_admin', 'agrovet_admin', 'carwash_admin', 'transport_admin', 'his_admin'];
+                                const rolePriority = ['super_admin', 'reseller', 'county_admin', 'admin', 'head_teacher', 'property_admin', 'agrovet_admin', 'carwash_admin', 'transport_admin', 'his_admin', 'mechanic_admin'];
                                 matchedUsers.sort((a, b) => {
                                     const indexA = rolePriority.indexOf(a.role);
                                     const indexB = rolePriority.indexOf(b.role);
