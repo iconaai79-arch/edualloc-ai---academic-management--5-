@@ -40,6 +40,15 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [lastSaved, setLastSaved] = useState<string | null>(null);
     const [categoryFilter, setCategoryFilter] = useState('all');
 
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    // Auto-reset page when search queries or category filters are updated
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, categoryFilter]);
+
     // States for PDF Previewer
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -481,6 +490,19 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         filteredItems.map(item => dirtyRows[item.id] ? { ...item, ...dirtyRows[item.id] } : item)
     , [filteredItems, dirtyRows]);
 
+    const totalItems = displayItems.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+
+    const paginatedFilteredItems = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredItems.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredItems, currentPage, itemsPerPage]);
+
+    const paginatedDisplayItems = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return displayItems.slice(startIndex, startIndex + itemsPerPage);
+    }, [displayItems, currentPage, itemsPerPage]);
+
     const dirtyCount = Object.keys(dirtyRows).length;
 
     const updateCell = (id: string, field: keyof RetailInventoryItem, value: any) => {
@@ -624,301 +646,376 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     <div className="w-12 h-12 rounded-full border-b-4 border-indigo-600 animate-spin"></div>
                     <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 animate-pulse">Loading inventory...</p>
                 </div>
-            ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {filteredItems.map((item, idx) => (
-                        <div
-                            key={item.id}
-                            style={{ animationDelay: `${idx * 50}ms` }}
-                            className="group relative bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 animate-in fade-in"
-                        >
-                            {/* Product Image Stage */}
-                            <div className="h-52 bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
-                                {item.imageUrl ? (
-                                    <img loading="lazy" src={item.imageUrl} alt={item.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-125" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
-                                        <Package className="w-20 h-20 text-slate-300 dark:text-slate-700" />
-                                    </div>
-                                )}
-
-                                {/* Overlay Badges */}
-                                <div className="absolute top-6 left-6 flex flex-col gap-2">
-                                    <span className="px-5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl border border-white/50">
-                                        {item.category}
-                                    </span>
-                                </div>
-
-                                {item.marketplaceEnabled && (
-                                    <div className="absolute top-6 right-6">
-                                        <div className="px-4 py-2 bg-emerald-500/90 backdrop-blur-md text-white rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center gap-2 border border-emerald-400/50">
-                                            <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
-                                            <span className="text-[8px] font-black uppercase tracking-widest">Live</span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Hover Action Bar */}
-                                <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center gap-4 backdrop-blur-sm">
-                                    <button
-                                        onClick={() => openEdit(item)}
-                                        className="p-5 bg-white text-indigo-600 rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
-                                    >
-                                        <Pencil className="w-6 h-6" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(item.id)}
-                                        className="p-5 bg-rose-600 text-white rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
-                                    >
-                                        <Trash className="w-6 h-6" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Details Information */}
-                            <div className="p-5">
-                                <div className="mb-6">
-                                    <div className="flex justify-between items-start gap-4 mb-2">
-                                        <h3 className="font-black text-slate-900 dark:text-white uppercase text-sm tracking-tight leading-tight line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                                            {item.name}
-                                        </h3>
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Price</span>
-                                            <p className="font-black text-indigo-600 text-sm">
-                                                KES {item.srpPrice?.toLocaleString()}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <code className="text-[8px] font-mono text-slate-400 uppercase tracking-widest">{item.sku}</code>
-                                </div>
-
-                                <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-800">
-                                    <div className="flex flex-col">
-                                        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Availability</span>
-                                        <div className="flex items-center gap-2">
-                                            <span className={`text-xs font-black ${item.quantity <= (item.reorderLevel || 5) ? 'text-rose-600' : 'text-slate-900 dark:text-white'}`}>
-                                                {item.quantity} {item.unit}
-                                            </span>
-                                            {item.quantity <= (item.reorderLevel || 5) && (
-                                                <AlertTriangle className="w-3 h-3 text-rose-500 animate-bounce" />
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-1">
-                                        {[1, 2, 3].map(i => (
-                                            <div key={i} className={`w-1 h-1 rounded-full ${i === 1 ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
             ) : (
-                <div className={`relative ${dirtyCount > 0 ? 'pb-24' : ''}`}>
-                    {/* Spreadsheet table */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
-                        <table className="w-full text-left border-collapse" style={{ minWidth: '700px' }}>
-                            <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-900/60 border-b-2 border-indigo-100 dark:border-slate-700">
-                                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 w-8 text-center">#</th>
-                                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400" style={{ minWidth: '200px' }}>Item Name</th>
-                                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 hidden md:table-cell" style={{ minWidth: '130px' }}>Category</th>
-                                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-indigo-500 text-center" style={{ minWidth: '110px' }}>📦 Qty in Stock</th>
-                                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right hidden sm:table-cell" style={{ minWidth: '100px' }}>Cost (KES)</th>
-                                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right" style={{ minWidth: '100px' }}>Price (KES)</th>
-                                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center hidden sm:table-cell">Visibility</th>
-                                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center w-16">Del</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {displayItems.map((item, idx) => {
-                                    const isDirty = !!dirtyRows[item.id];
-                                    const isLowStock = item.quantity <= (item.reorderLevel || 5);
-                                    return (
-                                        <tr
-                                            key={item.id}
-                                            className={`border-b border-slate-100 dark:border-slate-700/50 transition-colors ${
-                                                isDirty
-                                                    ? 'bg-amber-50 dark:bg-amber-900/10'
-                                                    : 'hover:bg-slate-50/70 dark:hover:bg-slate-700/30'
-                                            }`}
-                                        >
-                                            {/* Row number */}
-                                            <td className="px-3 py-1.5 text-center">
-                                                <span className="text-[9px] text-slate-300 font-mono select-none">{idx + 1}</span>
-                                                {isDirty && <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mx-auto mt-0.5 animate-pulse" title="Unsaved changes" />}
-                                            </td>
+                <div className="space-y-6">
+                    {viewMode === 'grid' ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {paginatedFilteredItems.map((item, idx) => (
+                                <div
+                                    key={item.id}
+                                    style={{ animationDelay: `${idx * 50}ms` }}
+                                    className="group relative bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 animate-in fade-in"
+                                >
+                                    {/* Product Image Stage */}
+                                    <div className="h-52 bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
+                                        {item.imageUrl ? (
+                                            <img loading="lazy" src={item.imageUrl} alt={item.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-125" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+                                                <Package className="w-20 h-20 text-slate-300 dark:text-slate-700" />
+                                            </div>
+                                        )}
 
-                                            {/* Name - inline editable */}
-                                            <td className="px-1 py-1">
+                                        {/* Overlay Badges */}
+                                        <div className="absolute top-6 left-6 flex flex-col gap-2">
+                                            <span className="px-5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl border border-white/50">
+                                                {item.category}
+                                            </span>
+                                        </div>
+
+                                        {item.marketplaceEnabled && (
+                                            <div className="absolute top-6 right-6">
+                                                <div className="px-4 py-2 bg-emerald-500/90 backdrop-blur-md text-white rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center gap-2 border border-emerald-400/50">
+                                                    <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                                                    <span className="text-[8px] font-black uppercase tracking-widest">Live</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Hover Action Bar */}
+                                        <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center gap-4 backdrop-blur-sm">
+                                            <button
+                                                onClick={() => openEdit(item)}
+                                                className="p-5 bg-white text-indigo-600 rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
+                                            >
+                                                <Pencil className="w-6 h-6" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(item.id)}
+                                                className="p-5 bg-rose-600 text-white rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
+                                            >
+                                                <Trash className="w-6 h-6" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Details Information */}
+                                    <div className="p-5">
+                                        <div className="mb-6">
+                                            <div className="flex justify-between items-start gap-4 mb-2">
+                                                <h3 className="font-black text-slate-900 dark:text-white uppercase text-sm tracking-tight leading-tight line-clamp-1 group-hover:text-indigo-600 transition-colors">
+                                                    {item.name}
+                                                </h3>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Price</span>
+                                                    <p className="font-black text-indigo-600 text-sm">
+                                                        KES {item.srpPrice?.toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <code className="text-[8px] font-mono text-slate-400 uppercase tracking-widest">{item.sku}</code>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-800">
+                                            <div className="flex flex-col">
+                                                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Availability</span>
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 overflow-hidden flex-shrink-0">
-                                                        {item.imageUrl
-                                                            ? <img loading="lazy" src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                                                            : <Package className="w-full h-full p-1.5 text-slate-300" />}
-                                                    </div>
-                                                    <input
-                                                        type="text"
-                                                        value={item.name}
-                                                        onChange={e => updateCell(item.id, 'name', e.target.value)}
-                                                        onKeyDown={e => { if (e.key === 'Tab') { e.preventDefault(); (e.currentTarget.closest('tr')?.querySelector('td:nth-child(3) input, td:nth-child(3) select') as HTMLElement)?.focus(); } }}
-                                                        className="flex-1 min-w-0 px-2 py-1.5 text-xs font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-300 transition-all dark:hover:border-slate-600 text-slate-800 dark:text-white"
-                                                    />
+                                                    <span className={`text-xs font-black ${item.quantity <= (item.reorderLevel || 5) ? 'text-rose-600' : 'text-slate-900 dark:text-white'}`}>
+                                                        {item.quantity} {item.unit}
+                                                    </span>
+                                                    {item.quantity <= (item.reorderLevel || 5) && (
+                                                        <AlertTriangle className="w-3 h-3 text-rose-500 animate-bounce" />
+                                                    )}
                                                 </div>
-                                            </td>
+                                            </div>
 
-                                            {/* Category - inline select */}
-                                            <td className="px-1 py-1 hidden md:table-cell">
-                                                <select
-                                                    value={item.category || 'Other'}
-                                                    onChange={e => updateCell(item.id, 'category', e.target.value)}
-                                                    className="w-full px-2 py-1.5 text-[10px] font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-600 dark:text-slate-300"
-                                                >
-                                                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                                </select>
-                                            </td>
-
-                                            {/* QUANTITY — the hero spreadsheet cell */}
-                                            <td className="px-1 py-1">
-                                                <div className="flex items-center gap-1 justify-center">
-                                                    <button
-                                                        onClick={() => updateCell(item.id, 'quantity', Math.max(0, item.quantity - 1))}
-                                                        className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 hover:text-indigo-700 font-black text-sm transition-all select-none"
-                                                        tabIndex={-1}
-                                                    >−</button>
-                                                    <input
-                                                        type="number"
-                                                        value={item.quantity}
-                                                        min={0}
-                                                        onChange={e => updateCell(item.id, 'quantity', Math.max(0, Number(e.target.value)))}
-                                                        onFocus={e => e.target.select()}
-                                                        onKeyDown={e => {
-                                                            if (e.key === 'Enter' || e.key === 'Tab') {
-                                                                e.preventDefault();
-                                                                const rows = document.querySelectorAll('[data-qty-input]');
-                                                                const arr = Array.from(rows);
-                                                                const i = arr.indexOf(e.currentTarget);
-                                                                (arr[e.shiftKey ? i - 1 : i + 1] as HTMLElement)?.focus();
-                                                            }
-                                                        }}
-                                                        data-qty-input
-                                                        className={`w-16 text-center px-1 py-1.5 text-sm font-black rounded-lg border-2 focus:outline-none transition-all ${
-                                                            isLowStock
-                                                                ? 'border-red-300 bg-red-50 text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-400 focus:border-red-500'
-                                                                : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300 focus:border-indigo-400'
-                                                        }`}
-                                                    />
-                                                    <button
-                                                        onClick={() => updateCell(item.id, 'quantity', item.quantity + 1)}
-                                                        className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-emerald-100 hover:text-emerald-700 font-black text-sm transition-all select-none"
-                                                        tabIndex={-1}
-                                                    >+</button>
-                                                </div>
-                                                <div className="text-center mt-0.5">
-                                                    <span className="text-[8px] text-slate-400">{item.unit || 'pcs'}</span>
-                                                    {isLowStock && <span className="ml-1 text-[8px] text-red-500 font-black">LOW</span>}
-                                                </div>
-                                            </td>
-
-                                            {/* Cost price */}
-                                            <td className="px-1 py-1 hidden sm:table-cell">
-                                                <input
-                                                    type="number"
-                                                    value={item.costPrice ?? 0}
-                                                    min={0}
-                                                    onChange={e => updateCell(item.id, 'costPrice', Number(e.target.value))}
-                                                    onFocus={e => e.target.select()}
-                                                    className="w-full text-right px-2 py-1.5 text-xs font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-600 dark:text-slate-300"
-                                                />
-                                            </td>
-
-                                            {/* Selling price */}
-                                            <td className="px-1 py-1">
-                                                <input
-                                                    type="number"
-                                                    value={item.srpPrice ?? 0}
-                                                    min={0}
-                                                    onChange={e => updateCell(item.id, 'srpPrice', Number(e.target.value))}
-                                                    onFocus={e => e.target.select()}
-                                                    className="w-full text-right px-2 py-1.5 text-xs font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-800 dark:text-white"
-                                                />
-                                            </td>
-
-                                            {/* Visibility toggle */}
-                                            <td className="px-1 py-1 text-center hidden sm:table-cell">
-                                                <button
-                                                    onClick={() => updateCell(item.id, 'marketplaceEnabled', !item.marketplaceEnabled)}
-                                                    className={`px-2 py-1 rounded-full text-[9px] font-black transition-all border ${
-                                                        item.marketplaceEnabled
-                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700'
-                                                            : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-700 dark:border-slate-600'
+                                            <div className="flex items-center gap-1">
+                                                {[1, 2, 3].map(i => (
+                                                    <div key={i} className={`w-1 h-1 rounded-full ${i === 1 ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            {filteredItems.length === 0 && (
+                                <div className="col-span-full py-20 text-center flex flex-col items-center">
+                                    <Package className="w-10 h-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
+                                    <p className="text-xs font-black uppercase tracking-widest text-slate-300 dark:text-slate-600">No items found</p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className={`relative ${dirtyCount > 0 ? 'pb-24' : ''}`}>
+                            {/* Spreadsheet table */}
+                            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
+                                <table className="w-full text-left border-collapse" style={{ minWidth: '700px' }}>
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-900/60 border-b-2 border-indigo-100 dark:border-slate-700">
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 w-8 text-center">#</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400" style={{ minWidth: '200px' }}>Item Name</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 hidden md:table-cell" style={{ minWidth: '130px' }}>Category</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-indigo-500 text-center" style={{ minWidth: '110px' }}>📦 Qty in Stock</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right hidden sm:table-cell" style={{ minWidth: '100px' }}>Cost (KES)</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right" style={{ minWidth: '100px' }}>Price (KES)</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center hidden sm:table-cell">Visibility</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center w-16">Del</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {paginatedDisplayItems.map((item, idx) => {
+                                            const isDirty = !!dirtyRows[item.id];
+                                            const isLowStock = item.quantity <= (item.reorderLevel || 5);
+                                            return (
+                                                <tr
+                                                    key={item.id}
+                                                    className={`border-b border-slate-100 dark:border-slate-700/50 transition-colors ${
+                                                        isDirty
+                                                            ? 'bg-amber-50 dark:bg-amber-900/10'
+                                                            : 'hover:bg-slate-50/70 dark:hover:bg-slate-700/30'
                                                     }`}
                                                 >
-                                                    {item.marketplaceEnabled ? '🌐 Public' : '🔒 Private'}
-                                                </button>
-                                            </td>
+                                                    {/* Row number */}
+                                                    <td className="px-3 py-1.5 text-center">
+                                                        <span className="text-[9px] text-slate-300 font-mono select-none">{(currentPage - 1) * itemsPerPage + idx + 1}</span>
+                                                        {isDirty && <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mx-auto mt-0.5 animate-pulse" title="Unsaved changes" />}
+                                                    </td>
 
-                                            {/* Delete */}
-                                            <td className="px-1 py-1 text-center">
-                                                <button
-                                                    onClick={() => handleDelete(item.id)}
-                                                    className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
-                                                    title="Delete item"
-                                                >
-                                                    <Trash className="w-3.5 h-3.5" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {displayItems.length === 0 && (
-                                    <tr>
-                                        <td colSpan={8} className="px-6 py-12 text-center">
-                                            <Package className="w-10 h-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
-                                            <p className="text-xs font-black uppercase tracking-widest text-slate-300 dark:text-slate-600">No items found</p>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                                    {/* Name - inline editable */}
+                                                    <td className="px-1 py-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 overflow-hidden flex-shrink-0">
+                                                                {item.imageUrl
+                                                                    ? <img loading="lazy" src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                                                    : <Package className="w-full h-full p-1.5 text-slate-300" />}
+                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                value={item.name}
+                                                                onChange={e => updateCell(item.id, 'name', e.target.value)}
+                                                                onKeyDown={e => { if (e.key === 'Tab') { e.preventDefault(); (e.currentTarget.closest('tr')?.querySelector('td:nth-child(3) input, td:nth-child(3) select') as HTMLElement)?.focus(); } }}
+                                                                className="flex-1 min-w-0 px-2 py-1.5 text-xs font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-300 transition-all dark:hover:border-slate-600 text-slate-800 dark:text-white"
+                                                            />
+                                                        </div>
+                                                    </td>
 
-                    {/* Floating save banner */}
-                    {dirtyCount > 0 && (
-                        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                            <div className="flex items-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-3 rounded-2xl shadow-2xl shadow-slate-900/40 border border-slate-700 dark:border-slate-200">
-                                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                                <span className="text-xs font-black uppercase tracking-wide">
-                                    {dirtyCount} unsaved {dirtyCount === 1 ? 'change' : 'changes'}
-                                </span>
-                                <div className="flex items-center gap-2 ml-2">
-                                    <button
-                                        onClick={handleDiscardAll}
-                                        className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide bg-slate-700 dark:bg-slate-200 hover:bg-slate-600 dark:hover:bg-slate-300 transition-colors"
-                                    >
-                                        Discard
-                                    </button>
-                                    <button
-                                        onClick={handleSaveAll}
-                                        disabled={isSavingAll}
-                                        className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide bg-indigo-500 hover:bg-indigo-400 text-white transition-colors flex items-center gap-1.5 disabled:opacity-60"
-                                    >
-                                        {isSavingAll ? (
-                                            <><div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving...</>
-                                        ) : (
-                                            <><CheckCircle className="w-3.5 h-3.5" /> Save All</>
+                                                    {/* Category - inline select */}
+                                                    <td className="px-1 py-1 hidden md:table-cell">
+                                                        <select
+                                                            value={item.category || 'Other'}
+                                                            onChange={e => updateCell(item.id, 'category', e.target.value)}
+                                                            className="w-full px-2 py-1.5 text-[10px] font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-600 dark:text-slate-300"
+                                                        >
+                                                            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                        </select>
+                                                    </td>
+
+                                                    {/* QUANTITY — the hero spreadsheet cell */}
+                                                    <td className="px-1 py-1">
+                                                        <div className="flex items-center gap-1 justify-center">
+                                                            <button
+                                                                onClick={() => updateCell(item.id, 'quantity', Math.max(0, item.quantity - 1))}
+                                                                className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 hover:text-indigo-700 font-black text-sm transition-all select-none"
+                                                                tabIndex={-1}
+                                                            >−</button>
+                                                            <input
+                                                                type="number"
+                                                                value={item.quantity}
+                                                                min={0}
+                                                                onChange={e => updateCell(item.id, 'quantity', Math.max(0, Number(e.target.value)))}
+                                                                onFocus={e => e.target.select()}
+                                                                onKeyDown={e => {
+                                                                    if (e.key === 'Enter' || e.key === 'Tab') {
+                                                                        e.preventDefault();
+                                                                        const rows = document.querySelectorAll('[data-qty-input]');
+                                                                        const arr = Array.from(rows);
+                                                                        const i = arr.indexOf(e.currentTarget);
+                                                                        (arr[e.shiftKey ? i - 1 : i + 1] as HTMLElement)?.focus();
+                                                                    }
+                                                                }}
+                                                                data-qty-input
+                                                                className={`w-16 text-center px-1 py-1.5 text-sm font-black rounded-lg border-2 focus:outline-none transition-all ${
+                                                                    isLowStock
+                                                                        ? 'border-red-300 bg-red-50 text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-400 focus:border-red-500'
+                                                                        : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300 focus:border-indigo-400'
+                                                                }`}
+                                                            />
+                                                            <button
+                                                                onClick={() => updateCell(item.id, 'quantity', item.quantity + 1)}
+                                                                className="w-6 h-6 flex items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-emerald-100 hover:text-emerald-700 font-black text-sm transition-all select-none"
+                                                                tabIndex={-1}
+                                                            >+</button>
+                                                        </div>
+                                                        <div className="text-center mt-0.5">
+                                                            <span className="text-[8px] text-slate-400">{item.unit || 'pcs'}</span>
+                                                            {isLowStock && <span className="ml-1 text-[8px] text-red-500 font-black">LOW</span>}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Cost price */}
+                                                    <td className="px-1 py-1 hidden sm:table-cell">
+                                                        <input
+                                                            type="number"
+                                                            value={item.costPrice ?? 0}
+                                                            min={0}
+                                                            onChange={e => updateCell(item.id, 'costPrice', Number(e.target.value))}
+                                                            onFocus={e => e.target.select()}
+                                                            className="w-full text-right px-2 py-1.5 text-xs font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-600 dark:text-slate-300"
+                                                        />
+                                                    </td>
+
+                                                    {/* Selling price */}
+                                                    <td className="px-1 py-1">
+                                                        <input
+                                                            type="number"
+                                                            value={item.srpPrice ?? 0}
+                                                            min={0}
+                                                            onChange={e => updateCell(item.id, 'srpPrice', Number(e.target.value))}
+                                                            onFocus={e => e.target.select()}
+                                                            className="w-full text-right px-2 py-1.5 text-xs font-bold bg-transparent border border-transparent rounded-lg hover:border-slate-200 focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all dark:hover:border-slate-600 text-slate-800 dark:text-white"
+                                                        />
+                                                    </td>
+
+                                                    {/* Visibility toggle */}
+                                                    <td className="px-1 py-1 text-center hidden sm:table-cell">
+                                                        <button
+                                                            onClick={() => updateCell(item.id, 'marketplaceEnabled', !item.marketplaceEnabled)}
+                                                            className={`px-2 py-1 rounded-full text-[9px] font-black transition-all border ${
+                                                                item.marketplaceEnabled
+                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700'
+                                                                    : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-700 dark:border-slate-600'
+                                                            }`}
+                                                        >
+                                                            {item.marketplaceEnabled ? '🌐 Public' : '🔒 Private'}
+                                                        </button>
+                                                    </td>
+
+                                                    {/* Delete */}
+                                                    <td className="px-1 py-1 text-center">
+                                                        <button
+                                                            onClick={() => handleDelete(item.id)}
+                                                            className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                                                            title="Delete item"
+                                                        >
+                                                            <Trash className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {displayItems.length === 0 && (
+                                            <tr>
+                                                <td colSpan={8} className="px-6 py-12 text-center">
+                                                    <Package className="w-10 h-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
+                                                    <p className="text-xs font-black uppercase tracking-widest text-slate-300 dark:text-slate-600">No items found</p>
+                                                </td>
+                                            </tr>
                                         )}
-                                    </button>
-                                </div>
+                                    </tbody>
+                                </table>
                             </div>
+
+                            {/* Floating save banner */}
+                            {dirtyCount > 0 && (
+                                <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                    <div className="flex items-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-3 rounded-2xl shadow-2xl shadow-slate-900/40 border border-slate-700 dark:border-slate-200">
+                                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                        <span className="text-xs font-black uppercase tracking-wide">
+                                            {dirtyCount} unsaved {dirtyCount === 1 ? 'change' : 'changes'}
+                                        </span>
+                                        <div className="flex items-center gap-2 ml-2">
+                                            <button
+                                                onClick={handleDiscardAll}
+                                                className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide bg-slate-700 dark:bg-slate-200 hover:bg-slate-600 dark:hover:bg-slate-300 transition-colors"
+                                            >
+                                                Discard
+                                            </button>
+                                            <button
+                                                onClick={handleSaveAll}
+                                                disabled={isSavingAll}
+                                                className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wide bg-indigo-500 hover:bg-indigo-400 text-white transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                                            >
+                                                {isSavingAll ? (
+                                                    <><div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving...</>
+                                                ) : (
+                                                    <><CheckCircle className="w-3.5 h-3.5" /> Save All</>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {lastSaved && !dirtyCount && (
+                                <p className="text-center text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-2 animate-in fade-in">
+                                    ✓ All changes saved at {lastSaved}
+                                </p>
+                            )}
                         </div>
                     )}
-                    {lastSaved && !dirtyCount && (
-                        <p className="text-center text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-2 animate-in fade-in">
-                            ✓ All changes saved at {lastSaved}
-                        </p>
+
+                    {/* Pagination Controls */}
+                    {totalItems > 0 && (
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm animate-in fade-in duration-300">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                <span>Showing</span>
+                                <select
+                                    value={itemsPerPage}
+                                    onChange={(e) => {
+                                        setItemsPerPage(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-700 dark:text-slate-300 font-bold"
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                                <span>entries of <b>{totalItems}</b> total items</span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-2 rounded-xl border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+                                </button>
+
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                                    if (totalPages > 6 && Math.abs(pageNum - currentPage) > 2 && pageNum !== 1 && pageNum !== totalPages) {
+                                        if (pageNum === 2 || pageNum === totalPages - 1) {
+                                            return <span key={pageNum} className="px-1 text-slate-400">...</span>;
+                                        }
+                                        return null;
+                                    }
+
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            onClick={() => setCurrentPage(pageNum)}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                                                currentPage === pageNum
+                                                    ? 'bg-indigo-600 text-white shadow-md'
+                                                    : 'border border-slate-100 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'
+                                            }`}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                })}
+
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="p-2 rounded-xl border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                                </button>
+                            </div>
+                        </div>
                     )}
                 </div>
             )}
