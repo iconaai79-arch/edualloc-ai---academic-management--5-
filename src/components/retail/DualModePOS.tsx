@@ -3,6 +3,7 @@ import { apiService } from '../../services/apiService';
 import { generateRetailReceiptPdf } from '../../services/pdfService';
 import { RetailInventoryItem, RetailStore, User, CafeMenuItem, RetailCustomer } from '../../types';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { RectangleStackIcon as Layers } from '../icons/RectangleStackIcon';
 
 import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
 import { ShoppingCartIcon as ShoppingCart } from '../icons/ShoppingCartIcon';
@@ -56,6 +57,9 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     const [allStores, setAllStores] = useState<RetailStore[]>([]);
     const [customerSearch, setCustomerSearch] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState<RetailCustomer | null>(null);
+    const [categories, setCategories] = useState<string[]>([]);
+    const [categoryFilter, setCategoryFilter] = useState<string>('all');
+    const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
     // Education mode states
     const [students, setStudents] = useState<User[]>([]);
@@ -162,6 +166,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         fetchProducts();
         fetchCustomers();
         fetchStores();
+        fetchCategories();
         if (isEducation) {
             fetchStudents();
         }
@@ -177,6 +182,20 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
             });
         });
     }, [institutionId, isEducation]);
+
+    const fetchCategories = async () => {
+        try {
+            const data = await apiService.fetchModuleRecords('store_categories', institutionId);
+            if (data && data.length > 0) {
+                const sorted = data.sort((a, b) => a.sortOrder - b.sortOrder);
+                setCategories(sorted.map((c: any) => c.name));
+            } else {
+                setCategories(['Stationery', 'Textbooks', 'Uniforms', 'Sports Equipment', 'Lab Supplies']);
+            }
+        } catch {
+            setCategories(['Stationery', 'Textbooks', 'Uniforms', 'Sports Equipment', 'Lab Supplies']);
+        }
+    };
 
     const fetchStores = async () => {
         try {
@@ -478,12 +497,14 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         }
     };
 
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.sku?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        ((p as any).barcode && (p as any).barcode.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        p.category?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredProducts = products.filter(p => {
+        const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.sku?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            ((p as any).barcode && (p as any).barcode.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            p.category?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
+        return matchesSearch && matchesCategory;
+    });
 
     if (isLoading) {
         return (
@@ -556,77 +577,196 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                     </button>
                 </div>
 
-                {/* Floating Search Bar */}
-                <div className="p-6 border-b border-slate-50 dark:border-slate-800">
-                    <div className="relative group">
+                {/* Floating Search Bar & Filters */}
+                <div className="p-6 border-b border-slate-50 dark:border-slate-800 flex flex-col sm:flex-row gap-3 items-center">
+                    <div className="relative flex-grow w-full">
                         <Search className="w-5 h-5 absolute left-5 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                         <input
                             type="text"
                             placeholder={activeMode === 'shop' ? "Scan barcode or search master catalog..." : "Search your assigned field inventory..."}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-14 pr-6 py-4 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-sm font-medium transition-all"
+                            className="w-full pl-14 pr-6 py-3.5 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-sm font-medium transition-all"
                         />
+                    </div>
+
+                    <div className="relative w-full sm:w-48 shrink-0">
+                        <select
+                            value={categoryFilter}
+                            onChange={(e) => setCategoryFilter(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer h-12"
+                        >
+                            <option value="all">All Categories</option>
+                            {categories.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-800/50 p-1 rounded-2xl shrink-0 h-12">
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            title="Grid view"
+                            className={`p-2.5 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            <Layers className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('table')}
+                            title="List view"
+                            className={`p-2.5 rounded-xl transition-all ${viewMode === 'table' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            <Search className="w-4 h-4 rotate-90" />
+                        </button>
                     </div>
                 </div>
 
-                {/* Product Infinity Grid */}
+                {/* Product Infinity Grid or Table View */}
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 dark:bg-slate-900/10 no-scrollbar">
-                    <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {filteredProducts.map((product, idx) => (
-                            <div
-                                key={product.id}
-                                style={{ animationDelay: `${idx * 30}ms` }}
-                                onClick={() => {
-                                    setSelectedItem(product);
-                                    const initialPrice = (product as any).source === 'cafe' ? (product as any).basePrice : (product as any).srpPrice;
-                                    setNegotiatedPrice(initialPrice.toString());
-                                }}
-                                className={`group bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border transition-all duration-500 animate-in fade-in slide-in-from-bottom-4 ${selectedItem?.id === product.id
-                                    ? 'border-indigo-500 ring-4 ring-indigo-500/10 shadow-xl -translate-y-1'
-                                    : 'border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-2xl hover:-translate-y-2'}`}
-                            >
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex flex-col gap-1">
-                                            <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-lg w-fit ${(product as any).source === 'cafe' ? 'bg-orange-100 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
-                                                {(product as any).source === 'cafe' ? 'Hospitality' : 'Retail'}
-                                            </span>
-                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{product.category}</span>
-                                        </div>
-                                        <div className={`w-3 h-3 rounded-full animate-pulse ${(product as any).source === 'cafe' || (product as any).quantity > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                                    </div>
+                    {viewMode === 'table' ? (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-sm">
+                            <table className="w-full text-left border-collapse" style={{ minWidth: '600px' }}>
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b-2 border-indigo-100 dark:border-slate-700">
+                                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Barcode/SKU</th>
+                                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Item Name</th>
+                                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Category</th>
+                                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">Price (KES)</th>
+                                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center">Stock</th>
+                                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center w-24">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredProducts.map((product) => {
+                                        const isCafe = (product as any).source === 'cafe';
+                                        const skuOrBarcode = product.sku || (product as any).barcode || '-';
+                                        const price = (isCafe ? (product as any).basePrice : (product as any).srpPrice) || 0;
+                                        const stock = isCafe ? 'Hospitality' : `${(product as any).quantity ?? 0} Left`;
+                                        const isSelected = selectedItem?.id === product.id;
 
-                                    <h3 className="font-black text-slate-900 dark:text-white text-sm line-clamp-2 leading-tight tracking-tight h-10">
-                                        {product.name}
-                                    </h3>
+                                        return (
+                                            <tr
+                                                key={product.id}
+                                                onClick={() => {
+                                                    setSelectedItem(product);
+                                                    setNegotiatedPrice(price.toString());
+                                                }}
+                                                className={`border-b border-slate-100 dark:border-slate-700/50 cursor-pointer transition-colors ${
+                                                    isSelected
+                                                        ? 'bg-indigo-50/50 dark:bg-indigo-900/20'
+                                                        : 'hover:bg-slate-50/70 dark:hover:bg-slate-700/30'
+                                                }`}
+                                            >
+                                                <td className="px-4 py-3 text-xs font-mono text-slate-500 dark:text-slate-400">
+                                                    {skuOrBarcode}
+                                                </td>
+                                                <td className="px-4 py-3 text-xs font-bold text-slate-900 dark:text-white">
+                                                    {product.name}
+                                                </td>
+                                                <td className="px-4 py-3 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                                    <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg ${isCafe ? 'bg-orange-100 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                                        {product.category || (isCafe ? 'Hospitality' : 'Retail')}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-xs font-black text-slate-900 dark:text-white text-right">
+                                                    {price?.toLocaleString()}
+                                                </td>
+                                                <td className="px-4 py-3 text-xs font-bold text-center">
+                                                    <span className={isCafe || (product as any).quantity > 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                                                        {stock}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={() => {
+                                                            setCart([...cart, {
+                                                                item: product,
+                                                                quantity: 1,
+                                                                finalPrice: price
+                                                            }]);
+                                                        }}
+                                                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                                                    >
+                                                        + Add
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
 
-                                    <div className="pt-4 border-t border-slate-50 dark:border-slate-700 flex flex-col gap-1">
-                                        <div className="flex items-end gap-1">
-                                            <span className="text-[10px] font-black text-slate-400 mb-1">KES</span>
-                                            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                                {((product as any).source === 'cafe' ? (product as any).basePrice : (product as any).srpPrice)?.toLocaleString()}
-                                            </p>
+                                    {filteredProducts.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="py-20 text-center">
+                                                <div className="flex flex-col items-center justify-center">
+                                                    <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                                                        <Search className="w-8 h-8 text-slate-300" />
+                                                    </div>
+                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter">Void Detected</h3>
+                                                    <p className="text-slate-400 text-[10px] italic mt-1 font-medium">No items match your query in the current matrix.</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {filteredProducts.map((product, idx) => (
+                                <div
+                                    key={product.id}
+                                    style={{ animationDelay: `${idx * 30}ms` }}
+                                    onClick={() => {
+                                        setSelectedItem(product);
+                                        const initialPrice = (product as any).source === 'cafe' ? (product as any).basePrice : (product as any).srpPrice;
+                                        setNegotiatedPrice(initialPrice.toString());
+                                    }}
+                                    className={`group bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border transition-all duration-500 animate-in fade-in slide-in-from-bottom-4 ${selectedItem?.id === product.id
+                                        ? 'border-indigo-500 ring-4 ring-indigo-500/10 shadow-xl -translate-y-1'
+                                        : 'border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-2xl hover:-translate-y-2'}`}
+                                >
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex flex-col gap-1">
+                                                <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-lg w-fit ${(product as any).source === 'cafe' ? 'bg-orange-100 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                                    {(product as any).source === 'cafe' ? 'Hospitality' : 'Retail'}
+                                                </span>
+                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{product.category}</span>
+                                            </div>
+                                            <div className={`w-3 h-3 rounded-full animate-pulse ${(product as any).source === 'cafe' || (product as any).quantity > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
                                         </div>
-                                        <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
-                                            <span>Reserve: KES {((product as any).source === 'cafe' ? (product as any).basePrice : ((product as any).basePrice || (product as any).costPrice || 0))?.toLocaleString()}</span>
-                                            {(product as any).source !== 'cafe' && <span>{(product as any).quantity} Left</span>}
+
+                                        <h3 className="font-black text-slate-900 dark:text-white text-sm line-clamp-2 leading-tight tracking-tight h-10">
+                                            {product.name}
+                                        </h3>
+
+                                        <div className="pt-4 border-t border-slate-50 dark:border-slate-700 flex flex-col gap-1">
+                                            <div className="flex items-end gap-1">
+                                                <span className="text-[10px] font-black text-slate-400 mb-1">KES</span>
+                                                <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                                    {((product as any).source === 'cafe' ? (product as any).basePrice : (product as any).srpPrice)?.toLocaleString()}
+                                                </p>
+                                            </div>
+                                            <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
+                                                <span>Reserve: KES {((product as any).source === 'cafe' ? (product as any).basePrice : ((product as any).basePrice || (product as any).costPrice || 0))?.toLocaleString()}</span>
+                                                {(product as any).source !== 'cafe' && <span>{(product as any).quantity} Left</span>}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
 
-                        {filteredProducts.length === 0 && (
-                            <div className="col-span-full py-20 text-center flex flex-col items-center">
-                                <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
-                                    <Search className="w-10 h-10 text-slate-300" />
+                            {filteredProducts.length === 0 && (
+                                <div className="col-span-full py-20 text-center flex flex-col items-center">
+                                    <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+                                        <Search className="w-10 h-10 text-slate-300" />
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Void Detected</h3>
+                                    <p className="text-slate-400 text-xs italic mt-2 font-medium">No items match your query in the current matrix.</p>
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Void Detected</h3>
-                                <p className="text-slate-400 text-xs italic mt-2 font-medium">No items match your query in the current matrix.</p>
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
