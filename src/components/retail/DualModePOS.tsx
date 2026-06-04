@@ -495,7 +495,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     }
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 h-full min-h-[700px] animate-in fade-in slide-in-from-bottom-8 duration-700">
+        <div className="flex flex-col md:flex-row gap-6 lg:gap-8 h-full min-h-[600px] lg:min-h-[700px] animate-in fade-in slide-in-from-bottom-8 duration-700">
 
             {/* Product Arena - Left Section */}
             <div className="flex-1 flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[3rem] shadow-sm border border-white dark:border-slate-800 overflow-hidden transition-all">
@@ -631,7 +631,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
             </div>
 
             {/* Cart & Pricing Engine - Right Section */}
-            <div className="w-full lg:w-[450px] flex flex-col gap-6">
+            <div className="w-full md:w-[340px] lg:w-[400px] xl:w-[450px] flex flex-col gap-6 shrink-0">
 
                 {/* Negotiation / Item Focus */}
                 <div className={`overflow-hidden transition-all duration-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[3rem] border border-white dark:border-slate-800 shadow-2xl ${selectedItem ? 'h-auto opacity-100 p-8' : 'h-0 opacity-0 p-0 overflow-hidden'}`}>
@@ -693,7 +693,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
 
                 {/* Main Cart Workspace */}
                 <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-xl overflow-hidden min-h-[400px]">
-                    <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                    <div className="p-4 sm:p-6 lg:p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl">
                                 <ShoppingCart className="w-5 h-5" />
@@ -705,7 +705,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-8 space-y-4 no-scrollbar">
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-4 no-scrollbar">
                         {cart.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center py-20 opacity-30 grayscale">
                                 <ShoppingCart className="w-16 h-16 mb-6 text-slate-300" />
@@ -713,7 +713,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                             </div>
                         ) : (
                             cart.map((cartItem, idx) => (
-                                <div key={idx} className="group flex justify-between items-center p-5 border border-slate-50 dark:border-slate-800 rounded-[2rem] bg-white dark:bg-slate-800 hover:shadow-xl hover:border-indigo-100 dark:hover:border-indigo-900 transition-all duration-300 animate-in slide-in-from-right-4">
+                                <div key={idx} className="group flex justify-between items-center p-3.5 sm:p-5 border border-slate-50 dark:border-slate-800 rounded-[2rem] bg-white dark:bg-slate-800 hover:shadow-xl hover:border-indigo-100 dark:hover:border-indigo-900 transition-all duration-300 animate-in slide-in-from-right-4">
                                     <div className="flex-1 space-y-1">
                                         <p className="font-black text-slate-900 dark:text-white text-xs uppercase tracking-tight truncate pr-4">{cartItem.item.name}</p>
                                         {isEducation ? (
@@ -737,7 +737,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                         )}
                     </div>
 
-                    <div className="p-8 bg-slate-50/80 dark:bg-slate-900/60 border-t border-slate-50 dark:border-slate-800 space-y-6">
+                    <div className="p-4 sm:p-6 lg:p-8 bg-slate-50/80 dark:bg-slate-900/60 border-t border-slate-50 dark:border-slate-800 space-y-6">
                         <div className="flex flex-col gap-4">
                             {!isEducation && (
                                 <div className="flex justify-between items-center p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">

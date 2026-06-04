@@ -61,7 +61,14 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             .then((data: any[]) => {
                 if (data && data.length > 0) {
                     const sorted = data.sort((a, b) => a.sortOrder - b.sortOrder);
-                    setCategories(sorted.map((c: any) => c.name));
+                    const names = sorted.map((c: any) => c.name);
+                    setCategories(names);
+                    setFormData(prev => {
+                        if ((prev.category === 'Stationery' || prev.category === 'Smartphones') && names.length > 0) {
+                            return { ...prev, category: names[0] };
+                        }
+                        return prev;
+                    });
                 }
             })
             .catch(() => { /* keep defaults */ });
@@ -71,7 +78,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [formData, setFormData] = useState<Partial<RetailInventoryItem>>({
         name: '',
         sku: '',
-        category: 'Smartphones',
+        category: 'Stationery',
         srpPrice: 0,
         basePrice: 0,
         costPrice: 0,
@@ -124,7 +131,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     setFormData({
                         name: '',
                         sku: `SKU-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-                        category: 'Smartphones',
+                        category: categories[0] || 'Stationery',
                         srpPrice: 0,
                         costPrice: 0,
                         quantity: 1, // Default to 1 for quick scanning
@@ -394,7 +401,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             setFormData({
                 name: '',
                 sku: '',
-                category: 'Smartphones',
+                category: categories[0] || 'Stationery',
                 srpPrice: 0,
                 basePrice: 0,
                 costPrice: 0,
@@ -515,7 +522,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                 id: `rii_${Date.now()}`,
                                 name: '',
                                 sku: `SKU-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-                                category: 'Smartphones',
+                                category: categories[0] || 'Stationery',
                                 srpPrice: 0,
                                 basePrice: 0,
                                 costPrice: 0,
@@ -920,7 +927,15 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                             </button>
                         </div>
 
-                        <form onSubmit={handleSave} className="p-5 space-y-6">
+                        <form 
+                            onSubmit={handleSave} 
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+                                    e.preventDefault();
+                                }
+                            }}
+                            className="p-5 space-y-6"
+                        >
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 {/* Left Side: Media Upload */}
                                 <div className="space-y-3">
