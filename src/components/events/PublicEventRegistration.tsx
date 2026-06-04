@@ -41,10 +41,14 @@ export const PublicEventRegistration: React.FC = () => {
     });
 
     const [paymentPhone, setPaymentPhone] = useState('');
-    const [paymentStatus, setPaymentStatus] = useState<'idle' | 'sending' | 'pending' | 'success' | 'failed'>('idle');
+    const [paymentStatus, setPaymentStatus] = useState<'idle' | 'sending' | 'pending' | 'success' | 'failed' | 'prompt_sent' | 'completed'>('idle');
     const [mpesaRef, setMpesaRef] = useState('');
     const [registeredParticipant, setRegisteredParticipant] = useState<EventParticipant | null>(null);
     const [ncbaConfig, setNcbaConfig] = useState<any>(null);
+    const [kcbConfig, setKcbConfig] = useState<any>(null);
+    const [checkoutRequestId, setCheckoutRequestId] = useState('');
+    const [statusMessage, setStatusMessage] = useState('');
+    const [useManualPayment, setUseManualPayment] = useState(true);
     
     // Guard against multiple submissions or polling double-triggers
     const isRegisteringRef = React.useRef(false);
@@ -133,8 +137,9 @@ export const PublicEventRegistration: React.FC = () => {
         const loadConfig = async () => {
             try {
                 const settings = await apiService.fetchCompanySettings();
-                if (settings && settings.ncbaConfig) {
-                    setNcbaConfig(settings.ncbaConfig);
+                if (settings) {
+                    if (settings.ncbaConfig) setNcbaConfig(settings.ncbaConfig);
+                    if (settings.kcbConfig) setKcbConfig(settings.kcbConfig);
                 }
             } catch (e) {
                 console.error("Failed to load company details", e);
@@ -177,6 +182,7 @@ export const PublicEventRegistration: React.FC = () => {
         }
 
         setPaymentPhone(formData.phone || '');
+        setUseManualPayment(!event?.bankIntegrationEnabled);
         setStep(3);
     };
 
@@ -273,6 +279,137 @@ export const PublicEventRegistration: React.FC = () => {
             setStep(4);
         } finally {
             isRegisteringRef.current = false;
+        }
+    };
+
+    // Poll payment status
+    useEffect(() => {
+        if (!checkoutRequestId || paymentStatus !== 'prompt_sent') return;
+
+        let attempts = 0;
+        const maxAttempts = 24; // 120s
+        const interval = setInterval(async () => {
+            attempts++;
+            if (attempts >= maxAttempts) {
+                clearInterval(interval);
+                setPaymentStatus('failed');
+                setStatusMessage("Verification timed out. If you already completed the payment, it will reflect within 24 hours.");
+                return;
+            }
+
+            try {
+                const statusRes = await apiService.post('/api/payments/kcb-query', {
+                    checkoutRequestId,
+                    config: kcbConfig || {}
+                });
+                if (statusRes.success && (statusRes.status === 'COMPLETED' || statusRes.status === 'Success' || statusRes.resultCode === '0')) {
+                    clearInterval(interval);
+                    setPaymentStatus('completed');
+                    setStatusMessage(`Payment confirmed! KES ${totalFee?.toLocaleString()} received successfully.`);
+                    
+                    // Complete registration with the real M-Pesa Receipt Number!
+                    const receiptNumber = statusRes.mpesaReceiptNumber || checkoutRequestId;
+                    handleCompleteRegistration(receiptNumber);
+                } else if (statusRes.status === 'Failed' || statusRes.resultCode === '1') {
+                    clearInterval(interval);
+                    setPaymentStatus('failed');
+                    setStatusMessage(statusRes.message || "Payment request was cancelled or failed on your mobile phone.");
+                }
+            } catch (err) {
+                console.warn("Status check warning, retrying...", err);
+            }
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [checkoutRequestId, paymentStatus, totalFee, kcbConfig]);
+
+    const handleSendStkPush = async () => {
+        if (!paymentPhone.trim()) {
+            setErrorMsg('Please enter a valid M-Pesa phone number.');
+            return;
+        }
+
+        let formattedPhone = paymentPhone.trim().replace(/\+/g, '');
+        if (formattedPhone.startsWith('0')) {
+            formattedPhone = '254' + formattedPhone.slice(1);
+        }
+        if (!/^(254)(7|1)\d{8}$/.test(formattedPhone)) {
+            setErrorMsg('Please enter a valid Kenyan phone number starting with 2547..., 2541..., 07... or 01...');
+            return;
+        }
+
+        // Check for duplicate registration before initiating payment
+        try {
+            const allParticipants = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
+            const eventCategoryIds = categories.map(c => c.id);
+            const emailLower = formData.email.trim().toLowerCase();
+            const phoneTrim = formData.phone.trim();
+            const duplicate = allParticipants.find(p => 
+                eventCategoryIds.includes(p.categoryId) && 
+                ((emailLower && p.email?.toLowerCase() === emailLower) || (phoneTrim && p.phone === phoneTrim))
+            );
+            if (duplicate) {
+                setErrorMsg(`A runner with this email or phone number is already registered for this event (BIB: ${duplicate.bibNumber}).`);
+                return;
+            }
+        } catch (e) {
+            console.error('Error checking duplicate registration:', e);
+        }
+
+        setPaymentStatus('sending');
+        setStatusMessage("Initiating payment prompt...");
+        setErrorMsg('');
+
+        try {
+            const response = await apiService.post('/api/payments/kcb-stk-push', {
+                customerMobileNumber: formattedPhone,
+                transactionAmount: totalFee,
+                customerReference: `EVT_${eventId?.substring(0, 8).toUpperCase()}_${Date.now().toString().slice(-4)}`,
+                customerName: `${formData.firstName} ${formData.lastName}`.trim(),
+                narration: `Registration for ${event.name}`,
+                creditAccountIdentifier: event.institutionId,
+                config: kcbConfig || {}
+            });
+
+            if (response.success || response.ResponseCode === '0') {
+                const reqId = response.CheckoutRequestID || response.checkoutRequestID || `KCB_CO_${Date.now()}`;
+                setCheckoutRequestId(reqId);
+                setPaymentStatus('prompt_sent');
+                setStatusMessage("Prompt dispatched! Check your phone to enter your M-Pesa PIN.");
+
+                // Save a pending transaction record so webhook or query status reconciles correctly
+                await apiService.saveModuleRecord('mpesa_transactions', {
+                    id: `txn_${Date.now()}`,
+                    transactionId: reqId,
+                    checkoutRequestId: reqId,
+                    institutionId: event.institutionId || 'GLOBAL',
+                    amount: totalFee,
+                    phoneNumber: formattedPhone,
+                    payerName: `${formData.firstName} ${formData.lastName}`.trim(),
+                    status: 'pending',
+                    provider: 'kcb',
+                    customer_reference: `EVT_${eventId?.substring(0, 8).toUpperCase()}_${Date.now().toString().slice(-4)}`,
+                    customer_name: `${formData.firstName} ${formData.lastName}`.trim(),
+                    customer_mobile_number: formattedPhone,
+                    balance: totalFee,
+                    narration: `Registration for ${event.name}`,
+                    credit_account_identifier: event.institutionId,
+                    metadata: { 
+                        type: 'event_registration', 
+                        eventId: eventId,
+                        categoryId: selectedCategoryId
+                    },
+                    timestamp: new Date().toISOString()
+                }).catch(err => console.error("Failed to record pending transaction:", err));
+
+            } else {
+                setPaymentStatus('failed');
+                const detailsMsg = response.details ? ` (${typeof response.details === 'object' ? JSON.stringify(response.details) : response.details})` : '';
+                setStatusMessage((response.message || "Failed to trigger payment prompt. Try again or contact support.") + detailsMsg);
+            }
+        } catch (err: any) {
+            setPaymentStatus('failed');
+            setStatusMessage("Gateway connectivity failed: " + (err.message || err));
         }
     };
 
@@ -822,73 +959,182 @@ export const PublicEventRegistration: React.FC = () => {
                     </form>
                 )}
 
-                {/* Step 3: Payment Simulation */}
+                {/* Step 3: Payment */}
                 {step === 3 && (
                     <div className="py-6 flex flex-col items-center max-w-md mx-auto text-center">
-                        <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-500/30 rounded-full flex items-center justify-center mb-6">
-                            <QrCodeIcon className="w-10 h-10 text-indigo-400" />
-                        </div>
-                        <h4 className="text-lg font-bold text-white mb-2">Manual Payment Verification</h4>
-                        <div className="text-xs text-slate-400 mb-6 leading-relaxed bg-slate-900/50 p-4 rounded-xl border border-slate-800 text-left">
-                            {event.paymentInstructions ? (
-                                <div className="whitespace-pre-wrap font-medium text-slate-300">
-                                    {event.paymentInstructions}
-                                    <div className="mt-4 pt-4 border-t border-slate-800 text-slate-400">
-                                        Total Amount Due: <span className="text-white font-bold">KES {totalFee?.toLocaleString()}</span>
+                        {!useManualPayment && event.bankIntegrationEnabled ? (
+                            // Automated Collection UI
+                            <div className="w-full">
+                                <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-500/30 rounded-full flex items-center justify-center mb-6 mx-auto">
+                                    <MpesaIcon className="w-10 h-10 text-indigo-400" />
+                                </div>
+                                <h4 className="text-lg font-bold text-white mb-2">M-Pesa STK Prompt Settlement</h4>
+                                <p className="text-xs text-slate-400 mb-6 leading-relaxed bg-slate-900/50 p-4 rounded-xl border border-slate-800 text-left">
+                                    Enter your M-Pesa phone number and confirm payment. You will receive an instant STK Push prompt on your mobile screen to enter your PIN and authorize the payment of <span className="text-white font-bold">KES {totalFee?.toLocaleString()}</span>.
+                                </p>
+
+                                <div className="w-full space-y-4 text-left">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 mb-1.5">M-Pesa Mobile Number</label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={paymentPhone}
+                                                onChange={(e) => setPaymentPhone(e.target.value)}
+                                                placeholder="e.g. 254712345678"
+                                                className="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2.5 pl-10 text-sm text-white font-bold tracking-wide focus:ring-2 focus:ring-indigo-500/50"
+                                                disabled={paymentStatus === 'sending' || paymentStatus === 'prompt_sent'}
+                                            />
+                                            <span className="absolute left-3.5 top-3.5 text-slate-500">
+                                                <PhoneIcon className="w-4.5 h-4.5" />
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {paymentStatus !== 'idle' && (
+                                        <div className={`p-4 rounded-xl text-xs font-bold border flex items-start gap-3 ${
+                                            paymentStatus === 'prompt_sent' || paymentStatus === 'sending' ? 'bg-indigo-500/5 text-indigo-400 border-indigo-500/10' :
+                                            paymentStatus === 'completed' || paymentStatus === 'success' ? 'bg-emerald-500/5 text-emerald-400 border-emerald-500/10' :
+                                            'bg-rose-500/5 text-rose-400 border-rose-500/10'
+                                        }`}>
+                                            {paymentStatus === 'prompt_sent' || paymentStatus === 'sending' ? (
+                                                <div className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin flex-shrink-0 mt-0.5"></div>
+                                            ) : paymentStatus === 'completed' || paymentStatus === 'success' ? (
+                                                <CheckCircleIcon className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                                            ) : (
+                                                <AlertTriangleIcon className="w-5 h-5 text-rose-400 flex-shrink-0" />
+                                            )}
+                                            <span className="flex-1">{statusMessage || (paymentStatus === 'sending' ? 'Sending prompt request...' : 'Verification in progress...')}</span>
+                                        </div>
+                                    )}
+
+                                    {paymentStatus === 'idle' && (
+                                        <button
+                                            onClick={handleSendStkPush}
+                                            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2"
+                                        >
+                                            <SparklesIcon className="w-4 h-4" /> Send STK Prompt
+                                        </button>
+                                    )}
+
+                                    {paymentStatus === 'failed' && (
+                                        <button
+                                            onClick={handleSendStkPush}
+                                            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2"
+                                        >
+                                            Retry STK Prompt
+                                        </button>
+                                    )}
+
+                                    <div className="flex flex-col gap-2 pt-2">
+                                        <button
+                                            onClick={() => {
+                                                setPaymentStatus('idle');
+                                                setUseManualPayment(true);
+                                                setErrorMsg('');
+                                            }}
+                                            disabled={paymentStatus === 'sending' || paymentStatus === 'prompt_sent'}
+                                            className="w-full py-2.5 border border-slate-800 hover:bg-slate-900 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all text-center"
+                                        >
+                                            Use Manual Verification / Cash / Bank
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                setPaymentStatus('idle');
+                                                setStep(2);
+                                            }}
+                                            disabled={paymentStatus === 'sending' || paymentStatus === 'prompt_sent'}
+                                            className="w-full py-2.5 border border-slate-800 hover:bg-slate-900 rounded-xl text-xs font-bold text-slate-500 hover:text-white transition-all text-center"
+                                        >
+                                            Change Runner Details
+                                        </button>
                                     </div>
                                 </div>
-                            ) : (
-                                `Please make payment of KES ${totalFee?.toLocaleString()} to the institution's bank account or M-PESA Till/Paybill, then enter the Transaction Reference Code or Bank Code below to complete your registration.`
-                            )}
-                        </div>
-
-                        <div className="w-full space-y-4">
-                            <div>
-                                <label className="block text-left text-xs font-bold text-slate-400 mb-1.5">Transaction Reference / Bank Code</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={mpesaRef}
-                                    onChange={e => setMpesaRef(e.target.value.toUpperCase())}
-                                    disabled={paymentStatus === 'sending'}
-                                    className="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white text-center font-bold tracking-wide font-mono focus:ring-2 focus:ring-indigo-500/50"
-                                    placeholder="e.g. AP38DE932"
-                                />
                             </div>
-
-                            {paymentStatus === 'idle' && (
-                                <button
-                                    onClick={handleInitiatePayment}
-                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-md"
-                                >
-                                    Complete Registration
-                                </button>
-                            )}
-
-                            {paymentStatus === 'sending' && (
-                                <div className="py-3 flex items-center justify-center gap-2 text-xs text-slate-450 font-bold">
-                                    <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                                    Recording registration and verifying...
+                        ) : (
+                            // Manual Payment UI
+                            <div className="w-full">
+                                <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-500/30 rounded-full flex items-center justify-center mb-6 mx-auto">
+                                    <QrCodeIcon className="w-10 h-10 text-indigo-400" />
                                 </div>
-                            )}
-
-                            {paymentStatus === 'failed' && (
-                                <div className="py-2.5 px-4 bg-red-950/20 border border-red-800/40 rounded-xl text-center">
-                                    <div className="text-xs font-bold text-red-400">Registration failed. Please try again.</div>
+                                <h4 className="text-lg font-bold text-white mb-2">Manual Payment Verification</h4>
+                                <div className="text-xs text-slate-400 mb-6 leading-relaxed bg-slate-900/50 p-4 rounded-xl border border-slate-800 text-left">
+                                    {event.paymentInstructions ? (
+                                        <div className="whitespace-pre-wrap font-medium text-slate-300">
+                                            {event.paymentInstructions}
+                                            <div className="mt-4 pt-4 border-t border-slate-800 text-slate-400">
+                                                Total Amount Due: <span className="text-white font-bold">KES {totalFee?.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        `Please make payment of KES ${totalFee?.toLocaleString()} to the institution's bank account or M-PESA Till/Paybill, then enter the Transaction Reference Code or Bank Code below to complete your registration.`
+                                    )}
                                 </div>
-                            )}
 
-                            <button
-                                onClick={() => {
-                                    setPaymentStatus('idle');
-                                    setStep(2);
-                                }}
-                                disabled={paymentStatus === 'sending'}
-                                className="w-full py-2.5 border border-slate-800 hover:bg-slate-900 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
-                            >
-                                Change Details
-                            </button>
-                        </div>
+                                <div className="w-full space-y-4">
+                                    <div>
+                                        <label className="block text-left text-xs font-bold text-slate-400 mb-1.5">Transaction Reference / Bank Code</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={mpesaRef}
+                                            onChange={e => setMpesaRef(e.target.value.toUpperCase())}
+                                            disabled={paymentStatus === 'sending'}
+                                            className="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white text-center font-bold tracking-wide font-mono focus:ring-2 focus:ring-indigo-500/50"
+                                            placeholder="e.g. AP38DE932"
+                                        />
+                                    </div>
+
+                                    {paymentStatus === 'idle' && (
+                                        <button
+                                            onClick={handleInitiatePayment}
+                                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition-all shadow-md"
+                                        >
+                                            Complete Registration
+                                        </button>
+                                    )}
+
+                                    {paymentStatus === 'sending' && (
+                                        <div className="py-3 flex items-center justify-center gap-2 text-xs text-slate-450 font-bold">
+                                            <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                            Recording registration and verifying...
+                                        </div>
+                                    )}
+
+                                    {paymentStatus === 'failed' && (
+                                        <div className="py-2.5 px-4 bg-red-950/20 border border-red-800/40 rounded-xl text-center">
+                                            <div className="text-xs font-bold text-red-400">Registration failed. Please try again.</div>
+                                        </div>
+                                    )}
+
+                                    {event.bankIntegrationEnabled && (
+                                        <button
+                                            onClick={() => {
+                                                setPaymentStatus('idle');
+                                                setUseManualPayment(false);
+                                                setErrorMsg('');
+                                            }}
+                                            disabled={paymentStatus === 'sending'}
+                                            className="w-full py-2.5 border border-slate-850 hover:bg-slate-900 rounded-xl text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-all"
+                                        >
+                                            Switch to Automated M-Pesa Payment
+                                        </button>
+                                    )}
+
+                                    <button
+                                        onClick={() => {
+                                            setPaymentStatus('idle');
+                                            setStep(2);
+                                        }}
+                                        disabled={paymentStatus === 'sending'}
+                                        className="w-full py-2.5 border border-slate-800 hover:bg-slate-900 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-all"
+                                    >
+                                        Change Runner Details
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
