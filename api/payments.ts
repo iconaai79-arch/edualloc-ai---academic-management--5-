@@ -326,8 +326,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         finalOrgShortCode = configShortCode;
                         finalSharedShortCode = false;
                     } else {
-                        finalOrgShortCode = '522533';
-                        finalTillNumber = finalTillNumber || configShortCode;
+                        finalOrgShortCode = configShortCode;
                         finalSharedShortCode = true;
                     }
                 }
@@ -336,9 +335,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     finalOrgShortCode = '522533';
                     finalSharedShortCode = true;
                 } else {
-                    finalOrgShortCode = '522533';
-                    finalTillNumber = finalTillNumber || organizationShortCode;
-                    finalSharedShortCode = true;
+                    finalOrgShortCode = organizationShortCode;
+                    finalSharedShortCode = finalTillNumber ? true : false;
                 }
             }
         }
@@ -715,16 +713,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             finalOrgShortCode = '522533';
         } else {
             if (configShortCode) {
-                if (configShortCode === '522533') {
-                    finalOrgShortCode = '522533';
-                } else {
-                    const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
-                    if (isCustomPaybill) {
-                        finalOrgShortCode = configShortCode;
-                    } else {
-                        finalOrgShortCode = '522533';
-                    }
-                }
+                finalOrgShortCode = configShortCode;
             }
         }
         const shortCode = finalOrgShortCode;

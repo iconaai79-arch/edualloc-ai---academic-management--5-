@@ -2196,16 +2196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 } else {
                     if (configShortCode) {
-                        if (configShortCode === '522533') {
-                            finalOrgShortCode = '522533';
-                        } else {
-                            const isCustomPaybill = kcbConfig.sharedShortCode === false || kcbConfig.shared_short_code === false;
-                            if (isCustomPaybill) {
-                                finalOrgShortCode = configShortCode;
-                            } else {
-                                finalOrgShortCode = '522533';
-                            }
-                        }
+                        finalOrgShortCode = configShortCode;
                     }
                 }
                 const shortCode = finalOrgShortCode;
