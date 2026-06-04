@@ -221,8 +221,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // ResultCode / status: check multiple formats KCB may send
         let resultCode = String(
             body.ResultCode ?? body.resultCode ??
-            stkCallback.ResultCode ??
-            body.Result?.ResultCode ?? primaryData.resultCode ?? 
+            body.ResponseCode ?? body.responseCode ??
+            stkCallback.ResultCode ?? stkCallback.resultCode ??
+            stkCallback.ResponseCode ?? stkCallback.responseCode ??
+            body.Result?.ResultCode ?? body.Result?.ResponseCode ??
+            primaryData.resultCode ?? primaryData.responseCode ??
             getParam(body, req.query, 'statusCode') ?? ''
         );
         // If it's a flat callback, default to successful transaction status '0'
@@ -354,7 +357,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Update the matching transaction if we have enough context
         if (checkoutRequestId) {
-            const isSuccess = resultCode === '0' || resultCode === 'SUCCESS' || resultCode === '';
+            const normCode = String(resultCode).trim().toUpperCase();
+            const isSuccess = normCode === '0' || normCode === '00' || normCode === 'SUCCESS' || normCode === 'SUCCESSFUL' || normCode === '';
             const updateData: Record<string, any> = {
                 status: isSuccess ? 'completed' : 'failed',
             };

@@ -18,11 +18,15 @@ const getSupabase = () => {
 
 const resolveKcbResultCode = (data: any): string => {
     if (!data) return '';
-    const directCode = data.ResultCode ?? data.resultCode ?? data.Result?.ResultCode;
+    const directCode = 
+        data.ResultCode ?? data.resultCode ?? 
+        data.ResponseCode ?? data.responseCode ??
+        data.Result?.ResultCode ?? data.Result?.ResponseCode ??
+        data.response?.responseCode ?? data.response?.ResponseCode;
     if (directCode !== undefined && directCode !== null) return String(directCode);
     const stkCallback = data.responsePayload?.stkCallback || data.Body?.stkCallback || data.stkCallback;
     if (stkCallback) {
-        const cCode = stkCallback.ResultCode ?? stkCallback.resultCode;
+        const cCode = stkCallback.ResultCode ?? stkCallback.resultCode ?? stkCallback.ResponseCode ?? stkCallback.responseCode;
         if (cCode !== undefined && cCode !== null) return String(cCode);
     }
     const headerCode = data.header?.statusCode ?? data.header?.messageCode ?? data.header?.statuscode;
@@ -2336,9 +2340,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     }
                                 } else {
                                     const resultCode = resolveKcbResultCode(queryData);
-                                    if (resultCode === '0' || resultCode === 'SUCCESS') {
+                                    const normCode = String(resultCode).trim().toUpperCase();
+                                    if (normCode === '0' || normCode === '00' || normCode === 'SUCCESS' || normCode === 'SUCCESSFUL') {
                                         finalStatus = 'completed';
-                                    } else if (resultCode === '1' || resultCode === '' || resultCode.toLowerCase() === 'pending' || resultCode.toLowerCase() === 'processing') {
+                                    } else if (normCode === '1' || normCode === '' || normCode === 'PENDING' || normCode === 'PROCESSING') {
                                         finalStatus = 'pending';
                                     } else {
                                         finalStatus = 'failed';

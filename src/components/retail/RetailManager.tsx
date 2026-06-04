@@ -34,6 +34,7 @@ import { BuildingOfficeIcon as BuildingIcon } from '../icons/BuildingOfficeIcon'
 import { TruckIcon as TruckIcon } from '../icons/TruckIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
+import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { BarChart3Icon as BarChart3 } from '../icons/BarChart3Icon';
 import { SettingsIcon as Cog } from '../icons/SettingsIcon';
 
@@ -59,7 +60,7 @@ interface RetailManagerProps {
 
 export function RetailManager(props: RetailManagerProps) {
     const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation } = props;
-    const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'students' | 'reports' | 'config'>('dashboard');
+    const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'support_staff' | 'students' | 'reports' | 'config'>('dashboard');
     const [selectedUserForPOS, setSelectedUserForPOS] = useState<User | null>(null);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
@@ -134,6 +135,7 @@ export function RetailManager(props: RetailManagerProps) {
         { id: 'inventory', label: 'Inventory', icon: Package },
         { id: 'pos', label: 'Issue Desk', icon: Smartphone },
         { id: 'teachers', label: 'Teachers', icon: UserIcon },
+        { id: 'support_staff', label: 'Support Staff', icon: BriefcaseIcon },
         { id: 'students', label: 'Students', icon: UserGroupIcon },
         { id: 'reports', label: 'Reports', icon: BarChart3 },
         { id: 'logistics', label: 'Logistics', icon: TruckIcon },
@@ -240,6 +242,19 @@ export function RetailManager(props: RetailManagerProps) {
                     <RetailUserDirectory
                         institutionId={institutionId}
                         role="teacher"
+                        allUsers={allUsers}
+                        allCourses={allCourses}
+                        currentInstitution={currentInstitution}
+                        onIssueItem={(user) => {
+                            setSelectedUserForPOS(user);
+                            setActiveView('pos');
+                        }}
+                    />
+                )}
+                {activeView === 'support_staff' && (
+                    <RetailUserDirectory
+                        institutionId={institutionId}
+                        role="support_staff"
                         allUsers={allUsers}
                         allCourses={allCourses}
                         currentInstitution={currentInstitution}

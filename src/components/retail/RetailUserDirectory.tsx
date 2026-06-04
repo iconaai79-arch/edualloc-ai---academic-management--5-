@@ -4,6 +4,7 @@ import { apiService } from '../../services/apiService';
 import { SearchIcon as Search } from '../icons/SearchIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
+import { BriefcaseIcon } from '../icons/BriefcaseIcon';
 import { ZapIcon as Zap } from '../icons/ZapIcon';
 import { EnvelopeIcon } from '../icons/EnvelopeIcon';
 import { PhoneIcon } from '../icons/PhoneIcon';
@@ -15,7 +16,7 @@ import { isPrimaryInstitution, isSecondaryInstitution } from '../../utils/roleUt
 
 interface RetailUserDirectoryProps {
     institutionId: string;
-    role: 'teacher' | 'student';
+    role: 'teacher' | 'student' | 'support_staff';
     onIssueItem: (user: User) => void;
     allUsers?: User[];
     allCourses?: Course[];
@@ -96,9 +97,11 @@ export function RetailUserDirectory({
     };
 
     const displayUsers = useMemo(() => {
-        // Filter by role: 'teacher' matches all faculty/lecturer/admin roles for complete support
+        // Filter by role: 'teacher' matches all faculty/lecturer/admin roles, 'support_staff' matches subordinate staff, 'student' matches student
         const targetRoles = role === 'teacher' 
             ? ['teacher', 'lecturer', 'hod', 'dos', 'deputy', 'head_teacher'] 
+            : role === 'support_staff'
+            ? ['support_staff', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'attendant', 'worker', 'secretary', 'finance']
             : ['student'];
         let filtered = users.filter(u => 
             targetRoles.includes(u.role) || 
@@ -171,8 +174,8 @@ export function RetailUserDirectory({
                 name: formData.name.trim(),
                 email: formData.email.trim() || undefined,
                 phoneNumber: formData.phoneNumber.trim() || undefined,
-                role: role === 'teacher' ? (formData.role || 'teacher') : 'student',
-                roles: role === 'teacher' ? [formData.role || 'teacher'] : ['student'],
+                role: role === 'student' ? 'student' : (formData.role || (role === 'support_staff' ? 'support_staff' : 'teacher')),
+                roles: role === 'student' ? ['student'] : [formData.role || (role === 'support_staff' ? 'support_staff' : 'teacher')],
                 institutionId,
                 status: 'active',
                 ...(role === 'student' ? {
@@ -236,11 +239,11 @@ export function RetailUserDirectory({
                     </div>
                     <div>
                         <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                            {role === 'teacher' ? 'Teachers Directory' : 'Students Directory'}
+                            {role === 'teacher' ? 'Teachers Directory' : role === 'support_staff' ? 'Support Staff Directory' : 'Students Directory'}
                         </h2>
                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                {displayUsers.length} total registered {role === 'teacher' ? 'teachers' : 'students'}
+                                {displayUsers.length} total registered {role === 'teacher' ? 'teachers' : role === 'support_staff' ? 'support staff' : 'students'}
                             </p>
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                             <button
@@ -259,7 +262,7 @@ export function RetailUserDirectory({
                                 className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98"
                             >
                                 <UploadIcon className="w-3.5 h-3.5" />
-                                Import {role === 'teacher' ? 'Teachers' : 'Students'}
+                                Import {role === 'teacher' ? 'Teachers' : role === 'support_staff' ? 'Support Staff' : 'Students'}
                             </button>
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                             <button
@@ -271,13 +274,13 @@ export function RetailUserDirectory({
                                         idVal: '',
                                         courseId: courses[0]?.id || '',
                                         departmentId: departments[0]?.id || '',
-                                        role: 'teacher',
+                                        role: role === 'support_staff' ? 'support_staff' : (role === 'teacher' ? 'teacher' : 'student'),
                                     });
                                     setIsAddModalOpen(true);
                                 }}
                                 className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-600 hover:text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98"
                             >
-                                <span className="font-bold text-[11px]">+</span> Add {role === 'teacher' ? 'Teacher' : 'Student'}
+                                <span className="font-bold text-[11px]">+</span> Add {role === 'teacher' ? 'Teacher' : role === 'support_staff' ? 'Support Staff' : 'Student'}
                             </button>
                         </div>
                     </div>
@@ -289,7 +292,7 @@ export function RetailUserDirectory({
                         <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                         <input
                             type="text"
-                            placeholder={`Search ${role === 'teacher' ? 'teachers' : 'students'} by name, ID, contact...`}
+                            placeholder={`Search ${role === 'teacher' ? 'teachers' : role === 'support_staff' ? 'support staff' : 'students'} by name, ID, contact...`}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-12 pr-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all"
@@ -316,10 +319,10 @@ export function RetailUserDirectory({
             {displayUsers.length === 0 ? (
                 <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-16 rounded-[3rem] border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center">
                     <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
-                        {role === 'teacher' ? <UserIcon className="w-10 h-10 text-slate-300" /> : <UserGroupIcon className="w-10 h-10 text-slate-300" />}
+                        {role === 'teacher' ? <UserIcon className="w-10 h-10 text-slate-300" /> : role === 'support_staff' ? <BriefcaseIcon className="w-10 h-10 text-slate-300" /> : <UserGroupIcon className="w-10 h-10 text-slate-300" />}
                     </div>
                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter">No Records Found</h3>
-                    <p className="text-slate-400 text-xs italic mt-2 font-medium">No {role === 'teacher' ? 'teachers' : 'students'} match your search filters in the registry database.</p>
+                    <p className="text-slate-400 text-xs italic mt-2 font-medium">No {role === 'teacher' ? 'teachers' : role === 'support_staff' ? 'support staff' : 'students'} match your search filters in the registry database.</p>
                 </div>
             ) : role === 'student' ? (
                 <div className="space-y-10">
@@ -421,7 +424,7 @@ export function RetailUserDirectory({
                                                     STAFF: {idVal}
                                                 </span>
                                                 <span className="inline-block text-[8px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md">
-                                                    ROLE: {user.role?.toUpperCase() || 'TEACHER'}
+                                                    ROLE: {user.role?.toUpperCase() || (role === 'support_staff' ? 'SUPPORT_STAFF' : 'TEACHER')}
                                                 </span>
                                             </div>
                                         </div>
@@ -478,13 +481,13 @@ export function RetailUserDirectory({
                         
                         {/* Header */}
                         <div className="p-8 border-b border-slate-100 dark:border-slate-800/80 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-indigo-950/10 dark:to-purple-950/10">
-                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                                Add {role === 'teacher' ? 'Teacher' : 'Student'} Manually
-                            </h3>
-                            <p className="text-xs text-slate-400 font-bold mt-1.5 uppercase tracking-wider">
-                                Register a new {role === 'teacher' ? 'academic faculty member' : 'enrolled student'} roster record.
-                            </p>
-                        </div>
+                                                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                                Add {role === 'teacher' ? 'Teacher' : role === 'support_staff' ? 'Support Staff' : 'Student'} Manually
+                                                            </h3>
+                                                            <p className="text-xs text-slate-400 font-bold mt-1.5 uppercase tracking-wider">
+                                                                Register a new {role === 'teacher' ? 'academic faculty member' : role === 'support_staff' ? 'non-academic support staff member' : 'enrolled student'} roster record.
+                                                            </p>
+                                                        </div>
                         
                         {/* Form Body */}
                         <form onSubmit={handleRegisterMember} className="p-8 space-y-5 overflow-y-auto flex-1">
@@ -577,17 +580,38 @@ export function RetailUserDirectory({
                                     )}
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Departmental Role / Designation</label>
-                                        <select
-                                            value={formData.role}
-                                            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
-                                        >
-                                            <option value="teacher">Teacher / Lecturer</option>
-                                            <option value="hod">HOD (Head of Department)</option>
-                                            <option value="dos">DOS (Director of Studies)</option>
-                                            <option value="deputy">Deputy Principal / Headteacher</option>
-                                            <option value="head_teacher">Head Teacher / Principal</option>
-                                        </select>
+                                        {role === 'support_staff' ? (
+                                            <select
+                                                value={formData.role}
+                                                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
+                                            >
+                                                <option value="support_staff">General Support Staff</option>
+                                                <option value="librarian">Librarian</option>
+                                                <option value="security">Security Officer</option>
+                                                <option value="info_desk">Info Desk / Receptionist</option>
+                                                <option value="store">Storekeeper / Clerk</option>
+                                                <option value="boarding_master">Boarding Master / Matron</option>
+                                                <option value="driver">School Driver</option>
+                                                <option value="transport_assistant">Transport Assistant</option>
+                                                <option value="secretary">Secretary</option>
+                                                <option value="attendant">Attendant / Cleaner</option>
+                                                <option value="worker">General Worker</option>
+                                                <option value="finance">Accountant / Bursar</option>
+                                            </select>
+                                        ) : (
+                                            <select
+                                                value={formData.role}
+                                                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
+                                            >
+                                                <option value="teacher">Teacher / Lecturer</option>
+                                                <option value="hod">HOD (Head of Department)</option>
+                                                <option value="dos">DOS (Director of Studies)</option>
+                                                <option value="deputy">Deputy Principal / Headteacher</option>
+                                                <option value="head_teacher">Head Teacher / Principal</option>
+                                            </select>
+                                        )}
                                     </div>
                                 </>
                             )}
