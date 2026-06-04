@@ -47,7 +47,34 @@ const AssignmentItem: React.FC<{
         if (fileType.startsWith('image/')) {
             printWindow.document.write(`<html><head><title>Print</title></head><body><img loading="lazy" src="${assignment.fileDataUrl}" style="max-width: 100%;" onload="window.print(); window.close();" /></body></html>`);
         } else if (fileType === 'application/pdf') {
-            printWindow.document.write(`<html><head><title>Print</title></head><body style="margin:0;"><iframe src="${assignment.fileDataUrl}" style="border:none; width:100%; height:100%;" title="PDF Print"></iframe></body></html>`);
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Print Assignment</title>
+                    <style>
+                        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+                        iframe { border: none; width: 100%; height: 100%; }
+                    </style>
+                </head>
+                <body>
+                    <iframe id="pdfFrame" src="${assignment.fileDataUrl}" title="PDF Print"></iframe>
+                    <script>
+                        const iframe = document.getElementById('pdfFrame');
+                        iframe.onload = () => {
+                            setTimeout(() => {
+                                try {
+                                    iframe.contentWindow.focus();
+                                    iframe.contentWindow.print();
+                                } catch (e) {
+                                    console.error("Iframe print failed, falling back to window print:", e);
+                                    window.print();
+                                }
+                            }, 1000);
+                        };
+                    </script>
+                </body>
+                </html>
+            `);
         } else {
             printWindow.location.href = assignment.fileDataUrl;
         }

@@ -463,12 +463,38 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                         null // default logo
                     );
 
-                    // Auto-open print dialog in a new window
-                    const printWindow = window.open(pdfUrl, '_blank');
+                    // Auto-open print dialog in a new window using an iframe helper to avoid Chrome "Iframe print handler not loaded yet"
+                    const printWindow = window.open('', '_blank');
                     if (printWindow) {
-                        printWindow.onload = () => {
-                            printWindow.print();
-                        };
+                        printWindow.document.write(`
+                            <html>
+                            <head>
+                                <title>Print Receipt</title>
+                                <style>
+                                    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+                                    iframe { border: none; width: 100%; height: 100%; }
+                                </style>
+                            </head>
+                            <body>
+                                <iframe id="pdfFrame" src="${pdfUrl}"></iframe>
+                                <script>
+                                    const iframe = document.getElementById('pdfFrame');
+                                    iframe.onload = () => {
+                                        setTimeout(() => {
+                                            try {
+                                                iframe.contentWindow.focus();
+                                                iframe.contentWindow.print();
+                                            } catch (e) {
+                                                console.error("Iframe print failed, falling back to window print:", e);
+                                                window.print();
+                                            }
+                                        }, 1000);
+                                    };
+                                </script>
+                            </body>
+                            </html>
+                        `);
+                        printWindow.document.close();
                     } else {
                         console.warn("Popup blocked! Could not auto-preview receipt.");
                     }

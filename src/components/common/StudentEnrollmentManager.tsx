@@ -91,9 +91,49 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     };
 
     useEffect(() => {
-        if (currentInstitution?.id) {
-            loadAllData();
-        }
+        const runSetup = async () => {
+            // Auto-create student_enrollments table if not exists in database
+            const createTableSql = `
+                CREATE TABLE IF NOT EXISTS public.student_enrollments (
+                    id TEXT PRIMARY KEY,
+                    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+                    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+                    enrollment_type TEXT NOT NULL,
+                    admission_number TEXT,
+                    status TEXT DEFAULT 'Enrolled',
+                    enrollment_date TEXT,
+                    metadata JSONB DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+                
+                ALTER TABLE public.student_enrollments ENABLE ROW LEVEL SECURITY;
+                
+                DO $$
+                DECLARE
+                    t text := 'student_enrollments';
+                BEGIN
+                    EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %I" ON public.%I', t, t);
+                    EXECUTE format('CREATE POLICY "Institutional tenancy select: %I" ON public.%I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+                    
+                    EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %I" ON public.%I', t, t);
+                    EXECUTE format('CREATE POLICY "Institutional tenancy manage: %I" ON public.%I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+                    
+                    EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
+                END $$;
+            `;
+            try {
+                await apiService.runMigration(createTableSql);
+            } catch (err) {
+                console.warn("Auto-migration of student_enrollments table failed (might already exist):", err);
+            }
+            
+            if (currentInstitution?.id) {
+                loadAllData();
+            }
+        };
+        
+        runSetup();
     }, [currentInstitution?.id, context]);
 
     // Handle Form Submit

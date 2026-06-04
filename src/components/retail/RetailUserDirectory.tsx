@@ -52,15 +52,30 @@ export function RetailUserDirectory({
         idVal: '', // staffId or admissionNumber
         courseId: '',
         departmentId: '',
+        role: 'teacher',
     });
 
     useEffect(() => {
         if (propUsers) {
             setUsers(propUsers);
+            // Fetch departments and courses to resolve N/A labels and dropdown choices
+            const fetchDeptsAndCourses = async () => {
+                try {
+                    const deptsData = await apiService.fetchModuleRecords<Department>('departments', institutionId);
+                    setDepartments(deptsData || []);
+                    if (!propCourses) {
+                        const coursesData = await apiService.fetchModuleRecords<Course>('courses', institutionId);
+                        setCourses(coursesData || []);
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch departments/courses for directory:', err);
+                }
+            };
+            fetchDeptsAndCourses();
         } else {
             fetchData();
         }
-    }, [propUsers, institutionId]);
+    }, [propUsers, propCourses, institutionId]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -81,8 +96,10 @@ export function RetailUserDirectory({
     };
 
     const displayUsers = useMemo(() => {
-        // Filter by role: 'teacher' matches both 'teacher' and 'lecturer' roles for complete support
-        const targetRoles = role === 'teacher' ? ['teacher', 'lecturer'] : ['student'];
+        // Filter by role: 'teacher' matches all faculty/lecturer/admin roles for complete support
+        const targetRoles = role === 'teacher' 
+            ? ['teacher', 'lecturer', 'hod', 'dos', 'deputy', 'head_teacher'] 
+            : ['student'];
         let filtered = users.filter(u => 
             targetRoles.includes(u.role) || 
             (Array.isArray(u.roles) && u.roles.some(r => targetRoles.includes(r)))
@@ -154,8 +171,8 @@ export function RetailUserDirectory({
                 name: formData.name.trim(),
                 email: formData.email.trim() || undefined,
                 phoneNumber: formData.phoneNumber.trim() || undefined,
-                role: role === 'teacher' ? 'teacher' : 'student',
-                roles: role === 'teacher' ? ['teacher'] : ['student'],
+                role: role === 'teacher' ? (formData.role || 'teacher') : 'student',
+                roles: role === 'teacher' ? [formData.role || 'teacher'] : ['student'],
                 institutionId,
                 status: 'active',
                 ...(role === 'student' ? {
@@ -254,6 +271,7 @@ export function RetailUserDirectory({
                                         idVal: '',
                                         courseId: courses[0]?.id || '',
                                         departmentId: departments[0]?.id || '',
+                                        role: 'teacher',
                                     });
                                     setIsAddModalOpen(true);
                                 }}
@@ -398,9 +416,14 @@ export function RetailUserDirectory({
                                             <h4 className="font-black text-slate-900 dark:text-white text-sm truncate uppercase tracking-tight group-hover:text-indigo-600 transition-colors">
                                                 {user.name}
                                             </h4>
-                                            <span className="inline-block mt-1 text-[8px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md">
-                                                STAFF: {idVal}
-                                            </span>
+                                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                                <span className="inline-block text-[8px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md">
+                                                    STAFF: {idVal}
+                                                </span>
+                                                <span className="inline-block text-[8px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md">
+                                                    ROLE: {user.role?.toUpperCase() || 'TEACHER'}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -537,20 +560,36 @@ export function RetailUserDirectory({
                                     </div>
                                 )
                             ) : (
-                                departments.length > 0 && (
+                                <>
+                                    {departments.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Faculty Department</label>
+                                            <select
+                                                value={formData.departmentId}
+                                                onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
+                                            >
+                                                {departments.map(dept => (
+                                                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Faculty Department</label>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Departmental Role / Designation</label>
                                         <select
-                                            value={formData.departmentId}
-                                            onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                                            value={formData.role}
+                                            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                                             className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
                                         >
-                                            {departments.map(dept => (
-                                                <option key={dept.id} value={dept.id}>{dept.name}</option>
-                                            ))}
+                                            <option value="teacher">Teacher / Lecturer</option>
+                                            <option value="hod">HOD (Head of Department)</option>
+                                            <option value="dos">DOS (Director of Studies)</option>
+                                            <option value="deputy">Deputy Principal / Headteacher</option>
+                                            <option value="head_teacher">Head Teacher / Principal</option>
                                         </select>
                                     </div>
-                                )
+                                </>
                             )}
 
                             {/* Footer Buttons */}
