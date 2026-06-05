@@ -1145,7 +1145,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                             const firstName = metadata.firstName || 'Runner';
                                             const lastName = metadata.lastName || '';
                                             const email = metadata.email || '';
-                                            const phone = metadata.phone || payerPhone || '';
+                                            const phone = metadata.phone || transaction.phone_number || '';
                                             const gender = metadata.gender || 'male';
                                             const age = metadata.age ? parseInt(String(metadata.age)) : null;
                                             const tShirtSize = metadata.tShirtSize || 'M';
