@@ -5631,6 +5631,108 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                             {financeTab === 'payments' && (
                                 <div className="space-y-8 animate-fade-in">
+                                    {/* Pending Confirmations Section — visible only to Director / Super Admin */}
+                                    {(isDirector || isSuperAdmin) && payments.filter(p => p.status === 'Pending Confirmation').length > 0 && (
+                                         <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40 rounded-[3rem] p-8 space-y-6 animate-fade-in">
+                                             <div className="flex items-center justify-between flex-wrap gap-4">
+                                                 <div>
+                                                     <h4 className="text-lg font-black text-blue-800 dark:text-blue-400 uppercase tracking-tight flex items-center gap-2">
+                                                         <CheckCircleIcon className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-pulse" />
+                                                         Payments Pending Your Confirmation
+                                                     </h4>
+                                                     <p className="text-[10px] text-blue-600 dark:text-blue-500 font-bold uppercase tracking-widest mt-1">
+                                                         The following payments are awaiting director or super admin approval to be marked as completed
+                                                     </p>
+                                                 </div>
+                                                 {selectedPaymentIds.length > 0 && (
+                                                     <button
+                                                         onClick={async () => {
+                                                             if (window.confirm(`Confirm all ${selectedPaymentIds.length} selected payments?`)) {
+                                                                 setIsActionLoading(true);
+                                                                 try {
+                                                                     const toConfirm = payments.filter(p => selectedPaymentIds.includes(p.id));
+                                                                     await Promise.all(toConfirm.map(p => onUpdatePayment({ ...p, status: 'Completed' })));
+                                                                     success(`Successfully confirmed ${toConfirm.length} payment(s)!`);
+                                                                     setSelectedPaymentIds([]);
+                                                                 } catch (err: any) {
+                                                                     toastError(err.message || 'Failed to confirm payments');
+                                                                 } finally {
+                                                                     setIsActionLoading(false);
+                                                                 }
+                                                             }
+                                                         }}
+                                                         disabled={isActionLoading}
+                                                         className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                                                     >
+                                                         <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                         Confirm Selected ({selectedPaymentIds.length})
+                                                     </button>
+                                                 )}
+                                             </div>
+                                             <div className="overflow-x-auto">
+                                                 <table className="w-full text-left">
+                                                     <thead>
+                                                         <tr className="text-[9px] font-black uppercase tracking-widest text-blue-700/60 dark:text-blue-500/60 border-b border-blue-200/50 dark:border-blue-800/30">
+                                                             <th className="px-6 py-4 w-10"><input type="checkbox" onChange={(e) => {
+                                                                 const pendingIds = payments.filter(p => p.status === 'Pending Confirmation').map(p => p.id);
+                                                                 if (e.target.checked) setSelectedPaymentIds(prev => Array.from(new Set([...prev, ...pendingIds])));
+                                                                 else setSelectedPaymentIds(prev => prev.filter(id => !pendingIds.includes(id)));
+                                                             }} checked={payments.filter(p => p.status === 'Pending Confirmation').every(p => selectedPaymentIds.includes(p.id))} className="rounded border-blue-300 text-blue-600 focus:ring-blue-500 w-4 h-4" /></th>
+                                                             <th className="px-6 py-4">Receipt #</th>
+                                                             <th className="px-6 py-4">Student</th>
+                                                             <th className="px-6 py-4">Method</th>
+                                                             <th className="px-6 py-4">Amount</th>
+                                                             <th className="px-6 py-4">Date</th>
+                                                             <th className="px-6 py-4 text-right">Action</th>
+                                                         </tr>
+                                                     </thead>
+                                                     <tbody className="divide-y divide-blue-200/30 dark:divide-blue-800/20">
+                                                         {payments.filter(p => p.status === 'Pending Confirmation').map(payment => (
+                                                             <tr key={payment.id} className="hover:bg-blue-100/20 dark:hover:bg-blue-900/10 transition-colors">
+                                                                 <td className="px-6 py-4">
+                                                                     <input type="checkbox" checked={selectedPaymentIds.includes(payment.id)} onChange={(e) => {
+                                                                         if (e.target.checked) setSelectedPaymentIds(prev => [...prev, payment.id]);
+                                                                         else setSelectedPaymentIds(prev => prev.filter(id => id !== payment.id));
+                                                                     }} className="rounded border-blue-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />
+                                                                 </td>
+                                                                 <td className="px-6 py-4 font-bold text-blue-900 dark:text-blue-300">
+                                                                     {payment.receiptNumber}
+                                                                     <span className="ml-2 px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-500 text-[8px] font-black uppercase tracking-widest border border-blue-200 dark:border-blue-800/40 animate-pulse">Pending</span>
+                                                                 </td>
+                                                                 <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">{payment.studentName}</td>
+                                                                 <td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
+                                                                 <td className="px-6 py-4 font-bold text-sm text-slate-900 dark:text-white">KES {(payment.amount ?? 0)?.toLocaleString()}</td>
+                                                                 <td className="px-6 py-4 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                                                 <td className="px-6 py-4 text-right">
+                                                                     <button
+                                                                         onClick={async () => {
+                                                                             if (window.confirm('Confirm this payment? This will mark it as Completed/Approved.')) {
+                                                                                 setIsActionLoading(true);
+                                                                                 try {
+                                                                                     await onUpdatePayment({ ...payment, status: 'Completed' });
+                                                                                     success('Payment confirmed successfully!');
+                                                                                 } catch (err: any) {
+                                                                                     toastError(err.message || 'Failed to confirm payment');
+                                                                                 } finally {
+                                                                                     setIsActionLoading(false);
+                                                                                 }
+                                                                             }
+                                                                         }}
+                                                                         disabled={isActionLoading}
+                                                                         className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all inline-flex items-center gap-1 disabled:opacity-50"
+                                                                     >
+                                                                         <CheckCircleIcon className="w-3 h-3" />
+                                                                         Confirm
+                                                                     </button>
+                                                                 </td>
+                                                             </tr>
+                                                         ))}
+                                                     </tbody>
+                                                 </table>
+                                             </div>
+                                         </div>
+                                    )}
+
                                     {/* Pending Deletions Section */}
                                     {payments.filter(p => p.status === 'Pending Deletion').length > 0 && (
                                          <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-[3rem] p-8 space-y-6">
@@ -5640,7 +5742,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                      Pending Deletion Requests
                                                  </h4>
                                                  <p className="text-[10px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-widest mt-1">
-                                                     Awaiting director confirmation before full deletion
+                                                     Awaiting director or super admin confirmation before full deletion
                                                  </p>
                                              </div>
                                              <div className="overflow-x-auto">
@@ -5681,7 +5783,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                          </>
                                                                      ) : (
                                                                          <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded">
-                                                                             Awaiting Director
+                                                                             Awaiting Director / Super Admin
                                                                          </span>
                                                                      )}
                                                                  </td>
