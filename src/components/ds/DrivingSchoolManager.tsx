@@ -5478,7 +5478,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 >
                                     Transaction Feeds
                                 </button>
-                                {(isDirector || isSuperAdmin) && (
+                                {isAdmin && (
                                     <button 
                                         onClick={() => setFinanceTab('audit')}
                                         className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -6007,7 +6007,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 />
                             )}
 
-                            {financeTab === 'audit' && (isDirector || isSuperAdmin) && (() => {
+                            {financeTab === 'audit' && isAdmin && (() => {
                                 const auditPayments = [...(payments || [])].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
                                 const filteredAuditPayments = auditPayments.filter(p => {
                                     const q = auditSearch.toLowerCase();
