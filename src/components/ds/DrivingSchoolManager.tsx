@@ -2256,11 +2256,15 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
         return requestedBy;
     };
-    const [financeTab, setFinanceTab] = useState<'invoices' | 'payments' | 'feeds'>('invoices');
+    const [financeTab, setFinanceTab] = useState<'invoices' | 'payments' | 'feeds' | 'audit'>('invoices');
     const [invoiceSearch, setInvoiceSearch] = useState('');
     const [paymentSearch, setPaymentSearch] = useState('');
     const [invoicePage, setInvoicePage] = useState(1);
     const [paymentPage, setPaymentPage] = useState(1);
+    const [auditSearch, setAuditSearch] = useState('');
+    const [auditStatusFilter, setAuditStatusFilter] = useState<'all' | 'Completed' | 'Verified' | 'Pending Confirmation' | 'Pending Deletion'>('all');
+    const [auditDateFrom, setAuditDateFrom] = useState('');
+    const [auditDateTo, setAuditDateTo] = useState('');
     const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots' | 'groups' | 'kiosk'>('categories');
     const [newDSGroupForm, setNewDSGroupForm] = useState('');
     const [editingDSGroupOriginalName, setEditingDSGroupOriginalName] = useState<string | null>(null);
@@ -5474,6 +5478,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 >
                                     Transaction Feeds
                                 </button>
+                                {(isDirector || isSuperAdmin) && (
+                                    <button 
+                                        onClick={() => setFinanceTab('audit')}
+                                        className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            financeTab === 'audit' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        Audit
+                                    </button>
+                                )}
                             </div>
 
                             {financeTab === 'invoices' && (
@@ -5632,215 +5646,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                             {financeTab === 'payments' && (
                                 <div className="space-y-8 animate-fade-in">
-
-                                    {/* ═══════════════════════════════════════════════════════════
-                                        FINANCE AUDIT PANEL — Director & Super Admin Only
-                                        Shows ALL unverified payments for audit confirmation
-                                        ═══════════════════════════════════════════════════════════ */}
-                                    {(isDirector || isSuperAdmin) && (() => {
-                                        const unverifiedPayments = payments.filter(p =>
-                                            p.status !== 'Verified' &&
-                                            p.status !== 'Pending Deletion' &&
-                                            p.status !== 'Deleted'
-                                        );
-                                        const selectedUnverified = selectedPaymentIds.filter(id =>
-                                            unverifiedPayments.some(p => p.id === id)
-                                        );
-                                        return unverifiedPayments.length > 0 ? (
-                                            <div className="bg-gradient-to-br from-indigo-50/80 to-blue-50/60 dark:from-indigo-950/30 dark:to-blue-950/20 border border-indigo-200 dark:border-indigo-800/40 rounded-[3rem] p-8 space-y-6 animate-fade-in shadow-sm">
-                                                {/* Header */}
-                                                <div className="flex items-start justify-between flex-wrap gap-4">
-                                                    <div>
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/30">
-                                                                <CheckCircleIcon className="w-5 h-5 text-white" />
-                                                            </div>
-                                                            <div>
-                                                                <h4 className="text-lg font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-tight">
-                                                                    Finance Audit Queue
-                                                                </h4>
-                                                                <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest mt-0.5">
-                                                                    {unverifiedPayments.length} payment{unverifiedPayments.length !== 1 ? 's' : ''} awaiting your audit verification · KES {unverifiedPayments.reduce((s, p) => s + (p.amount ?? 0), 0).toLocaleString()} total
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        {selectedUnverified.length > 0 && (
-                                                            <button
-                                                                onClick={async () => {
-                                                                    if (window.confirm(`Verify and audit-confirm all ${selectedUnverified.length} selected payment(s)? This action records your approval.`)) {
-                                                                        setIsActionLoading(true);
-                                                                        try {
-                                                                            const toVerify = payments.filter(p => selectedUnverified.includes(p.id));
-                                                                            await Promise.all(toVerify.map(p => onUpdatePayment({
-                                                                                ...p,
-                                                                                status: 'Verified',
-                                                                                auditedBy: currentUser?.name || currentUser?.email || 'Director',
-                                                                                auditedAt: new Date().toISOString()
-                                                                            })));
-                                                                            success(`✓ ${toVerify.length} payment(s) verified and audit-confirmed!`);
-                                                                            setSelectedPaymentIds([]);
-                                                                        } catch (err: any) {
-                                                                            toastError(err.message || 'Failed to verify payments');
-                                                                        } finally {
-                                                                            setIsActionLoading(false);
-                                                                        }
-                                                                    }
-                                                                }}
-                                                                disabled={isActionLoading}
-                                                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/25 hover:scale-105 transition-all flex items-center gap-1.5 disabled:opacity-50"
-                                                            >
-                                                                <CheckCircleIcon className="w-3.5 h-3.5" />
-                                                                Verify Selected ({selectedUnverified.length})
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() => {
-                                                                const allIds = unverifiedPayments.map(p => p.id);
-                                                                if (selectedUnverified.length === allIds.length) {
-                                                                    setSelectedPaymentIds(prev => prev.filter(id => !allIds.includes(id)));
-                                                                } else {
-                                                                    setSelectedPaymentIds(prev => Array.from(new Set([...prev, ...allIds])));
-                                                                }
-                                                            }}
-                                                            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-50 transition-all"
-                                                        >
-                                                            {selectedUnverified.length === unverifiedPayments.length ? 'Deselect All' : 'Select All'}
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                {/* Stats Row */}
-                                                <div className="grid grid-cols-3 gap-3">
-                                                    {[
-                                                        { label: 'Pending Confirmation', count: payments.filter(p => p.status === 'Pending Confirmation').length, color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' },
-                                                        { label: 'Completed (Unverified)', count: payments.filter(p => p.status === 'Completed').length, color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' },
-                                                        { label: 'Already Verified', count: payments.filter(p => p.status === 'Verified').length, color: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' },
-                                                    ].map(stat => (
-                                                        <div key={stat.label} className={`${stat.color} rounded-2xl px-4 py-3 text-center`}>
-                                                            <div className="text-2xl font-black">{stat.count}</div>
-                                                            <div className="text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-80">{stat.label}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-
-                                                {/* Payments Table */}
-                                                <div className="overflow-x-auto rounded-2xl border border-indigo-100 dark:border-indigo-800/30">
-                                                    <table className="w-full text-left">
-                                                        <thead className="bg-indigo-50/50 dark:bg-indigo-900/20">
-                                                            <tr className="text-[9px] font-black uppercase tracking-widest text-indigo-700/70 dark:text-indigo-400/70">
-                                                                <th className="px-5 py-4 w-10">
-                                                                    <input type="checkbox"
-                                                                        onChange={e => {
-                                                                            const allIds = unverifiedPayments.map(p => p.id);
-                                                                            if (e.target.checked) setSelectedPaymentIds(prev => Array.from(new Set([...prev, ...allIds])));
-                                                                            else setSelectedPaymentIds(prev => prev.filter(id => !allIds.includes(id)));
-                                                                        }}
-                                                                        checked={unverifiedPayments.length > 0 && unverifiedPayments.every(p => selectedPaymentIds.includes(p.id))}
-                                                                        className="rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                                                                    />
-                                                                </th>
-                                                                <th className="px-5 py-4">Receipt #</th>
-                                                                <th className="px-5 py-4">Student</th>
-                                                                <th className="px-5 py-4">Method</th>
-                                                                <th className="px-5 py-4">Amount</th>
-                                                                <th className="px-5 py-4">Date</th>
-                                                                <th className="px-5 py-4">Current Status</th>
-                                                                <th className="px-5 py-4 text-right">Audit Action</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-indigo-100/50 dark:divide-indigo-800/20">
-                                                            {unverifiedPayments
-                                                                .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
-                                                                .map(payment => (
-                                                                <tr key={payment.id} className={`hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-colors ${selectedPaymentIds.includes(payment.id) ? 'bg-indigo-50/80 dark:bg-indigo-900/20' : ''}`}>
-                                                                    <td className="px-5 py-4">
-                                                                        <input type="checkbox"
-                                                                            checked={selectedPaymentIds.includes(payment.id)}
-                                                                            onChange={e => {
-                                                                                if (e.target.checked) setSelectedPaymentIds(prev => [...prev, payment.id]);
-                                                                                else setSelectedPaymentIds(prev => prev.filter(id => id !== payment.id));
-                                                                            }}
-                                                                            className="rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                                                                        />
-                                                                    </td>
-                                                                    <td className="px-5 py-4">
-                                                                        <span className="font-black text-slate-900 dark:text-white">{payment.receiptNumber}</span>
-                                                                    </td>
-                                                                    <td className="px-5 py-4">
-                                                                        <div className="font-bold text-sm text-slate-800 dark:text-slate-200">{payment.studentName}</div>
-                                                                    </td>
-                                                                    <td className="px-5 py-4">
-                                                                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">{payment.paymentMethod}</span>
-                                                                    </td>
-                                                                    <td className="px-5 py-4">
-                                                                        <span className="font-black text-slate-900 dark:text-white">KES {(payment.amount ?? 0).toLocaleString()}</span>
-                                                                    </td>
-                                                                    <td className="px-5 py-4 text-xs text-slate-500">
-                                                                        {new Date(payment.paymentDate).toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                                    </td>
-                                                                    <td className="px-5 py-4">
-                                                                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                                                                            payment.status === 'Pending Confirmation'
-                                                                                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
-                                                                                : payment.status === 'Completed'
-                                                                                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400'
-                                                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                                                                        }`}>
-                                                                            {payment.status}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-5 py-4 text-right">
-                                                                        <button
-                                                                            onClick={async () => {
-                                                                                if (window.confirm(`Audit-verify payment ${payment.receiptNumber} (KES ${(payment.amount ?? 0).toLocaleString()}) for ${payment.studentName}?\n\nThis will stamp the payment as Verified by ${currentUser?.name || 'Director'} and record the audit timestamp.`)) {
-                                                                                    setIsActionLoading(true);
-                                                                                    try {
-                                                                                        await onUpdatePayment({
-                                                                                            ...payment,
-                                                                                            status: 'Verified',
-                                                                                            auditedBy: currentUser?.name || currentUser?.email || 'Director',
-                                                                                            auditedAt: new Date().toISOString()
-                                                                                        });
-                                                                                        success(`✓ Payment ${payment.receiptNumber} verified and audit-stamped!`);
-                                                                                    } catch (err: any) {
-                                                                                        toastError(err.message || 'Failed to verify payment');
-                                                                                    } finally {
-                                                                                        setIsActionLoading(false);
-                                                                                    }
-                                                                                }
-                                                                            }}
-                                                                            disabled={isActionLoading}
-                                                                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-black text-[9px] uppercase tracking-widest transition-all inline-flex items-center gap-1.5 disabled:opacity-50 shadow-sm shadow-indigo-600/20 hover:scale-105"
-                                                                        >
-                                                                            <CheckCircleIcon className="w-3 h-3" />
-                                                                            Verify
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-
-                                                {/* Legend */}
-                                                <p className="text-[9px] text-indigo-500 dark:text-indigo-400 font-bold uppercase tracking-widest text-center">
-                                                    Verified payments are stamped with your name and timestamp for audit trail purposes
-                                                </p>
-                                            </div>
-                                        ) : (
-                                            <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-[3rem] p-8 flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
-                                                    <CheckCircleIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-black text-emerald-800 dark:text-emerald-400 uppercase tracking-tight">All Payments Verified</h4>
-                                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-widest mt-0.5">Finance audit is up to date — no payments pending your review</p>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
 
                                     {/* Pending Deletions Section */}
                                     {payments.filter(p => p.status === 'Pending Deletion').length > 0 && (
@@ -6190,7 +5995,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     metadata: { ...((transaction as any).metadata || {}), reconciled: true, reconciledAt: new Date().toISOString() }
                                                 } as any);
                                                 
-                                                await refreshData();
+                                                        await refreshData();
                                             } catch (err) {
                                                 console.error("Reconciliation failed:", err);
                                             }
@@ -6201,6 +6006,176 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     institution={currentInstitution as any}
                                 />
                             )}
+
+                            {financeTab === 'audit' && (isDirector || isSuperAdmin) && (() => {
+                                const auditPayments = [...(payments || [])].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+                                const filteredAuditPayments = auditPayments.filter(p => {
+                                    const q = auditSearch.toLowerCase();
+                                    const matchesSearch = !q || p.receiptNumber?.toLowerCase().includes(q) || p.studentName?.toLowerCase().includes(q) || p.paymentMethod?.toLowerCase().includes(q) || (p as any).auditedBy?.toLowerCase().includes(q);
+                                    const matchesStatus = auditStatusFilter === 'all' || p.status === auditStatusFilter;
+                                    const pDate = new Date(p.paymentDate).getTime();
+                                    const matchesFrom = !auditDateFrom || pDate >= new Date(auditDateFrom).getTime();
+                                    const matchesTo = !auditDateTo || pDate <= new Date(auditDateTo + 'T23:59:59').getTime();
+                                    return matchesSearch && matchesStatus && matchesFrom && matchesTo;
+                                });
+                                const auditTotals = {
+                                    total: auditPayments.length,
+                                    verified: auditPayments.filter(p => p.status === 'Verified').length,
+                                    completed: auditPayments.filter(p => p.status === 'Completed').length,
+                                    pending: auditPayments.filter(p => p.status === 'Pending Confirmation').length,
+                                    pendingDeletion: auditPayments.filter(p => p.status === 'Pending Deletion').length,
+                                    totalVerifiedAmount: auditPayments.filter(p => p.status === 'Verified').reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
+                                    totalCompletedAmount: auditPayments.filter(p => p.status === 'Completed').reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
+                                };
+                                const handleExportAuditCSV = () => {
+                                    const header = ['Receipt #', 'Student', 'Adm #', 'Method', 'Amount (KES)', 'Date', 'Status', 'Audited By', 'Audited At'];
+                                    const rows = filteredAuditPayments.map(p => {
+                                        const student = (normalizedStudents || []).find(s => s.id === p.studentId);
+                                        const admNo = student?.admissionNumber || (student as any)?.admission_number || '-';
+                                        return [p.receiptNumber, p.studentName, admNo, p.paymentMethod, p.amount, new Date(p.paymentDate).toLocaleDateString(), p.status, (p as any).auditedBy || '', (p as any).auditedAt ? new Date((p as any).auditedAt).toLocaleString() : ''];
+                                    });
+                                    const csv = [header, ...rows].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+                                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a'); a.href = url; a.download = `audit_export_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+                                    URL.revokeObjectURL(url);
+                                };
+                                return (
+                                    <div className="space-y-8 animate-fade-in">
+                                        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-[3rem] p-8 text-white shadow-xl relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-72 h-72 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+                                            <div className="relative z-10">
+                                                <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-100 mb-4">
+                                                    <CheckCircleIcon className="w-3.5 h-3.5" /> Finance Audit Center
+                                                </span>
+                                                <h3 className="text-2xl font-black tracking-tight mt-1">Payment Audit Trail</h3>
+                                                <p className="text-xs text-indigo-100 mt-1">Director / Super Admin verification of all payment transactions</p>
+                                            </div>
+                                            <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                                                <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-4">
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200">Total Payments</p>
+                                                    <p className="text-2xl font-black mt-1">{auditTotals.total}</p>
+                                                </div>
+                                                <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-4">
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200">Verified</p>
+                                                    <p className="text-2xl font-black mt-1 text-emerald-300">{auditTotals.verified}</p>
+                                                    <p className="text-[9px] text-indigo-200 mt-0.5">KES {auditTotals.totalVerifiedAmount.toLocaleString()}</p>
+                                                </div>
+                                                <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-4">
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200">Completed (Unverified)</p>
+                                                    <p className="text-2xl font-black mt-1 text-amber-300">{auditTotals.completed}</p>
+                                                    <p className="text-[9px] text-indigo-200 mt-0.5">KES {auditTotals.totalCompletedAmount.toLocaleString()}</p>
+                                                </div>
+                                                <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-4">
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200">Pending / Flagged</p>
+                                                    <p className="text-2xl font-black mt-1 text-rose-300">{auditTotals.pending + auditTotals.pendingDeletion}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm p-8">
+                                            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                                                <div className="flex flex-wrap gap-3 flex-1">
+                                                    <div className="relative">
+                                                        <input type="text" placeholder="Search payments..." value={auditSearch} onChange={e => setAuditSearch(e.target.value)} className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 w-56" />
+                                                        <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                                    </div>
+                                                    <select value={auditStatusFilter} onChange={e => setAuditStatusFilter(e.target.value as any)} className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 py-2 px-4">
+                                                        <option value="all">All Statuses</option>
+                                                        <option value="Completed">Completed (Needs Verification)</option>
+                                                        <option value="Verified">Verified</option>
+                                                        <option value="Pending Confirmation">Pending Confirmation</option>
+                                                        <option value="Pending Deletion">Pending Deletion</option>
+                                                    </select>
+                                                    <input type="date" value={auditDateFrom} onChange={e => setAuditDateFrom(e.target.value)} className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 py-2 px-4" title="From Date" />
+                                                    <input type="date" value={auditDateTo} onChange={e => setAuditDateTo(e.target.value)} className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 py-2 px-4" title="To Date" />
+                                                </div>
+                                                <button onClick={handleExportAuditCSV} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-600/20 whitespace-nowrap">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                    Export CSV
+                                                </button>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-4">Showing {filteredAuditPayments.length} of {auditPayments.length} payments</p>
+                                        </div>
+                                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left min-w-[900px]">
+                                                    <thead>
+                                                        <tr className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                                                            <th className="px-8 py-6">Receipt #</th>
+                                                            <th className="px-8 py-6">Adm #</th>
+                                                            <th className="px-8 py-6">Student</th>
+                                                            <th className="px-8 py-6">Method</th>
+                                                            <th className="px-8 py-6">Amount</th>
+                                                            <th className="px-8 py-6">Date</th>
+                                                            <th className="px-8 py-6">Status</th>
+                                                            <th className="px-8 py-6">Audited By</th>
+                                                            <th className="px-8 py-6 text-right">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                                        {filteredAuditPayments.length === 0 ? (
+                                                            <tr><td colSpan={9} className="px-8 py-16 text-center"><div className="flex flex-col items-center gap-3"><div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center"><CheckCircleIcon className="w-6 h-6 text-slate-300" /></div><p className="text-xs font-black text-slate-400 uppercase tracking-widest">No payments match your filters</p></div></td></tr>
+                                                        ) : filteredAuditPayments.map(payment => {
+                                                            const student = (normalizedStudents || []).find(s => s.id === payment.studentId);
+                                                            const admNo = student?.admissionNumber || (student as any)?.admission_number || '-';
+                                                            const isVerified = payment.status === 'Verified';
+                                                            const isCompleted = payment.status === 'Completed';
+                                                            const isPendingConfirm = payment.status === 'Pending Confirmation';
+                                                            const isPendingDeletion = payment.status === 'Pending Deletion';
+                                                            return (
+                                                                <tr key={payment.id} className={`transition-colors ${isVerified ? 'bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/60' : isPendingDeletion ? 'bg-rose-50/30 dark:bg-rose-950/10 hover:bg-rose-50/50' : 'hover:bg-slate-50/50'}`}>
+                                                                    <td className="px-8 py-5 font-black text-sm text-slate-900 dark:text-white">{payment.receiptNumber}</td>
+                                                                    <td className="px-8 py-5 text-xs font-bold text-slate-500">{admNo}</td>
+                                                                    <td className="px-8 py-5 text-sm font-bold">{payment.studentName}</td>
+                                                                    <td className="px-8 py-5"><span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-widest">{payment.paymentMethod}</span></td>
+                                                                    <td className="px-8 py-5 font-black text-sm text-slate-900 dark:text-white">KES {(payment.amount ?? 0).toLocaleString()}</td>
+                                                                    <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(payment.paymentDate).toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                                                    <td className="px-8 py-5">
+                                                                        {isVerified && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg text-[9px] font-black uppercase tracking-widest"><CheckCircleIcon className="w-3 h-3" /> Verified</span>}
+                                                                        {isCompleted && <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg text-[9px] font-black uppercase tracking-widest">Completed</span>}
+                                                                        {isPendingConfirm && <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-[9px] font-black uppercase tracking-widest animate-pulse">Pending Confirm</span>}
+                                                                        {isPendingDeletion && <span className="px-2.5 py-1 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg text-[9px] font-black uppercase tracking-widest">Pending Deletion</span>}
+                                                                    </td>
+                                                                    <td className="px-8 py-5">
+                                                                        {(payment as any).auditedBy ? (
+                                                                            <div>
+                                                                                <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">{(payment as any).auditedBy}</p>
+                                                                                {(payment as any).auditedAt && <p className="text-[9px] text-slate-400 mt-0.5">{new Date((payment as any).auditedAt).toLocaleString('en-KE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>}
+                                                                            </div>
+                                                                        ) : <span className="text-[10px] text-slate-300 dark:text-slate-600 font-bold">&#8212;</span>}
+                                                                    </td>
+                                                                    <td className="px-8 py-5 text-right space-x-2">
+                                                                        {!isVerified && !isPendingDeletion && (
+                                                                            <button onClick={async () => { if (window.confirm(`Audit-verify payment ${payment.receiptNumber} (KES ${(payment.amount ?? 0).toLocaleString()}) for ${payment.studentName}?\n\nThis stamps your approval for finance audit.`)) { setIsActionLoading(true); try { await onUpdatePayment({ ...payment, status: 'Verified', auditedBy: currentUser?.name || currentUser?.email || 'Director', auditedAt: new Date().toISOString() }); success(`Payment ${payment.receiptNumber} verified!`); } catch (err: any) { toastError(err.message || 'Failed to verify'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-50"><CheckCircleIcon className="w-3 h-3" /> Verify</button>
+                                                                        )}
+                                                                        {isVerified && (
+                                                                            <button onClick={async () => { if (window.confirm(`Re-open audit for payment ${payment.receiptNumber}? This will revert it to Completed status.`)) { setIsActionLoading(true); try { await onUpdatePayment({ ...payment, status: 'Completed', auditedBy: undefined as any, auditedAt: undefined as any }); success(`Payment ${payment.receiptNumber} reopened for audit.`); } catch (err: any) { toastError(err.message || 'Failed to reopen'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-50">Re-open</button>
+                                                                        )}
+                                                                        {isPendingDeletion && (
+                                                                            <button onClick={async () => { if (window.confirm(`Confirm deletion of payment ${payment.receiptNumber}?`)) { setIsActionLoading(true); try { await onDeletePayment(payment.id); success(`Payment ${payment.receiptNumber} deleted.`); } catch (err: any) { toastError(err.message || 'Failed to delete'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-50"><TrashIcon className="w-3 h-3" /> Delete</button>
+                                                                        )}
+                                                                        <button onClick={async () => { const s = (students || []).find(st => st.id === payment.studentId); if (s) { const doc = await generateDSPDF('receipt', payment, s as any, settings, currentInstitution, invoices); doc.save(`${payment.receiptNumber}.pdf`); } }} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all inline-flex items-center" title="Download Receipt PDF"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            {filteredAuditPayments.length > 0 && (
+                                                <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between flex-wrap gap-4">
+                                                    <p className="text-xs font-bold text-slate-400">{filteredAuditPayments.filter(p => p.status === 'Verified').length} of {filteredAuditPayments.length} payments verified</p>
+                                                    {filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status)).length > 0 && (
+                                                        <button onClick={async () => { const unverified = filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status)); if (window.confirm(`Bulk-verify all ${unverified.length} unverified payments?`)) { setIsActionLoading(true); try { for (const p of unverified) { await onUpdatePayment({ ...p, status: 'Verified', auditedBy: currentUser?.name || currentUser?.email || 'Director', auditedAt: new Date().toISOString() }); } success(`${unverified.length} payments verified!`); } catch (err: any) { toastError(err.message || 'Bulk verify failed'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50">
+                                                            <CheckCircleIcon className="w-3.5 h-3.5" /> Verify All ({filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status)).length})
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     )}
 
