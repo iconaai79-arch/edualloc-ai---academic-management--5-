@@ -1270,7 +1270,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                                 linked_invoice_id: metadata.invoiceId || null,
                                                 reconciled_at: isReconciledNow ? new Date().toISOString() : null,
                                                 reconciled_by: 'KCB STK Status Polling',
-                                                created_at: transaction.created_at || new Date().toISOString()
+                                                created_at: transaction.created_at || new Date().toISOString(),
+                                                payload: queryData
                                             });
                                         } catch (bankErr) {
                                             console.error('[KCB STK Query Fallback] Bank transactions write failed:', bankErr);

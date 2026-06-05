@@ -884,6 +884,8 @@ export interface KcbConfig {
     channelName?: string;
     routeCode?: string;
     businessKeyType?: string;
+    organizationShortCode?: string;
+    creditAccountIdentifier?: string;
 }
 
 export interface CoopB2bConfig {

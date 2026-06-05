@@ -417,7 +417,8 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
     linked_invoice_id TEXT,
     reconciled_at TIMESTAMP WITH TIME ZONE,
     reconciled_by TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    payload JSONB
 );
 \n-- 7. OPERATIONS (STORE, LIBRARY, SECURITY) --\n
 CREATE TABLE IF NOT EXISTS inventory (

@@ -874,7 +874,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     linked_invoice_id: metadata.invoiceId || null,
                                     reconciled_at: isReconciledNow ? new Date().toISOString() : null,
                                     reconciled_by: isReconciledNow ? 'KCB STK Callback' : null,
-                                    created_at: transaction.created_at || new Date().toISOString()
+                                    created_at: transaction.created_at || new Date().toISOString(),
+                                    payload: body
                                 });
                                 if (bankTxnErr) console.error('[KCB STK Callback] Failed to write to bank_transactions:', bankTxnErr);
                             } catch (bankErr) {

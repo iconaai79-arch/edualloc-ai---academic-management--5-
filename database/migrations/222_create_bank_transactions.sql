@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
     linked_invoice_id TEXT,
     reconciled_at TIMESTAMP WITH TIME ZONE,
     reconciled_by TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    payload JSONB
 );
 
 -- Enable RLS for bank_transactions

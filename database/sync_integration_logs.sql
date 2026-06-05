@@ -319,7 +319,8 @@ BEGIN
                     linked_invoice_id,
                     reconciled_at,
                     reconciled_by,
-                    created_at
+                    created_at,
+                    payload
                 ) VALUES (
                     payload_txn_id,
                     resolved_inst_id,
@@ -332,14 +333,16 @@ BEGIN
                     resolved_invoice_id,
                     CASE WHEN is_reconciled THEN NOW() ELSE NULL END,
                     CASE WHEN is_reconciled THEN 'Log Sync Utility' ELSE NULL END,
-                    log_rec.created_at
+                    log_rec.created_at,
+                    log_rec.payload
                 )
                 ON CONFLICT (id) DO UPDATE SET
                     institution_id = EXCLUDED.institution_id,
                     status = EXCLUDED.status,
                     linked_invoice_id = COALESCE(bank_transactions.linked_invoice_id, EXCLUDED.linked_invoice_id),
                     reconciled_at = COALESCE(bank_transactions.reconciled_at, EXCLUDED.reconciled_at),
-                    reconciled_by = COALESCE(bank_transactions.reconciled_by, EXCLUDED.reconciled_by);
+                    reconciled_by = COALESCE(bank_transactions.reconciled_by, EXCLUDED.reconciled_by),
+                    payload = EXCLUDED.payload;
                 
                 sync_count := sync_count + 1;
             END;
