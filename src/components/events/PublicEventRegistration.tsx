@@ -205,6 +205,13 @@ export const PublicEventRegistration: React.FC = () => {
                 ((emailLower && p.email?.toLowerCase() === emailLower) || (phoneTrim && p.phone === phoneTrim))
             );
             if (duplicate) {
+                // If this is the registration that was already reconciled/created by the backend query/webhook
+                if (duplicate.paymentStatus === 'paid' && (duplicate.mpesaReference === reference || duplicate.mpesaReference === checkoutRequestId)) {
+                    setRegisteredParticipant(duplicate);
+                    setPaymentStatus('success');
+                    setStep(4);
+                    return;
+                }
                 throw new Error(`A runner with this email or phone number is already registered for this event (BIB: ${duplicate.bibNumber}).`);
             }
 
