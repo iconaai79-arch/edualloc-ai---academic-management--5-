@@ -872,8 +872,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     txnMetadata.type = invoice.invoiceType || (isCar ? 'car_invoice' : 'invoice');
                     txnMetadata.invoiceId = invoice.id;
                 } else {
-                    txnMetadata.type = 'sms'; // assume SMS units top-up for direct Paybill C2B payments
-                    txnMetadata.units = 0;
+                    // Bank feed payment with no matched invoice — do NOT assume SMS top-up.
+                    // Classifying as 'bank_feed' ensures reconciliation only marks the transaction
+                    // as completed without incorrectly crediting the institution's SMS balance.
+                    txnMetadata.type = 'bank_feed';
                 }
 
                 const { data: newTxn, error: insertErr } = await supabase.from('mpesa_transactions').insert({
@@ -929,7 +931,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (transaction.status === 'completed' && !isReconciled) {
                 const instId = transaction.institution_id;
                 const amt = transaction.amount || 0;
-                const type = metadata.type || 'sms';
+                const type = metadata.type || 'bank_feed'; // 'bank_feed' is a safe no-op — never assume 'sms'
 
                 // Fetch settings
                 let settings: any = {};
