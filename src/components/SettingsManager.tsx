@@ -1919,7 +1919,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
                                 {billingSubTab === 'kcb' && (
                                     <div className="animate-fade-in space-y-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 gap-6">
                                             <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
                                                 <div className="flex items-center gap-4 mb-6">
                                                     <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl">
@@ -2063,67 +2063,64 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             />
                                                         </div>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Custom Passkey / orgPassKey (Optional)</label>
-                                                            <input
-                                                                type="password"
-                                                                value={localKcbConfig.passkey || ''}
-                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, passkey: e.target.value })}
-                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
-                                                                placeholder="Lipa Na M-Pesa Passkey (Required if Dedicated)"
-                                                            />
+                                                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">IPN / Bank Feed Matching</p>
+                                                        <div className="grid grid-cols-3 gap-4">
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Passkey / orgPassKey</label>
+                                                                <input
+                                                                    type="password"
+                                                                    value={localKcbConfig.passkey || ''}
+                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, passkey: e.target.value })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                    placeholder="Lipa Na M-Pesa Passkey"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Organization Short Code</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={localKcbConfig.organizationShortCode || ''}
+                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, organizationShortCode: e.target.value })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                    placeholder="e.g. 777777"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Credit Account Identifier</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={localKcbConfig.creditAccountIdentifier || ''}
+                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, creditAccountIdentifier: e.target.value })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                    placeholder="e.g. JD001"
+                                                                />
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">IPN Organization Short Code</label>
-                                                            <input
-                                                                type="text"
-                                                                value={localKcbConfig.organizationShortCode || ''}
-                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, organizationShortCode: e.target.value })}
-                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
-                                                                placeholder="e.g. 777777 (from IPN payload)"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">IPN Credit Account Identifier (Optional)</label>
-                                                        <input
-                                                            type="text"
-                                                            value={localKcbConfig.creditAccountIdentifier || ''}
-                                                            onChange={e => setLocalKcbConfig({ ...localKcbConfig, creditAccountIdentifier: e.target.value })}
-                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
-                                                            placeholder="e.g. JD001 (from IPN payload)"
-                                                        />
                                                     </div>
                                                 </div>
                                             </div>
+                                        </div>
 
-                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
-                                                <div className="space-y-4">
-                                                    <div className="flex items-center gap-4 mb-4">
-                                                        <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl">
-                                                            <span className="w-6 h-6 text-indigo-600 font-black text-center block">ℹ</span>
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="text-sm font-black uppercase tracking-widest">KCB API Gateway Specs</h4>
-                                                            <p className="text-[10px] font-bold text-slate-400">REST integration endpoints</p>
-                                                        </div>
-                                                    </div>
-                                                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                        KCB Bank Instant Payment Notification callback is served locally at `/api/kcb-ipn`. Ensure KCB Sandbox/Production portal has the callback URL pointed here.
-                                                    </p>
-                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">KCB Callback URL</p>
+                                        {/* Info + Save — full width below */}
+                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center gap-6">
+                                            <div className="flex items-start gap-4 flex-1">
+                                                <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl shrink-0">
+                                                    <span className="w-6 h-6 text-indigo-600 font-black text-center block">ℹ</span>
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-black uppercase tracking-widest mb-1">KCB Callback URL</h4>
+                                                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">Point this URL in the KCB portal for IPN/bank feed callbacks:</p>
+                                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer">
                                                         <code className="text-xs font-mono text-indigo-600 dark:text-indigo-400 break-all">
                                                             {typeof window !== 'undefined' ? `${window.location.origin}/api/kcb-ipn` : 'https://yourdomain.com/api/kcb-ipn'}
                                                         </code>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        <div className="flex justify-end pt-4">
-                                            <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-14 shadow-indigo-200 uppercase tracking-widest text-xs w-full sm:w-auto">Confirm KCB Configuration</button>
+                                            <div className="shrink-0">
+                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-14 shadow-indigo-200 uppercase tracking-widest text-xs w-full">Confirm KCB Configuration</button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
