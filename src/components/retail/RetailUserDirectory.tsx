@@ -625,7 +625,6 @@ export function RetailUserDirectory({
                                                 <option value="attendant">Attendant / Cleaner</option>
                                                 <option value="worker">General Worker</option>
                                                 <option value="finance">Finance / Bursar</option>
-                                                <option value="head_teacher">Head Teacher / Principal</option>
                                             </select>
                                         ) : (
                                             <select

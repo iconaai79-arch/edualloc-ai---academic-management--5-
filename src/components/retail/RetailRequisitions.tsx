@@ -346,18 +346,20 @@ export function RetailRequisitions({
                         </div>
 
                         <div className="p-10 space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Requesting Store</label>
-                                <select
-                                    value={selectedStoreId}
-                                    onChange={(e) => setSelectedStoreId(e.target.value)}
-                                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold uppercase focus:ring-2 focus:ring-indigo-500 outline-none"
-                                >
-                                    {retailStores.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            {!isEducation && (
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Requesting Store</label>
+                                    <select
+                                        value={selectedStoreId}
+                                        onChange={(e) => setSelectedStoreId(e.target.value)}
+                                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold uppercase focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    >
+                                        {retailStores.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <div className="space-y-4">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Add Items</label>
