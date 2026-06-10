@@ -610,7 +610,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        if (!resolvedInstitutionId && organizationShortCode) {
+        if (!resolvedInstitutionId && (tillNumber || organizationShortCode)) {
             const { data: instList } = await supabase
                 .from('institutions')
                 .select('id, kcb_config')
@@ -622,10 +622,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const tn = String(cfg.tillNumber || '').trim();
                     const cc = String(cfg.companyCode || '').trim();
                     const osc = String(cfg.organizationShortCode || '').trim();
-                    return sc === organizationShortCode.trim() || 
-                           tn === organizationShortCode.trim() || 
-                           cc === organizationShortCode.trim() ||
-                           osc === organizationShortCode.trim();
+
+                    // Prioritize matching tillNumber if present
+                    if (tillNumber) {
+                        const payloadTill = String(tillNumber).trim();
+                        if (tn === payloadTill || sc === payloadTill) return true;
+                    }
+
+                    // Fallback to matching organizationShortCode
+                    if (organizationShortCode) {
+                        const payloadOsc = String(organizationShortCode).trim();
+                        if (osc === payloadOsc || sc === payloadOsc || tn === payloadOsc || cc === payloadOsc) return true;
+                    }
+
+                    return false;
                 });
                 if (found) {
                     resolvedInstitutionId = found.id;
