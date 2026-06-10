@@ -83,7 +83,7 @@ import * as pdfService from '../../services/pdfService';
 interface DrivingSchoolManagerProps {
     currentUser?: User;
     currentInstitution: any;
-    externalTab?: 'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster' | 'reports' | 'portal' | 'showcase';
+    externalTab?: 'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster' | 'reports' | 'portal' | 'showcase' | 'dispatch';
     onRefreshData?: () => Promise<void>;
     departments?: any[];
     rooms?: any[];
@@ -2119,7 +2119,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         sendLessonNotification
     } = useDrivingSchool();
     
-    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase'>(() => {
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase' | 'dispatch'>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
             const tabParam = params.get('tab');
@@ -2287,6 +2287,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [scoringStudent, setScoringStudent] = useState<DSStudent | null>(null);
     const [pendingAttendanceOverride, setPendingAttendanceOverride] = useState<{ lesson: DSLesson; ms: any } | null>(null);
     const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
+    const [feeReminderType, setFeeReminderType] = useState<'overall' | 'shortfall'>('overall');
     
     // Portal states
     const [portalStudentId, setPortalStudentId] = useState<string>('');
@@ -2315,7 +2316,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [kioskFaceVerificationStatus, setKioskFaceVerificationStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
     const [kioskFaceVerificationMsg, setKioskFaceVerificationMsg] = useState('');
     const [isScanningBiometric, setIsScanningBiometric] = useState(false);
-    const kioskWebcamRef = useRef<HTMLVideoElement>(null);
+    const kioskWebcamRef = useRef<any>(null);
     const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
     const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
     const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
@@ -2348,8 +2349,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     }, [isScanningKioskFace, cameraFacingMode]);
 
     useEffect(() => {
-        if (kioskWebcamRef.current && webcamStream) {
-            kioskWebcamRef.current.srcObject = webcamStream;
+        const videoEl = kioskWebcamRef.current?.video || kioskWebcamRef.current;
+        if (videoEl && webcamStream) {
+            videoEl.srcObject = webcamStream;
         }
     }, [webcamStream, isScanningKioskFace]);
 
@@ -2421,26 +2423,61 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     // ────────────────────────────────────────────────────────────────────────
 
     const handleSendBulkReminders = async () => {
-        // Filter out pending invoices with balance > 0
-        const pendingInvoices = (invoices || []).filter(inv => inv.status !== 'Fully Paid' && inv.balance > 0);
-        if (pendingInvoices.length === 0) {
-            success("All student accounts are currently fully settled!");
-            return;
+        const targets: { phone: string; message: string; name: string }[] = [];
+
+        if (feeReminderType === 'overall') {
+            // Filter out pending invoices with balance > 0
+            const pendingInvoices = (invoices || []).filter(inv => inv.status !== 'Fully Paid' && inv.balance > 0);
+            if (pendingInvoices.length === 0) {
+                success("All student accounts are currently fully settled!");
+                return;
+            }
+
+            pendingInvoices.forEach(inv => {
+                const student = (students || []).find(s => s.id === inv.studentId);
+                const phone = student?.phone || (student as any)?.phoneNumber;
+                if (student && phone) {
+                    const textMsg = `Hello ${student.fullName.split(' ')[0]}, your driving course account (${inv.invoiceNumber}) has an outstanding balance of KES ${(inv.balance ?? 0)?.toLocaleString()}. Please settle via M-Pesa to avoid lesson interruption.`;
+                    targets.push({ phone, message: textMsg, name: student.fullName });
+                }
+            });
+        } else {
+            // Shortfall Balance
+            const minShortfall = activeSettings?.schedulingRules?.paymentReminderMinShortfall ?? 0;
+            const qualifying = (students || []).filter(s => {
+                const ms = getStudentMilestoneStatus(s.id);
+                return ms && !ms.noInvoice && !ms.isCleared && ms.shortfall >= minShortfall;
+            });
+
+            if (qualifying.length === 0) {
+                success("No students currently meet the shortfall criteria.");
+                return;
+            }
+
+            qualifying.forEach(s => {
+                const phone = s.phone || (s as any)?.phoneNumber;
+                if (phone) {
+                    const ms = getStudentMilestoneStatus(s.id);
+                    if (ms) {
+                        const customTemplate = activeSettings?.schedulingRules?.paymentReminderSmsTemplate;
+                        const message = customTemplate
+                            ? customTemplate
+                                .replace(/{student}/g, s.fullName.split(' ')[0])
+                                .replace(/{shortfall}/g, (ms.shortfall ?? 0).toLocaleString())
+                                .replace(/{expected}/g, (ms.expectedByNextSession ?? 0).toLocaleString())
+                                .replace(/{paid}/g, (ms.paidAmount ?? 0).toLocaleString())
+                                .replace(/{session}/g, String(ms.nextSession - 1))
+                                .replace(/{totalDays}/g, String(ms.courseDuration))
+                                .replace(/{school}/g, currentInstitution?.name || 'Our Driving School')
+                            : `Hello ${s.fullName.split(' ')[0]}, you have a pro-rata training fee shortfall of KES ${(ms.shortfall ?? 0).toLocaleString()} (Expected: KES ${(ms.expectedByNextSession ?? 0).toLocaleString()}, Paid: KES ${(ms.paidAmount ?? 0).toLocaleString()}). Please settle to avoid lesson interruption.`;
+                        targets.push({ phone, message, name: s.fullName });
+                    }
+                }
+            });
         }
 
-        // Collect distinct valid student mobile contacts and build individual notifications
-        const targets: { phone: string; message: string; name: string }[] = [];
-        pendingInvoices.forEach(inv => {
-            const student = (students || []).find(s => s.id === inv.studentId);
-            const phone = student?.phone || (student as any)?.phoneNumber;
-            if (student && phone) {
-                const textMsg = `Hello ${student.fullName.split(' ')[0]}, your driving course account (${inv.invoiceNumber}) has an outstanding balance of KES ${(inv.balance ?? 0)?.toLocaleString()}. Please settle via M-Pesa to avoid lesson interruption.`;
-                targets.push({ phone, message: textMsg, name: student.fullName });
-            }
-        });
-
         if (targets.length === 0) {
-            toastError("Found pending invoices but no valid student phone numbers attached.");
+            toastError("No qualifying students with valid phone numbers found.");
             return;
         }
 
@@ -2451,7 +2488,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             return;
         }
 
-        if (!confirm(`Are you sure you want to broadcast fee reminder SMS notifications to ${targets.length} students?`)) {
+        const reminderTypeName = feeReminderType === 'shortfall' ? 'milestone shortfall' : 'outstanding balance';
+        if (!confirm(`Are you sure you want to broadcast ${reminderTypeName} reminders to ${targets.length} students?`)) {
             return;
         }
 
@@ -2470,6 +2508,75 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             toastError("Failed to deliver some fee reminder notifications.");
         } finally {
             setIsSendingReminders(false);
+        }
+    };
+
+    const handleSendPaymentMilestoneReminders = async () => {
+        // Set reminderType to 'shortfall' temporarily and run the function
+        const originalType = feeReminderType;
+        setFeeReminderType('shortfall');
+        
+        const minShortfall = activeSettings?.schedulingRules?.paymentReminderMinShortfall ?? 0;
+        const qualifying = (students || []).filter(s => {
+            const ms = getStudentMilestoneStatus(s.id);
+            return ms && !ms.noInvoice && !ms.isCleared && ms.shortfall >= minShortfall;
+        });
+
+        if (qualifying.length === 0) {
+            success("No students currently meet the shortfall criteria.");
+            return;
+        }
+
+        const targets: { phone: string; message: string; name: string }[] = [];
+        qualifying.forEach(s => {
+            const phone = s.phone || (s as any)?.phoneNumber;
+            if (phone) {
+                const ms = getStudentMilestoneStatus(s.id);
+                if (ms) {
+                    const customTemplate = activeSettings?.schedulingRules?.paymentReminderSmsTemplate;
+                    const message = customTemplate
+                        ? customTemplate
+                            .replace(/{student}/g, s.fullName.split(' ')[0])
+                            .replace(/{shortfall}/g, (ms.shortfall ?? 0).toLocaleString())
+                            .replace(/{expected}/g, (ms.expectedByNextSession ?? 0).toLocaleString())
+                            .replace(/{paid}/g, (ms.paidAmount ?? 0).toLocaleString())
+                            .replace(/{session}/g, String(ms.nextSession - 1))
+                            .replace(/{totalDays}/g, String(ms.courseDuration))
+                            .replace(/{school}/g, currentInstitution?.name || 'Our Driving School')
+                        : `Hello ${s.fullName.split(' ')[0]}, you have attended Session ${ms.nextSession - 1}/${ms.courseDuration} at ${currentInstitution?.name || 'our driving school'}. Expected: KES ${(ms.expectedByNextSession ?? 0).toLocaleString()}. Paid: KES ${(ms.paidAmount ?? 0).toLocaleString()}. Balance: KES ${(ms.shortfall ?? 0).toLocaleString()}. Please settle to avoid lesson interruption.`;
+                    targets.push({ phone, message, name: s.fullName });
+                }
+            }
+        });
+
+        if (targets.length === 0) {
+            toastError("No qualifying students with valid phone numbers.");
+            return;
+        }
+
+        const currentBalance = currentInstitution?.smsBalance || 0;
+        const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
+        if (currentBalance < requiredUnits) {
+            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to broadcast payment milestone reminder SMS notifications to ${targets.length} students?`)) {
+            return;
+        }
+
+        setIsSendingReminders(true);
+        try {
+            await Promise.all(targets.map(t => 
+                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), currentInstitution?.id)
+            ));
+            success(`Successfully dispatched payment milestone reminders to ${targets.length} students!`);
+        } catch (err) {
+            console.error("Payment milestone reminders failure:", err);
+            toastError("Failed to deliver some payment milestone reminders.");
+        } finally {
+            setIsSendingReminders(false);
+            setFeeReminderType(originalType);
         }
     };
 
@@ -3033,7 +3140,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     const instructor = (instructors || []).find(i => i.id === lesson.instructorId);
                     
                     if (student?.phone && currentInstitution?.smsConfig) {
-                        const msg = `Hi ${student.fullName}, your vehicle is ready! A Practical session is starting now at ${pStartStr} with ${instructor?.name || 'TBD'} in car ${pVehicle.registrationNumber}. Please proceed to the vehicle.`;
+                        const msg = `Hi ${student.fullName}, your vehicle is ready! A Practical session is starting now at ${pStartStr} with ${instructor?.name || 'TBD'} in car ${pVehicle.plateNumber || pVehicle.registrationNumber}. Please proceed to the vehicle.`;
                         await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
                     }
                 }
@@ -3232,11 +3339,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         // Capture frame from webcam
         if (kioskWebcamRef.current && webcamStream) {
             const canvas = document.createElement('canvas');
-            canvas.width = kioskWebcamRef.current.videoWidth;
-            canvas.height = kioskWebcamRef.current.videoHeight;
+            const videoEl = kioskWebcamRef.current.video || kioskWebcamRef.current;
+            canvas.width = videoEl.videoWidth || 640;
+            canvas.height = videoEl.videoHeight || 480;
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                ctx.drawImage(kioskWebcamRef.current, 0, 0, canvas.width, canvas.height);
+                ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
                 setCapturedFrame(canvas.toDataURL('image/jpeg', 0.8));
             }
         }
@@ -3563,14 +3671,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             lessonType: 'Practical',
                             status: 'Scheduled',
                             confirmationStatus: 'Confirmed',
-                            notes: pVehicle ? `[Auto-scheduled after Theory Check-in]` : `[Queued for Dispatch after Theory]`,
+                            instructorNotes: pVehicle ? `[Auto-scheduled after Theory Check-in]` : `[Queued for Dispatch after Theory]`,
                             createdAt: new Date().toISOString()
                         };
                         
                         await apiService.saveModuleRecord('ds_lessons', newPLesson);
                         
                         if (pVehicle) {
-                            const pPlate = pVehicle.registrationNumber;
+                            const pPlate = pVehicle.plateNumber || pVehicle.registrationNumber;
                             updatedInfo += ` A Practical session has been auto-scheduled for ${pStartStr} with ${pInstructor?.name || 'an available instructor'} (${pPlate}).`;
                             if (student.phone && currentInstitution?.smsConfig) {
                                 const msg = `Hi ${student.fullName}, your Theory session has started. A Practical session is auto-scheduled at ${pStartStr} with ${pInstructor?.name || 'TBD'} in car ${pPlate}. Please be ready!`;
@@ -3688,7 +3796,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         } else if (previewReportType === 'active_students') {
             list = list.filter(s => !s.status || s.status === 'Enrolled');
         } else if (previewReportType === 'ntsa_booked') {
-            list = list.filter(s => s.ntsaBookingStatus && s.ntsaBookingStatus !== 'None' && s.ntsaBookingStatus !== 'Eligible');
+            list = list.filter(s => s.ntsaBookingStatus && s.ntsaBookingStatus !== 'Not Booked' && s.ntsaBookingStatus !== 'Eligible');
         } else if (previewReportType === 'payment_behind') {
             list = list.filter(s => {
                 const invoice = (invoices || []).find(inv => inv.studentId === s.id && inv.status !== 'Cancelled');
@@ -5175,7 +5283,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         return (
                                             <div key={vehicle.id} className={`p-4 rounded-2xl border flex items-center justify-between ${activeLesson ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'}`}>
                                                 <div>
-                                                    <p className="font-bold text-sm text-slate-900 dark:text-white">{vehicle.registrationNumber} - {vehicle.make} {vehicle.model}</p>
+                                                    <p className="font-bold text-sm text-slate-900 dark:text-white">{vehicle.plateNumber || vehicle.registrationNumber} - {vehicle.make} {vehicle.model}</p>
                                                     <p className="text-[10px] text-slate-500 font-bold mt-1">{activeLesson ? `In Lesson until ${activeLesson.endTime}` : 'Available Now'}</p>
                                                 </div>
                                                 <div className={`w-3 h-3 rounded-full shadow-sm ${activeLesson ? 'bg-amber-500 shadow-amber-500/50' : 'bg-emerald-500 shadow-emerald-500/50 animate-pulse'}`} />
@@ -5520,9 +5628,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     <SparklesIcon className="w-3.5 h-3.5" />
                                                     Test Day Alerts
                                                 </button>
-                                                <button onClick={handleSendBulkReminders} disabled={isSendingReminders} className="px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 disabled:opacity-50">
+                                                <select
+                                                    value={feeReminderType}
+                                                    onChange={(e) => setFeeReminderType(e.target.value as 'overall' | 'shortfall')}
+                                                    className="px-4 py-2.5 bg-amber-50/50 dark:bg-amber-900/10 text-amber-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-100/50 border border-amber-200 dark:border-amber-800/40 transition-all focus:ring-2 focus:ring-amber-500"
+                                                    title="Select balance tracking criteria for bulk SMS reminders"
+                                                >
+                                                    <option value="overall" className="bg-white dark:bg-slate-850 text-slate-800 dark:text-slate-200 font-bold">Overall Balance</option>
+                                                    <option value="shortfall" className="bg-white dark:bg-slate-850 text-slate-800 dark:text-slate-200 font-bold">Shortfall Balance</option>
+                                                </select>
+                                                <button onClick={handleSendBulkReminders} disabled={isSendingReminders} className="px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 disabled:opacity-50" title={feeReminderType === 'shortfall' ? 'Broadcast SMS to students with milestone pro-rata shortfalls' : 'Broadcast SMS to students with outstanding invoice balances'}>
                                                     <PhoneIcon className="w-3.5 h-3.5" />
-                                                    {isSendingReminders ? 'Sending...' : 'Remind Balances'}
+                                                    {isSendingReminders ? 'Sending...' : feeReminderType === 'shortfall' ? 'Remind Shortfalls' : 'Remind Balances'}
                                                 </button>
 
                                                 <button onClick={() => setActionModal({ type: 'invoice' })} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5">
@@ -5995,14 +6112,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     metadata: { ...((transaction as any).metadata || {}), reconciled: true, reconciledAt: new Date().toISOString() }
                                                 } as any);
                                                 
-                                                        await refreshData();
+                                                await refreshData();
                                             } catch (err) {
                                                 console.error("Reconciliation failed:", err);
                                             }
                                         }
                                     }}
                                     onFetchFeeds={refreshData}
-                                    currentUser={currentUser}
+                                    currentUser={currentUser as any}
                                     institution={currentInstitution as any}
                                 />
                             )}
@@ -6165,9 +6282,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             {filteredAuditPayments.length > 0 && (
                                                 <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between flex-wrap gap-4">
                                                     <p className="text-xs font-bold text-slate-400">{filteredAuditPayments.filter(p => p.status === 'Verified').length} of {filteredAuditPayments.length} payments verified</p>
-                                                    {filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status)).length > 0 && (
-                                                        <button onClick={async () => { const unverified = filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status)); if (window.confirm(`Bulk-verify all ${unverified.length} unverified payments?`)) { setIsActionLoading(true); try { for (const p of unverified) { await onUpdatePayment({ ...p, status: 'Verified', auditedBy: currentUser?.name || currentUser?.email || 'Director', auditedAt: new Date().toISOString() }); } success(`${unverified.length} payments verified!`); } catch (err: any) { toastError(err.message || 'Bulk verify failed'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50">
-                                                            <CheckCircleIcon className="w-3.5 h-3.5" /> Verify All ({filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status)).length})
+                                                    {filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status || '')).length > 0 && (
+                                                        <button onClick={async () => { const unverified = filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status || '')); if (window.confirm(`Bulk-verify all ${unverified.length} unverified payments?`)) { setIsActionLoading(true); try { for (const p of unverified) { await onUpdatePayment({ ...p, status: 'Verified', auditedBy: currentUser?.name || currentUser?.email || 'Director', auditedAt: new Date().toISOString() } as any); } success(`${unverified.length} payments verified!`); } catch (err: any) { toastError(err.message || 'Bulk verify failed'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50">
+                                                            <CheckCircleIcon className="w-3.5 h-3.5" /> Verify All ({filteredAuditPayments.filter(p => !['Verified', 'Pending Deletion'].includes(p.status || '')).length})
                                                         </button>
                                                     )}
                                                 </div>

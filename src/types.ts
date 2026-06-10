@@ -3869,6 +3869,7 @@ export interface DSVehicle {
     make: string;
     model: string;
     plateNumber: string;
+    registrationNumber?: string;
     transmission: 'Manual' | 'Automatic';
     vehicleType?: string;
     capacity: number;
@@ -3920,6 +3921,8 @@ export interface DSStudent {
     theoryTestScore?: number;
     practicalTestScore?: number;
     ntsaBookingStatus?: 'Not Booked' | 'Eligible' | 'Booked' | 'Passed' | 'Failed';
+    pdlStatus?: string;
+    passportPhoto?: string;
     createdAt: string;
     webauthnCredentials?: any; // To store WebAuthn passkey data
     fingerprintTemplate?: string; // To store USB scanner biometric hash
@@ -3941,6 +3944,7 @@ export interface DSLesson {
     roomId?: string;
     roomName?: string;
     instructorNotes?: string;
+    notes?: string;
     routeTrackedData?: any;
     createdAt: string;
 }
@@ -4083,6 +4087,8 @@ export interface DSPayment {
     deletionReason?: string;
     editReason?: string;
     deletionRequestedBy?: string;
+    auditedBy?: string;
+    auditedAt?: string;
     createdAt: string;
 }
 
