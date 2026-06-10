@@ -166,8 +166,18 @@ export function RetailRequisitions({
     };
 
     const handleSubmit = async () => {
-        if (items.length === 0 || !selectedStoreId) {
+        if (items.length === 0) {
             setSubmitError('Please add at least one item using the Add button above.');
+            return;
+        }
+
+        if (!isEducation && !selectedStoreId) {
+            setSubmitError('Please select a requesting store.');
+            return;
+        }
+
+        if (isEducation && !submittedTo) {
+            setSubmitError('Please select a recipient (HOD or Store Keeper).');
             return;
         }
 
@@ -177,7 +187,7 @@ export function RetailRequisitions({
             const totalCost = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
 
             await onAddRequisition({
-                storeId: selectedStoreId,
+                storeId: isEducation ? (selectedStoreId || 'CENTRAL_STORE') : selectedStoreId,
                 requestedBy: currentUser.id,
                 items,
                 totalEstimatedCost: totalCost,
@@ -229,7 +239,9 @@ export function RetailRequisitions({
                         <thead>
                             <tr className="border-b border-slate-50 dark:border-slate-700">
                                 <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
-                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Store</th>
+                                {!isEducation && (
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Store</th>
+                                )}
                                 <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Items</th>
                                 <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
                                 <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">LPO #</th>
@@ -239,11 +251,13 @@ export function RetailRequisitions({
                             {myRequisitions.map(req => (
                                 <tr key={req.id} className="group hover:bg-slate-50 transition-colors">
                                     <td className="py-5 text-xs font-bold text-slate-500">{new Date(req.requestedDate).toLocaleDateString()}</td>
-                                    <td className="py-5">
-                                        <span className="text-xs font-black uppercase tracking-tight text-slate-900">
-                                            {retailStores.find(s => s.id === req.storeId)?.name || 'Central'}
-                                        </span>
-                                    </td>
+                                    {!isEducation && (
+                                        <td className="py-5">
+                                            <span className="text-xs font-black uppercase tracking-tight text-slate-900">
+                                                {retailStores.find(s => s.id === req.storeId)?.name || 'Central'}
+                                            </span>
+                                        </td>
+                                    )}
                                     <td className="py-5 text-xs font-medium text-slate-600">
                                         <div>{req.items.length} Product(s)</div>
                                         {isEducation && req.submittedTo && (

@@ -1050,14 +1050,14 @@ export const App: React.FC = () => {
                     // Business Batch
                     isBusiness || isAcademic ? Promise.all([
                         apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstIdFinal).catch(() => []),
-                        isBusiness ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        (isBusiness || isAcademic) ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        (isBusiness || isAcademic) ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        (isBusiness || isAcademic) ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords('carwash_jobs', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        (isBusiness || isAcademic) ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                     ]) : Promise.resolve([]),
                     // Coop Batch
                     isCoop ? Promise.all([

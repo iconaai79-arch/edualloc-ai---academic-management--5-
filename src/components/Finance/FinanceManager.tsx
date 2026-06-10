@@ -17,6 +17,7 @@ import { Trash2Icon } from '../icons/Trash2Icon';
 import { ScaleIcon } from '../icons/ScaleIcon';
 import { RetailRequisitions } from '../retail/RetailRequisitions';
 import { apiService } from '../../services/apiService';
+import { isEduInstitution } from '../../utils/roleUtils';
 
 interface FinanceManagerProps {
     invoices: Invoice[];
@@ -106,8 +107,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         apiService.fetchModuleRecords<any>('retail_stores', instId)
             .then(res => setRetailStores(res || []))
             .catch(err => console.error("Failed to load stores for finance:", err));
-        apiService.fetchModuleRecords<any>('inventory', instId)
-            .then(res => setInventory(res || []))
+        Promise.all([
+            apiService.fetchModuleRecords<any>('inventory', instId).catch(() => []),
+            apiService.fetchModuleRecords<any>('retail_inventory_items', instId).catch(() => [])
+        ])
+        .then(([genInv, retInv]) => setInventory([...(genInv || []), ...(retInv || [])]))
             .catch(err => console.error("Failed to load inventory for finance:", err));
         apiService.fetchModuleRecords<any>('users', instId)
             .then(res => setAllUsers(res || []))
@@ -1126,7 +1130,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             inventory={inventory}
                             onAddRequisition={async () => {}}
                             onUpdateRequisition={props.onUpdateRequisition}
-                            isEducation={props.institution.institutionType === 'Education'}
+                            isEducation={isEduInstitution(props.institution)}
                             allUsers={allUsers}
                         />
                     </div>
