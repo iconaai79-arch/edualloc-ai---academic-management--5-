@@ -621,9 +621,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const sc = String(cfg.shortCode || cfg.short_code || '').trim();
                     const tn = String(cfg.tillNumber || '').trim();
                     const cc = String(cfg.companyCode || '').trim();
+                    const osc = String(cfg.organizationShortCode || '').trim();
                     return sc === organizationShortCode.trim() || 
                            tn === organizationShortCode.trim() || 
-                           cc === organizationShortCode.trim();
+                           cc === organizationShortCode.trim() ||
+                           osc === organizationShortCode.trim();
                 });
                 if (found) {
                     resolvedInstitutionId = found.id;

@@ -819,8 +819,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 reconciled_at: new Date().toISOString()
             };
 
+            const coopTxnId = `coop_${Date.now()}`;
+
             const { error: insertTxnErr } = await supabase.from('mpesa_transactions').insert({
-                id: `coop_${Date.now()}`,
+                id: coopTxnId,
                 transaction_id: bankTxnId,
                 checkout_request_id: bankTxnId,
                 institution_id: targetInstId,
@@ -836,6 +838,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (insertTxnErr) {
                 console.error('[Coop B2B Advice] Failed to log payment transaction:', insertTxnErr);
+            }
+
+            // Write/Upsert to bank_transactions so it appears in Bank Feeds
+            try {
+                const isReconciledNow = !!invoice;
+                const { error: bankTxnErr } = await supabase.from('bank_transactions').upsert({
+                    id: coopTxnId,
+                    institution_id: targetInstId,
+                    amount: amount,
+                    transaction_date: bodyRequest.PaymentDate || bodyRequest.TransactionDate || new Date().toISOString(),
+                    reference: bankTxnId,
+                    sender_name: bodyRequest.AccountName || 'Coop Bank Client',
+                    bank_name: 'Coop',
+                    status: isReconciledNow ? 'reconciled' : 'unreconciled',
+                    linked_invoice_id: invoice?.id || null,
+                    reconciled_at: isReconciledNow ? new Date().toISOString() : null,
+                    reconciled_by: isReconciledNow ? 'Coop B2B API' : null,
+                    created_at: new Date().toISOString(),
+                    payload: body
+                });
+                if (bankTxnErr) console.error('[Coop B2B Advice] Failed to write to bank_transactions:', bankTxnErr);
+            } catch (bankErr) {
+                console.error('[Coop B2B Advice] Exception writing to bank_transactions:', bankErr);
             }
 
             // 3. Perform Invoice Reconciliations

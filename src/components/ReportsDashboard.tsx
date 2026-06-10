@@ -726,6 +726,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         // Scope-based modular reports gating
         if (activeScope) {
             const isModuleActive = (moduleId: string) => {
+                if (currentInstitution?.institutionType === 'Reseller') return true;
+                if (currentInstitution?.id?.startsWith('demo_')) return true;
+
                 const state = currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
                 if (!state) return false;
                 if (state.status === 'active') return true;

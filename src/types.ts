@@ -456,6 +456,7 @@ export interface Institution {
     farmerSmsBillingEnabled?: boolean;
     moduleStates?: InstitutionModuleState[];
     coopSettings?: CoopSettings;
+    coopConfig?: CoopB2bConfig;
     academicConfig?: AcademicConfig;
     region?: string;
     uic?: string;

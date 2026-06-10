@@ -719,6 +719,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
 
     const isModuleActive = useCallback((moduleId: string) => {
+        if (props.currentInstitution?.institutionType === 'Reseller') return true;
+        if (props.currentInstitution?.id?.startsWith('demo_')) return true;
+
         const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
         if (!state) return false;
         if (state.status === 'active') return true;
@@ -727,7 +730,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             return expiry ? new Date(expiry) > new Date() : false;
         }
         return false;
-    }, [props.currentInstitution?.moduleStates]);
+    }, [props.currentInstitution?.moduleStates, props.currentInstitution?.institutionType, props.currentInstitution?.id]);
 
     const isCoreAdmin = useMemo(() => {
         const role = props.currentUser?.role;

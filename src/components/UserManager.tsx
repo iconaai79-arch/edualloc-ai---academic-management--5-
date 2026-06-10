@@ -1027,7 +1027,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         // For Retail Agency and Auto Market, we only show specific roles in Staff tab
         if ((isRetailAgency || isAutoMarket) && activeTab === 'staff') {
             const retailRoles: Role[] = isAutoMarket 
-                ? ['admin', 'retail_agent', 'field_agent'] 
+                ? ['admin', 'director', 'finance', 'sales', 'reception'] 
                 : ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'];
             list = list.filter(u => retailRoles.includes(u.role));
         }
