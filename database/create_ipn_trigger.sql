@@ -16,8 +16,8 @@ DECLARE
     payload_shortcode TEXT;
     is_reconciled boolean := false;
 BEGIN
-    -- Only process KCB or STK callbacks that have a payload
-    IF (NEW.provider LIKE 'kcb%' OR NEW.provider = 'kcb_ipn' OR NEW.provider = 'kcb_stk_callback') AND NEW.payload IS NOT NULL THEN
+    -- Only process specific providers that have a payload and status 'received'
+    IF NEW.provider IN ('kcb_ipn', 'kcb_stk_callback', 'coop') AND LOWER(NEW.status) = 'received' AND NEW.payload IS NOT NULL THEN
         -- Parse values from JSON payload dynamically
         payload_txn_id := COALESCE(
             NEW.payload->>'transactionReference',
@@ -237,7 +237,7 @@ BEGIN
                 COALESCE(payload_date, NEW.created_at),
                 payload_txn_id,
                 COALESCE(payload_sender, 'External Deposit'),
-                'KCB',
+                CASE WHEN NEW.provider = 'coop' THEN 'Co-op Bank' ELSE 'KCB' END,
                 CASE WHEN is_reconciled THEN 'reconciled' ELSE 'unreconciled' END,
                 resolved_invoice_id,
                 CASE WHEN is_reconciled THEN NOW() ELSE NULL END,
