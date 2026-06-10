@@ -18,7 +18,6 @@ import {
     AlertCircle,
     User,
     CheckCircle2,
-    CheckCircle2,
     Clock,
     Armchair,
     DoorOpen,

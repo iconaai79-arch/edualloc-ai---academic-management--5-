@@ -1163,7 +1163,6 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                             students={users.filter(u => u.institutionId === perspectiveInstitution.id && u.role === 'student')}
                                         />
                                         <DisciplineManager 
-                                            institutionId={perspectiveInstitution.id}
                                             incidents={incidents.filter(i => i.institutionId === perspectiveInstitution.id)}
                                             onAddIncident={async (incident) => { onAddIncident?.(incident); }}
                                             students={users.filter(u => u.institutionId === perspectiveInstitution.id && u.role === 'student')}

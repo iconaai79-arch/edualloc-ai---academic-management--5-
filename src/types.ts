@@ -2930,6 +2930,29 @@ export interface RetailInventoryItem {
     lastUpdated?: string;
 }
 
+export interface StockReceiptItem {
+    itemId: string;
+    itemName: string;
+    sku?: string;
+    quantity: number;
+    unitCost: number;
+}
+
+export interface StockReceipt {
+    id: string;
+    institutionId: string;
+    supplierId: string;
+    supplierName?: string;
+    referenceNumber: string;
+    receiptDate: string;
+    totalAmount: number;
+    items: StockReceiptItem[];
+    recordedBy: string;
+    status: 'completed' | 'pending' | 'cancelled';
+    notes?: string;
+    createdAt: string;
+}
+
 // A junction table to show how much of a RetailInventoryItem is in a specific RetailStore
 export interface RetailStoreStock {
     id: string;

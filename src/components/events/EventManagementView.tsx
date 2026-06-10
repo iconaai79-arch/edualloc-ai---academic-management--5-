@@ -66,6 +66,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             let med = await apiService.fetchModuleRecords<EventMedicalLog>('event_medical_logs').catch(() => []);
             let plg = await apiService.fetchModuleRecords<EventPledge>('event_pledges').catch(() => []);
             let txs = await apiService.fetchModuleRecords<any>('mpesa_transactions').catch(() => []);
+            let bankTxs = await apiService.fetchModuleRecords<any>('bank_transactions').catch(() => []);
             let usrs = await apiService.fetchModuleRecords<User>('users', currentInstitution.id).catch(() => []);
 
             // Check if we need to seed demo data
@@ -120,12 +121,24 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             const safeMed = Array.isArray(med) ? med : [];
             const safePlg = Array.isArray(plg) ? plg : [];
             const safeTxs = Array.isArray(txs) ? txs : [];
+            
+            const normalizedBankTxs = (Array.isArray(bankTxs) ? bankTxs : []).map(bt => ({
+                ...bt,
+                _table: 'bank_transactions',
+                timestamp: bt.payment_date || bt.created_at,
+                transactionId: bt.transaction_reference || bt.receipt_number,
+                payerName: bt.payer_name || bt.received_by,
+                phoneNumber: bt.payer_account || ''
+            }));
+            
             const safeUsrs = Array.isArray(usrs) ? usrs : [];
 
             const uniqueEvs = Array.from(new Map(safeEvs.map(e => [e?.id, e])).values()).filter(Boolean);
             const uniqueCats = Array.from(new Map(safeCats.map(c => [c?.id, c])).values()).filter(Boolean);
             const uniqueParts = Array.from(new Map(safeParts.map(p => [p?.id, p])).values()).filter(Boolean);
-            const uniqueTxs = Array.from(new Map(safeTxs.map(t => [t?.id, t])).values()).filter(Boolean);
+            
+            const combinedTxs = [...safeTxs, ...normalizedBankTxs];
+            const uniqueTxs = Array.from(new Map(combinedTxs.map(t => [t?.id, t])).values()).filter(Boolean);
 
             setEvents(uniqueEvs);
             setCategories(uniqueCats);
@@ -195,7 +208,12 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             if (reference === null) return; // cancelled prompt
 
             const updatedTx = { ...tx, status: 'completed', transactionId: reference || tx.transactionId };
-            await apiService.saveModuleRecord('mpesa_transactions', updatedTx);
+            const tableName = tx._table || 'mpesa_transactions';
+            
+            // Clean up custom metadata before saving
+            delete updatedTx._table;
+            
+            await apiService.saveModuleRecord(tableName, updatedTx);
             
             // Find matching participant to update payment status
             const meta = safeParseMetadata(tx.metadata);

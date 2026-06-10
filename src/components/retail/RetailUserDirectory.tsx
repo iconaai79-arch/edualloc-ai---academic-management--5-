@@ -273,7 +273,7 @@ export function RetailUserDirectory({
                                         phoneNumber: '',
                                         idVal: '',
                                         courseId: courses[0]?.id || '',
-                                        departmentId: departments[0]?.id || '',
+                                        departmentId: '',
                                         role: role === 'support_staff' ? 'support_staff' : (role === 'teacher' ? 'teacher' : 'student'),
                                     });
                                     setIsAddModalOpen(true);
@@ -566,12 +566,13 @@ export function RetailUserDirectory({
                                 <>
                                     {departments.length > 0 && (
                                         <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Faculty Department</label>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Department</label>
                                             <select
                                                 value={formData.departmentId}
                                                 onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
                                                 className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
                                             >
+                                                <option value="">-- Select Department --</option>
                                                 {departments.map(dept => (
                                                     <option key={dept.id} value={dept.id}>{dept.name}</option>
                                                 ))}

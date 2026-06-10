@@ -194,7 +194,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         e.preventDefault();
         if (!selectedItem || !props.onIssueInventoryItem) return;
 
-        const recipient = props.users.find(u => u.id === issueForm.recipientId);
+        const recipient = props.users?.find(u => u.id === issueForm.recipientId);
         if (!recipient) return;
 
         if (issueForm.quantity > selectedItem.quantity) {
@@ -252,9 +252,9 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     onLessonCheckIn={() => { }}
                     onAbsenceRequest={() => { }}
                     userTasks={userTasks}
-                    onAddTask={onAddTask}
-                    onUpdateTask={onUpdateTask}
-                    onDeleteTask={onDeleteTask}
+                    onAddTask={onAddTask || (() => {})}
+                    onUpdateTask={onUpdateTask || (() => {})}
+                    onDeleteTask={onDeleteTask || (() => {})}
                     onNavigateToNearby={() => setActiveTab('my_timetable')}
                     currentInstitution={currentInstitution}
                     onRequestChange={(alloc) => {
@@ -264,7 +264,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     studentAbsenceRequests={props.studentAbsenceRequests}
                     onSaveAttendance={props.onSaveAttendance}
                     users={props.users}
-                    onAccessAlumnaPortal={onAccessAlumnaPortal}
+                    onAccessAlumnaPortal={onAccessAlumnaPortal || (() => {})}
                     schoolRegistry={schoolRegistry}
                 />
             )}
@@ -290,7 +290,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     assessments={props.assessments || []}
                                     assessmentMarks={props.assessmentMarks || []}
                                     allocatedSubjects={allocations.map(a => getSubjectById(a.subjectId)!).filter(Boolean)}
-                                    users={props.users}
+                                    users={props.users || []}
                                     courses={courses}
                                     onAddAssessment={props.onAddAssessment || (() => { })}
                                     onDeleteAssessment={props.onDeleteAssessment || (() => { })}
@@ -304,13 +304,13 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     currentUser={user}
                                     assessments={props.assessments || []}
                                     assessmentMarks={props.assessmentMarks || []}
-                                    users={props.users}
+                                    users={props.users || []}
                                     subjects={subjects}
                                     courses={courses}
                                     departments={departments}
-                                    letterheadConfig={props.letterheadConfig}
+                                    letterheadConfig={props.letterheadConfig || {} as LetterheadConfig}
                                     logoUrl={currentInstitution?.logoUrl || null}
-                                    footerImageUrl={props.footerImageUrl}
+                                    footerImageUrl={props.footerImageUrl || null}
                                     currentInstitution={currentInstitution}
                                 />
                             </div>
@@ -551,7 +551,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     subject={getSubjectById(changingAllocation.subjectId)!}
                     user={user}
                     onClose={() => setChangingAllocation(null)}
-                    onSubmit={(id, just, prio) => { onAllocationChangeRequest(id, just, prio); setChangingAllocation(null); }}
+                    onSubmit={(id, just, prio) => { onAllocationChangeRequest?.(id, just, prio); setChangingAllocation(null); }}
                 />
             )}
 
@@ -559,7 +559,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 <DeallocationModal
                     subject={getSubjectById(deallocatingRequest.subjectId)!}
                     onClose={() => setDeallocatingRequest(null)}
-                    onSubmit={(justification) => { onDeallocationRequest(deallocatingRequest.id, justification); setDeallocatingRequest(null); }}
+                    onSubmit={(justification) => { onDeallocationRequest?.(deallocatingRequest.id, justification); setDeallocatingRequest(null); }}
                 />
             )}
 
@@ -586,7 +586,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                         className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold appearance-none"
                                     >
                                         <option value="">Select Recipient...</option>
-                                        {props.users.map(u => (
+                                        {(props.users || []).map(u => (
                                             <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
                                         ))}
                                     </select>

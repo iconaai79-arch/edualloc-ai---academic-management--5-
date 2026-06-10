@@ -250,11 +250,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
 
 
-        instructors,
-
-
-
-        rooms 
+        instructors 
 
 
 

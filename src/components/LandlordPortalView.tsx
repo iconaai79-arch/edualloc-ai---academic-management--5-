@@ -75,7 +75,7 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                 ]);
 
                 // 2. Identify the current landlord
-                const currentLandlord = landlordList.find(l => l.email?.toLowerCase() === currentUser.email.toLowerCase());
+                const currentLandlord = landlordList.find(l => l.email?.toLowerCase() === currentUser?.email?.toLowerCase());
                 setLandlord(currentLandlord || null);
 
                 if (currentLandlord) {
@@ -203,7 +203,7 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                     </div>
                     <h2 className="text-3xl font-black text-slate-800 mb-4 tracking-tight">No Landlord Profile</h2>
                     <p className="text-slate-500 mb-8 leading-relaxed">
-                        We couldn't find a landlord record linked to your email <strong>{currentUser.email}</strong>.
+                        We couldn't find a landlord record linked to your email <strong>{currentUser?.email}</strong>.
                         Please contact the system administrator.
                     </p>
                     <button onClick={onLogout} className="flex items-center justify-center gap-2 w-full py-4 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-900 transition-all">
@@ -248,10 +248,10 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                 <div className="pt-8 mt-auto border-t border-slate-50">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center font-black text-emerald-600 underline">
-                            {currentUser.name[0]}
+                            {currentUser?.name?.[0] || 'L'}
                         </div>
                         <div>
-                            <p className="text-xs font-black text-slate-800 truncate max-w-[140px] uppercase italic">{currentUser.name}</p>
+                            <p className="text-xs font-black text-slate-800 truncate max-w-[140px] uppercase italic">{currentUser?.name}</p>
                             <p className="text-[10px] font-bold text-slate-400">Landlord</p>
                         </div>
                     </div>
@@ -268,7 +268,7 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => 
                         <h2 className="text-4xl font-black text-slate-800 tracking-tighter italic capitalize underline decoration-emerald-200 decoration-4 underline-offset-8">
                             {activeTab}
                         </h2>
-                        <p className="text-slate-400 font-medium mt-2">Managing your wealth, {currentUser.name.split(' ')[0]}.</p>
+                        <p className="text-slate-400 font-medium mt-2">Managing your wealth, {currentUser?.name?.split(' ')[0] || 'Landlord'}.</p>
                     </div>
                     <div className="flex flex-col items-end mr-4">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Net Portfolio Value</p>

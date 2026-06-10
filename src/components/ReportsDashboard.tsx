@@ -1358,6 +1358,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 currentUser={currentUser}
                                 subjects={props.subjects}
                                 letterheadConfig={props.letterheadConfig}
+                                logoUrl={null}
+                                footerImageUrl={null}
                                 onSendSms={props.onSendSms!}
                                 companyDetails={props.companyDetails!}
                                 currentInstitution={currentInstitution}

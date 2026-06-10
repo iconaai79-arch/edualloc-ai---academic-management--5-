@@ -18,6 +18,7 @@ import { RetailLogisticsManager } from './RetailLogisticsManager';
 import { RetailUserDirectory } from './RetailUserDirectory';
 import { RetailReportsDashboard } from './RetailReportsDashboard';
 import { StoreConfigManager } from './StoreConfigManager';
+import { RetailStockReceipts } from './RetailStockReceipts';
 import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition, Course } from '../../types';
 import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
 import { StoreIcon as Store } from '../icons/StoreIcon';
@@ -60,7 +61,7 @@ interface RetailManagerProps {
 
 export function RetailManager(props: RetailManagerProps) {
     const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation } = props;
-    const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'support_staff' | 'students' | 'reports' | 'config'>('dashboard');
+    const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'stock_inwards' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'support_staff' | 'students' | 'reports' | 'config'>('dashboard');
     const [selectedUserForPOS, setSelectedUserForPOS] = useState<User | null>(null);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
@@ -133,6 +134,7 @@ export function RetailManager(props: RetailManagerProps) {
     const navItems = isEducation ? [
         { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
         { id: 'inventory', label: 'Inventory', icon: Package },
+        { id: 'stock_inwards', label: 'Receive Stock', icon: Truck },
         { id: 'pos', label: 'Issue Desk', icon: Smartphone },
         { id: 'teachers', label: 'Teachers', icon: UserIcon },
         { id: 'support_staff', label: 'Support Staff', icon: BriefcaseIcon },
@@ -148,6 +150,7 @@ export function RetailManager(props: RetailManagerProps) {
     ] : [
         { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
         { id: 'inventory', label: 'Catalog', icon: Package },
+        { id: 'stock_inwards', label: 'Receive Stock', icon: Truck },
         { id: 'pos', label: 'POS', icon: Smartphone },
         { id: 'reports', label: 'Reports', icon: BarChart3 },
         { id: 'logistics', label: 'Logistics', icon: TruckIcon },
@@ -229,6 +232,7 @@ export function RetailManager(props: RetailManagerProps) {
 
             <div className="animate-fade-in-up mt-4">
                 {activeView === 'dashboard' && <RetailDashboard institutionId={institutionId} onNavigate={(v) => setActiveView(v as any)} isEducation={isEducation} />}
+                {activeView === 'stock_inwards' && <RetailStockReceipts institutionId={institutionId} currentUser={currentUser} />}
                 {activeView === 'pos' && (
                     <DualModePOS 
                         institutionId={institutionId} 

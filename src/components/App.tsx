@@ -4191,8 +4191,10 @@ export const App: React.FC = () => {
                 }
                 await apiService.deleteModuleRecord('car_sales_invoices', invoiceId);
                 await loadData(false, true);
-            } catch (err) {
+                success("Invoice deleted successfully");
+            } catch (err: any) {
                 console.error("Failed to delete car invoice:", err);
+                toastError(`Failed to delete invoice: ${err.message || 'Unknown error'}`);
             }
         },
         onDeleteCarPayment: async (paymentId: string) => {
@@ -4220,8 +4222,10 @@ export const App: React.FC = () => {
                 }
                 await apiService.deleteModuleRecord('car_sales_payments', paymentId);
                 await loadData(false, true);
-            } catch (err) {
+                success("Payment deleted successfully");
+            } catch (err: any) {
                 console.error("Failed to delete car payment:", err);
+                toastError(`Failed to delete payment: ${err.message || 'Unknown error'}`);
             }
         },
         onAddCarListing: async (data: Partial<CarListing>) => {

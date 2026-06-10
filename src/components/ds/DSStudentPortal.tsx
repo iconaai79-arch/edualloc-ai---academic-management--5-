@@ -14,6 +14,7 @@ import {
     ExclamationTriangleIcon,
     UsersIcon,
     TrendingUpIcon,
+    ArrowUpTrayIcon,
 } from '../icons';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { registerWebAuthn } from '../../utils/biometrics';
@@ -126,10 +127,10 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         setBiometricSuccess(false);
 
         try {
-            const passkey = await registerWebAuthn({
-                id: studentRecord.id,
-                name: studentRecord.fullName
-            });
+            const passkey = await registerWebAuthn(
+                studentRecord.id,
+                studentRecord.fullName || currentUser.name
+            );
 
             await updateStudent({
                 ...studentRecord,

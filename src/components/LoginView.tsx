@@ -40,7 +40,9 @@ interface LoginViewProps {
     onParentVerifyOtp: (phone: string, code: string) => { success: boolean; message: string };
     companyDetails: CompanyDetails;
     onResetPassword?: (token: string, pass: string) => Promise<{ success: boolean; message: string }>;
-    schoolRegistry?: SchoolRegistry[];
+    onForgotPassword?: (identifier: string, method: 'email' | 'phone') => Promise<{ success: boolean; message: string }>;
+    onVerifyResetOtp?: (phone: string, code: string) => Promise<{ success: boolean; message: string; resetToken?: string }>;
+    schoolRegistry?: any[];
     initialView?: 'login' | 'register' | 'reset_password';
     prefillModuleId?: string;
 }
@@ -187,6 +189,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const handleForgotPassword = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         setError('');
+        if (!onForgotPassword) {
+            setError('Password recovery is not available.');
+            return;
+        }
         
         if (recoveryMethod === 'email') {
             const cleanEmail = identifier.trim().toLowerCase();

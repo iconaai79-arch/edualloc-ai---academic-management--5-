@@ -23,7 +23,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
 
     const stats = useMemo(() => {
         const currentMonthRecords = payrollRecords.filter(r => r.month === selectedMonth);
-        const totalNet = currentMonthRecords.reduce((acc, r) => acc + r.netSalary, 0);
+        const totalNet = currentMonthRecords.reduce((acc, r) => acc + (r.netSalary || 0), 0);
         return {
             processedCount: currentMonthRecords.length,
             totalPayout: totalNet,
