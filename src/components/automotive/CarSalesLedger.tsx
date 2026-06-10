@@ -186,7 +186,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                 const matchesClient = inv?.clientName?.toLowerCase().includes(query);
                 const matchesInvNumber = inv?.invoiceNumber?.toLowerCase().includes(query);
                 const matchesRegNumber = inv?.registrationNumber?.toLowerCase().includes(query);
-                matchesSearch = matchesPaymentId || matchesRef || matchesClient || matchesInvNumber || matchesRegNumber;
+                matchesSearch = !!(matchesPaymentId || matchesRef || matchesClient || matchesInvNumber || matchesRegNumber);
             }
             
             const matchesMethod = paymentMethodFilter === 'all' || pay.paymentMethod === paymentMethodFilter;
