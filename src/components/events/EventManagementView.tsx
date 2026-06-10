@@ -1348,49 +1348,57 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-400 font-bold uppercase text-[10px]">
-                                            <th className="pb-2">Date/Time</th>
-                                            <th className="pb-2">Reference</th>
-                                            <th className="pb-2">Payer Details</th>
-                                            <th className="pb-2">Race Category</th>
-                                            <th className="pb-2">Amount (KES)</th>
-                                            <th className="pb-2">Gateway Status</th>
-                                            <th className="pb-2 text-right">Actions</th>
+                                            <th className="pb-2 pr-4 whitespace-nowrap">Date / Time</th>
+                                            <th className="pb-2 pr-4 whitespace-nowrap">Reference</th>
+                                            <th className="pb-2 pr-4 whitespace-nowrap">Payer Full Name</th>
+                                            <th className="pb-2 pr-4 whitespace-nowrap">Phone Number</th>
+                                            <th className="pb-2 pr-4 whitespace-nowrap">Category</th>
+                                            <th className="pb-2 pr-4 whitespace-nowrap">Amount (KES)</th>
+                                            <th className="pb-2 pr-4 whitespace-nowrap">Status</th>
+                                            <th className="pb-2 text-right whitespace-nowrap">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {activeEventTransactions.map(tx => {
                                             const meta = safeParseMetadata(tx.metadata);
-                                            const catName = categories.find(c => c.id === meta?.categoryId)?.name || 'Unknown Category';
+                                            const catName = categories.find(c => c.id === meta?.categoryId)?.name || (tx._table === 'bank_transactions' ? 'Bank Transfer' : 'Unknown Category');
+                                            const payerPhone = tx.phoneNumber || tx.customerMobileNumber || meta?.phoneNumber || meta?.customerMobileNumber || '—';
+                                            const payerName = tx.payerName || meta?.payerName || meta?.customerName || (tx._table === 'bank_transactions' ? 'External Deposit' : 'Guest Runner');
+                                            const txDate = tx.timestamp || tx.transaction_date || tx.created_at;
                                             return (
                                                 <tr key={tx.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50">
-                                                    <td className="py-3 text-slate-500 font-mono">
-                                                        {tx.timestamp ? new Date(tx.timestamp)?.toLocaleString() : 'N/A'}
+                                                    <td className="py-3 pr-4 text-slate-500 font-mono whitespace-nowrap">
+                                                        {txDate ? new Date(txDate).toLocaleString() : 'N/A'}
                                                     </td>
-                                                    <td className="py-3 font-mono font-bold text-slate-750 dark:text-slate-350">
-                                                        {tx.transactionId || tx.checkoutRequestId || 'N/A'}
+                                                    <td className="py-3 pr-4 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                        {tx.transactionId || tx.checkoutRequestId || tx.reference || tx.id || 'N/A'}
                                                     </td>
-                                                    <td className="py-3">
-                                                        <span className="font-bold text-slate-800 dark:text-white block">{tx.payerName || 'Guest Runner'}</span>
-                                                        <span className="text-[10px] text-slate-400 font-mono">{tx.phoneNumber || tx.customerMobileNumber}</span>
+                                                    <td className="py-3 pr-4">
+                                                        <span className="font-bold text-slate-800 dark:text-white whitespace-nowrap">{payerName}</span>
                                                     </td>
-                                                    <td className="py-3 text-slate-500">{catName}</td>
-                                                    <td className="py-3 font-bold text-slate-850 dark:text-slate-200">
+                                                    <td className="py-3 pr-4">
+                                                        <span className="text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">{payerPhone}</span>
+                                                    </td>
+                                                    <td className="py-3 pr-4 text-slate-500 whitespace-nowrap">{catName}</td>
+                                                    <td className="py-3 pr-4 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                                                         KES {Number(tx.amount || 0)?.toLocaleString()}
                                                     </td>
-                                                    <td className="py-3">
+                                                    <td className="py-3 pr-4">
                                                         {(tx.status === 'completed' || tx.status === 'success' || tx.status === 'paid' || tx.status === 'reconciled') ? (
-                                                            <span className="px-2 py-0.5 bg-green-50 dark:bg-green-950/20 text-green-600 rounded text-[9px] font-bold">PAID</span>
+                                                            <span className="px-2 py-0.5 bg-green-50 dark:bg-green-950/20 text-green-600 rounded text-[9px] font-bold whitespace-nowrap">PAID</span>
                                                         ) : (tx.status === 'failed' || tx.status === 'cancelled') ? (
-                                                            <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/20 text-red-600 rounded text-[9px] font-bold">FAILED</span>
+                                                            <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/20 text-red-600 rounded text-[9px] font-bold whitespace-nowrap">FAILED</span>
+                                                        ) : tx.status === 'unreconciled' ? (
+                                                            <span className="px-2 py-0.5 bg-sky-50 dark:bg-sky-950/20 text-sky-600 rounded text-[9px] font-bold whitespace-nowrap">UNRECONCILED</span>
                                                         ) : (
-                                                            <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/20 text-amber-600 rounded text-[9px] font-bold animate-pulse">PENDING</span>
+                                                            <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/20 text-amber-600 rounded text-[9px] font-bold animate-pulse whitespace-nowrap">PENDING</span>
                                                         )}
                                                     </td>
                                                     <td className="py-3 text-right">
                                                         {(tx.status === 'pending' || tx.status === 'idle') && (
                                                             <button
                                                                 onClick={() => handleVerifyTransactionStatus(tx)}
-                                                                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-650 dark:text-indigo-400 font-bold rounded text-[9px] transition-all"
+                                                                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-650 dark:text-indigo-400 font-bold rounded text-[9px] transition-all whitespace-nowrap"
                                                             >
                                                                 Verify Status
                                                             </button>
@@ -1401,7 +1409,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                         })}
                                         {activeEventTransactions.length === 0 && (
                                             <tr>
-                                                <td colSpan={7} className="text-center py-8 text-slate-500 font-bold">
+                                                <td colSpan={8} className="text-center py-8 text-slate-500 font-bold">
                                                     No API transactions or bank feeds found for this event.
                                                 </td>
                                             </tr>
