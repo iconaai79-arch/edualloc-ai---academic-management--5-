@@ -65,8 +65,8 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             let spls = await apiService.fetchModuleRecords<EventSplit>('event_splits').catch(() => []);
             let med = await apiService.fetchModuleRecords<EventMedicalLog>('event_medical_logs').catch(() => []);
             let plg = await apiService.fetchModuleRecords<EventPledge>('event_pledges').catch(() => []);
-            let txs = await apiService.fetchModuleRecords<any>('mpesa_transactions').catch(() => []);
-            let bankTxs = await apiService.fetchModuleRecords<any>('bank_transactions').catch(() => []);
+            let txs = await apiService.fetchModuleRecords<any>('mpesa_transactions', currentInstitution.id).catch(() => []);
+            let bankTxs = await apiService.fetchModuleRecords<any>('bank_transactions', currentInstitution.id).catch(() => []);
             let usrs = await apiService.fetchModuleRecords<User>('users', currentInstitution.id).catch(() => []);
 
             // Check if we need to seed demo data
