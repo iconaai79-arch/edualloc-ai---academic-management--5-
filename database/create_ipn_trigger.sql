@@ -118,6 +118,29 @@ BEGIN
             LIMIT 1;
         END IF;
 
+        -- 2.5. Try to resolve from mpesa_transactions if missing info (useful for STK push callbacks)
+        IF payload_txn_id IS NOT NULL AND (resolved_inst_id IS NULL OR payload_ref IS NULL OR payload_ref = '') THEN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mpesa_transactions') THEN
+                DECLARE
+                    mt_inst_id TEXT;
+                    mt_ref TEXT;
+                BEGIN
+                    EXECUTE 'SELECT institution_id, customer_reference FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 LIMIT 1'
+                    INTO mt_inst_id, mt_ref
+                    USING payload_txn_id;
+                    
+                    IF mt_inst_id IS NOT NULL AND resolved_inst_id IS NULL THEN
+                        resolved_inst_id := mt_inst_id;
+                    END IF;
+                    IF mt_ref IS NOT NULL AND mt_ref <> '' AND (payload_ref IS NULL OR payload_ref = '') THEN
+                        payload_ref := mt_ref;
+                    END IF;
+                EXCEPTION WHEN OTHERS THEN
+                    -- Ignore errors here
+                END;
+            END IF;
+        END IF;
+
         -- 3. Try to resolve by matching customerReference
         IF resolved_inst_id IS NULL AND payload_ref IS NOT NULL AND payload_ref <> '' THEN
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'car_sales_invoices') THEN
