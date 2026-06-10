@@ -108,6 +108,7 @@ import { HomeIcon } from './icons/HomeIcon';
 import { MagnifyingGlassIcon as SearchIcon } from './icons/MagnifyingGlassIcon';
 import { GlobeAltIcon } from './icons/GlobeAltIcon';
 import { SmartphoneIcon } from './icons/SmartphoneIcon';
+import { BriefcaseIcon } from './icons/BriefcaseIcon';
 
 const DirectAssignModal = lazy(() => import('./DirectAssignModal').then(m => ({ default: m.DirectAssignModal })));
 const AcademicYearManager = lazy(() => import('./AcademicYearManager').then(m => ({ default: m.AcademicYearManager })));
@@ -467,7 +468,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds'>('console_hub');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
@@ -822,8 +823,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             return [
                 { id: 'inv_dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_inventory', label: 'Inventory', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_stock_inwards', label: 'Receive Stock', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_pos', label: 'Issue Desk', icon: <SmartphoneIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_teachers', label: 'Teachers', icon: <UserIcon className="w-5 h-5 mr-2" /> },
+                { id: 'inv_support_staff', label: 'Support Staff', icon: <BriefcaseIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_students', label: 'Students', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_logistics', label: 'Logistics', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
@@ -931,7 +934,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'car_service') return (isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic')) || isHigherEdInstitution(props.currentInstitution);
             if (tab.id === 'church') return isChurch;
             if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
-            if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || isDS || institutionType?.toLowerCase().includes('driving school') || activeScope === 'ds';
+            if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || isDS || institutionType?.toLowerCase().includes('driving school');
             if (tab.id === 'community') return isCommunity || roleToUse === 'community_admin';
             if (tab.id === 'alumni') return (isAlumni || roleToUse === 'alumni_admin') && !isDS;
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
@@ -2399,8 +2402,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     const retailTabMap: Record<string, string> = {
                         'inv_dashboard': 'dashboard',
                         'inv_inventory': 'inventory',
+                        'inv_stock_inwards': 'stock_inwards',
                         'inv_pos': 'pos',
                         'inv_teachers': 'teachers',
+                        'inv_support_staff': 'support_staff',
                         'inv_students': 'students',
                         'inv_reports': 'reports',
                         'inv_logistics': 'logistics',
