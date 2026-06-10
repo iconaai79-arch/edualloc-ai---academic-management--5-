@@ -388,8 +388,8 @@ export const PublicEventRegistration: React.FC = () => {
                 transactionAmount: totalFee,
                 customerReference: `EVT_${eventId?.substring(0, 8).toUpperCase()}_${Date.now().toString().slice(-4)}`,
                 customerName: `${formData.firstName} ${formData.lastName}`.trim(),
-                narration: `Registration for ${event.name}`,
-                creditAccountIdentifier: event.institutionId,
+                narration: `Registration for ${event?.name || 'Event'}`,
+                creditAccountIdentifier: event?.institutionId || 'GLOBAL',
                 config: kcbConfig || {}
             });
 
@@ -404,7 +404,7 @@ export const PublicEventRegistration: React.FC = () => {
                     id: `txn_${Date.now()}`,
                     transactionId: reqId,
                     checkoutRequestId: reqId,
-                    institutionId: event.institutionId || 'GLOBAL',
+                    institutionId: event?.institutionId || 'GLOBAL',
                     amount: totalFee,
                     phoneNumber: formattedPhone,
                     payerName: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -414,8 +414,8 @@ export const PublicEventRegistration: React.FC = () => {
                     customer_name: `${formData.firstName} ${formData.lastName}`.trim(),
                     customer_mobile_number: formattedPhone,
                     balance: totalFee,
-                    narration: `Registration for ${event.name}`,
-                    credit_account_identifier: event.institutionId,
+                    narration: `Registration for ${event?.name || 'Event'}`,
+                    credit_account_identifier: event?.institutionId || 'GLOBAL',
                     metadata: { 
                         type: 'event_registration', 
                         eventId: eventId,
