@@ -438,6 +438,7 @@ export interface Institution {
     ward?: string;
     resellerId?: string;
     isOtpEnabled?: boolean;
+    sessionExpiryMinutes?: number;
     smsBalance?: number;
     customSmsPrice?: number | null;
     smsConfig?: SmsConfig;

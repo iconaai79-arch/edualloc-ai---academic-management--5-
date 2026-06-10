@@ -6004,7 +6004,9 @@ export const generateDetailedPharmacySalesReportPdf = async (
 
 
 export const generateStudentIdCardPdf = async (student: any, institution: any, logoImgData?: string, photoImgData?: string): Promise<string> => {
-    const doc = new jsPDF('l', 'mm', [85.6, 54]);
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF('l', 'mm', [85.6, 54]);
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 

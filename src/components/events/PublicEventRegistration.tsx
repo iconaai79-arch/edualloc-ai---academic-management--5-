@@ -206,7 +206,12 @@ export const PublicEventRegistration: React.FC = () => {
             );
             if (duplicate) {
                 // If this is the registration that was already reconciled/created by the backend query/webhook
-                if (duplicate.paymentStatus === 'paid' && (duplicate.mpesaReference === reference || duplicate.mpesaReference === checkoutRequestId)) {
+                if (duplicate.paymentStatus === 'paid' && (
+                    duplicate.mpesaReference === reference || 
+                    duplicate.mpesaReference === checkoutRequestId ||
+                    duplicate.mpesaReference === `KCB_${checkoutRequestId}` ||
+                    (duplicate.mpesaReference && duplicate.mpesaReference.includes(checkoutRequestId))
+                )) {
                     setRegisteredParticipant(duplicate);
                     setPaymentStatus('success');
                     setStep(4);
