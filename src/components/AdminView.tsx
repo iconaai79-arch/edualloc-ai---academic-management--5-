@@ -734,7 +734,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     const isCoreAdmin = useMemo(() => {
         const role = props.currentUser?.role;
-        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto', 'director', 'finance', 'mechanic_admin'].includes(role || '');
+        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto', 'director', 'finance', 'finance_officer', 'mechanic_admin'].includes(role || '');
     }, [props.currentUser?.role]);
 
     const tabs = useMemo(() => {
@@ -882,7 +882,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
             if (tab.id === 'users') {
                 if (props.currentUser?.role === 'super_admin') return true;
-                if (isAutoMarket) return ['director', 'finance', 'admin'].includes(roleToUse || '');
+                if (isAutoMarket) return ['director', 'finance', 'finance_officer', 'admin'].includes(roleToUse || '');
                 if (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet' || isDS) return true;
                 return isEdu && !isDS;
             }
@@ -940,7 +940,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
             if (tab.id === 'reports') {
                 if (props.currentUser?.role === 'super_admin') return true;
-                if (isAutoMarket) return ['director', 'finance'].includes(roleToUse || '');
+                if (isAutoMarket) return ['director', 'finance', 'finance_officer'].includes(roleToUse || '');
                 return true; // Default visibility for other institutional types
             }
 

@@ -95,7 +95,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Car Showroom / Automotive Marketplace
     if (type === 'Car Showroom' || subType.includes('car sales') || subType.includes('showroom') || subType.includes('automotive') || subType.includes('motors')) {
-        return ['director', 'finance', 'sales', 'reception', 'customer', 'lead'];
+        return ['director', 'finance', 'finance_officer', 'sales', 'reception', 'customer', 'lead'];
     }
 
     // Driving School
@@ -267,6 +267,7 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
         switch (role) {
             case 'director': return 'Director';
             case 'finance': return 'Finance Manager';
+            case 'finance_officer': return 'Finance Officer';
             case 'sales': return 'Sales Executive';
             case 'reception': return 'Front Desk / Reception';
         }

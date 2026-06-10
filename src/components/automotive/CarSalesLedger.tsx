@@ -273,7 +273,17 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
     };
 
     const handleOpenBulkReminders = () => {
-        const selectedInvs = invoices.filter(inv => selectedInvoiceIds.includes(inv.id));
+        let idsToUse = selectedInvoiceIds;
+        if (idsToUse.length === 0) {
+            idsToUse = outstandingInvoices.map(inv => inv.id);
+            if (idsToUse.length === 0) {
+                alert("There are no outstanding invoices to send reminders to.");
+                return;
+            }
+            setSelectedInvoiceIds(idsToUse);
+        }
+        
+        const selectedInvs = invoices.filter(inv => idsToUse.includes(inv.id));
         const rawReminders = settings?.invoiceReminders || settings?.invoice_reminders;
         const template = rawReminders?.template || 
             'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for vehicle {registration_number} (invoice {invoice_number}) is due on {due_date}. Please clear it to avoid service disruption.';
@@ -421,12 +431,12 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                     </div>
 
                     <div className="flex gap-3">
-                        {activeTab === 'invoices' && selectedInvoiceIds.length > 0 && (
+                        {activeTab === 'invoices' && (
                             <button 
                                 onClick={handleOpenBulkReminders}
-                                className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-amber-100 hover:bg-amber-700 transition-all active:scale-95 animate-fade-in"
+                                className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-amber-100 hover:bg-amber-700 transition-all active:scale-95"
                             >
-                                <Send className="w-4 h-4" /> Bulk Reminder ({selectedInvoiceIds.length})
+                                <Send className="w-4 h-4" /> Send Bulk Reminders {selectedInvoiceIds.length > 0 ? `(${selectedInvoiceIds.length})` : ''}
                             </button>
                         )}
                         <button 
