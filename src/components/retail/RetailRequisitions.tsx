@@ -42,7 +42,9 @@ export function RetailRequisitions({
 }: RetailRequisitionsProps) {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedStoreId, setSelectedStoreId] = useState<string>(retailStores[0]?.id || '');
+    const [selectedStoreId, setSelectedStoreId] = useState<string>(() => {
+        return retailStores.find(s => s.id === currentUser.departmentId)?.id || retailStores[0]?.id || '';
+    });
     const [submittedTo, setSubmittedTo] = useState<string>('');
 
     const [items, setItems] = useState<{ name: string, quantity: number, unit: string, unitCost: number }[]>([]);
@@ -689,18 +691,18 @@ export function RetailRequisitions({
                                                         for (const fu of financeUsers) {
                                                             await apiService.createNotification(
                                                                 fu.id, 
-                                                                `Stock Requisition approved by Principal Newton (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}). Please dispatch LPO.`, 
+                                                                `Stock Requisition approved by ${currentUser.name} (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}). Please dispatch LPO.`, 
                                                                 'success'
                                                             );
                                                         }
                                                         
                                                         setIsReviewModalOpen(false);
-                                                        alert("Requisition approved successfully!");
+                                                        alert("Requisition approved and forwarded to Finance!");
                                                     }
                                                 }}
                                                 className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                                             >
-                                                Accept & Approve
+                                                Accept & Forward to Finance
                                             </button>
                                             <button
                                                 onClick={() => setShowRejectInput(true)}
@@ -734,10 +736,9 @@ export function RetailRequisitions({
                                                         if (onUpdateRequisition) {
                                                             await onUpdateRequisition(selectedReqForReview.id, { status: 'rejected', rejectionReason: rejectReason });
                                                             
-                                                            // Notify Sender
                                                             await apiService.createNotification(
                                                                 selectedReqForReview.requestedBy,
-                                                                `Your Requisition (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}) was rejected by Principal Newton. Note: ${rejectReason}`,
+                                                                `Your Requisition (Value: KES ${selectedReqForReview.totalEstimatedCost?.toLocaleString()}) was rejected by ${currentUser.name}. Note: ${rejectReason}`,
                                                                 'warning'
                                                             );
                                                             

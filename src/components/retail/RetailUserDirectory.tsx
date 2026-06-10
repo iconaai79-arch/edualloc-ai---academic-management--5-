@@ -37,6 +37,7 @@ export function RetailUserDirectory({
     const [loading, setLoading] = useState(!propUsers);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState('all');
+    const [selectedCourseLevelId, setSelectedCourseLevelId] = useState('all');
 
     const isPrimaryOrSecondaryStudent = useMemo(() => {
         if (role !== 'student') return false;
@@ -52,6 +53,7 @@ export function RetailUserDirectory({
         phoneNumber: '',
         idVal: '', // staffId or admissionNumber
         courseId: '',
+        courseLevelId: '',
         departmentId: '',
         role: 'teacher',
     });
@@ -111,6 +113,9 @@ export function RetailUserDirectory({
         if (selectedCourseId !== 'all' && role === 'student') {
             filtered = filtered.filter(u => u.courseId === selectedCourseId);
         }
+        if (selectedCourseLevelId !== 'all' && role === 'student') {
+            filtered = filtered.filter(u => u.courseLevelId === selectedCourseLevelId);
+        }
 
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
@@ -146,7 +151,7 @@ export function RetailUserDirectory({
             return;
         }
         if (!formData.idVal.trim()) {
-            alert(role === 'teacher' ? 'Please provide a Staff ID.' : 'Please provide an Admission Number.');
+            alert(role === 'student' ? 'Please provide an Admission Number.' : role === 'teacher' ? 'Please provide a Staff ID.' : 'Please provide an ID Number.');
             return;
         }
         if (!isPrimaryOrSecondaryStudent && !formData.email.trim()) {
@@ -162,7 +167,7 @@ export function RetailUserDirectory({
         });
 
         if (idExists) {
-            alert(role === 'teacher' ? 'A teacher with this Staff ID already exists.' : 'A student with this Admission Number already exists.');
+            alert(role === 'student' ? 'A student with this Admission Number already exists.' : `A ${role === 'teacher' ? 'teacher' : 'staff member'} with this ID already exists.`);
             return;
         }
 
@@ -182,6 +187,7 @@ export function RetailUserDirectory({
                     admissionNumber: formData.idVal.trim(),
                     admission_number: formData.idVal.trim(),
                     courseId: formData.courseId || undefined,
+                    courseLevelId: formData.courseLevelId || undefined,
                 } : {
                     staffId: formData.idVal.trim(),
                     departmentId: formData.departmentId || undefined,
@@ -273,6 +279,7 @@ export function RetailUserDirectory({
                                         phoneNumber: '',
                                         idVal: '',
                                         courseId: courses[0]?.id || '',
+                                        courseLevelId: '',
                                         departmentId: '',
                                         role: role === 'support_staff' ? 'support_staff' : (role === 'teacher' ? 'teacher' : 'student'),
                                     });
@@ -301,16 +308,33 @@ export function RetailUserDirectory({
 
                     {/* Optional Grade Filter for Students */}
                     {role === 'student' && courses.length > 0 && (
-                        <select
-                            value={selectedCourseId}
-                            onChange={(e) => setSelectedCourseId(e.target.value)}
-                            className="px-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
-                        >
-                            <option value="all">All Grades</option>
-                            {courses.map(course => (
-                                <option key={course.id} value={course.id}>{course.name}</option>
-                            ))}
-                        </select>
+                        <div className="flex gap-3">
+                            <select
+                                value={selectedCourseId}
+                                onChange={(e) => {
+                                    setSelectedCourseId(e.target.value);
+                                    setSelectedCourseLevelId('all');
+                                }}
+                                className="px-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+                            >
+                                <option value="all">All Grades</option>
+                                {courses.map(course => (
+                                    <option key={course.id} value={course.id}>{course.name}</option>
+                                ))}
+                            </select>
+                            {selectedCourseId !== 'all' && courses.find(c => c.id === selectedCourseId)?.levels && (
+                                <select
+                                    value={selectedCourseLevelId}
+                                    onChange={(e) => setSelectedCourseLevelId(e.target.value)}
+                                    className="px-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+                                >
+                                    <option value="all">All Streams</option>
+                                    {courses.find(c => c.id === selectedCourseId)?.levels?.map((level: any) => (
+                                        <option key={level.id} value={level.id}>{level.name}</option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -504,15 +528,15 @@ export function RetailUserDirectory({
                                 />
                             </div>
 
-                            {/* ID Val (Staff ID or Admission Number) */}
+                            {/* ID Val (Staff ID, ID Number, or Admission Number) */}
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    {role === 'teacher' ? 'Staff ID *' : 'Admission Number *'}
+                                    {role === 'student' ? 'Admission Number *' : role === 'teacher' ? 'Staff ID *' : 'ID Number *'}
                                 </label>
                                 <input
                                     type="text"
                                     required
-                                    placeholder={role === 'teacher' ? "e.g. STF-204" : "e.g. ADM-9481"}
+                                    placeholder={role === 'student' ? "e.g. ADM-9481" : role === 'teacher' ? "e.g. STF-204" : "e.g. ID-12345678"}
                                     value={formData.idVal}
                                     onChange={(e) => setFormData({ ...formData, idVal: e.target.value })}
                                     className="w-full px-4 py-3 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all"
@@ -549,36 +573,38 @@ export function RetailUserDirectory({
                             {/* Course / Department dropdown selector */}
                             {role === 'student' ? (
                                 courses.length > 0 && (
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Grade / Course</label>
-                                        <select
-                                            value={formData.courseId}
-                                            onChange={(e) => setFormData({ ...formData, courseId: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
-                                        >
-                                            {courses.map(course => (
-                                                <option key={course.id} value={course.id}>{course.name}</option>
-                                            ))}
-                                        </select>
+                                    <div className="flex gap-3">
+                                        <div className="space-y-1.5 flex-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Grade / Course</label>
+                                            <select
+                                                value={formData.courseId}
+                                                onChange={(e) => setFormData({ ...formData, courseId: e.target.value, courseLevelId: '' })}
+                                                className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
+                                            >
+                                                {courses.map(course => (
+                                                    <option key={course.id} value={course.id}>{course.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        {formData.courseId && courses.find(c => c.id === formData.courseId)?.levels && (
+                                            <div className="space-y-1.5 flex-1">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Stream</label>
+                                                <select
+                                                    value={formData.courseLevelId}
+                                                    onChange={(e) => setFormData({ ...formData, courseLevelId: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
+                                                >
+                                                    <option value="">- Select Stream -</option>
+                                                    {courses.find(c => c.id === formData.courseId)?.levels?.map((level: any) => (
+                                                        <option key={level.id} value={level.id}>{level.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
                                     </div>
                                 )
                             ) : (
                                 <>
-                                    {departments.length > 0 && (
-                                        <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Department</label>
-                                            <select
-                                                value={formData.departmentId}
-                                                onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                                                className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
-                                            >
-                                                <option value="">-- Select Department --</option>
-                                                {departments.map(dept => (
-                                                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Departmental Role / Designation</label>
                                         {role === 'support_staff' ? (
@@ -598,7 +624,8 @@ export function RetailUserDirectory({
                                                 <option value="secretary">Secretary</option>
                                                 <option value="attendant">Attendant / Cleaner</option>
                                                 <option value="worker">General Worker</option>
-                                                <option value="finance">Accountant / Bursar</option>
+                                                <option value="finance">Finance / Bursar</option>
+                                                <option value="head_teacher">Head Teacher / Principal</option>
                                             </select>
                                         ) : (
                                             <select
@@ -607,13 +634,28 @@ export function RetailUserDirectory({
                                                 className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
                                             >
                                                 <option value="teacher">Teacher / Lecturer</option>
-                                                <option value="hod">HOD (Head of Department)</option>
-                                                <option value="dos">DOS (Director of Studies)</option>
-                                                <option value="deputy">Deputy Principal / Headteacher</option>
+                                                <option value="hod">Head of Department</option>
+                                                <option value="dos">Director of Studies</option>
+                                                <option value="deputy">Deputy Principal</option>
                                                 <option value="head_teacher">Head Teacher / Principal</option>
                                             </select>
                                         )}
                                     </div>
+                                    {departments.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Department</label>
+                                            <select
+                                                value={formData.departmentId}
+                                                onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
+                                            >
+                                                <option value="">-- Select Department --</option>
+                                                {departments.map(dept => (
+                                                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                 </>
                             )}
 
