@@ -122,14 +122,18 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             const safePlg = Array.isArray(plg) ? plg : [];
             const safeTxs = Array.isArray(txs) ? txs : [];
             
-            const normalizedBankTxs = (Array.isArray(bankTxs) ? bankTxs : []).map(bt => ({
-                ...bt,
-                _table: 'bank_transactions',
-                timestamp: bt.payment_date || bt.created_at,
-                transactionId: bt.transaction_reference || bt.receipt_number,
-                payerName: bt.payer_name || bt.received_by,
-                phoneNumber: bt.payer_account || ''
-            }));
+            const normalizedBankTxs = (Array.isArray(bankTxs) ? bankTxs : []).map(bt => {
+                const meta = typeof bt.payload === 'string' ? safeParseMetadata(bt.payload) : (bt.payload || {});
+                return {
+                    ...bt,
+                    _table: 'bank_transactions',
+                    timestamp: bt.transaction_date || bt.created_at,
+                    transactionId: bt.reference || bt.id,
+                    payerName: bt.sender_name || 'External Deposit',
+                    phoneNumber: meta?.customerMobileNumber || meta?.phoneNumber || '',
+                    metadata: bt.payload
+                };
+            });
             
             const safeUsrs = Array.isArray(usrs) ? usrs : [];
 

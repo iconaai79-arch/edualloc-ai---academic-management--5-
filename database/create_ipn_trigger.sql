@@ -68,6 +68,12 @@ BEGIN
             NEW.payload->>'paybill'
         );
         
+        resolved_invoice_id := COALESCE(
+            NEW.payload->>'invoice_id',
+            NEW.payload->>'invoiceId',
+            NEW.payload->>'linked_invoice_id'
+        );
+        
         BEGIN
             payload_date := (NEW.payload->>'timestamp')::timestamp with time zone;
         EXCEPTION WHEN OTHERS THEN
@@ -141,27 +147,43 @@ BEGIN
             END IF;
         END IF;
 
+        -- 2.6. If we have a resolved_invoice_id from the payload, try to find the institution
+        IF resolved_invoice_id IS NOT NULL AND resolved_inst_id IS NULL THEN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'invoices') THEN
+                EXECUTE 'SELECT institution_id FROM public.invoices WHERE id = $1 LIMIT 1' INTO resolved_inst_id USING resolved_invoice_id;
+            END IF;
+            IF resolved_inst_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'car_sales_invoices') THEN
+                EXECUTE 'SELECT institution_id FROM public.car_sales_invoices WHERE id = $1 LIMIT 1' INTO resolved_inst_id USING resolved_invoice_id;
+            END IF;
+            IF resolved_inst_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_invoices') THEN
+                EXECUTE 'SELECT institution_id FROM public.ds_invoices WHERE id = $1 LIMIT 1' INTO resolved_inst_id USING resolved_invoice_id;
+            END IF;
+            IF resolved_inst_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pm_invoices') THEN
+                EXECUTE 'SELECT institution_id FROM public.pm_invoices WHERE id = $1 LIMIT 1' INTO resolved_inst_id USING resolved_invoice_id;
+            END IF;
+        END IF;
+
         -- 3. Try to resolve by matching customerReference
-        IF resolved_inst_id IS NULL AND payload_ref IS NOT NULL AND payload_ref <> '' THEN
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'car_sales_invoices') THEN
+        IF payload_ref IS NOT NULL AND payload_ref <> '' THEN
+            IF resolved_invoice_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'car_sales_invoices') THEN
                 EXECUTE 'SELECT institution_id, id FROM public.car_sales_invoices WHERE invoice_number = $1 OR registration_number = $1 LIMIT 1'
                 INTO resolved_inst_id, resolved_invoice_id
                 USING payload_ref;
             END IF;
             
-            IF resolved_inst_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'invoices') THEN
+            IF resolved_invoice_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'invoices') THEN
                 EXECUTE 'SELECT institution_id, id FROM public.invoices WHERE invoice_number = $1 LIMIT 1'
                 INTO resolved_inst_id, resolved_invoice_id
                 USING payload_ref;
             END IF;
             
-            IF resolved_inst_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_invoices') THEN
+            IF resolved_invoice_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_invoices') THEN
                 EXECUTE 'SELECT institution_id, id FROM public.ds_invoices WHERE invoice_number = $1 LIMIT 1'
                 INTO resolved_inst_id, resolved_invoice_id
                 USING payload_ref;
             END IF;
 
-            IF resolved_inst_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pm_invoices') THEN
+            IF resolved_invoice_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pm_invoices') THEN
                 EXECUTE 'SELECT institution_id, id FROM public.pm_invoices WHERE invoice_number = $1 LIMIT 1'
                 INTO resolved_inst_id, resolved_invoice_id
                 USING payload_ref;
