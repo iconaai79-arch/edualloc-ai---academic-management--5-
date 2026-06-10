@@ -4197,11 +4197,9 @@ export const App: React.FC = () => {
         },
         onDeleteCarPayment: async (paymentId: string) => {
             try {
-                const dbPayments = await apiService.fetchCarPayments();
-                const payment = dbPayments.find(p => p.id === paymentId);
+                const payment = carPayments.find(p => p.id === paymentId);
                 if (payment && payment.invoiceId) {
-                    const dbInvoices = await apiService.fetchCarInvoices();
-                    const invoice = dbInvoices.find(i => i.id === payment.invoiceId);
+                    const invoice = carInvoices.find(i => i.id === payment.invoiceId);
                     if (invoice) {
                         const newPaid = Math.max(0, (invoice.paidAmount || 0) - payment.amount);
                         const newBalance = invoice.totalAmount - newPaid;

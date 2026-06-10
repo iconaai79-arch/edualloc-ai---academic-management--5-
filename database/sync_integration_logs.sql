@@ -99,11 +99,17 @@ BEGIN
                OR (mpesa_config->>'paybillNumber') = payload_credit_acc
                OR (mpesa_config->>'paybill_number') = payload_credit_acc
                OR (kcb_config->>'shortCode') = payload_credit_acc
+               OR (kcb_config->>'short_code') = payload_credit_acc
                OR (kcb_config->>'tillNumber') = payload_credit_acc
+               OR (kcb_config->>'till_number') = payload_credit_acc
                OR (kcb_config->>'companyCode') = payload_credit_acc
+               OR (kcb_config->>'company_code') = payload_credit_acc
                OR (kcb_config->>'creditAccountIdentifier') = payload_credit_acc
+               OR (kcb_config->>'credit_account_identifier') = payload_credit_acc
                OR (kcb_config->>'accountNumber') = payload_credit_acc
+               OR (kcb_config->>'account_number') = payload_credit_acc
                OR (kcb_config->>'bank_account') = payload_credit_acc
+               OR (kcb_config->>'bankAccount') = payload_credit_acc
             LIMIT 1;
         END IF;
 
@@ -114,8 +120,13 @@ BEGIN
             WHERE (mpesa_config->>'paybillNumber') = payload_shortcode 
                OR (mpesa_config->>'paybill_number') = payload_shortcode
                OR (kcb_config->>'shortCode') = payload_shortcode
+               OR (kcb_config->>'short_code') = payload_shortcode
                OR (kcb_config->>'tillNumber') = payload_shortcode
+               OR (kcb_config->>'till_number') = payload_shortcode
                OR (kcb_config->>'companyCode') = payload_shortcode
+               OR (kcb_config->>'company_code') = payload_shortcode
+               OR (kcb_config->>'organizationShortCode') = payload_shortcode
+               OR (kcb_config->>'organization_short_code') = payload_shortcode
             LIMIT 1;
         END IF;
 

@@ -568,7 +568,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { data: instData } = await supabase
                 .from('institutions')
                 .select('id, kcb_config')
-                .or(`id.eq.${creditAccountIdentifier},code.eq.${creditAccountIdentifier}`)
+                .or(`id.eq.${creditAccountIdentifier},institution_code.eq.${creditAccountIdentifier}`)
                 .maybeSingle();
             if (instData) {
                 resolvedInstitutionId = instData.id;
@@ -582,12 +582,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (instList && instList.length > 0) {
                     const found = instList.find(i => {
                         const cfg = i.kcb_config || {};
-                        return String(cfg.shortCode || '').trim() === creditAccountIdentifier.trim() ||
-                               String(cfg.tillNumber || '').trim() === creditAccountIdentifier.trim() ||
-                               String(cfg.companyCode || '').trim() === creditAccountIdentifier.trim() ||
-                               String(cfg.creditAccountIdentifier || '').trim() === creditAccountIdentifier.trim() ||
-                               String(cfg.accountNumber || '').trim() === creditAccountIdentifier.trim() ||
-                               String(cfg.bank_account || '').trim() === creditAccountIdentifier.trim();
+                        return String(cfg.shortCode || cfg.short_code || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.tillNumber || cfg.till_number || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.companyCode || cfg.company_code || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.creditAccountIdentifier || cfg.credit_account_identifier || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.accountNumber || cfg.account_number || '').trim() === creditAccountIdentifier.trim() ||
+                               String(cfg.bank_account || cfg.bankAccount || '').trim() === creditAccountIdentifier.trim();
                     });
                     if (found) {
                         resolvedInstitutionId = found.id;
@@ -602,7 +602,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { data: instData } = await supabase
                 .from('institutions')
                 .select('id, kcb_config')
-                .or(`id.eq.${directKey},code.eq.${directKey}`)
+                .or(`id.eq.${directKey},institution_code.eq.${directKey}`)
                 .maybeSingle();
             if (instData) {
                 resolvedInstitutionId = instData.id;
@@ -619,9 +619,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const found = instList.find(i => {
                     const cfg = i.kcb_config || {};
                     const sc = String(cfg.shortCode || cfg.short_code || '').trim();
-                    const tn = String(cfg.tillNumber || '').trim();
-                    const cc = String(cfg.companyCode || '').trim();
-                    const osc = String(cfg.organizationShortCode || '').trim();
+                    const tn = String(cfg.tillNumber || cfg.till_number || '').trim();
+                    const cc = String(cfg.companyCode || cfg.company_code || '').trim();
+                    const osc = String(cfg.organizationShortCode || cfg.organization_short_code || '').trim();
 
                     // Prioritize matching tillNumber if present
                     if (tillNumber) {
@@ -842,7 +842,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { data: instById } = await supabase.from('institutions').select('*').eq('id', creditAccountIdentifier).maybeSingle();
                 inst = instById;
                 if (!inst) {
-                    const { data: instByCode } = await supabase.from('institutions').select('*').eq('code', creditAccountIdentifier).maybeSingle();
+                    const { data: instByCode } = await supabase.from('institutions').select('*').eq('institution_code', creditAccountIdentifier).maybeSingle();
                     inst = instByCode;
                 }
             }
@@ -853,7 +853,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { data: instById } = await supabase.from('institutions').select('*').eq('id', directKey).maybeSingle();
                 inst = instById;
                 if (!inst) {
-                    const { data: instByCode } = await supabase.from('institutions').select('*').eq('code', directKey).maybeSingle();
+                    const { data: instByCode } = await supabase.from('institutions').select('*').eq('institution_code', directKey).maybeSingle();
                     inst = instByCode;
                 }
             }

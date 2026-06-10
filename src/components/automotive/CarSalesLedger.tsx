@@ -67,6 +67,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
     const [stkLoading, setStkLoading] = useState(false);
     const [stkStatus, setStkStatus] = useState<'idle' | 'pending' | 'success' | 'failed'>('idle');
     const [stkMessage, setStkMessage] = useState('');
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     // Bulk Invoice Reminders State
     const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
@@ -629,7 +630,10 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                 paginatedInvoices.map(inv => {
                                     const listing = listings.find(l => l.id === inv.listingId);
                                     return (
-                                        <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
+                                        <tr 
+                                            key={inv.id} 
+                                            className={`hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all duration-500 ${deletingId === inv.id ? 'opacity-0 translate-x-4 scale-95 pointer-events-none' : ''}`}
+                                        >
                                             {activeTab === 'invoices' && (
                                                 <td className="pl-8 py-6">
                                                     <input 
@@ -685,13 +689,26 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                         <button 
                                                             onClick={async () => {
                                                                 if (window.confirm("Are you sure you want to delete this invoice?")) {
-                                                                    await onDeleteInvoice(inv.id);
+                                                                    setDeletingId(inv.id);
+                                                                    await new Promise(resolve => setTimeout(resolve, 500));
+                                                                    try {
+                                                                        await onDeleteInvoice(inv.id);
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                    } finally {
+                                                                        setDeletingId(null);
+                                                                    }
                                                                 }
                                                             }}
-                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-red-600 transition-all"
+                                                            disabled={deletingId === inv.id}
+                                                            className={`p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl transition-all ${deletingId === inv.id ? 'opacity-50 cursor-not-allowed' : 'text-slate-400 hover:text-red-600'}`}
                                                             title="Delete Invoice"
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            {deletingId === inv.id ? (
+                                                                <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="w-4 h-4" />
+                                                            )}
                                                         </button>
                                                     )}
                                                     <button 
@@ -754,7 +771,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                 paginatedPayments.map(pay => {
                                     const inv = invoices.find(i => i.id === pay.invoiceId);
                                     return (
-                                        <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
+                                        <tr key={pay.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all duration-500 ${deletingId === pay.id ? 'opacity-0 translate-x-4 scale-95 pointer-events-none' : ''}`}>
                                             {/* Date */}
                                             <td className="px-8 py-6 text-sm font-bold text-slate-600 dark:text-slate-400">
                                                 {new Date(pay.paymentDate).toLocaleDateString()}
@@ -824,13 +841,26 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                         <button 
                                                             onClick={async () => {
                                                                 if (window.confirm("Are you sure you want to delete this payment?")) {
-                                                                    await onDeletePayment(pay.id);
+                                                                    setDeletingId(pay.id);
+                                                                    await new Promise(resolve => setTimeout(resolve, 500));
+                                                                    try {
+                                                                        await onDeletePayment(pay.id);
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                    } finally {
+                                                                        setDeletingId(null);
+                                                                    }
                                                                 }
                                                             }}
-                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-red-600 transition-all"
+                                                            disabled={deletingId === pay.id}
+                                                            className={`p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl transition-all ${deletingId === pay.id ? 'opacity-50 cursor-not-allowed' : 'text-slate-400 hover:text-red-600'}`}
                                                             title="Delete Payment"
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            {deletingId === pay.id ? (
+                                                                <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="w-4 h-4" />
+                                                            )}
                                                         </button>
                                                     )}
                                                 </div>

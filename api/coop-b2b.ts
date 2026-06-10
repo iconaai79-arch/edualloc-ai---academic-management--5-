@@ -673,7 +673,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { data: inst } = await supabase
                     .from('institutions')
                     .select('*')
-                    .eq('code', instCode)
+                    .eq('institution_code', instCode)
                     .maybeSingle();
                 institution = inst;
             }
@@ -803,7 +803,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { data: inst } = await supabase
                     .from('institutions')
                     .select('*')
-                    .eq('code', instCode)
+                    .eq('institution_code', instCode)
                     .maybeSingle();
                 institution = inst;
             }
