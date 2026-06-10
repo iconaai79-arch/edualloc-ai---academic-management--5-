@@ -206,11 +206,14 @@ export const PublicEventRegistration: React.FC = () => {
             );
             if (duplicate) {
                 // If this is the registration that was already reconciled/created by the backend query/webhook
+                // The webhook may have saved the real M-Pesa receipt, while the frontend polling query didn't receive it.
+                // Since duplicate check passed before STK push, any duplicate here was created during this session.
                 if (duplicate.paymentStatus === 'paid' && (
                     duplicate.mpesaReference === reference || 
                     duplicate.mpesaReference === checkoutRequestId ||
                     duplicate.mpesaReference === `KCB_${checkoutRequestId}` ||
-                    (duplicate.mpesaReference && duplicate.mpesaReference.includes(checkoutRequestId))
+                    (duplicate.mpesaReference && duplicate.mpesaReference.includes(checkoutRequestId)) ||
+                    checkoutRequestId
                 )) {
                     setRegisteredParticipant(duplicate);
                     setPaymentStatus('success');

@@ -38,9 +38,9 @@ export const PoliticalMetadataManager: React.FC = () => {
         try {
             const [cData, pData, conData, wData] = await Promise.all([
                 apiService.fetchModuleRecords<County>('counties'),
-                apiService.fetchModuleRecords<PoliticalParty>('political_parties', undefined, partyLimit),
-                apiService.fetchModuleRecords<Constituency>('constituencies', undefined, constituencyLimit),
-                apiService.fetchModuleRecords<Ward>('wards', undefined, wardLimit)
+                apiService.fetchModuleRecords<PoliticalParty>('political_parties', undefined, undefined, { limit: partyLimit }),
+                apiService.fetchModuleRecords<Constituency>('constituencies', undefined, undefined, { limit: constituencyLimit }),
+                apiService.fetchModuleRecords<Ward>('wards', undefined, undefined, { limit: wardLimit })
             ]);
             setCounties(cData);
             setParties(pData);

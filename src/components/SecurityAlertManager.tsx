@@ -181,7 +181,7 @@ export const SecurityAlertManager: React.FC<SecurityAlertManagerProps> = ({ aler
                                         {alert.type} - {alert.severity}
                                     </span>
                                     <p className="text-sm text-slate-600 dark:text-slate-300">{alert.description}</p>
-                                    <p className="text-xs text-slate-400 mt-2">{new Date(alert.createdAt)?.toLocaleString()}</p>
+                                    <p className="text-xs text-slate-400 mt-2">{alert.createdAt ? new Date(alert.createdAt).toLocaleString() : 'N/A'}</p>
                                 </div>
                                 <button onClick={() => onResolveAlert(alert.id)} className="text-green-600 hover:text-green-800 text-sm font-medium flex items-center gap-1">
                                     <CheckIcon className="w-4 h-4" /> Resolve
@@ -214,7 +214,7 @@ export const SecurityAlertManager: React.FC<SecurityAlertManagerProps> = ({ aler
                                         <td className="py-2">{alert.targetName}</td>
                                         <td className="py-2">{alert.type}</td>
                                         <td className="py-2 text-slate-500 truncate max-w-xs">{alert.description}</td>
-                                        <td className="py-2 text-slate-400">{new Date(alert.createdAt).toLocaleDateString()}</td>
+                                        <td className="py-2 text-slate-400">{alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : 'N/A'}</td>
                                     </tr>
                                 ))}
                             </tbody>

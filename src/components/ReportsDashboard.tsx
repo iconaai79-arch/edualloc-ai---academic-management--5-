@@ -489,8 +489,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const contractStats = useMemo(() => {
         const list = Array.isArray(contracts) ? contracts.filter(c => c) : [];
         const pending = list.filter(c => c && c.status === 'pending').length;
-        const accepted = list.filter(c => c && c.status === 'accepted').length;
-        const rejected = list.filter(c => c && c.status === 'rejected').length;
+        const accepted = list.filter(c => c && c.status === 'signed').length;
+        const rejected = list.filter(c => c && c.status === 'expired').length;
         return { pending, accepted, rejected };
     }, [contracts]);
 
@@ -640,8 +640,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 subjectAllocationStatus,
                 `Workload & Statistics Report${departmentFilter !== 'all' ? ` - ${(Array.isArray(departments) ? departments : []).find(d => d && d.id === departmentFilter)?.name}` : ''}`,
                 letterheadConfig,
-                footerImageUrl,
-                logoUrl
+                footerImageUrl ?? null,
+                logoUrl ?? null
             );
             const link = document.createElement('a');
             link.href = pdfUrl;
@@ -674,8 +674,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 subjectAllocationStatus,
                 `Workload & Statistics Report${departmentFilter !== 'all' ? ` - ${(Array.isArray(departments) ? departments : []).find(d => d && d.id === departmentFilter)?.name}` : ''}`,
                 letterheadConfig,
-                footerImageUrl,
-                logoUrl
+                footerImageUrl ?? null,
+                logoUrl ?? null
             );
             setPreviewPdfFilename(`Workload_Report_${new Date().toISOString().split('T')[0]}.pdf`);
             setPreviewPdfUrl(pdfUrl);
@@ -1232,7 +1232,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         <AdvisoryReportView
                             generatedTimetable={filteredTimetableEntries || []}
                             rooms={rooms || []}
-                            timetableSettings={gridSettings}
                             letterheadConfig={letterheadConfig}
                             logoUrl={logoUrl || null}
                             footerImageUrl={footerImageUrl || null}
@@ -1261,8 +1260,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             studentAttendances={studentAttendances || []}
                             studentCheckIns={studentCheckIns || {}}
                             letterheadConfig={letterheadConfig}
-                            logoUrl={logoUrl}
-                            footerImageUrl={footerImageUrl}
+                            logoUrl={logoUrl ?? null}
+                            footerImageUrl={footerImageUrl ?? null}
                             currentInstitution={currentInstitution}
                         />
                     )}
@@ -1276,8 +1275,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             courses={courses || []}
                             departments={departments || []}
                             letterheadConfig={letterheadConfig}
-                            logoUrl={logoUrl}
-                            footerImageUrl={footerImageUrl}
+                            logoUrl={logoUrl ?? null}
+                            footerImageUrl={footerImageUrl ?? null}
                             currentInstitution={currentInstitution}
                         />
                     )}
@@ -1293,8 +1292,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             buildings={buildings || []}
                             courses={courses || []}
                             letterheadConfig={letterheadConfig}
-                            logoUrl={logoUrl}
-                            footerImageUrl={footerImageUrl}
+                            logoUrl={logoUrl ?? null}
+                            footerImageUrl={footerImageUrl ?? null}
                             currentInstitution={currentInstitution}
                             onPreviewPdf={(url: string, filename: string) => {
                                 setPreviewPdfUrl(url);
@@ -1316,8 +1315,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             getLecturerById={getLecturerById || (id => undefined)}
                             getRoomById={getRoomById || (id => undefined)}
                             letterheadConfig={letterheadConfig}
-                            logoUrl={logoUrl}
-                            footerImageUrl={footerImageUrl}
+                            logoUrl={logoUrl ?? null}
+                            footerImageUrl={footerImageUrl ?? null}
                             currentUser={currentUser}
                             timetableSettings={timetableSettings}
                             onSaveTimetableSettings={() => { }}
@@ -1350,15 +1349,20 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 onAddUser={props.onAddUser!}
                                 onEditUser={props.onEditUser!}
                                 onDeleteUser={props.onDeleteUser!}
+                                onLogAction={props.onLogAction!}
                                 onImportUsers={props.onImportUsers!}
+                                departments={departments}
+                                courses={courses}
+                                allocations={props.allocations}
+                                smsConfig={{} as any}
+                                currentUser={currentUser}
+                                subjects={props.subjects}
+                                letterheadConfig={props.letterheadConfig}
                                 onSendSms={props.onSendSms!}
                                 companyDetails={props.companyDetails!}
                                 currentInstitution={currentInstitution}
                                 isAutoMarket={true}
                                 onAddTransaction={props.onAddTransaction}
-                                departments={departments}
-                                subjects={subjects}
-                                courses={courses}
                             />
                         </React.Suspense>
                     )}

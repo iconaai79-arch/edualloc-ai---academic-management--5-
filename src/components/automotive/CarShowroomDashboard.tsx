@@ -315,16 +315,18 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                         <p className="text-[9px] text-slate-400 uppercase mt-1">Audit invoices & payments</p>
                                     </button>
 
-                                    <button 
-                                        onClick={() => onAction('reports')}
-                                        className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-[2rem] shadow-xl shadow-indigo-100 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
-                                    >
-                                        <div className="p-4 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
-                                            <BarChart3 className="w-6 h-6" />
-                                        </div>
-                                        <span className="font-black text-xs uppercase tracking-tight">Market Analytics</span>
-                                        <p className="text-[9px] opacity-80 uppercase mt-1">Performance insights</p>
-                                    </button>
+                                    {['director', 'finance'].includes(currentUser.role || '') && (
+                                        <button 
+                                            onClick={() => onAction('reports')}
+                                            className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-[2rem] shadow-xl shadow-indigo-100 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
+                                        >
+                                            <div className="p-4 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                                                <BarChart3 className="w-6 h-6" />
+                                            </div>
+                                            <span className="font-black text-xs uppercase tracking-tight">Market Analytics</span>
+                                            <p className="text-[9px] opacity-80 uppercase mt-1">Performance insights</p>
+                                        </button>
+                                    )}
                                 </>
                             )}
 

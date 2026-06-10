@@ -12,9 +12,9 @@ export const LogisticsDashboard: React.FC = () => {
     const [activeView, setActiveView] = useState<'mission_control' | 'fleet' | 'drivers'>('mission_control');
 
     const [vehicles] = useState<LogisticVehicle[]>([
-        { id: 'v1', institutionId: 'inst1', plate_number: 'KBA 123X', vehicleType: 'Tanker', capacity_rating: '15,000L', current_odometer: 45200, status: 'on_trip' },
-        { id: 'v2', institutionId: 'inst1', plate_number: 'KCC 789Y', vehicleType: 'Flatbed', capacity_rating: '30 Tons', current_odometer: 12800, status: 'available' },
-        { id: 'v3', institutionId: 'inst1', plate_number: 'KDD 456Z', vehicleType: 'Crane Truck', capacity_rating: '15 Tons', current_odometer: 8900, status: 'maintenance' }
+        { id: 'v1', institutionId: 'inst1', plateNumber: 'KBA 123X', vehicleType: 'Tanker', capacityRating: '15,000L', currentOdometer: 45200, status: 'on_trip' },
+        { id: 'v2', institutionId: 'inst1', plateNumber: 'KCC 789Y', vehicleType: 'Flatbed', capacityRating: '30 Tons', currentOdometer: 12800, status: 'available' },
+        { id: 'v3', institutionId: 'inst1', plateNumber: 'KDD 456Z', vehicleType: 'Crane Truck', capacityRating: '15 Tons', currentOdometer: 8900, status: 'maintenance' }
     ]);
 
     const [drivers] = useState<LogisticDriver[]>([
@@ -95,7 +95,7 @@ export const LogisticsDashboard: React.FC = () => {
                                        </div>
                                        <div>
                                            <div className="text-[10px] font-black text-indigo-500 uppercase mb-1">En Route</div>
-                                           <div className="text-sm font-black text-slate-900 dark:text-white">{vehicles.find(v => v.id === trip.vehicleId)?.plate_number}</div>
+                                           <div className="text-sm font-black text-slate-900 dark:text-white">{vehicles.find(v => v.id === trip.vehicleId)?.plateNumber}</div>
                                        </div>
                                        <div className="w-[1px] h-10 bg-slate-200 dark:bg-slate-700"></div>
                                        <div>
@@ -140,13 +140,13 @@ export const LogisticsDashboard: React.FC = () => {
                                             <div>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Driver</p>
                                                 <p className="text-sm font-black text-slate-700 dark:text-slate-300">
-                                                    {drivers.find(d => d.id === trip.driverId)?.license_number}
+                                                    {drivers.find(d => d.id === trip.driverId)?.licenseNumber}
                                                 </p>
                                             </div>
                                             <div>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Vehicle</p>
                                                 <p className="text-sm font-black text-slate-700 dark:text-slate-300">
-                                                    {vehicles.find(v => v.id === trip.vehicleId)?.plate_number}
+                                                    {vehicles.find(v => v.id === trip.vehicleId)?.plateNumber}
                                                 </p>
                                             </div>
                                         </div>
@@ -215,10 +215,10 @@ export const LogisticsDashboard: React.FC = () => {
                                    <div key={driver.id} className="flex items-center justify-between">
                                        <div className="flex items-center gap-4">
                                            <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center font-black text-slate-400">
-                                               {driver.license_number.charAt(0)}
+                                               {driver.licenseNumber.charAt(0)}
                                            </div>
                                            <div>
-                                               <div className="text-sm font-black text-slate-800 dark:text-white">{driver.license_number}</div>
+                                               <div className="text-sm font-black text-slate-800 dark:text-white">{driver.licenseNumber}</div>
                                                <div className="text-[10px] font-bold text-slate-500 uppercase">{driver.specialization}</div>
                                            </div>
                                        </div>

@@ -158,10 +158,10 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                 if (targetType === 'store' && targetId) return s.storeId === targetId;
                 if (targetType === 'agent' && targetId) return s.agentId === targetId;
                 if (targetType === 'student' && targetId) {
-                    return s.metadata?.studentId === targetId || s.customerId === targetId;
+                    return (s as any).metadata?.studentId === targetId || s.customerId === targetId;
                 }
                 if (targetType === 'teacher' && targetId) {
-                    return s.metadata?.studentId === targetId || s.customerId === targetId;
+                    return (s as any).metadata?.studentId === targetId || s.customerId === targetId;
                 }
                 return true;
             });

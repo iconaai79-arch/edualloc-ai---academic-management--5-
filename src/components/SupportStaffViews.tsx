@@ -2161,12 +2161,12 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
                                 <h3 className="text-xl font-black uppercase tracking-tight mb-8">Active Guests Hub</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {activeVisitors.map(v => {
-                                        const watchlistHit = watchlist.find(w => w.phoneNumber === v.phoneNumber || w.name.toLowerCase() === v.name.toLowerCase());
+                                        const watchlistHit = watchlist.find(w => w.phoneNumber === v.phoneNumber || (v.name && w.name.toLowerCase() === v.name.toLowerCase()));
                                         return (
                                             <div key={v.id} className={`p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border ${watchlistHit ? 'border-amber-300 bg-amber-50/30' : 'border-slate-100 dark:border-slate-800'} space-y-4 relative overflow-hidden group hover:border-indigo-200 transition-all shadow-sm`}>
                                                 <div className="flex justify-between items-start">
                                                     <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-600 font-black shadow-sm">
-                                                        {v.name.charAt(0)}
+                                                        {v.name?.charAt(0) || 'V'}
                                                     </div>
                                                     {watchlistHit && (
                                                         <span className="px-2.5 py-1 bg-amber-500 text-white text-[9px] font-black uppercase rounded-lg shadow-sm flex items-center gap-1 animate-pulse">
@@ -2514,10 +2514,10 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
                         <div className="p-8 space-y-6">
                             <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center gap-4 border border-indigo-100 dark:border-indigo-800">
                                 <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-600 shadow-sm font-black">
-                                    {redirectingVisitor.name.charAt(0)}
+                                    {redirectingVisitor.name?.charAt(0) || '?'}
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="font-black text-slate-900 dark:text-white uppercase truncate">{redirectingVisitor.name}</p>
+                                    <p className="font-black text-slate-900 dark:text-white uppercase truncate">{redirectingVisitor.name || 'Unknown'}</p>
                                     <p className="text-[10px] text-indigo-600 font-bold uppercase">Current Host: {users.find(u => u.id === redirectingVisitor.hostId)?.name || 'N/A'}</p>
                                 </div>
                             </div>

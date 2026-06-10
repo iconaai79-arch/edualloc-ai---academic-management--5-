@@ -28,7 +28,7 @@ export const MedicalRegistryManager: React.FC = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<ICDCode>('icd_codes', undefined, limit);
+            const data = await apiService.fetchModuleRecords<ICDCode>('icd_codes', undefined, undefined, { limit });
             setIcdCodes(data);
         } catch (e) {
             console.error(e);

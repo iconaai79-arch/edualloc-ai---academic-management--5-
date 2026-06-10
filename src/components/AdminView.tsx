@@ -940,7 +940,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
             if (tab.id === 'reports') {
                 if (props.currentUser?.role === 'super_admin') return true;
-                if (isAutoMarket) return ['director', 'finance', 'finance_officer'].includes(roleToUse || '');
+                if (isAutoMarket) return ['director', 'finance'].includes(roleToUse || '');
                 return true; // Default visibility for other institutional types
             }
 
@@ -2962,11 +2962,17 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 letterheadConfig={props.letterheadConfig}
                             />
                         ) : isAutoMarket ? (
-                            <CarShowroomReportsDashboard
-                                institutionId={props.currentInstitution?.id || ''}
-                                users={props.users || []}
-                                companyDetails={props.companyDetails}
-                            />
+                            ['director', 'finance'].includes(roleToUse || '') ? (
+                                <CarShowroomReportsDashboard
+                                    institutionId={props.currentInstitution?.id || ''}
+                                    users={props.users || []}
+                                    companyDetails={props.companyDetails}
+                                />
+                            ) : (
+                                <div className="p-8 bg-rose-50 dark:bg-rose-950/20 border border-rose-250 dark:border-rose-900 rounded-[2.5rem] text-rose-850 dark:text-rose-400 font-black text-xs uppercase tracking-widest text-center">
+                                    ⛔ Access Denied: Only the Director and Finance Manager are authorized to view financial reports and analysis.
+                                </div>
+                            )
                         ) : (
                             <ReportsDashboard
                                 activeScope={activeScope}

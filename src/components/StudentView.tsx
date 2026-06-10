@@ -344,7 +344,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         lessonEnd.setHours(hours, minutes, 0, 0);
         const isPast = now > lessonEnd;
 
-        if (isPast && !hasRated) {
+        if (isPast && !hasRated && onRateLesson) {
             return (
                 <button onClick={() => onRateLesson(entry)} className="w-full text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-md px-2 py-1 mt-1">
                     Rate Lesson
@@ -396,15 +396,15 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                     logoUrl={logoUrl}
                     footerImageUrl={footerImageUrl}
                     lessonRatings={lessonRatings}
-                    onRateLesson={onRateLesson}
+                    onRateLesson={onRateLesson!}
                     userTasks={userTasks}
-                    onAddTask={onAddTask}
-                    onUpdateTask={onUpdateTask}
-                    onDeleteTask={onDeleteTask}
+                    onAddTask={onAddTask!}
+                    onUpdateTask={onUpdateTask!}
+                    onDeleteTask={onDeleteTask!}
                     currentInstitution={currentInstitution}
                     studentAttendances={studentAttendances}
                     books={books}
-                    onAccessAlumnaPortal={onAccessAlumnaPortal}
+                    onAccessAlumnaPortal={onAccessAlumnaPortal!}
                     schoolRegistry={schoolRegistry}
                 />
             )}
@@ -502,7 +502,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                 </div>
             )}
             {activeTab === 'assignments' && <StudentAssignmentManager user={user} assignments={assignments} submissions={submissions} getSubjectById={getSubjectById} getLecturerById={getLecturerById} onAddSubmission={onAddSubmission} />}
-            {activeTab === 'feedback' && <FeedbackForm user={user} onAddFeedback={onAddFeedback} />}
+            {activeTab === 'feedback' && <FeedbackForm user={user} onAddFeedback={onAddFeedback!} />}
             {activeTab === 'absences' && (
                 <div>
                     <div className="flex justify-between items-center mb-4">
@@ -523,7 +523,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                     lecturer={getLecturerById(ratingLesson.lecturerId)}
                     onClose={() => setRatingLesson(null)}
                     onSubmit={(rating, comment) => {
-                        onAddLessonRating(ratingLesson.id, rating, comment);
+                        onAddLessonRating?.(ratingLesson.id, rating, comment);
                         setRatingLesson(null);
                     }}
                 />

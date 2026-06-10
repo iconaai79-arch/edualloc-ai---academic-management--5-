@@ -63,9 +63,9 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     setSelectedParent(parentMatch);
                     return;
                 }
-            } else if (studentMatch.parentPhone) {
+            } else if ((studentMatch as any).parentPhone) {
                  // Try finding parent by phone if IDs are not there
-                 const parentMatch = users.find(u => u.role === 'parent' && u.phoneNumber === studentMatch.parentPhone);
+                 const parentMatch = users.find(u => u.role === 'parent' && u.phoneNumber === (studentMatch as any).parentPhone);
                  if (parentMatch) {
                      setSelectedParent(parentMatch);
                      return;
@@ -73,10 +73,10 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                  // If no user object, create a mock for display
                  setSelectedParent({
                     id: 'temp',
-                    name: studentMatch.parentName || 'Unknown Parent',
-                    phoneNumber: studentMatch.parentPhone,
+                    name: (studentMatch as any).parentName || 'Unknown Parent',
+                    phoneNumber: (studentMatch as any).parentPhone,
                     role: 'parent',
-                    email: studentMatch.parentEmail || '',
+                    email: (studentMatch as any).parentEmail || '',
                     institutionId: currentInstitution.id
                  } as any);
                  return;
@@ -92,7 +92,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         if (parentDirectMatch) {
             setSelectedParent(parentDirectMatch);
             // Find associated student
-            const childMatch = users.find(u => u.role === 'student' && (u.parentIds?.includes(parentDirectMatch.id) || u.parentPhone === parentDirectMatch.phoneNumber));
+            const childMatch = users.find(u => u.role === 'student' && (u.parentIds?.includes(parentDirectMatch.id) || (u as any).parentPhone === parentDirectMatch.phoneNumber));
             if (childMatch) {
                 setSelectedStudent(childMatch);
             } else {
