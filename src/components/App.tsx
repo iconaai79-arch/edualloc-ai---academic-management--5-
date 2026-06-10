@@ -1091,10 +1091,10 @@ export const App: React.FC = () => {
                         apiService.fetchCarAppraisals(effectiveInstIdFinal).catch(() => []),
                         apiService.fetchCarInvoices(effectiveInstIdFinal).catch(() => []),
                         apiService.fetchCarPayments(undefined, effectiveInstIdFinal).catch(() => []),
-                        apiService.fetchModuleRecords<BankTransaction>('bank_transactions', effectiveInstIdFinal).catch(() => []),
                     ]) : Promise.resolve([]),
                     // System Batch
                     Promise.all([
+                        apiService.fetchModuleRecords<BankTransaction>('bank_transactions', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstIdFinal).catch(() => []),
@@ -1125,8 +1125,8 @@ export const App: React.FC = () => {
                 if (isCoop && coopResults) [cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = coopResults;
                 if (isLaw && legalResults) [lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements] = legalResults;
 
-                if ((isBusiness || isHigherEd) && carResults) [csList, csTest, csAppr, cInvs, cPay, csBank] = carResults;
-                if (systemResults) [sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads] = systemResults;
+                if ((isBusiness || isHigherEd) && carResults) [csList, csTest, csAppr, cInvs, cPay] = carResults;
+                if (systemResults) [csBank, sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads] = systemResults;
 
                 console.log("[Data Refresh] Optimized Batches Resolved");
 

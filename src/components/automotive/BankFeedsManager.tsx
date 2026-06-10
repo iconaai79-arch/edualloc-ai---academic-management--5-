@@ -43,13 +43,25 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     const [isReconciling, setIsReconciling] = useState(false);
 
     const filteredTransactions = useMemo(() => {
-        return transactions.filter(t => {
-            const matchesSearch = 
-                t.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.senderName?.toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
-            return matchesSearch && matchesStatus;
-        }).sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime());
+        return transactions
+            .map(t => ({
+                ...t,
+                // Normalize snake_case Supabase fields to camelCase
+                transactionDate: t.transactionDate || (t as any).transaction_date || '',
+                senderName: t.senderName || (t as any).sender_name || '',
+                bankName: t.bankName || (t as any).bank_name || '',
+                linkedInvoiceId: t.linkedInvoiceId || (t as any).linked_invoice_id || '',
+                reconciledBy: t.reconciledBy || (t as any).reconciled_by || '',
+                reference: t.reference || '',
+            }))
+            .filter(t => {
+                const matchesSearch = 
+                    (t.reference || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (t.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
+                const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
+                return matchesSearch && matchesStatus;
+            })
+            .sort((a, b) => new Date(b.transactionDate || 0).getTime() - new Date(a.transactionDate || 0).getTime());
     }, [transactions, searchQuery, statusFilter]);
 
     const handleAutoReconcile = () => {

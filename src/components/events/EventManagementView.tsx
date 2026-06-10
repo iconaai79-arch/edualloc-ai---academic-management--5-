@@ -198,6 +198,9 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
     const activeEventTransactions = useMemo(() => {
         return transactions.filter(t => {
+            // Bank transactions from bank_transactions table — show all for this institution
+            if (t._table === 'bank_transactions') return true;
+            // M-PESA transactions — filter by eventId in metadata
             const meta = safeParseMetadata(t.metadata);
             return meta && meta.eventId === selectedEventId;
         });
@@ -1295,20 +1298,20 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                             <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Bank Receipts (Paid)</span>
                                 <div className="text-2xl font-black text-green-600 dark:text-green-400 mt-1">
-                                    KES {activeEventTransactions.filter(t => t.status === 'completed' || t.status === 'success' || t.status === 'paid').reduce((acc, curr) => acc + Number(curr.amount || 0), 0)?.toLocaleString()}
+                                    KES {activeEventTransactions.filter(t => t.status === 'completed' || t.status === 'success' || t.status === 'paid' || t.status === 'reconciled').reduce((acc, curr) => acc + Number(curr.amount || 0), 0)?.toLocaleString()}
                                 </div>
                                 <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 block">
-                                    {activeEventTransactions.filter(t => t.status === 'completed' || t.status === 'success' || t.status === 'paid').length} successful transactions
+                                    {activeEventTransactions.filter(t => t.status === 'completed' || t.status === 'success' || t.status === 'paid' || t.status === 'reconciled').length} successful transactions
                                 </span>
                             </div>
                             
                             <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Pending Checkout Pushes</span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Pending / Unreconciled</span>
                                 <div className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                                    KES {activeEventTransactions.filter(t => t.status === 'pending' || t.status === 'idle').reduce((acc, curr) => acc + Number(curr.amount || 0), 0)?.toLocaleString()}
+                                    KES {activeEventTransactions.filter(t => t.status === 'pending' || t.status === 'idle' || t.status === 'unreconciled').reduce((acc, curr) => acc + Number(curr.amount || 0), 0)?.toLocaleString()}
                                 </div>
                                 <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 block">
-                                    {activeEventTransactions.filter(t => t.status === 'pending' || t.status === 'idle').length} pending user checks
+                                    {activeEventTransactions.filter(t => t.status === 'pending' || t.status === 'idle' || t.status === 'unreconciled').length} pending checks
                                 </span>
                             </div>
 
@@ -1375,7 +1378,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                                         KES {Number(tx.amount || 0)?.toLocaleString()}
                                                     </td>
                                                     <td className="py-3">
-                                                        {(tx.status === 'completed' || tx.status === 'success' || tx.status === 'paid') ? (
+                                                        {(tx.status === 'completed' || tx.status === 'success' || tx.status === 'paid' || tx.status === 'reconciled') ? (
                                                             <span className="px-2 py-0.5 bg-green-50 dark:bg-green-950/20 text-green-600 rounded text-[9px] font-bold">PAID</span>
                                                         ) : (tx.status === 'failed' || tx.status === 'cancelled') ? (
                                                             <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/20 text-red-600 rounded text-[9px] font-bold">FAILED</span>

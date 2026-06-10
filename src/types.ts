@@ -4317,16 +4317,25 @@ export interface CarLead {
 export interface BankTransaction {
     id: string;
     institutionId: string;
+    institution_id?: string;
     amount: number;
     transactionDate: string;
+    transaction_date?: string;
     reference: string;
     senderName?: string;
+    sender_name?: string;
     bankName?: string;
+    bank_name?: string;
     status: 'reconciled' | 'unreconciled';
     linkedInvoiceId?: string;
+    linked_invoice_id?: string;
     reconciledAt?: string;
+    reconciled_at?: string;
     reconciledBy?: string;
+    reconciled_by?: string;
     createdAt: string;
+    created_at?: string;
+    payload?: any;
 }
 
 
