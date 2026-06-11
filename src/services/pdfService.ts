@@ -924,7 +924,7 @@ export const generateRetailReceiptPdf = async (
         yPos += logoHeight + 5;
     }
 
-    doc.setFontSize(14);
+    doc.setFontSize(isEducation ? 11 : 14);
     doc.setFont('helvetica', 'bold');
     centerText(institution.name || 'Learning Institution', yPos);
     yPos += 5;
