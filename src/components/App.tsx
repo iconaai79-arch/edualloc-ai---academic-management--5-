@@ -1112,6 +1112,7 @@ export const App: React.FC = () => {
                         apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstIdFinal).catch(() => []),
                         currentUser.role === 'super_admin' ? apiService.fetchDemoRequests().catch(() => []) : Promise.resolve([]),
+                        apiService.fetchModuleRecords<any>('integration_logs').catch(() => []),
                     ])
                 ]) as any[];
                 
@@ -1126,7 +1127,8 @@ export const App: React.FC = () => {
                 if (isLaw && legalResults) [lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements] = legalResults;
 
                 if ((isBusiness || isHigherEd) && carResults) [csList, csTest, csAppr, cInvs, cPay] = carResults;
-                if (systemResults) [csBank, sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads] = systemResults;
+                let rawPayloads: any[] = [];
+                if (systemResults) [csBank, sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads, rawPayloads] = systemResults;
 
                 console.log("[Data Refresh] Optimized Batches Resolved");
 
@@ -1187,7 +1189,94 @@ export const App: React.FC = () => {
                 setCarAppraisals(csAppr || []);
                 setCarInvoices(cInvs || []);
                 setCarPayments(cPay || []);
-                setCarBankTransactions(csBank || []);
+                // Filter and normalize raw integration payloads
+                const currentInst = insts?.find(i => i.id === effectiveInstIdFinal);
+                const normalizedPayloads = (rawPayloads || [])
+                  .filter(p => {
+                      if (!p || !p.payload) return false;
+                      const provider = p.provider;
+                      const status = (p.status || '').toLowerCase();
+                      if (!['kcb_ipn', 'kcb_stk_callback', 'coop'].includes(provider) || status !== 'received') return false;
+
+                      // Tenancy filter: Match this payload to the active institution
+                      const payload = p.payload;
+                      const creditAcc = payload.creditAccountIdentifier || payload.institutionId || payload.institution_id;
+                      const shortCode = payload.organizationShortCode || payload.shortCode || payload.short_code || payload.paybill || payload.tillNumber;
+
+                      // 1. Direct ID/Code check
+                      if (creditAcc && (creditAcc === effectiveInstIdFinal || creditAcc === currentInst?.institutionCode)) {
+                          return true;
+                      }
+
+                      // 2. Shortcode/Till check using current institution configs
+                      if (currentInst) {
+                          const mpesaPaybill = currentInst.mpesaConfig?.paybillNumber || currentInst.mpesa_config?.paybillNumber || currentInst.mpesa_config?.paybill_number;
+                          const kcbSC = currentInst.kcbConfig?.shortCode || currentInst.kcb_config?.shortCode || currentInst.kcb_config?.short_code;
+                          const kcbTill = currentInst.kcbConfig?.tillNumber || currentInst.kcb_config?.tillNumber || currentInst.kcb_config?.till_number;
+                          const kcbCompany = currentInst.kcbConfig?.companyCode || currentInst.kcb_config?.companyCode || currentInst.kcb_config?.company_code;
+
+                          const oscStr = shortCode ? String(shortCode).trim() : '';
+                          if (oscStr) {
+                              if (mpesaPaybill && String(mpesaPaybill).trim() === oscStr) return true;
+                              if (kcbSC && String(kcbSC).trim() === oscStr) return true;
+                              if (kcbTill && String(kcbTill).trim() === oscStr) return true;
+                              if (kcbCompany && String(kcbCompany).trim() === oscStr) return true;
+                          }
+                      }
+                      
+                      return false;
+                  })
+                  .map(p => {
+                      const payload = p.payload;
+                      // Resolve transaction ID / reference
+                      const txnId = payload.transactionReference || 
+                                    payload.checkoutRequestId || 
+                                    payload.checkoutRequestID || 
+                                    payload.requestId || 
+                                    payload.transactionId || 
+                                    payload.transactionID || 
+                                    payload.Body?.stkCallback?.CheckoutRequestID || 
+                                    payload.requestPayload?.primaryData?.checkoutRequestID || 
+                                    p.id;
+                      
+                      const amountStr = payload.transactionAmount || payload.amount || '0';
+                      const amount = parseFloat(amountStr) || 0;
+                      const date = payload.timestamp || p.created_at;
+                      
+                      const sender = payload.customerName || 
+                                     payload.payerName || 
+                                     payload.customerMobileNumber || 
+                                     payload.phoneNumber || 
+                                     'External Deposit';
+
+                      return {
+                          id: txnId,
+                          institutionId: effectiveInstIdFinal,
+                          amount: amount,
+                          transactionDate: date,
+                          reference: txnId,
+                          senderName: sender,
+                          bankName: p.provider === 'coop' ? 'Co-op Bank' : 'KCB',
+                          status: 'unreconciled',
+                          linkedInvoiceId: payload.invoice_id || payload.invoiceId || payload.linked_invoice_id || null,
+                          createdAt: p.created_at,
+                          payload: payload,
+                          _source: 'payload_table'
+                      } as any;
+                  });
+
+                const mergedBankTransactions = [...(csBank || [])];
+                const seenTxnIds = new Set(mergedBankTransactions.map(t => t.id || t.reference));
+                
+                normalizedPayloads.forEach(pTxn => {
+                    if (!seenTxnIds.has(pTxn.id) && !seenTxnIds.has(pTxn.reference)) {
+                        mergedBankTransactions.push(pTxn);
+                        seenTxnIds.add(pTxn.id);
+                        if (pTxn.reference) seenTxnIds.add(pTxn.reference);
+                    }
+                });
+
+                setCarBankTransactions(mergedBankTransactions);
 
                 setRetailExpenses(retExp || []);
                 setRetailStores(rStores || []);

@@ -102,12 +102,12 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items', 'hospitality_vehicles', 'events', 'event_categories', 'event_participants', 'event_splits', 'event_pledges', 'ds_students', 'ds_lessons', 'ds_settings', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles', 'ds_skill_mastery', 'ds_votes', 'ds_license_categories', 'ds_leads', 'store_categories'];
+const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items', 'hospitality_vehicles', 'events', 'event_categories', 'event_participants', 'event_splits', 'event_pledges', 'ds_students', 'ds_lessons', 'ds_settings', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles', 'ds_skill_mastery', 'ds_votes', 'ds_license_categories', 'ds_leads', 'store_categories', 'integration_logs'];
 
 const isTableWithoutInstitutionId = (module: string) => {
   return [
     'counties', 'constituencies', 'wards', 'political_parties',
-    'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges'
+    'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs'
   ].includes(module);
 };
 
@@ -127,7 +127,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         const supabase = getSupabase();
-        if (!supabase) return res.status(500).json({ success: false, error: 'Supabase keys missing in environment' });
+        if (!supabase) return res.status(503).json({ success: false, error: 'Supabase keys missing in environment' });
 
         const authHeader = req.headers.authorization;
         const user = await getAuthUser(supabase, authHeader);
@@ -179,7 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (getStrParam(id)) q = q.eq('id', getStrParam(id));
-            if (getStrParam(queryInstitutionId)) q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', getStrParam(queryInstitutionId));
+            if (getStrParam(queryInstitutionId) && !isTableWithoutInstitutionId(moduleName)) q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', getStrParam(queryInstitutionId));
 
             // Custom filters from other query params
             const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'institutionId', 'countyId'];
