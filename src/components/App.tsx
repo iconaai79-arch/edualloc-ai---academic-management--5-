@@ -3787,6 +3787,8 @@ export const App: React.FC = () => {
             return res; 
         },
         onRefreshData: async () => await loadData(false, true),
+        onAddRequisition: handleAddRequisition,
+        onUpdateRequisition: handleUpdateRequisition,
         onAddCounty: handleAddCounty,
         onUpdateCounty: handleUpdateCounty,
         onDeleteCounty: handleDeleteCounty,

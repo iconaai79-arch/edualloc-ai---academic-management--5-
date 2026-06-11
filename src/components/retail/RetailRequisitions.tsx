@@ -191,13 +191,26 @@ export function RetailRequisitions({
         try {
             const totalCost = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
 
-            await onAddRequisition({
+            const requisitionData = {
                 storeId: isEducation ? (selectedStoreId || 'CENTRAL_STORE') : selectedStoreId,
                 requestedBy: currentUser.id,
                 items,
                 totalEstimatedCost: totalCost,
                 submittedTo: isEducation ? submittedTo : undefined
-            });
+            };
+
+            if (typeof onAddRequisition === 'function') {
+                await onAddRequisition(requisitionData);
+            } else {
+                const newReq: Requisition = {
+                    ...requisitionData,
+                    id: `req_${Date.now()}`,
+                    status: 'pending',
+                    requestedDate: new Date().toISOString(),
+                    institutionId: institutionId
+                };
+                await apiService.saveModuleRecord('requisitions', newReq);
+            }
 
             setIsAddModalOpen(false);
             setItems([]);

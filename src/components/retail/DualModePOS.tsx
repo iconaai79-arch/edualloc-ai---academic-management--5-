@@ -171,6 +171,8 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         }
     };
 
+    const [institution, setInstitution] = useState<any>(null);
+
     useEffect(() => {
         fetchProducts();
         fetchCustomers();
@@ -178,6 +180,14 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         fetchCategories();
         if (isEducation) {
             fetchStudents();
+        }
+
+        if (institutionId) {
+            apiService.fetchInstitutions(institutionId).then(data => {
+                if (data && data.length > 0) {
+                    setInstitution(data[0]);
+                }
+            }).catch(() => {});
         }
 
         // Auto-migration for new schema fields in retail_sales (Safe execution)
@@ -478,12 +488,14 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                     }
 
                     // We generate the Blob URL for the PDF
-                    const dummyInstitution = { name: 'Retail Store', phoneNumber: '123-456-7890', email: 'store@example.com' } as any; // Assuming these might not be passed down, creating fallback.
+                    const actualInst = institution || { name: 'School Store', phoneNumber: '', email: '' };
                     const pdfUrl = await generateRetailReceiptPdf(
                         completeSaleData,
-                        dummyInstitution,
+                        actualInst,
                         {} as any, // company details
-                        null // default logo
+                        actualInst.logoUrl || null, // default logo
+                        false, // isReprint
+                        isEducation // isEducation
                     );
                     setReceiptPdfUrl(pdfUrl);
                 } catch (pdfErr) {

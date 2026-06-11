@@ -885,14 +885,15 @@ export const generateRetailReceiptPdf = async (
     institution: Institution,
     companyDetails: CompanyDetails,
     logoUrl: string | null,
-    isReprint: boolean = false
+    isReprint: boolean = false,
+    isEducation: boolean = false
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
 
     // 80mm Thermal Receipt (width: 80mm, dynamic height)
     // We estimate height based on items
-    const baseHeight = 150;
+    const baseHeight = isEducation ? 170 : 150;
     const itemHeight = 10;
     const itemsCount = saleData.items?.length || 0;
     const estimatedHeight = baseHeight + (itemsCount * itemHeight);
@@ -925,7 +926,7 @@ export const generateRetailReceiptPdf = async (
 
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    centerText(institution.name, yPos);
+    centerText(institution.name || 'Learning Institution', yPos);
     yPos += 5;
 
     doc.setFontSize(9);
@@ -952,20 +953,20 @@ export const generateRetailReceiptPdf = async (
         centerText("*** REPRINT ***", yPos);
         yPos += 6;
     }
-    centerText("SALES RECEIPT", yPos);
+    centerText(isEducation ? "STOCK ISSUANCE NOTE" : "SALES RECEIPT", yPos);
     yPos += 6;
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.text(`Date: ${new Date(saleData.createdAt || new Date())?.toLocaleString()}`, margin, yPos);
     yPos += 4;
-    doc.text(`Receipt #: ${saleData.id?.substring(0, 8).toUpperCase() || 'N/A'}`, margin, yPos);
+    doc.text(`${isEducation ? 'Issue Note #' : 'Receipt #'}: ${saleData.id?.substring(0, 8).toUpperCase() || 'N/A'}`, margin, yPos);
     yPos += 4;
-    doc.text(`Cashier: ${saleData.agentId ? 'Agent ' + saleData.agentId.substring(0, 4) : 'Main Store'}`, margin, yPos);
+    doc.text(`${isEducation ? 'Storekeeper' : 'Cashier'}: ${saleData.agentId ? 'Agent ' + saleData.agentId.substring(0, 4) : 'Main Store'}`, margin, yPos);
     yPos += 4;
 
     if (saleData.customerName) {
-        doc.text(`Customer: ${saleData.customerName}`, margin, yPos);
+        doc.text(`${isEducation ? 'Recipient' : 'Customer'}: ${saleData.customerName}`, margin, yPos);
         yPos += 4;
     }
 
@@ -978,8 +979,12 @@ export const generateRetailReceiptPdf = async (
     // 3. Items Header
     doc.setFont('helvetica', 'bold');
     doc.text("Item", margin, yPos);
-    doc.text("Qty", 45, yPos, { align: 'right' });
-    doc.text("Total", pageWidth - margin, yPos, { align: 'right' });
+    if (isEducation) {
+        doc.text("Qty Issued", pageWidth - margin, yPos, { align: 'right' });
+    } else {
+        doc.text("Qty", 45, yPos, { align: 'right' });
+        doc.text("Total", pageWidth - margin, yPos, { align: 'right' });
+    }
     yPos += 4;
 
     doc.line(margin, yPos, pageWidth - margin, yPos);
@@ -992,10 +997,13 @@ export const generateRetailReceiptPdf = async (
         const itemName = item.name.length > 20 ? item.name.substring(0, 18) + '...' : item.name;
         doc.text(itemName, margin, yPos);
 
-        doc.text(`${item.quantity} x ${item.unitPrice}`, 45, yPos, { align: 'right' });
-
-        const lineTotal = item.quantity * item.unitPrice;
-        doc.text(lineTotal?.toLocaleString(), pageWidth - margin, yPos, { align: 'right' });
+        if (isEducation) {
+            doc.text(`${item.quantity}`, pageWidth - margin, yPos, { align: 'right' });
+        } else {
+            doc.text(`${item.quantity} x ${item.unitPrice}`, 45, yPos, { align: 'right' });
+            const lineTotal = item.quantity * item.unitPrice;
+            doc.text(lineTotal?.toLocaleString(), pageWidth - margin, yPos, { align: 'right' });
+        }
 
         yPos += 5;
         totalItems += item.quantity;
@@ -1007,26 +1015,44 @@ export const generateRetailReceiptPdf = async (
     doc.setLineDashPattern([], 0);
     yPos += 6;
 
-    // 5. Totals
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text("TOTAL DUE:", 30, yPos);
-    doc.text(`Kes ${saleData.totalAmount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 6;
+    // 5. Totals & Summaries
+    if (isEducation) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text("TOTAL ITEMS ISSUED:", margin, yPos);
+        doc.text(totalItems.toString(), pageWidth - margin, yPos, { align: 'right' });
+        yPos += 10;
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text("Payment Method:", 30, yPos);
-    doc.text(saleData.paymentMethod?.toUpperCase() || 'CASH', pageWidth - margin, yPos, { align: 'right' });
-    yPos += 6;
+        // Dotted Signature Line
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text("Recipient Signature:", margin, yPos);
+        yPos += 8;
+        doc.setLineDashPattern([1, 1], 0);
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        doc.setLineDashPattern([], 0);
+        yPos += 8;
+    } else {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text("TOTAL DUE:", 30, yPos);
+        doc.text(`Kes ${saleData.totalAmount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+        yPos += 6;
 
-    doc.text("Items Count:", 30, yPos);
-    doc.text(totalItems.toString(), pageWidth - margin, yPos, { align: 'right' });
-    yPos += 8;
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text("Payment Method:", 30, yPos);
+        doc.text(saleData.paymentMethod?.toUpperCase() || 'CASH', pageWidth - margin, yPos, { align: 'right' });
+        yPos += 6;
+
+        doc.text("Items Count:", 30, yPos);
+        doc.text(totalItems.toString(), pageWidth - margin, yPos, { align: 'right' });
+        yPos += 8;
+    }
 
     // 6. Footer
     doc.setFont('helvetica', 'italic');
-    centerText("Thank you for your business!", yPos);
+    centerText(isEducation ? "Issued for Academic Use Only" : "Thank you for your business!", yPos);
     yPos += 4;
 
     doc.setFontSize(6);
