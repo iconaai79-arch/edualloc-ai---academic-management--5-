@@ -13,10 +13,16 @@
     height: 100%;
     margin: 0;
     padding: 0;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
     @apply bg-slate-50 text-slate-900 transition-colors duration-300;
+    user-select: none;
+  }
+
+  input, textarea, [contenteditable="true"] {
+    user-select: text !important;
   }
 
   .dark body {
