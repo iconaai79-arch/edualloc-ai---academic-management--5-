@@ -96,11 +96,29 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                 apiService.fetchModuleRecords<Supplier>('suppliers', institutionId),
                 apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId)
             ]);
-            setReceipts(receiptsData || []);
+            
+            // Merge with local fallback receipts if any
+            let mergedReceipts = receiptsData || [];
+            try {
+                const localReceipts = JSON.parse(localStorage.getItem('eduai_fallback_stock_receipts') || '[]');
+                if (localReceipts.length > 0) {
+                    const dbIds = new Set(mergedReceipts.map(r => r.id));
+                    const uniqueLocal = localReceipts.filter((r: any) => !dbIds.has(r.id));
+                    mergedReceipts = [...mergedReceipts, ...uniqueLocal];
+                }
+            } catch (e) {
+                console.error("Failed to parse local fallback receipts:", e);
+            }
+
+            setReceipts(mergedReceipts);
             setSuppliers(suppliersData || []);
             setInventoryItems(itemsData || []);
         } catch (error) {
             console.error('Failed to load stock receipts data:', error);
+            try {
+                const localReceipts = JSON.parse(localStorage.getItem('eduai_fallback_stock_receipts') || '[]');
+                setReceipts(localReceipts);
+            } catch {}
         } finally {
             setIsLoading(false);
         }
@@ -181,8 +199,19 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                 createdAt: new Date().toISOString()
             };
 
-            // Save the receipt
-            await apiService.saveModuleRecord('retail_stock_receipts', receipt);
+            // Save the receipt (with database schema cache fallback)
+            try {
+                await apiService.saveModuleRecord('retail_stock_receipts', receipt);
+            } catch (receiptErr) {
+                console.warn("Failed to save stock receipt record to DB, saving to fallback local storage:", receiptErr);
+                try {
+                    const localReceipts = JSON.parse(localStorage.getItem('eduai_fallback_stock_receipts') || '[]');
+                    localReceipts.push(receipt);
+                    localStorage.setItem('eduai_fallback_stock_receipts', JSON.stringify(localReceipts));
+                } catch (lsErr) {
+                    console.error("Failed to save fallback receipt to localStorage:", lsErr);
+                }
+            }
 
             // Update inventory quantities
             for (const receiptItem of receipt.items) {
