@@ -191,8 +191,12 @@ export function RetailRequisitions({
         try {
             const totalCost = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
 
+            const resolvedStoreId = retailStores.some(s => s.id === selectedStoreId)
+                ? selectedStoreId
+                : (retailStores.length > 0 ? retailStores[0].id : undefined);
+
             const requisitionData = {
-                storeId: isEducation ? (selectedStoreId || 'CENTRAL_STORE') : selectedStoreId,
+                storeId: resolvedStoreId,
                 requestedBy: currentUser.id,
                 items,
                 totalEstimatedCost: totalCost,

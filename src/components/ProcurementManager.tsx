@@ -115,8 +115,12 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
         try {
             const totalCost = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
 
+            const resolvedStoreId = retailStores.some(s => s.id === selectedStoreId)
+                ? selectedStoreId
+                : (retailStores.length > 0 ? retailStores[0].id : undefined);
+
             await onAddRequisition({
-                storeId: selectedStoreId,
+                storeId: resolvedStoreId,
                 requestedBy: 'System', // This should ideally come from currentUser if available
                 items,
                 totalEstimatedCost: totalCost
