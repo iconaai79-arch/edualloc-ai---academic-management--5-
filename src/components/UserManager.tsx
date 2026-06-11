@@ -867,6 +867,7 @@ interface UserManagerProps {
     onAccessAlumnaPortal?: (school: any) => void;
     isAutoMarket?: boolean;
     isDS?: boolean;
+    defaultRole?: Role;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {
@@ -877,7 +878,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onAddParent, onDeleteParent, onAddTimeOffRequest,
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp,
         isCoop: isCoopProp, isPm: isPmProp, isAutoMarket: isAutoMarketProp,
-        isAdding: isAddingProp = false, onAddExtensionRequest, isDS
+        isAdding: isAddingProp = false, onAddExtensionRequest, isDS, defaultRole
     } = props;
     const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
 
@@ -949,8 +950,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [phone, setPhone] = useState('');
     const [staffId, setStaffId] = useState('');
     const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
-    const [role, setRole] = useState<Role>('lecturer');
-    const [roles, setRoles] = useState<Role[]>(['teacher']);
+    const [role, setRole] = useState<Role>(defaultRole || 'lecturer');
+    const [roles, setRoles] = useState<Role[]>([defaultRole || 'teacher']);
     const [departmentId, setDepartmentId] = useState('');
     const [courseId, setCourseId] = useState('');
     const [courseLevelId, setCourseLevelId] = useState('');
@@ -959,9 +960,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
     const resetForm = () => {
-        const defaultRole = isDS ? 'driving_instructor' : (isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher'))));
+        const defaultRoleVal = defaultRole || (isDS ? 'driving_instructor' : (isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher')))));
         setName(''); setEmail(''); setPhone(''); setStaffId('');
-        setGender('Male'); setRole(defaultRole as Role); setRoles([defaultRole as Role]); setDepartmentId('');
+        setGender('Male'); setRole(defaultRoleVal as Role); setRoles([defaultRoleVal as Role]); setDepartmentId('');
         setCourseId(''); setCourseLevelId(''); setDriverType('staff');
         setSendWelcomeSms(false);
         setSendWelcomeEmail(false);
@@ -977,14 +978,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     useEffect(() => {
         if (activeTab === 'staff') {
-            const defaultRole = isDS ? 'driving_instructor' : (isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher'))));
-            setRoles([defaultRole as Role]);
+            const defaultRoleVal = defaultRole || (isDS ? 'driving_instructor' : (isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher')))));
+            setRoles([defaultRoleVal as Role]);
         } else if (activeTab === 'customer') {
             setRoles(['customer']);
         } else {
             setRoles(isChurch ? ['member'] as any : ['student']);
         }
-    }, [activeTab, isDS, isCoop, isRetailAgency, isAutoMarket, isChurch]);
+    }, [activeTab, isDS, isCoop, isRetailAgency, isAutoMarket, isChurch, defaultRole]);
 
     const canManageUserRecords = useMemo(() => {
         if (!currentUser) return false;

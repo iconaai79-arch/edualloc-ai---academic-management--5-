@@ -1959,6 +1959,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     footerImageUrl={footerImageUrl!}
                     onSendSms={onSendSms}
                     showOnly="staff"
+                    defaultRole="store"
                     allocations={[]}
                     onWithdrawRequest={() => Promise.resolve()}
                     onDeleteParent={() => { }}
