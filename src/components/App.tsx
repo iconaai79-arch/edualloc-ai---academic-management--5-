@@ -4123,15 +4123,99 @@ export const App: React.FC = () => {
                 }
             }
 
+            const isNew = !data.id;
+            const invoiceId = data.id || `inv_${Date.now()}`;
+
+            // To ensure database trigger behaves correctly, if isNew we insert with paidAmount: 0
+            // and then save the payment which will update paidAmount via trigger.
+            const initialPaidAmount = isNew ? 0 : paid;
+            const initialBalance = isNew ? total : balance;
+            const initialStatus = isNew ? 'pending' : currentStatus;
+
             await apiService.saveCarInvoice({ 
                 ...data, 
-                id: data.id || `inv_${Date.now()}`, 
+                id: invoiceId, 
                 invoiceNumber,
-                paidAmount: paid,
-                balanceAmount: balance,
-                status: currentStatus as any,
+                paidAmount: initialPaidAmount,
+                balanceAmount: initialBalance,
+                status: initialStatus as any,
                 institutionId: instId || '' 
             });
+
+            if (isNew && data.firstPaidAmount && data.firstPaidAmount > 0) {
+                const depositAmount = Number(data.firstPaidAmount);
+                let receiptNumber = '';
+                let prefix = 'REC-CAR-';
+                let startingNumber = 1001;
+                let format = '{PREFIX}{NUMBER}';
+                try {
+                    const instIdFinal = instId || '';
+                    const records = await apiService.fetchModuleRecords<any>('showroom_settings', instIdFinal);
+                    if (records && records.length > 0) {
+                        const dbSettings = records[0];
+                        prefix = dbSettings.receipt_prefix ?? dbSettings.receiptPrefix ?? 'REC-CAR-';
+                        startingNumber = dbSettings.receipt_starting_number ?? dbSettings.receiptStartingNumber ?? 1001;
+                        format = dbSettings.receipt_format ?? dbSettings.receiptFormat ?? '{PREFIX}{NUMBER}';
+                    } else {
+                        const localStr = localStorage.getItem(`showroom_settings_${instIdFinal}`);
+                        if (localStr) {
+                            const localSettings = JSON.parse(localStr);
+                            prefix = localSettings.receiptPrefix || 'REC-CAR-';
+                            startingNumber = localSettings.receiptStartingNumber || 1001;
+                            format = localSettings.receiptFormat || '{PREFIX}{NUMBER}';
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Failed to fetch showroom settings for initial deposit receipt sequence:", err);
+                    const instIdFinal = instId || '';
+                    const localStr = localStorage.getItem(`showroom_settings_${instIdFinal}`);
+                    if (localStr) {
+                        try {
+                            const localSettings = JSON.parse(localStr);
+                            prefix = localSettings.receiptPrefix || 'REC-CAR-';
+                            startingNumber = localSettings.receiptStartingNumber || 1001;
+                            format = localSettings.receiptFormat || '{PREFIX}{NUMBER}';
+                        } catch (e) {}
+                    }
+                }
+
+                try {
+                    const dbPayments = await apiService.fetchCarPayments();
+                    let maxNumber = startingNumber - 1;
+                    const escapedPrefix = prefix.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                    const regex = new RegExp(`^${escapedPrefix}[-/]?(\\d+)$`);
+                    dbPayments.forEach(pay => {
+                        if (pay.receiptNumber) {
+                            const match = pay.receiptNumber.match(regex);
+                            if (match) {
+                                const num = parseInt(match[1], 10);
+                                if (num > maxNumber) {
+                                    maxNumber = num;
+                                }
+                            }
+                        }
+                    });
+                    const nextNumber = maxNumber + 1;
+                    receiptNumber = format
+                        .replace('{PREFIX}', prefix)
+                        .replace('{NUMBER}', nextNumber.toString());
+                } catch (err) {
+                    console.error("Failed to generate receipt number for deposit:", err);
+                    receiptNumber = `REC-CAR-${Date.now()}`;
+                }
+
+                await apiService.saveCarPayment({
+                    id: `pay_${Date.now()}`,
+                    invoiceId: invoiceId,
+                    amount: depositAmount,
+                    paymentMethod: 'Cash',
+                    transactionReference: 'Initial Deposit',
+                    paymentDate: new Date().toISOString(),
+                    receiptNumber,
+                    institutionId: instId || ''
+                });
+            }
+
             if (data.listingId) {
                 try {
                     await apiService.updateModuleRecord('car_sales_listings', data.listingId, {
@@ -4142,7 +4226,6 @@ export const App: React.FC = () => {
                 }
             }
 
-            const isNew = !data.id;
             if (isNew && data.clientPhone) {
                 const smsCfg = activeInstitution?.smsConfig || companyDetails.smsConfig;
                 const message = `Hello ${data.clientName}, your invoice #${invoiceNumber} for KES ${total?.toLocaleString()} has been recorded. Due date: ${data.dueDate ? new Date(data.dueDate).toLocaleDateString() : 'N/A'}. Thank you for your business!`;

@@ -40,6 +40,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
         isInstallment: false,
         installmentFrequency: 'monthly',
         totalInstallments: 1,
+        firstPaidAmount: 0,
         startDate: new Date().toISOString().split('T')[0]
     });
 
@@ -76,6 +77,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                 isInstallment: invoice.isInstallment || false,
                 installmentFrequency: invoice.installmentFrequency || 'monthly',
                 totalInstallments: invoice.totalInstallments || 1,
+                firstPaidAmount: invoice.firstPaidAmount || 0,
                 startDate: invoice.startDate ? invoice.startDate.split('T')[0] : ''
             });
         } else {
@@ -92,6 +94,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                 isInstallment: false,
                 installmentFrequency: 'monthly',
                 totalInstallments: 1,
+                firstPaidAmount: 0,
                 startDate: new Date().toISOString().split('T')[0]
             });
         }
@@ -133,16 +136,19 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
         const count = formData.totalInstallments || 1;
         const freq = formData.installmentFrequency || 'monthly';
         const start = formData.startDate ? new Date(formData.startDate) : new Date();
-        const amt = formData.totalAmount ? formData.totalAmount / count : 0;
+        const total = formData.totalAmount || 0;
+        const firstPaid = formData.firstPaidAmount || 0;
+        const remainingToSplit = Math.max(0, total - firstPaid);
+        const amt = count > 0 ? remainingToSplit / count : 0;
         
         for (let i = 0; i < count; i++) {
             const dueDate = new Date(start);
             if (freq === 'monthly') {
-                dueDate.setMonth(start.getMonth() + i);
+                dueDate.setMonth(start.getMonth() + i + 1);
             } else if (freq === 'bi-weekly') {
-                dueDate.setDate(start.getDate() + i * 14);
+                dueDate.setDate(start.getDate() + (i + 1) * 14);
             } else if (freq === 'weekly') {
-                dueDate.setDate(start.getDate() + i * 7);
+                dueDate.setDate(start.getDate() + (i + 1) * 7);
             }
             list.push({
                 num: i + 1,
@@ -299,7 +305,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                         </div>
 
                         {/* Financials */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-[2rem] border border-indigo-100/50 dark:border-indigo-800/50">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-[2rem] border border-indigo-100/50 dark:border-indigo-800/50">
                             <div className="space-y-4">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 ml-2">Agreed Sale Price (KES)</label>
                                 <div className="relative">
@@ -313,7 +319,26 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                             setFormData(prev => ({ 
                                                 ...prev, 
                                                 totalAmount: total,
-                                                installmentAmount: prev.isInstallment && prev.totalInstallments ? total / prev.totalInstallments : prev.installmentAmount
+                                                installmentAmount: prev.isInstallment && prev.totalInstallments ? (total - (prev.firstPaidAmount || 0)) / prev.totalInstallments : prev.installmentAmount
+                                            }));
+                                        }}
+                                        className="w-full pl-14 pr-6 py-4 bg-white dark:bg-slate-900 rounded-2xl border-none text-sm font-black focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 ml-2">First Paid Amount / Deposit (KES)</label>
+                                <div className="relative">
+                                    <CurrencyIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400" />
+                                    <input 
+                                        type="number"
+                                        value={formData.firstPaidAmount}
+                                        onChange={(e) => {
+                                            const deposit = parseFloat(e.target.value) || 0;
+                                            setFormData(prev => ({ 
+                                                ...prev, 
+                                                firstPaidAmount: deposit,
+                                                installmentAmount: prev.isInstallment && prev.totalInstallments ? ((prev.totalAmount || 0) - deposit) / prev.totalInstallments : prev.installmentAmount
                                             }));
                                         }}
                                         className="w-full pl-14 pr-6 py-4 bg-white dark:bg-slate-900 rounded-2xl border-none text-sm font-black focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
@@ -530,11 +555,37 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
 
                             {/* Subtotals & Agreements signature area */}
                             <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-900 mt-6">
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Net Amount:</span>
-                                    <span className="text-base font-black text-indigo-600 dark:text-indigo-400">
-                                        KES {(formData.totalAmount || 0)?.toLocaleString()}
-                                    </span>
+                                <div className="space-y-1.5 text-xs">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Net Amount:</span>
+                                        <span className="text-sm font-black text-slate-800 dark:text-slate-200">
+                                            KES {(formData.totalAmount || 0)?.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    {(formData.firstPaidAmount || 0) > 0 && (
+                                        <>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-amber-500">Deposit / Paid First:</span>
+                                                <span className="text-sm font-black text-amber-600 dark:text-amber-400">
+                                                    - KES {(formData.firstPaidAmount || 0).toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-slate-900">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Remaining Balance:</span>
+                                                <span className="text-base font-black text-indigo-600 dark:text-indigo-400">
+                                                    KES {Math.max(0, (formData.totalAmount || 0) - (formData.firstPaidAmount || 0)).toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </>
+                                    )}
+                                    {!formData.firstPaidAmount && (
+                                        <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-slate-900">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Due:</span>
+                                            <span className="text-base font-black text-indigo-600 dark:text-indigo-400">
+                                                KES {(formData.totalAmount || 0)?.toLocaleString()}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {formData.notes && (

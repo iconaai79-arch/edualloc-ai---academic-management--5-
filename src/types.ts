@@ -4280,6 +4280,7 @@ export interface CarInvoice {
     installmentFrequency?: 'monthly' | 'weekly' | 'bi-weekly';
     totalInstallments?: number;
     installmentAmount?: number;
+    firstPaidAmount?: number;
     startDate?: string;
     createdAt?: string;
     updatedAt?: string;
