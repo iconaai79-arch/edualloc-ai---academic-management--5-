@@ -88,7 +88,15 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     const fetchStudents = async () => {
         try {
             const data = await apiService.fetchModuleRecords<User>('users', institutionId);
-            const filtered = (data || []).filter(u => u.role === 'student' || (Array.isArray(u.roles) && u.roles.includes('student')));
+            const eligibleRoles = [
+                'student',
+                'teacher', 'lecturer', 'hod', 'dos', 'deputy', 'head_teacher',
+                'support_staff', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'attendant', 'worker', 'secretary', 'finance'
+            ];
+            const filtered = (data || []).filter(u => 
+                eligibleRoles.includes(u.role) || 
+                (Array.isArray(u.roles) && u.roles.some(r => eligibleRoles.includes(r)))
+            );
             setStudents(filtered);
         } catch (err) {
             console.error("Fetch students error:", err);
@@ -1038,33 +1046,48 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                             {students
                                                                 .filter(s =>
                                                                     s.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
-                                                                    (s.admissionNumber || (s as any).admission_number || '').toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                                                    (s.admissionNumber || (s as any).admission_number || '').toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+                                                                    (s.staffId || (s as any).staff_id || '').toLowerCase().includes(studentSearchQuery.toLowerCase())
                                                                 )
-                                                                .map(s => (
-                                                                    <button
-                                                                        key={s.id}
-                                                                        onClick={() => {
-                                                                            setSelectedStudent(s);
-                                                                            setCustomerInfo({
-                                                                                name: s.name,
-                                                                                phone: s.phoneNumber || '',
-                                                                                email: s.email || ''
-                                                                            });
-                                                                            setStudentSearchQuery('');
-                                                                        }}
-                                                                        className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors flex justify-between items-center"
-                                                                    >
-                                                                        <div>
-                                                                            <p className="text-xs font-black uppercase text-slate-900 dark:text-white">{s.name}</p>
-                                                                            <p className="text-[10px] text-slate-400 font-bold">ADM: {(s as any).admission_number || s.admissionNumber || 'N/A'}</p>
-                                                                        </div>
-                                                                        {s.email && (
-                                                                            <div className="text-right">
-                                                                                <p className="text-[9px] text-slate-400">{s.email}</p>
+                                                                .map(s => {
+                                                                    const isStudent = s.role === 'student' || (Array.isArray(s.roles) && s.roles.includes('student'));
+                                                                    const idLabel = isStudent ? 'ADM' : 'STAFF ID';
+                                                                    const idValue = isStudent 
+                                                                        ? ((s as any).admission_number || s.admissionNumber || 'N/A')
+                                                                        : (s.staffId || (s as any).staff_id || 'N/A');
+                                                                    const roleDisplay = s.role.replace('_', ' ');
+
+                                                                    return (
+                                                                        <button
+                                                                            key={s.id}
+                                                                            onClick={() => {
+                                                                                setSelectedStudent(s);
+                                                                                setCustomerInfo({
+                                                                                    name: s.name,
+                                                                                    phone: s.phoneNumber || '',
+                                                                                    email: s.email || ''
+                                                                                });
+                                                                                setStudentSearchQuery('');
+                                                                            }}
+                                                                            className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors flex justify-between items-center"
+                                                                        >
+                                                                            <div>
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <p className="text-xs font-black uppercase text-slate-900 dark:text-white">{s.name}</p>
+                                                                                    <span className="px-1.5 py-0.5 text-[8px] font-bold uppercase rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                                                                                        {roleDisplay}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <p className="text-[10px] text-slate-400 font-bold">{idLabel}: {idValue}</p>
                                                                             </div>
-                                                                        )}
-                                                                    </button>
-                                                                ))
+                                                                            {s.email && (
+                                                                                <div className="text-right">
+                                                                                    <p className="text-[9px] text-slate-400">{s.email}</p>
+                                                                                </div>
+                                                                            )}
+                                                                        </button>
+                                                                    );
+                                                                })
                                                             }
                                                         </div>
                                                     )}
@@ -1072,7 +1095,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                             </div>
 
                                             {selectedStudent && (
-                                                <div className="p-6 bg-indigo-55 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-[2rem] border border-indigo-500/20 space-y-4 animate-in slide-in-from-top-4">
+                                                <div className="p-6 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-[2rem] border border-indigo-500/20 space-y-4 animate-in slide-in-from-top-4">
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600">Selected Recipient</span>
                                                         <button
@@ -1087,12 +1110,18 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <div>
-                                                            <label className="text-[8px] uppercase tracking-wider text-slate-400 block mb-0.5">Student Name</label>
+                                                            <label className="text-[8px] uppercase tracking-wider text-slate-400 block mb-0.5">Recipient Name</label>
                                                             <p className="text-xs font-black text-slate-950 dark:text-white uppercase">{selectedStudent.name}</p>
                                                         </div>
                                                         <div>
-                                                            <label className="text-[8px] uppercase tracking-wider text-slate-400 block mb-0.5">Admission Number</label>
-                                                            <p className="text-xs font-black text-indigo-600 uppercase">{(selectedStudent as any).admission_number || selectedStudent.admissionNumber || 'N/A'}</p>
+                                                            <label className="text-[8px] uppercase tracking-wider text-slate-400 block mb-0.5">
+                                                                {selectedStudent.role === 'student' || (Array.isArray(selectedStudent.roles) && selectedStudent.roles.includes('student')) ? 'Admission Number' : 'Staff ID'}
+                                                            </label>
+                                                            <p className="text-xs font-black text-indigo-600 uppercase">
+                                                                {selectedStudent.role === 'student' || (Array.isArray(selectedStudent.roles) && selectedStudent.roles.includes('student'))
+                                                                    ? ((selectedStudent as any).admission_number || selectedStudent.admissionNumber || 'N/A')
+                                                                    : (selectedStudent.staffId || (selectedStudent as any).staff_id || 'N/A')}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 </div>

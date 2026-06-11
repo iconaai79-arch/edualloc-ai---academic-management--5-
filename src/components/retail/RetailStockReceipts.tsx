@@ -20,6 +20,7 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
     const [isLoading, setIsLoading] = useState(true);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
 
     const [formData, setFormData] = useState<Partial<StockReceipt>>({
         supplierId: '',
@@ -167,6 +168,48 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
         return (formData.items || []).reduce((total, item) => total + (item.quantity * item.unitCost), 0);
     };
 
+    const handleDeleteReceipt = async (receipt: StockReceipt) => {
+        if (!window.confirm(`Are you sure you want to delete receipt ${receipt.referenceNumber}? This will revert the added stock from inventory.`)) {
+            return;
+        }
+
+        try {
+            // 1. Revert stock
+            for (const receiptItem of receipt.items) {
+                const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
+                const item = inventoryItemArr.find(i => i.id === receiptItem.itemId);
+                
+                if (item) {
+                    item.quantity = Math.max(0, item.quantity - receiptItem.quantity);
+                    item.lastUpdated = new Date().toISOString();
+                    await apiService.saveModuleRecord('retail_inventory_items', item);
+                }
+            }
+
+            // 2. Delete record
+            try {
+                await apiService.deleteModuleRecord('retail_stock_receipts', receipt.id);
+            } catch (err) {
+                console.warn("Failed to delete stock receipt from DB, checking local storage:", err);
+            }
+
+            // Always update fallback local storage just in case
+            try {
+                const localReceipts = JSON.parse(localStorage.getItem('eduai_fallback_stock_receipts') || '[]');
+                const filtered = localReceipts.filter((r: any) => r.id !== receipt.id);
+                localStorage.setItem('eduai_fallback_stock_receipts', JSON.stringify(filtered));
+            } catch (lsErr) {
+                console.error("Failed to remove receipt from local storage:", lsErr);
+            }
+
+            fetchData();
+            alert('Receipt deleted and stock reverted successfully!');
+        } catch (error) {
+            console.error('Failed to delete receipt:', error);
+            alert('Failed to delete receipt. Please try again.');
+        }
+    };
+
     const handleSaveReceipt = async (e: React.FormEvent) => {
         e.preventDefault();
         
@@ -184,8 +227,22 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
             const supplier = suppliers.find(s => s.id === formData.supplierId);
             const totalAmount = calculateTotal();
             
+            // Revert old inventory stock if editing
+            const oldReceipt = editingReceiptId ? receipts.find(r => r.id === editingReceiptId) : null;
+            if (oldReceipt) {
+                for (const oldItem of oldReceipt.items) {
+                    const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
+                    const item = inventoryItemArr.find(i => i.id === oldItem.itemId);
+                    if (item) {
+                        item.quantity = Math.max(0, item.quantity - oldItem.quantity);
+                        item.lastUpdated = new Date().toISOString();
+                        await apiService.saveModuleRecord('retail_inventory_items', item);
+                    }
+                }
+            }
+
             const receipt: StockReceipt = {
-                id: `SR-${Date.now()}`,
+                id: editingReceiptId || `SR-${Date.now()}`,
                 institutionId,
                 supplierId: formData.supplierId,
                 supplierName: supplier?.name || 'Unknown',
@@ -196,38 +253,50 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                 recordedBy: currentUser.id,
                 status: 'completed',
                 notes: formData.notes,
-                createdAt: new Date().toISOString()
+                createdAt: oldReceipt?.createdAt || new Date().toISOString()
             };
 
-            // Save the receipt (with database schema cache fallback)
+            // Save or Update the receipt
             try {
-                await apiService.saveModuleRecord('retail_stock_receipts', receipt);
+                if (editingReceiptId) {
+                    await apiService.updateModuleRecord('retail_stock_receipts', editingReceiptId, receipt);
+                } else {
+                    await apiService.saveModuleRecord('retail_stock_receipts', receipt);
+                }
             } catch (receiptErr) {
-                console.warn("Failed to save stock receipt record to DB, saving to fallback local storage:", receiptErr);
+                console.warn("Failed to save/update stock receipt record in DB, saving to fallback local storage:", receiptErr);
                 try {
                     const localReceipts = JSON.parse(localStorage.getItem('eduai_fallback_stock_receipts') || '[]');
-                    localReceipts.push(receipt);
+                    if (editingReceiptId) {
+                        const idx = localReceipts.findIndex((r: any) => r.id === editingReceiptId);
+                        if (idx >= 0) {
+                            localReceipts[idx] = receipt;
+                        } else {
+                            localReceipts.push(receipt);
+                        }
+                    } else {
+                        localReceipts.push(receipt);
+                    }
                     localStorage.setItem('eduai_fallback_stock_receipts', JSON.stringify(localReceipts));
                 } catch (lsErr) {
                     console.error("Failed to save fallback receipt to localStorage:", lsErr);
                 }
             }
 
-            // Update inventory quantities
+            // Update inventory quantities with new receipt values
             for (const receiptItem of receipt.items) {
-                // Fetch latest to avoid race conditions as much as possible
                 const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
                 const item = inventoryItemArr.find(i => i.id === receiptItem.itemId);
                 
                 if (item) {
                     item.quantity += receiptItem.quantity;
                     item.lastUpdated = new Date().toISOString();
-                    // Optionally update cost price here if desired (e.g. weighted average), skipping for now to just update qty
                     await apiService.saveModuleRecord('retail_inventory_items', item);
                 }
             }
 
             setIsAddModalOpen(false);
+            setEditingReceiptId(null);
             setFormData({
                 supplierId: '',
                 referenceNumber: '',
@@ -236,9 +305,9 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                 items: []
             });
             fetchData();
-            alert('Stock receipt saved and inventory updated successfully!');
+            alert(editingReceiptId ? 'Stock receipt updated successfully!' : 'Stock receipt saved and inventory updated successfully!');
         } catch (error) {
-            console.error('Failed to save receipt:', error);
+            console.error('Failed to save/update receipt:', error);
             alert('Failed to save stock receipt. Please try again.');
         }
     };
@@ -324,13 +393,14 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                                 <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Supplier</th>
                                 <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Items</th>
                                 <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Total Value</th>
-                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Status</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right w-36">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={5} className="py-20 text-center">
+                                    <td colSpan={6} className="py-20 text-center">
                                         <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
                                         <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-4">Loading receipts...</p>
                                     </td>
@@ -357,16 +427,42 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                                     <td className="py-5">
                                         <span className="text-xs font-black text-slate-900 dark:text-white tracking-tight">KES {receipt.totalAmount.toLocaleString()}</span>
                                     </td>
-                                    <td className="py-5 text-right">
+                                    <td className="py-5 text-center">
                                         <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg text-[9px] font-black uppercase tracking-widest">
                                             {receipt.status}
                                         </span>
+                                    </td>
+                                    <td className="py-5 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setFormData({
+                                                        supplierId: receipt.supplierId,
+                                                        referenceNumber: receipt.referenceNumber,
+                                                        receiptDate: new Date(receipt.receiptDate).toISOString().split('T')[0],
+                                                        notes: receipt.notes || '',
+                                                        items: [...receipt.items]
+                                                    });
+                                                    setEditingReceiptId(receipt.id);
+                                                    setIsAddModalOpen(true);
+                                                }}
+                                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteReceipt(receipt)}
+                                                className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
                             {!isLoading && filteredReceipts.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="py-20 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                                    <td colSpan={6} className="py-20 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">
                                         No receipts found
                                     </td>
                                 </tr>
@@ -383,11 +479,19 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                         <div className="p-8 bg-slate-900 text-white flex justify-between items-center shrink-0">
                             <div>
                                 <h3 className="text-xl font-black uppercase tracking-tight">
-                                    Receive Stock
+                                    {editingReceiptId ? 'Edit Stock Receipt' : 'Receive Stock'}
                                 </h3>
-                                <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Log delivery & update inventory</p>
+                                <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">
+                                    {editingReceiptId ? 'Modify delivery record & adjust inventory' : 'Log delivery & update inventory'}
+                                </p>
                             </div>
-                            <button onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-black uppercase tracking-widest transition-colors">
+                            <button 
+                                onClick={() => {
+                                    setIsAddModalOpen(false);
+                                    setEditingReceiptId(null);
+                                }} 
+                                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"
+                            >
                                 Close
                             </button>
                         </div>
@@ -552,7 +656,7 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                                 onClick={handleSaveReceipt}
                                 className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
-                                Save & Process Inventory Update
+                                {editingReceiptId ? 'Save & Adjust Inventory Stock' : 'Save & Process Inventory Update'}
                             </button>
                         </div>
                     </div>
