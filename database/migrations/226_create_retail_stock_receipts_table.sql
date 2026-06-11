@@ -32,3 +32,6 @@ CREATE POLICY "Admins/Agents can manage their institution's retail_stock_receipt
     ));
 
 GRANT ALL ON TABLE public.retail_stock_receipts TO anon, authenticated, service_role;
+
+-- Reload PostgREST schema cache
+NOTIFY pgrst, 'reload schema';

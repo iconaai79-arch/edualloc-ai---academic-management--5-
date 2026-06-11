@@ -81,6 +81,7 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
             END $$;
 
             GRANT ALL ON TABLE public.retail_stock_receipts TO anon, authenticated, service_role;
+            NOTIFY pgrst, 'reload schema';
         `;
         apiService.runMigration(migrationSql)
             .then(() => fetchData())
