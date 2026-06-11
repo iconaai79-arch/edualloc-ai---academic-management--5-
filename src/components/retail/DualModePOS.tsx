@@ -990,7 +990,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                         <div className="space-y-6">
                                             <div className="space-y-4">
                                                 <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">
-                                                    Search Student (ADM, Name, or QR)
+                                                    Search Recipient (ADM, Staff ID, Name, or QR)
                                                 </label>
                                                 <div className="relative">
                                                     <Search className="w-5 h-5 absolute left-6 top-1/2 transform -translate-y-1/2 text-slate-400" />
@@ -1003,6 +1003,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                                 e.preventDefault();
                                                                 const exactMatch = students.find(s => 
                                                                     (s.admissionNumber || (s as any).admission_number || '').toLowerCase() === studentSearchQuery.toLowerCase() ||
+                                                                    (s.staffId || (s as any).staff_id || '').toLowerCase() === studentSearchQuery.toLowerCase() ||
                                                                     s.id.toLowerCase() === studentSearchQuery.toLowerCase()
                                                                 );
                                                                 if (exactMatch) {
@@ -1017,7 +1018,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                             }
                                                         }}
                                                         className="w-full pl-16 pr-24 py-5 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-300 transition-all"
-                                                        placeholder="Admission No. or Name..."
+                                                        placeholder="Admission No., Staff ID, or Name..."
                                                     />
                                                     <button
                                                         type="button"
@@ -1031,9 +1032,13 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                                     phone: randomStudent.phoneNumber || '',
                                                                     email: randomStudent.email || ''
                                                                 });
-                                                                alert(`[QR Scanner Sim] Scanned QR Code successfully! Selected Student: ${randomStudent.name} (${(randomStudent as any).admission_number || 'ADM-883'})`);
+                                                                const isStudent = randomStudent.role === 'student' || (Array.isArray(randomStudent.roles) && randomStudent.roles.includes('student'));
+                                                                const idValue = isStudent 
+                                                                    ? ((randomStudent as any).admission_number || randomStudent.admissionNumber || 'N/A')
+                                                                    : (randomStudent.staffId || (randomStudent as any).staff_id || 'N/A');
+                                                                alert(`[QR Scanner Sim] Scanned QR Code successfully! Selected Recipient: ${randomStudent.name} (${idValue})`);
                                                             } else {
-                                                                alert("No students registered yet in this school to simulate QR scan.");
+                                                                alert("No eligible recipients registered yet in this school to simulate QR scan.");
                                                             }
                                                         }}
                                                         className="absolute right-3 top-1/2 transform -translate-y-1/2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-indigo-500 transition-all"
