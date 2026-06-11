@@ -975,7 +975,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                             </div>
                         ) : (
                             <div className="flex flex-col h-full">
-                                <div className="px-10 py-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                                <div className="px-6 py-5 sm:px-10 sm:py-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                                     <div className="flex items-center gap-4">
                                         <div className="p-3 bg-indigo-600 text-white rounded-2xl">
                                             <CreditCard className="w-5 h-5" />
@@ -994,7 +994,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                     </button>
                                 </div>
 
-                                <div className="p-10 space-y-8 max-h-[75vh] overflow-y-auto">
+                                <div className="p-6 sm:p-10 space-y-6 sm:space-y-8 max-h-[60vh] sm:max-h-[70vh] md:max-h-[75vh] overflow-y-auto">
                                     {isEducation ? (
                                         // ───────────────────────────────────────────
                                         // EDUCATION MODE: Student Search & Verification
