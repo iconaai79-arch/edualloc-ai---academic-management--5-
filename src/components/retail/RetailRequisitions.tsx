@@ -65,6 +65,7 @@ export function RetailRequisitions({
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [showRejectInput, setShowRejectInput] = useState(false);
+    const [localInventory, setLocalInventory] = useState<RetailInventoryItem[]>([]);
 
     const headTeachers = (allUsers || []).filter(u => 
         (u.role === 'head_teacher' || u.role === 'admin') && 
@@ -73,17 +74,21 @@ export function RetailRequisitions({
 
     React.useEffect(() => {
         const loadInitialData = async () => {
-            const [insts, co, supps] = await Promise.all([
+            const [insts, co, supps, invItems] = await Promise.all([
                 apiService.fetchInstitutions(institutionId),
                 apiService.fetchCompanySettings(),
-                apiService.fetchModuleRecords<Supplier>('suppliers', institutionId)
+                apiService.fetchModuleRecords<Supplier>('suppliers', institutionId),
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId)
             ]);
             if (insts.length > 0) setInstitution(insts[0]);
             setCompanyDetails(co);
             setSuppliers(supps);
+            setLocalInventory(invItems || []);
         };
         loadInitialData();
     }, [institutionId]);
+
+    const activeInventory = (inventory && inventory.length > 0) ? inventory : localInventory;
 
     const handleEmailLpo = async (req: Requisition) => {
         if (!institution || !companyDetails) return;
@@ -393,14 +398,17 @@ export function RetailRequisitions({
                                             <select
                                                 value={newItem.id}
                                                 onChange={(e) => {
-                                                    const prod = inventory.find(i => i.id === e.target.value);
+                                                    const prod = activeInventory.find(i => i.id === e.target.value);
                                                     setNewItem({ ...newItem, id: prod?.id || '', name: prod?.name || '', unit: prod?.unit || 'pcs', unitCost: prod?.costPrice || 0 })
                                                 }}
                                                 className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold outline-none"
                                             >
                                                 <option value="">Select Product...</option>
-                                                {inventory
-                                                    .filter(i => i.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) || i.sku.toLowerCase().includes(itemSearchQuery.toLowerCase()))
+                                                {activeInventory
+                                                    .filter(i => 
+                                                        (i.name || '').toLowerCase().includes(itemSearchQuery.toLowerCase()) || 
+                                                        (i.sku || '').toLowerCase().includes(itemSearchQuery.toLowerCase())
+                                                    )
                                                     .map(i => (
                                                         <option key={i.id} value={i.id}>{i.name} ({i.quantity} {i.unit} in stock)</option>
                                                     ))}
