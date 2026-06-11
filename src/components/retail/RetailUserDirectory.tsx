@@ -21,6 +21,7 @@ interface RetailUserDirectoryProps {
     allUsers?: User[];
     allCourses?: Course[];
     currentInstitution?: any;
+    onEditUser?: (id: string, data: any) => Promise<void>;
 }
 
 export function RetailUserDirectory({
@@ -30,6 +31,7 @@ export function RetailUserDirectory({
     allUsers: propUsers,
     allCourses: propCourses,
     currentInstitution,
+    onEditUser,
 }: RetailUserDirectoryProps) {
     const [users, setUsers] = useState<User[]>(propUsers || []);
     const [courses, setCourses] = useState<Course[]>(propCourses || []);
@@ -47,6 +49,7 @@ export function RetailUserDirectory({
     // Add manual registration states
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editingUser, setEditingUser] = useState<User | null>(null);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -57,6 +60,21 @@ export function RetailUserDirectory({
         departmentId: '',
         role: 'teacher',
     });
+
+    const handleEditClick = (user: User) => {
+        setEditingUser(user);
+        setFormData({
+            name: user.name || '',
+            email: user.email || '',
+            phoneNumber: user.phoneNumber || '',
+            idVal: role === 'student' ? (user.admissionNumber || (user as any).admission_number || '') : (user.staffId || ''),
+            courseId: user.courseId || '',
+            courseLevelId: user.courseLevelId || '',
+            departmentId: user.departmentId || '',
+            role: user.role || 'teacher',
+        });
+        setIsAddModalOpen(true);
+    };
 
     useEffect(() => {
         if (propUsers) {
@@ -160,6 +178,7 @@ export function RetailUserDirectory({
         }
 
         const idExists = users.some(u => {
+            if (editingUser && u.id === editingUser.id) return false;
             const currentId = role === 'student'
                 ? (u.admissionNumber || (u as any).admission_number)
                 : u.staffId;
@@ -173,31 +192,61 @@ export function RetailUserDirectory({
 
         setIsSubmitting(true);
         try {
-            const id = `user_${Date.now()}`;
-            const newUser: any = {
-                id,
-                name: formData.name.trim(),
-                email: formData.email.trim() || undefined,
-                phoneNumber: formData.phoneNumber.trim() || undefined,
-                role: role === 'student' ? 'student' : (formData.role || (role === 'support_staff' ? 'support_staff' : 'teacher')),
-                roles: role === 'student' ? ['student'] : [formData.role || (role === 'support_staff' ? 'support_staff' : 'teacher')],
-                institutionId,
-                status: 'active',
-                ...(role === 'student' ? {
-                    admissionNumber: formData.idVal.trim(),
-                    admission_number: formData.idVal.trim(),
-                    courseId: formData.courseId || undefined,
-                    courseLevelId: formData.courseLevelId || undefined,
-                } : {
-                    staffId: formData.idVal.trim(),
-                    departmentId: formData.departmentId || undefined,
-                })
-            };
+            if (editingUser) {
+                const updatedData: any = {
+                    name: formData.name.trim(),
+                    email: formData.email.trim() || undefined,
+                    phoneNumber: formData.phoneNumber.trim() || undefined,
+                    role: role === 'student' ? 'student' : (formData.role || (role === 'support_staff' ? 'support_staff' : 'teacher')),
+                    roles: role === 'student' ? ['student'] : [formData.role || (role === 'support_staff' ? 'support_staff' : 'teacher')],
+                    ...(role === 'student' ? {
+                        admissionNumber: formData.idVal.trim(),
+                        admission_number: formData.idVal.trim(),
+                        courseId: formData.courseId || undefined,
+                        courseLevelId: formData.courseLevelId || undefined,
+                    } : {
+                        staffId: formData.idVal.trim(),
+                        departmentId: formData.departmentId || undefined,
+                    })
+                };
 
-            await apiService.registerUser(newUser);
-            setUsers(prev => [newUser as User, ...prev]);
-            setIsAddModalOpen(false);
-            alert(`${role === 'teacher' ? 'Teacher' : 'Student'} registered successfully!`);
+                if (onEditUser) {
+                    await onEditUser(editingUser.id, updatedData);
+                } else {
+                    await apiService.saveModuleRecord('users', { ...editingUser, ...updatedData });
+                }
+
+                setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, ...updatedData } as User : u));
+                setIsAddModalOpen(false);
+                setEditingUser(null);
+                alert(`${role === 'teacher' ? 'Teacher' : role === 'support_staff' ? 'Support staff member' : 'Student'} updated successfully!`);
+            } else {
+                const id = `user_${Date.now()}`;
+                const newUser: any = {
+                    id,
+                    name: formData.name.trim(),
+                    email: formData.email.trim() || undefined,
+                    phoneNumber: formData.phoneNumber.trim() || undefined,
+                    role: role === 'student' ? 'student' : (formData.role || (role === 'support_staff' ? 'support_staff' : 'teacher')),
+                    roles: role === 'student' ? ['student'] : [formData.role || (role === 'support_staff' ? 'support_staff' : 'teacher')],
+                    institutionId,
+                    status: 'active',
+                    ...(role === 'student' ? {
+                        admissionNumber: formData.idVal.trim(),
+                        admission_number: formData.idVal.trim(),
+                        courseId: formData.courseId || undefined,
+                        courseLevelId: formData.courseLevelId || undefined,
+                    } : {
+                        staffId: formData.idVal.trim(),
+                        departmentId: formData.departmentId || undefined,
+                    })
+                };
+
+                await apiService.registerUser(newUser);
+                setUsers(prev => [newUser as User, ...prev]);
+                setIsAddModalOpen(false);
+                alert(`${role === 'teacher' ? 'Teacher' : 'Student'} registered successfully!`);
+            }
         } catch (err: any) {
             console.error('Failed to manually register user:', err);
             alert('Registration failed: ' + (err.message || 'Unknown error'));
@@ -273,6 +322,7 @@ export function RetailUserDirectory({
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                             <button
                                 onClick={() => {
+                                    setEditingUser(null);
                                     setFormData({
                                         name: '',
                                         email: '',
@@ -400,14 +450,22 @@ export function RetailUserDirectory({
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <button
-                                                                onClick={() => onIssueItem(user)}
-                                                                className="flex-shrink-0 px-4 py-2 sm:py-3 bg-slate-100 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-slate-700 hover:text-white dark:text-slate-300 dark:hover:text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-1.5 active:scale-95"
-                                                            >
-                                                                <Zap className="w-3.5 h-3.5" />
-                                                                <span className="hidden sm:inline">Issue Item</span>
-                                                                <span className="sm:hidden">Issue</span>
-                                                            </button>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => onIssueItem(user)}
+                                                                    className="flex-shrink-0 px-4 py-2 sm:py-3 bg-slate-100 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-slate-700 hover:text-white dark:text-slate-300 dark:hover:text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                                                                >
+                                                                    <Zap className="w-3.5 h-3.5" />
+                                                                    <span className="hidden sm:inline">Issue Item</span>
+                                                                    <span className="sm:hidden">Issue</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleEditClick(user)}
+                                                                    className="flex-shrink-0 px-4 py-2 sm:py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-805 dark:hover:bg-slate-700 text-slate-650 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center active:scale-95"
+                                                                >
+                                                                    Edit
+                                                                </button>
+                                                            </div>
                                                         </li>
                                                     );
                                                 })}
@@ -483,13 +541,19 @@ export function RetailUserDirectory({
                                 </div>
 
                                 {/* Actions footer */}
-                                <div className="mt-6 pt-4 border-t border-slate-50 dark:border-slate-800">
+                                <div className="mt-6 pt-4 border-t border-slate-50 dark:border-slate-800 flex gap-2">
                                     <button
                                         onClick={() => onIssueItem(user)}
-                                        className="w-full py-3 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 shadow-sm group-hover:scale-102 active:scale-98"
+                                        className="flex-1 py-3 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 shadow-sm group-hover:scale-102 active:scale-98"
                                     >
                                         <Zap className="w-3.5 h-3.5" />
                                         Issue Supply Item
+                                    </button>
+                                    <button
+                                        onClick={() => handleEditClick(user)}
+                                        className="px-4 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center active:scale-98"
+                                    >
+                                        Edit
                                     </button>
                                 </div>
                             </div>
@@ -506,10 +570,10 @@ export function RetailUserDirectory({
                         {/* Header */}
                         <div className="p-8 border-b border-slate-100 dark:border-slate-800/80 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-indigo-950/10 dark:to-purple-950/10">
                                                             <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                                                                Add {role === 'teacher' ? 'Teacher' : role === 'support_staff' ? 'Support Staff' : 'Student'} Manually
+                                                                {editingUser ? 'Edit' : 'Add'} {role === 'teacher' ? 'Teacher' : role === 'support_staff' ? 'Support Staff' : 'Student'} {editingUser ? 'Details' : 'Manually'}
                                                             </h3>
                                                             <p className="text-xs text-slate-400 font-bold mt-1.5 uppercase tracking-wider">
-                                                                Register a new {role === 'teacher' ? 'academic faculty member' : role === 'support_staff' ? 'non-academic support staff member' : 'enrolled student'} roster record.
+                                                                {editingUser ? "Update the member's details and role assignments." : `Register a new ${role === 'teacher' ? 'academic faculty member' : role === 'support_staff' ? 'non-academic support staff member' : 'enrolled student'} roster record.`}
                                                             </p>
                                                         </div>
                         

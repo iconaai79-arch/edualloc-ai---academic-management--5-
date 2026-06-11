@@ -19,7 +19,7 @@ import { RetailUserDirectory } from './RetailUserDirectory';
 import { RetailReportsDashboard } from './RetailReportsDashboard';
 import { StoreConfigManager } from './StoreConfigManager';
 import { RetailStockReceipts } from './RetailStockReceipts';
-import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition, Course } from '../../types';
+import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition, Course, CountyInventoryItem } from '../../types';
 import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
 import { StoreIcon as Store } from '../icons/StoreIcon';
 import { SmartphoneIcon as Smartphone } from '../icons/SmartphoneIcon';
@@ -57,11 +57,14 @@ interface RetailManagerProps {
     activeTab?: string;
     onTabChange?: (tab: string) => void;
     hideNavigation?: boolean;
+    countyInventory?: CountyInventoryItem[];
+    onMarkInventoryReceived?: (id: string) => Promise<void>;
+    onEditUser?: (id: string, data: any) => Promise<void>;
 }
 
 export function RetailManager(props: RetailManagerProps) {
-    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation } = props;
-    const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'stock_inwards' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'support_staff' | 'students' | 'reports' | 'config'>('dashboard');
+    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation, countyInventory = [], onMarkInventoryReceived, onEditUser } = props;
+    const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'stock_inwards' | 'shipments' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'support_staff' | 'students' | 'reports' | 'config'>('dashboard');
     const [selectedUserForPOS, setSelectedUserForPOS] = useState<User | null>(null);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
@@ -127,6 +130,7 @@ export function RetailManager(props: RetailManagerProps) {
     };
 
 
+    const isCountyManaged = Boolean(currentInstitution?.countyId);
     const isHospitality = businessSubType?.toLowerCase().includes('cafe') ||
         businessSubType?.toLowerCase().includes('restaurant') ||
         businessSubType?.toLowerCase().includes('eatery');
@@ -136,6 +140,7 @@ export function RetailManager(props: RetailManagerProps) {
         { id: 'inventory', label: 'Inventory', icon: Package },
         { id: 'stock_inwards', label: 'Receive Stock', icon: Truck },
         { id: 'pos', label: 'Issue Desk', icon: Smartphone },
+        ...(isCountyManaged ? [{ id: 'shipments', label: 'County Shipments', icon: TruckIcon }] : []),
         { id: 'teachers', label: 'Teachers', icon: UserIcon },
         { id: 'support_staff', label: 'Support Staff', icon: BriefcaseIcon },
         { id: 'students', label: 'Students', icon: UserGroupIcon },
@@ -253,6 +258,7 @@ export function RetailManager(props: RetailManagerProps) {
                             setSelectedUserForPOS(user);
                             setActiveView('pos');
                         }}
+                        onEditUser={onEditUser}
                     />
                 )}
                 {activeView === 'support_staff' && (
@@ -266,6 +272,7 @@ export function RetailManager(props: RetailManagerProps) {
                             setSelectedUserForPOS(user);
                             setActiveView('pos');
                         }}
+                        onEditUser={onEditUser}
                     />
                 )}
                 {activeView === 'students' && (
@@ -279,6 +286,7 @@ export function RetailManager(props: RetailManagerProps) {
                             setSelectedUserForPOS(user);
                             setActiveView('pos');
                         }}
+                        onEditUser={onEditUser}
                     />
                 )}
                 {activeView === 'stores' && <RetailStoresManager institutionId={institutionId} isEducation={isEducation} />}
@@ -315,6 +323,56 @@ export function RetailManager(props: RetailManagerProps) {
                         currentInstitution={currentInstitution}
                         stores={retailStores}
                     />
+                )}
+                {activeView === 'shipments' && (
+                    <div className="space-y-6 animate-fade-in-up">
+                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 p-6 rounded-[2rem] flex items-center gap-4">
+                            <div className="p-3 bg-amber-100 dark:bg-amber-900/50 rounded-2xl text-amber-600">
+                                <TruckIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h4 className="font-black text-amber-800 dark:text-amber-200 uppercase tracking-tight">County Distribution Registry</h4>
+                                <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Verify and acknowledge receipt of items dispatched from Headquarters.</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                            {countyInventory.filter(i => i.status === 'in_transit' || i.status === 'received').map(item => (
+                                <div key={item.id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 flex justify-between items-center group hover:border-indigo-200 transition-all">
+                                    <div className="flex gap-4 items-center">
+                                        <div className={`p-3 rounded-2xl ${item.status === 'received' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                            <Package className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-slate-900 dark:text-white uppercase tracking-tight">{item.name}</p>
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{item.quantity} {item.unit}</span>
+                                                <span className="text-[10px] font-black text-slate-400">•</span>
+                                                <span className={`text-[10px] font-black uppercase tracking-widest ${item.status === 'received' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                                    {item.status === 'received' ? 'Successfully Received' : 'In Transit'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {item.status === 'in_transit' && (
+                                        <button
+                                            onClick={() => {
+                                                onMarkInventoryReceived?.(item.id);
+                                            }}
+                                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95"
+                                        >
+                                            Mark as Received
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                            {countyInventory.filter(i => i.status === 'in_transit' || i.status === 'received').length === 0 && (
+                                <div className="py-20 text-center text-slate-400 font-bold uppercase text-xs tracking-widest bg-slate-50 dark:bg-slate-900/30 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-800">
+                                    No shipments records found for this institution.
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 )}
                 {activeView === 'transfers' && <RetailStockTransfers institutionId={institutionId} currentUser={currentUser} />}
                 { activeView === 'vendors' && <RetailVendors institutionId={institutionId} /> }

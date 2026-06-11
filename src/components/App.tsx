@@ -14,6 +14,7 @@ import { ProfileModal } from './ProfileModal';
 import { SecurityView, StoreView, InfoDeskView, SupplierView, TransportAssistantView } from './SupportStaffViews';
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { RetailCustomerPortal } from './retail/RetailCustomerPortal';
+import { RetailManager } from './retail/RetailManager';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { CarServiceView } from './carservice/CarServiceView';
 import { HealthCoreView } from './his/HealthCoreView';
@@ -5199,18 +5200,24 @@ export const App: React.FC = () => {
                                         institution={activeInstitution}
                                         onActivateTrial={handleActivateModuleTrial}
                                     >
-                                        <StoreView
-                                            {...{
-                                                currentUser,
-                                                currentInstitution: activeInstitution!,
-                                                inventory: retailInventory,
-                                                requisitions,
-                                                users,
-                                                onAddItem: async (i: any) => { await apiService.saveModuleRecord('inventory', { ...i, id: `inv_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
-                                                onUpdateRequisition: async (id: string, data: any) => { const existing = retailInventory.find(i => i.id === id); if (existing) { await apiService.saveModuleRecord('inventory', { ...existing, ...data }); loadData(); } },
-                                                onAddRequisition: handleAddRequisition,
-                                                onLogAction: handleLogAction
-                                            } as any}
+                                        <RetailManager
+                                            institutionId={activeInstitution?.id || ''}
+                                            businessSubType={activeInstitution?.businessSubType}
+                                            currentUser={currentUser}
+                                            retailStores={retailStores}
+                                            inventory={retailInventory}
+                                            retailExpenses={retailExpenses}
+                                            onAddRetailExpense={async (exp) => { await apiService.saveModuleRecord('retail_expenses', { ...exp, id: `exp_${Date.now()}`, date: new Date().toISOString().split('T')[0], recordedById: currentUser.id, institutionId: currentUser.institutionId }); loadData(); }}
+                                            requisitions={requisitions}
+                                            onAddRequisition={handleAddRequisition}
+                                            onUpdateRequisition={async (id, data) => { const existing = requisitions.find(r => r.id === id); if (existing) { await apiService.saveModuleRecord('requisitions', { ...existing, ...data }); loadData(); } }}
+                                            isEducation={true}
+                                            allUsers={users}
+                                            allCourses={courses}
+                                            currentInstitution={activeInstitution}
+                                            countyInventory={countyInventory}
+                                            onMarkInventoryReceived={handleMarkInventoryReceived}
+                                            onEditUser={onEditUser}
                                         />
                                     </ModuleAccessGuard>
                                 ) : ((activeRole === 'finance_officer' || activeRole === 'finance') && !isAutoMarket) ? (

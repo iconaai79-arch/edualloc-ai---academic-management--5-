@@ -12,7 +12,7 @@ import type {
     ActivityLog, VoteHead, FeeStructure, FinancialPeriod,
     InvoiceItem, TransactionStatus, FeedbackSubmission, LessonRating, Invoice, Receipt, Unavailability,
     BiometricConfig, TimeOffRequestStatus, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, Role,
-    Submission, UserUpdateData, County, Assignment, RetailExpense, RetailStore, RetailInventoryItem, Supplier,
+    Submission, UserUpdateData, County, Assignment, RetailExpense, RetailStore, RetailInventoryItem, Supplier, CountyInventoryItem,
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     LawAgreement, LawAgreementTemplate,
@@ -280,6 +280,9 @@ export interface AdminViewProps {
     onSwitchPerspective?: (role: Role) => void;
     onSaveLetterheadConfig?: (config: LetterheadConfig) => void;
     onAddSaccoAccount?: (data: Partial<SaccoAccount>) => Promise<void>;
+    
+    countyInventory?: CountyInventoryItem[];
+    onMarkInventoryReceived?: (id: string) => Promise<void>;
     
     getLecturerById?: (id: string) => User | undefined;
     getSubjectById?: (id: string) => Subject | undefined;
@@ -825,6 +828,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 { id: 'inv_inventory', label: 'Inventory', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_stock_inwards', label: 'Receive Stock', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_pos', label: 'Issue Desk', icon: <SmartphoneIcon className="w-5 h-5 mr-2" /> },
+                ...(props.currentInstitution?.countyId ? [{ id: 'inv_shipments', label: 'County Shipments', icon: <TruckIcon className="w-5 h-5 mr-2" /> }] : []),
                 { id: 'inv_teachers', label: 'Teachers', icon: <UserIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_support_staff', label: 'Support Staff', icon: <BriefcaseIcon className="w-5 h-5 mr-2" /> },
                 { id: 'inv_students', label: 'Students', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
@@ -2404,6 +2408,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         'inv_inventory': 'inventory',
                         'inv_stock_inwards': 'stock_inwards',
                         'inv_pos': 'pos',
+                        'inv_shipments': 'shipments',
                         'inv_teachers': 'teachers',
                         'inv_support_staff': 'support_staff',
                         'inv_students': 'students',
@@ -2438,6 +2443,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 allUsers={props.users || []}
                                 allCourses={props.courses || []}
                                 currentInstitution={props.currentInstitution}
+                                countyInventory={props.countyInventory}
+                                onMarkInventoryReceived={props.onMarkInventoryReceived}
+                                onEditUser={props.onEditUser}
                             />
                         ) : (
                             <ModuleAccessGuard
@@ -2468,6 +2476,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         if (reverseMap) setActiveTab(reverseMap as any);
                                     } : undefined}
                                     hideNavigation={!!mappedTab}
+                                    countyInventory={props.countyInventory}
+                                    onMarkInventoryReceived={props.onMarkInventoryReceived}
+                                    onEditUser={props.onEditUser}
                                 />
                             </ModuleAccessGuard>
                         );
