@@ -746,8 +746,14 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
         return inventory.filter(i => i.expiryDate && new Date(i.expiryDate) <= thirtyDaysFromNow);
     }, [inventory]);
 
-    const students = useMemo(() => users.filter(u => u.role === 'student'), [users]);
-    const staff = useMemo(() => users.filter(u => u.role !== 'student' && u.role !== 'parent' && u.role !== 'reseller'), [users]);
+    const filteredUsers = useMemo(() => {
+        const instId = props.currentInstitution?.id || user?.institutionId;
+        if (!instId) return users;
+        return users.filter(u => u.institutionId === instId);
+    }, [users, props.currentInstitution?.id, user?.institutionId]);
+
+    const students = useMemo(() => filteredUsers.filter(u => u.role === 'student'), [filteredUsers]);
+    const staff = useMemo(() => filteredUsers.filter(u => u.role !== 'student' && u.role !== 'parent' && u.role !== 'reseller'), [filteredUsers]);
 
     return (
         <BaseDashboard 
@@ -766,7 +772,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                 )}
             </div>
             <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
-                <nav className="-mb-px flex space-x-8 overflow-x-auto pb-1 no-scrollbar">
+                <nav className="-mb-px flex space-x-8 overflow-x-auto pb-2 custom-scrollbar-horizontal">
                     {[
                         { id: 'dashboard', label: 'Dashboard' },
                         { id: 'inventory', label: 'Inventory' },
@@ -1029,48 +1035,50 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 shadow-sm rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-700">
-                        <table className="min-w-full border-collapse">
-                            <thead className="bg-slate-50 dark:bg-slate-900/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Description</th>
-                                    <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Type / Expiry</th>
-                                    <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Level</th>
-                                    <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Status</th>
-                                    <th className="px-6 py-4"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {inventory.map(item => (
-                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <p className="font-black uppercase tracking-tight text-slate-800 dark:text-white mb-0.5">{item.name}</p>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.category}</p>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter ${item.itemType === 'consumable' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                {item.itemType || 'Asset'}
-                                            </span>
-                                            {item.expiryDate && (
-                                                <p className={`text-[10px] font-black mt-1 ${new Date(item.expiryDate) < new Date() ? 'text-rose-600 animate-pulse' : 'text-slate-500'}`}>
-                                                    EXP: {new Date(item.expiryDate).toLocaleDateString()}
-                                                </p>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 text-center font-mono font-black text-indigo-600">{item.quantity} {item.unit}</td>
-                                        <td className="px-6 py-4 text-center">
-                                            {item.quantity <= (item.reorderLevel ?? 0) ? (
-                                                <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Low Stock</span>
-                                            ) : (
-                                                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Stable</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button className="text-indigo-600 hover:underline font-black text-[10px] uppercase tracking-widest">Asset Card</button>
-                                        </td>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full border-collapse">
+                                <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                    <tr>
+                                        <th className="px-6 py-4 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Description</th>
+                                        <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Type / Expiry</th>
+                                        <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Qty / Level</th>
+                                        <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Status</th>
+                                        <th className="px-6 py-4"></th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {inventory.map(item => (
+                                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <p className="font-black uppercase tracking-tight text-slate-800 dark:text-white mb-0.5">{item.name}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.category}</p>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter ${item.itemType === 'consumable' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                    {item.itemType || 'Asset'}
+                                                </span>
+                                                {item.expiryDate && (
+                                                    <p className={`text-[10px] font-black mt-1 ${new Date(item.expiryDate) < new Date() ? 'text-rose-600 animate-pulse' : 'text-slate-500'}`}>
+                                                        EXP: {new Date(item.expiryDate).toLocaleDateString()}
+                                                    </p>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-center font-mono font-black text-indigo-600">{item.quantity} {item.unit}</td>
+                                            <td className="px-6 py-4 text-center">
+                                                {item.quantity <= (item.reorderLevel ?? 0) ? (
+                                                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Low Stock</span>
+                                                ) : (
+                                                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Stable</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button className="text-indigo-600 hover:underline font-black text-[10px] uppercase tracking-widest">Asset Card</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1196,7 +1204,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                 <div className="animate-fade-in-up">
                     <StoreIssuanceManager
                         inventory={inventory}
-                        users={users}
+                        users={filteredUsers}
                         departments={departments}
                         institutionId={user?.institutionId || ''}
                         currentUserId={user?.id || ''}
@@ -1892,7 +1900,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                 <UserManager
                     currentUser={user}
                     currentInstitution={props.currentInstitution}
-                    users={users}
+                    users={filteredUsers}
                     courses={courses || []}
                     departments={departments || []}
                     onLogAction={onLogAction}
@@ -1933,7 +1941,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                 <UserManager
                     currentUser={user}
                     currentInstitution={props.currentInstitution}
-                    users={users}
+                    users={filteredUsers}
                     courses={courses || []}
                     departments={departments || []}
                     onLogAction={onLogAction}

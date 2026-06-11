@@ -5205,6 +5205,7 @@ export const App: React.FC = () => {
                                                 currentInstitution: activeInstitution!,
                                                 inventory: retailInventory,
                                                 requisitions,
+                                                users,
                                                 onAddItem: async (i: any) => { await apiService.saveModuleRecord('inventory', { ...i, id: `inv_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
                                                 onUpdateRequisition: async (id: string, data: any) => { const existing = retailInventory.find(i => i.id === id); if (existing) { await apiService.saveModuleRecord('inventory', { ...existing, ...data }); loadData(); } },
                                                 onAddRequisition: handleAddRequisition,
