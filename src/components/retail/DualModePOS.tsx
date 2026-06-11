@@ -47,6 +47,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [isProcessing, setIsProcessing] = useState(false);
     const [checkoutSuccess, setCheckoutSuccess] = useState<any>(null);
+    const [receiptPdfUrl, setReceiptPdfUrl] = useState<string | null>(null);
 
     // Selected item for pricing negotiation
     const [selectedItem, setSelectedItem] = useState<RetailInventoryItem | CafeMenuItem | null>(null);
@@ -307,8 +308,10 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
             return;
         }
         if (isEducation && !signatureData) {
-            alert("Please provide a recipient signature before processing issuance.");
-            return;
+            const proceedWithoutSignature = window.confirm("No recipient signature has been captured. Would you like to proceed with the issuance anyway?");
+            if (!proceedWithoutSignature) {
+                return;
+            }
         }
         setIsProcessing(true);
 
@@ -391,7 +394,19 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 createdAt: new Date().toISOString()
             };
 
-            const savedSale = await apiService.saveModuleRecord('retail_sales', saleData);
+            let savedSale;
+            try {
+                savedSale = await apiService.saveModuleRecord('retail_sales', saleData);
+            } catch (saveErr: any) {
+                console.warn("First save attempt failed, trying fallback without signature/metadata fields:", saveErr);
+                // Fallback: strip signature and metadata which might not exist in old database schemas
+                const fallbackSaleData = {
+                    ...saleData,
+                    signature: undefined,
+                    metadata: undefined
+                };
+                savedSale = await apiService.saveModuleRecord('retail_sales', fallbackSaleData);
+            }
 
             if (savedSale && (savedSale as any).id) {
                 // Save commissions if any
@@ -462,42 +477,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                         {} as any, // company details
                         null // default logo
                     );
-
-                    // Auto-open print dialog in a new window using an iframe helper to avoid Chrome "Iframe print handler not loaded yet"
-                    const printWindow = window.open('', '_blank');
-                    if (printWindow) {
-                        printWindow.document.write(`
-                            <html>
-                            <head>
-                                <title>Print Receipt</title>
-                                <style>
-                                    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-                                    iframe { border: none; width: 100%; height: 100%; }
-                                </style>
-                            </head>
-                            <body>
-                                <iframe id="pdfFrame" src="${pdfUrl}"></iframe>
-                                <script>
-                                    const iframe = document.getElementById('pdfFrame');
-                                    iframe.onload = () => {
-                                        setTimeout(() => {
-                                            try {
-                                                iframe.contentWindow.focus();
-                                                iframe.contentWindow.print();
-                                            } catch (e) {
-                                                console.error("Iframe print failed, falling back to window print:", e);
-                                                window.print();
-                                            }
-                                        }, 1000);
-                                    };
-                                </script>
-                            </body>
-                            </html>
-                        `);
-                        printWindow.document.close();
-                    } else {
-                        console.warn("Popup blocked! Could not auto-preview receipt.");
-                    }
+                    setReceiptPdfUrl(pdfUrl);
                 } catch (pdfErr) {
                     console.error("Failed to generate receipt PDF:", pdfErr);
                 }
@@ -913,6 +893,49 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                     )}
                                 </div>
 
+                                {receiptPdfUrl && (
+                                    <button
+                                        onClick={() => {
+                                            const printWindow = window.open('', '_blank');
+                                            if (printWindow) {
+                                                printWindow.document.write(`
+                                                    <html>
+                                                    <head>
+                                                        <title>Print Receipt</title>
+                                                        <style>
+                                                            body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+                                                            iframe { border: none; width: 100%; height: 100%; }
+                                                        </style>
+                                                    </head>
+                                                    <body>
+                                                        <iframe id="pdfFrame" src="${receiptPdfUrl}"></iframe>
+                                                        <script>
+                                                            const iframe = document.getElementById('pdfFrame');
+                                                            iframe.onload = () => {
+                                                                setTimeout(() => {
+                                                                    try {
+                                                                        iframe.contentWindow.focus();
+                                                                        iframe.contentWindow.print();
+                                                                    } catch (e) {
+                                                                        console.error("Iframe print failed, falling back to window print:", e);
+                                                                        window.print();
+                                                                    }
+                                                                }, 1000);
+                                                            };
+                                                        </script>
+                                                    </body>
+                                                    </html>
+                                                `);
+                                                printWindow.document.close();
+                                            }
+                                        }}
+                                        className="w-full py-4 mb-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase text-[12px] tracking-[0.4em] rounded-[1.5rem] transition-all shadow-xl flex items-center justify-center gap-2"
+                                    >
+                                        <Printer className="w-5 h-5" />
+                                        Print Receipt
+                                    </button>
+                                )}
+
                                 <button
                                     onClick={() => {
                                         setCheckoutSuccess(null);
@@ -923,6 +946,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                         setCustomerSearch('');
                                         setStudentSearchQuery('');
                                         setSignatureData('');
+                                        setReceiptPdfUrl(null);
                                     }}
                                     className="w-full py-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase text-[12px] tracking-[0.4em] rounded-[1.5rem] hover:scale-105 transition-all shadow-xl"
                                 >
