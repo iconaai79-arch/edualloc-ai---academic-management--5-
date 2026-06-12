@@ -23,22 +23,34 @@ DECLARE
     stk_phone text := NULL;
     stk_date text := NULL;
     metadata_items jsonb := NULL;
+    result_params jsonb := NULL;
     resolved_txn_id text := NULL;
     resolved_sender_name text := NULL;
     payload_receipt_ref text := NULL;
 BEGIN
     -- Only process specific providers that have a payload and status 'received'
-    IF NEW.provider IN ('kcb_ipn', 'kcb_stk_callback', 'coop') AND LOWER(NEW.status) = 'received' AND NEW.payload IS NOT NULL THEN
+    IF NEW.provider IN ('kcb_ipn', 'kcb_stk_callback', 'coop_b2b', 'coop', 'kcb') AND LOWER(NEW.status) = 'received' AND NEW.payload IS NOT NULL THEN
         -- Parse values from JSON payload dynamically
         payload_txn_id := COALESCE(
             NEW.payload->>'transactionReference',
             NEW.payload->>'checkoutRequestId',
             NEW.payload->>'checkoutRequestID',
+            NEW.payload->>'CheckoutRequestID',
             NEW.payload->>'requestId',
             NEW.payload->>'transactionId',
             NEW.payload->>'transactionID',
             NEW.payload->'Body'->'stkCallback'->>'CheckoutRequestID',
-            NEW.payload->'requestPayload'->'primaryData'->>'checkoutRequestID'
+            NEW.payload->'Body'->'stkCallback'->>'checkoutRequestID',
+            NEW.payload->'Body'->'stkCallback'->>'checkoutRequestId',
+            NEW.payload->'body'->'stkCallback'->>'CheckoutRequestID',
+            NEW.payload->'body'->'stkCallback'->>'checkoutRequestID',
+            NEW.payload->'body'->'stkCallback'->>'checkoutRequestId',
+            NEW.payload->'body'->'stkcallback'->>'checkoutRequestId',
+            NEW.payload->'body'->'stkcallback'->>'checkoutRequestID',
+            NEW.payload->'stkCallback'->>'CheckoutRequestID',
+            NEW.payload->'stkcallback'->>'checkoutRequestId',
+            NEW.payload->'requestPayload'->'primaryData'->>'checkoutRequestID',
+            NEW.payload->'requestPayload'->'primaryData'->>'checkoutRequestId'
         );
         
         payload_ref := COALESCE(
@@ -52,19 +64,28 @@ BEGIN
         BEGIN
             metadata_items := COALESCE(
                 NEW.payload->'Body'->'stkCallback'->'CallbackMetadata'->'Item',
+                NEW.payload->'Body'->'stkCallback'->'callbackMetadata'->'Item',
+                NEW.payload->'body'->'stkCallback'->'CallbackMetadata'->'Item',
+                NEW.payload->'body'->'stkcallback'->'CallbackMetadata'->'Item',
+                NEW.payload->'stkCallback'->'CallbackMetadata'->'Item',
+                NEW.payload->'stkcallback'->'CallbackMetadata'->'Item',
                 NEW.payload->'CallbackMetadata'->'Item',
-                NEW.payload->'stkCallback'->'CallbackMetadata'->'Item'
+                NEW.payload->'callbackMetadata'->'Item',
+                NEW.payload->'Body'->'stkCallback'->'CallbackMetadata'->'item',
+                NEW.payload->'stkCallback'->'CallbackMetadata'->'item',
+                NEW.payload->'CallbackMetadata'->'item',
+                NEW.payload->'callbackMetadata'->'item'
             );
             
             IF metadata_items IS NOT NULL AND jsonb_typeof(metadata_items) = 'array' THEN
                 FOR temp_item IN SELECT * FROM jsonb_array_elements(metadata_items) LOOP
-                    IF temp_item->>'Name' = 'MpesaReceiptNumber' THEN
+                    IF LOWER(temp_item->>'Name') = 'mpesareceiptnumber' OR LOWER(temp_item->>'Key') = 'mpesareceiptnumber' THEN
                         mpesa_receipt := temp_item->>'Value';
-                    ELSIF temp_item->>'Name' = 'Amount' THEN
+                    ELSIF LOWER(temp_item->>'Name') = 'amount' OR LOWER(temp_item->>'Key') = 'amount' THEN
                         stk_amount := (temp_item->>'Value')::decimal;
-                    ELSIF temp_item->>'Name' = 'PhoneNumber' THEN
+                    ELSIF LOWER(temp_item->>'Name') = 'phonenumber' OR LOWER(temp_item->>'Key') = 'phonenumber' THEN
                         stk_phone := temp_item->>'Value';
-                    ELSIF temp_item->>'Name' = 'TransactionDate' THEN
+                    ELSIF LOWER(temp_item->>'Name') = 'transactiondate' OR LOWER(temp_item->>'Key') = 'transactiondate' THEN
                         stk_date := temp_item->>'Value';
                     END IF;
                 END LOOP;
@@ -73,11 +94,69 @@ BEGIN
             -- Ignore metadata extraction errors
         END;
 
+        -- If not found, parse ResultParameters.ResultParameter (KCB Buni format)
+        IF mpesa_receipt IS NULL OR mpesa_receipt = '' THEN
+            BEGIN
+                result_params := COALESCE(
+                    NEW.payload->'ResultParameters'->'ResultParameter',
+                    NEW.payload->'Result'->'ResultParameters'->'ResultParameter',
+                    NEW.payload->'Body'->'stkCallback'->'ResultParameters'->'ResultParameter',
+                    NEW.payload->'stkCallback'->'ResultParameters'->'ResultParameter'
+                );
+                
+                IF result_params IS NOT NULL THEN
+                    IF jsonb_typeof(result_params) = 'array' THEN
+                        FOR temp_item IN SELECT * FROM jsonb_array_elements(result_params) LOOP
+                            IF LOWER(temp_item->>'Key') IN ('mpesareceiptnumber', 'transactionid', 'mpesaref') OR LOWER(temp_item->>'Name') IN ('mpesareceiptnumber', 'transactionid', 'mpesaref') THEN
+                                mpesa_receipt := temp_item->>'Value';
+                            ELSIF LOWER(temp_item->>'Key') = 'amount' OR LOWER(temp_item->>'Name') = 'amount' THEN
+                                stk_amount := (temp_item->>'Value')::decimal;
+                            ELSIF LOWER(temp_item->>'Key') = 'phonenumber' OR LOWER(temp_item->>'Name') = 'phonenumber' THEN
+                                stk_phone := temp_item->>'Value';
+                            ELSIF LOWER(temp_item->>'Key') = 'transactiondate' OR LOWER(temp_item->>'Name') = 'transactiondate' THEN
+                                stk_date := temp_item->>'Value';
+                            END IF;
+                        END LOOP;
+                    ELSE
+                        IF LOWER(result_params->>'Key') IN ('mpesareceiptnumber', 'transactionid', 'mpesaref') OR LOWER(result_params->>'Name') IN ('mpesareceiptnumber', 'transactionid', 'mpesaref') THEN
+                            mpesa_receipt := result_params->>'Value';
+                        ELSIF LOWER(result_params->>'Key') = 'amount' OR LOWER(result_params->>'Name') = 'amount' THEN
+                            stk_amount := (result_params->>'Value')::decimal;
+                        ELSIF LOWER(result_params->>'Key') = 'phonenumber' OR LOWER(result_params->>'Name') = 'phonenumber' THEN
+                            stk_phone := result_params->>'Value';
+                        ELSIF LOWER(result_params->>'Key') = 'transactiondate' OR LOWER(result_params->>'Name') = 'transactiondate' THEN
+                            stk_date := result_params->>'Value';
+                        END IF;
+                    END IF;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN
+                -- Ignore result parameter extraction errors
+            END;
+        END IF;
+
+        -- Check flat keys
+        IF mpesa_receipt IS NULL OR mpesa_receipt = '' THEN
+            mpesa_receipt := COALESCE(
+                NEW.payload->'requestPayload'->'primaryData'->>'mpesaReceiptNumber',
+                NEW.payload->'requestPayload'->'primaryData'->>'MpesaReceiptNumber',
+                NEW.payload->'requestPayload'->'primaryData'->>'transactionId',
+                NEW.payload->'requestPayload'->'primaryData'->>'businessKey',
+                NEW.payload->>'mpesaReceiptNumber',
+                NEW.payload->>'MpesaReceiptNumber',
+                NEW.payload->>'transactionId',
+                NEW.payload->>'transactionID',
+                NEW.payload->>'businessKey',
+                NEW.payload->>'transactionReference',
+                NEW.payload->>'customerReference'
+            );
+        END IF;
+
         BEGIN
             payload_amount := COALESCE(
                 stk_amount,
                 (NEW.payload->>'transactionAmount')::decimal,
                 (NEW.payload->>'amount')::decimal,
+                (NEW.payload->'requestPayload'->'primaryData'->>'transactionAmount')::decimal,
                 0.00
             );
         EXCEPTION WHEN OTHERS THEN
