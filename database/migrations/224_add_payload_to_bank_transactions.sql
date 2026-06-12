@@ -407,6 +407,10 @@ BEGIN
                     END IF;
                 END IF;
 
+                IF resolved_txn_id <> payload_txn_id THEN
+                    DELETE FROM public.bank_transactions WHERE id = payload_txn_id;
+                END IF;
+
                 INSERT INTO public.bank_transactions (
                     id,
                     institution_id,
@@ -747,6 +751,10 @@ BEGIN
                 IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pm_invoices') THEN
                     EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.pm_invoices WHERE id = $1 AND LOWER(status) = ''paid'')' INTO is_reconciled USING resolved_invoice_id;
                 END IF;
+            END IF;
+
+            IF resolved_txn_id <> payload_txn_id THEN
+                DELETE FROM public.bank_transactions WHERE id = payload_txn_id;
             END IF;
 
             INSERT INTO public.bank_transactions (
