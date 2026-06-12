@@ -29,6 +29,7 @@ DECLARE
     resolved_txn_id text := NULL;
     resolved_sender_name text := NULL;
     payload_receipt_ref text := NULL;
+    resolved_payload jsonb := NULL;
 BEGIN
     -- Clean up duplicate records in bank_transactions using mpesa_transactions mappings (pre-run)
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mpesa_transactions') THEN
@@ -285,14 +286,15 @@ BEGIN
                     mt_inst_id TEXT;
                     mt_ref TEXT;
                     mt_payer_name TEXT;
+                    mt_amount DECIMAL(12,2);
                 BEGIN
                     IF payload_ref IS NOT NULL AND payload_ref <> '' AND payload_amount > 0 THEN
-                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 OR (customer_reference = $2 AND amount = $3) LIMIT 1'
-                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name
+                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name, amount FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 OR (customer_reference = $2 AND amount = $3) LIMIT 1'
+                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name, mt_amount
                         USING payload_txn_id, payload_ref, payload_amount;
                     ELSE
-                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 LIMIT 1'
-                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name
+                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name, amount FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 LIMIT 1'
+                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name, mt_amount
                         USING payload_txn_id;
                     END IF;
                     
@@ -307,6 +309,9 @@ BEGIN
                     END IF;
                     IF mt_payer_name IS NOT NULL AND mt_payer_name <> '' THEN
                         resolved_sender_name := mt_payer_name;
+                    END IF;
+                    IF mt_amount IS NOT NULL AND mt_amount > 0 AND (payload_amount IS NULL OR payload_amount = 0) THEN
+                        payload_amount := mt_amount;
                     END IF;
                 EXCEPTION WHEN OTHERS THEN
                     -- Ignore errors here
@@ -515,6 +520,12 @@ BEGIN
                        OR (id = payload_receipt_ref AND id <> resolved_txn_id);
                 END IF;
 
+                resolved_payload := COALESCE(log_rec.payload, '{}'::jsonb);
+                IF payload_amount > 0 THEN
+                    resolved_payload := jsonb_set(resolved_payload, '{amount}', to_jsonb(payload_amount));
+                    resolved_payload := jsonb_set(resolved_payload, '{transactionAmount}', to_jsonb(payload_amount));
+                END IF;
+
                 INSERT INTO public.bank_transactions (
                     id,
                     institution_id,
@@ -542,7 +553,7 @@ BEGIN
                     CASE WHEN is_reconciled THEN NOW() ELSE NULL END,
                     CASE WHEN is_reconciled THEN 'Log Sync Utility' ELSE NULL END,
                     log_rec.created_at,
-                    log_rec.payload
+                    resolved_payload
                 )
                 ON CONFLICT (id) DO UPDATE SET
                     institution_id = EXCLUDED.institution_id,

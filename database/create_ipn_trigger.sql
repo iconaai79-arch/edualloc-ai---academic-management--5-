@@ -257,14 +257,15 @@ BEGIN
                     mt_inst_id TEXT;
                     mt_ref TEXT;
                     mt_payer_name TEXT;
+                    mt_amount DECIMAL(12,2);
                 BEGIN
                     IF payload_ref IS NOT NULL AND payload_ref <> '' AND payload_amount > 0 THEN
-                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 OR (customer_reference = $2 AND amount = $3) LIMIT 1'
-                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name
+                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name, amount FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 OR (customer_reference = $2 AND amount = $3) LIMIT 1'
+                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name, mt_amount
                         USING payload_txn_id, payload_ref, payload_amount;
                     ELSE
-                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 LIMIT 1'
-                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name
+                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name, amount FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 LIMIT 1'
+                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name, mt_amount
                         USING payload_txn_id;
                     END IF;
                     
@@ -279,6 +280,9 @@ BEGIN
                     END IF;
                     IF mt_payer_name IS NOT NULL AND mt_payer_name <> '' THEN
                         resolved_sender_name := mt_payer_name;
+                    END IF;
+                    IF mt_amount IS NOT NULL AND mt_amount > 0 AND (payload_amount IS NULL OR payload_amount = 0) THEN
+                        payload_amount := mt_amount;
                     END IF;
                 EXCEPTION WHEN OTHERS THEN
                     -- Ignore errors here
@@ -363,6 +367,12 @@ BEGIN
             IF resolved_invoice_id IS NULL AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pm_invoices') THEN
                 EXECUTE 'SELECT id FROM public.pm_invoices WHERE invoice_number = $1 AND institution_id = $2 LIMIT 1' INTO resolved_invoice_id USING payload_ref, resolved_inst_id;
             END IF;
+        END IF;
+
+        -- Inject verified amount into raw payload to guarantee it is always present
+        IF payload_amount > 0 THEN
+            NEW.payload := jsonb_set(COALESCE(NEW.payload, ''{}''::jsonb), ''{amount}'', to_jsonb(payload_amount));
+            NEW.payload := jsonb_set(NEW.payload, ''{transactionAmount}'', to_jsonb(payload_amount));
         END IF;
 
         -- 6. Upsert to bank_transactions
