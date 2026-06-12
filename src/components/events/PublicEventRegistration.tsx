@@ -196,7 +196,8 @@ export const PublicEventRegistration: React.FC = () => {
             // Determine next BIB number
             const allParticipants = await apiService.fetchModuleRecords<EventParticipant>('event_participants');
 
-            // Prevent duplicate registration check
+            // Prevent duplicate registration check — but if someone is already paid (webhook created them),
+            // surface the ticket rather than blocking.
             const eventCategoryIds = categories.map(c => c.id);
             const emailLower = formData.email.trim().toLowerCase();
             const phoneTrim = formData.phone.trim();
@@ -205,16 +206,9 @@ export const PublicEventRegistration: React.FC = () => {
                 ((emailLower && p.email?.toLowerCase() === emailLower) || (phoneTrim && p.phone === phoneTrim))
             );
             if (duplicate) {
-                // If this is the registration that was already reconciled/created by the backend query/webhook
-                // The webhook may have saved the real M-Pesa receipt, while the frontend polling query didn't receive it.
-                // Since duplicate check passed before STK push, any duplicate here was created during this session.
-                if (duplicate.paymentStatus === 'paid' && (
-                    duplicate.mpesaReference === reference || 
-                    duplicate.mpesaReference === checkoutRequestId ||
-                    duplicate.mpesaReference === `KCB_${checkoutRequestId}` ||
-                    (duplicate.mpesaReference && duplicate.mpesaReference.includes(checkoutRequestId)) ||
-                    checkoutRequestId
-                )) {
+                // Payment was already processed (webhook/backend reconciliation completed it).
+                // Show the success ticket instead of throwing an error.
+                if (duplicate.paymentStatus === 'paid') {
                     setRegisteredParticipant(duplicate);
                     setPaymentStatus('success');
                     setStep(4);
@@ -300,49 +294,88 @@ export const PublicEventRegistration: React.FC = () => {
         }
     };
 
-    // Poll payment status
+    // Poll payment status — dual signal: KCB API query + database mpesa_transactions check.
+    // Whichever fires first (API confirmation or IPN/webhook updating the DB) will advance the flow.
     useEffect(() => {
         if (!checkoutRequestId || paymentStatus !== 'prompt_sent') return;
 
         let attempts = 0;
-        const maxAttempts = 24; // 120s
+        const maxAttempts = 36; // 180 seconds max (36 × 5s)
+        let resolved = false;
+
+        const finalizePayment = (receiptNumber: string) => {
+            if (resolved) return;
+            resolved = true;
+            setPaymentStatus('completed');
+            setStatusMessage(`Payment confirmed! KES ${totalFee?.toLocaleString()} received. Completing registration...`);
+            handleCompleteRegistration(receiptNumber).catch(err => {
+                console.error("Registration finalization failed:", err);
+                setPaymentStatus('failed');
+                setErrorMsg(err.message || 'Payment confirmed, but registration record could not be saved.');
+            });
+        };
+
         const interval = setInterval(async () => {
+            if (resolved) {
+                clearInterval(interval);
+                return;
+            }
             attempts++;
             if (attempts >= maxAttempts) {
                 clearInterval(interval);
-                setPaymentStatus('failed');
-                setStatusMessage("Verification timed out. If you already completed the payment, it will reflect within 24 hours.");
+                if (!resolved) {
+                    setPaymentStatus('failed');
+                    setStatusMessage("Verification timed out. If you completed the payment, your registration will be confirmed within 24 hours.");
+                }
                 return;
             }
 
+            // --- Signal 1: Poll database (mpesa_transactions) for webhook/IPN confirmation ---
+            try {
+                const txns = await apiService.fetchModuleRecords<any>('mpesa_transactions', undefined, undefined, {
+                    filter: { checkout_request_id: checkoutRequestId }
+                });
+                const completedTxn = txns?.find((t: any) => {
+                    const s = (t.status || t.Status || '').toLowerCase();
+                    return s === 'completed' || s === 'success';
+                });
+                if (completedTxn) {
+                    clearInterval(interval);
+                    const receipt = completedTxn.transactionId || completedTxn.transaction_id ||
+                                    completedTxn.mpesaReceiptNumber || completedTxn.mpesa_receipt ||
+                                    checkoutRequestId;
+                    finalizePayment(receipt);
+                    return;
+                }
+            } catch (dbErr) {
+                console.warn("DB poll warning:", dbErr);
+            }
+
+            // --- Signal 2: Poll KCB API for direct confirmation ---
             try {
                 const statusRes = await apiService.post('/api/payments/kcb-query', {
                     checkoutRequestId,
                     config: kcbConfig || {}
                 });
-                if (statusRes.success && (statusRes.status === 'COMPLETED' || statusRes.status === 'Success' || statusRes.resultCode === '0')) {
+                const s = (statusRes.status || '').toUpperCase();
+                if (statusRes.success && (s === 'COMPLETED' || s === 'SUCCESS')) {
                     clearInterval(interval);
-                    setPaymentStatus('completed');
-                    setStatusMessage(`Payment confirmed! KES ${totalFee?.toLocaleString()} received successfully.`);
-                    
-                    // Complete registration with the real M-Pesa Receipt Number!
                     const receiptNumber = statusRes.mpesaReceiptNumber || checkoutRequestId;
-                    handleCompleteRegistration(receiptNumber).catch(err => {
-                        console.error("Registration finalization failed:", err);
-                        setPaymentStatus('failed');
-                        setErrorMsg(err.message || 'Payment confirmed, but registration record could not be saved.');
-                    });
-                } else if (statusRes.status === 'Failed' || statusRes.resultCode === '1') {
+                    finalizePayment(receiptNumber);
+                } else if (s === 'FAILED' || s === 'CANCELLED') {
                     clearInterval(interval);
-                    setPaymentStatus('failed');
-                    setStatusMessage(statusRes.message || "Payment request was cancelled or failed on your mobile phone.");
+                    if (!resolved) {
+                        setPaymentStatus('failed');
+                        setStatusMessage(statusRes.message || "Payment was cancelled or failed on your mobile phone. Please try again.");
+                    }
                 }
+                // PENDING / unknown → keep polling
             } catch (err) {
-                console.warn("Status check warning, retrying...", err);
+                console.warn("KCB API poll warning, retrying...", err);
             }
         }, 5000);
 
-        return () => clearInterval(interval);
+        return () => { resolved = true; clearInterval(interval); };
     }, [checkoutRequestId, paymentStatus, totalFee, kcbConfig]);
 
     const handleSendStkPush = async () => {

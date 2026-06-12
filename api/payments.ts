@@ -921,7 +921,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     status = 'PENDING';
                 }
 
-                if (status === 'COMPLETED' && checkoutRequestId && mpesaReceiptNumber) {
+                // Proceed with reconciliation when COMPLETED, even if mpesaReceiptNumber is null
+                // (use checkoutRequestId as reference fallback in that case)
+                if (status === 'COMPLETED' && checkoutRequestId) {
                     try {
                         const supabase = getSupabase();
                         if (supabase) {
