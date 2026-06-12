@@ -248,7 +248,9 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
     const stats = useMemo(() => {
         const totalSales = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
         const totalCollected = payments.reduce((sum, pay) => sum + pay.amount, 0);
-        const outstanding = totalSales - totalCollected;
+        const outstanding = invoices
+            .filter(inv => inv.status !== 'cancelled')
+            .reduce((sum, inv) => sum + (inv.balanceAmount ?? (inv.totalAmount - (inv.paidAmount || 0))), 0);
         return { totalSales, totalCollected, outstanding };
     }, [invoices, payments]);
 
@@ -663,9 +665,11 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6 text-right">
-                                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {inv.totalAmount?.toLocaleString()}</p>
-                                                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mt-1">Net Payable</p>
-                                            </td>
+                                                 <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {inv.totalAmount?.toLocaleString()}</p>
+                                                 <p className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
+                                                     Paid: KES {(inv.paidAmount || 0).toLocaleString()} • Bal: KES {(inv.balanceAmount ?? (inv.totalAmount - (inv.paidAmount || 0))).toLocaleString()}
+                                                 </p>
+                                             </td>
                                             <td className="px-8 py-6 text-center">
                                                 <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
                                                     inv.status === 'fully_paid' ? 'bg-emerald-50 text-emerald-600' : 

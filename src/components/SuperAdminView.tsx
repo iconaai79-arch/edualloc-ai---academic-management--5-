@@ -3946,6 +3946,10 @@ Please change it after login.`;
                             activityLog={activityLog}
                             users={users}
                             transactions={transactions}
+                            carInvoices={props.carInvoices || []}
+                            carPayments={props.carPayments || []}
+                            carListings={carListings || []}
+                            carBankTransactions={props.carBankTransactions || []}
                         />
                     </div>
                 )}

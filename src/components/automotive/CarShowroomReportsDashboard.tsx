@@ -132,7 +132,7 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
 
     const outstandingBalances = invoices
         .filter(inv => inv.status !== 'cancelled')
-        .reduce((sum, inv) => sum + (inv.balanceAmount || 0), 0);
+        .reduce((sum, inv) => sum + (inv.balanceAmount ?? (inv.totalAmount - (inv.paidAmount || 0))), 0);
 
     const totalLeads = bookings.length + listings.reduce((sum, c) => sum + (c.inquiryCount || 0), 0);
 
@@ -251,7 +251,7 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
             if (inv.status !== 'cancelled') {
                 invoiced += inv.totalAmount || 0;
                 collected += inv.paidAmount || 0;
-                due += inv.balanceAmount || 0;
+                due += inv.balanceAmount ?? (inv.totalAmount - (inv.paidAmount || 0));
             }
         });
         return { invoiced, collected, due };
@@ -823,7 +823,7 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                                                     KES {(inv.paidAmount || 0)?.toLocaleString()}
                                                 </td>
                                                 <td className="p-6 text-sm font-bold text-rose-600 dark:text-rose-400">
-                                                    KES {(inv.balanceAmount || 0)?.toLocaleString()}
+                                                    KES {(inv.balanceAmount ?? (inv.totalAmount - (inv.paidAmount || 0)))?.toLocaleString()}
                                                 </td>
                                                 <td className="p-6">
                                                     <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
