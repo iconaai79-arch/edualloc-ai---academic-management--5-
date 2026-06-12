@@ -258,9 +258,15 @@ BEGIN
                     mt_ref TEXT;
                     mt_payer_name TEXT;
                 BEGIN
-                    EXECUTE 'SELECT id, institution_id, customer_reference, payer_name FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 LIMIT 1'
-                    INTO mt_id, mt_inst_id, mt_ref, mt_payer_name
-                    USING payload_txn_id;
+                    IF payload_ref IS NOT NULL AND payload_ref <> '' AND payload_amount > 0 THEN
+                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 OR (customer_reference = $2 AND amount = $3) LIMIT 1'
+                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name
+                        USING payload_txn_id, payload_ref, payload_amount;
+                    ELSE
+                        EXECUTE 'SELECT id, institution_id, customer_reference, payer_name FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 LIMIT 1'
+                        INTO mt_id, mt_inst_id, mt_ref, mt_payer_name
+                        USING payload_txn_id;
+                    END IF;
                     
                     IF mt_id IS NOT NULL THEN
                         resolved_txn_id := mt_id;
@@ -376,8 +382,12 @@ BEGIN
                 END IF;
             END IF;
 
-            IF resolved_txn_id <> payload_txn_id THEN
-                DELETE FROM public.bank_transactions WHERE id = payload_txn_id;
+            IF resolved_txn_id IS NOT NULL THEN
+                -- Delete duplicate temporary rows that might have been created under the checkoutRequestId or mpesaReceiptNumber
+                DELETE FROM public.bank_transactions 
+                WHERE (id = payload_txn_id AND id <> resolved_txn_id)
+                   OR (id = mpesa_receipt AND id <> resolved_txn_id)
+                   OR (id = payload_receipt_ref AND id <> resolved_txn_id);
             END IF;
 
             INSERT INTO public.bank_transactions (
