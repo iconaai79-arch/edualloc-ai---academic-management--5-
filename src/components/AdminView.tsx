@@ -888,7 +888,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
 
             if (tab.id === 'users') {
-                if (props.currentUser?.role === 'super_admin') return true;
+                if (props.currentUser?.role === 'super_admin' || !!localStorage.getItem('eduai_super_admin_session')) return true;
                 if (isAutoMarket) return ['director', 'finance', 'finance_officer', 'admin'].includes(roleToUse || '');
                 if (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet' || isDS) return true;
                 return isEdu && !isDS;
@@ -946,7 +946,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'fuel_station') return isFuelStation;
 
             if (tab.id === 'reports') {
-                if (props.currentUser?.role === 'super_admin') return true;
+                if (props.currentUser?.role === 'super_admin' || !!localStorage.getItem('eduai_super_admin_session')) return true;
                 if (isAutoMarket) return ['director', 'finance'].includes(roleToUse || '');
                 return true; // Default visibility for other institutional types
             }
@@ -2978,7 +2978,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 letterheadConfig={props.letterheadConfig}
                             />
                         ) : isAutoMarket ? (
-                            ['director', 'finance', 'super_admin'].includes(roleToUse || '') || props.currentUser?.role === 'super_admin' ? (
+                            ['director', 'finance', 'super_admin'].includes(roleToUse || '') || props.currentUser?.role === 'super_admin' || !!localStorage.getItem('eduai_super_admin_session') ? (
                                 <CarShowroomReportsDashboard
                                     institutionId={props.currentInstitution?.id || ''}
                                     users={props.users || []}
