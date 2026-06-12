@@ -416,14 +416,34 @@ export const PublicEventRegistration: React.FC = () => {
         setErrorMsg('');
 
         try {
-            const response = await apiService.post('/api/payments/kcb-stk-push', {
+        const response = await apiService.post('/api/payments/kcb-stk-push', {
                 customerMobileNumber: formattedPhone,
                 transactionAmount: totalFee,
                 customerReference: `EVT_${eventId?.substring(0, 8).toUpperCase()}_${Date.now().toString().slice(-4)}`,
                 customerName: `${formData.firstName} ${formData.lastName}`.trim(),
                 narration: `Registration for ${event?.name || 'Event'}`,
                 creditAccountIdentifier: event?.institutionId || 'GLOBAL',
-                config: kcbConfig || {}
+                config: kcbConfig || {},
+                // Pass event registration metadata so the backend saves it in mpesa_transactions
+                // This allows the KCB callback to detect type='event_registration' and create the participant
+                metadata: {
+                    type: 'event_registration',
+                    eventId: eventId,
+                    categoryId: selectedCategoryId,
+                    firstName: formData.firstName,
+                    lastName: formData.lastName,
+                    email: formData.email,
+                    phone: formData.phone || formattedPhone,
+                    gender: formData.gender,
+                    age: formData.age,
+                    tShirtSize: formData.tShirtSize,
+                    emergencyContactName: formData.emergencyContactName,
+                    emergencyContactPhone: formData.emergencyContactPhone,
+                    initialPledge: formData.initialPledge,
+                    sponsorName: formData.sponsorName,
+                    payerPhoneNumber: formattedPhone,
+                    payerName: `${formData.firstName} ${formData.lastName}`.trim()
+                }
             });
 
             if (response.success || response.ResponseCode === '0') {

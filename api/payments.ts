@@ -640,6 +640,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
 
                     // Insert a pending transaction so callback webhook can reconcile it later
+                    // Use metadata from the request body if provided (e.g. event_registration type)
+                    // otherwise derive it from paymentType
+                    const bodyMetadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : null;
+                    const resolvedMetadata = bodyMetadata || {
+                        type: paymentType === 'Rent' ? 'invoice' : (paymentType === 'Deposit' ? 'deposit' : 'utility'),
+                        paymentType,
+                        payerPhoneNumber: phoneNumber,
+                        payerName: resolvedName
+                    };
+                    // Always ensure payerPhoneNumber and payerName are present
+                    if (!resolvedMetadata.payerPhoneNumber) resolvedMetadata.payerPhoneNumber = phoneNumber;
+                    if (!resolvedMetadata.payerName) resolvedMetadata.payerName = resolvedName;
+
+                    console.log(`[KCB STK] Saving pending transaction with metadata type: ${resolvedMetadata.type}`);
+
                     await supabase.from('mpesa_transactions').insert({
                         id: `txn_${Date.now()}`,
                         transaction_id: `KCB_${checkoutRequestId}`,
@@ -650,12 +665,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         status: 'pending',
                         payer_name: resolvedName,
                         provider: 'kcb',
-                        metadata: {
-                            type: paymentType === 'Rent' ? 'invoice' : (paymentType === 'Deposit' ? 'deposit' : 'utility'),
-                            paymentType,
-                            payerPhoneNumber: phoneNumber,
-                            payerName: resolvedName
-                        }
+                        metadata: resolvedMetadata
                     });
 
                     return res.status(200).json({
