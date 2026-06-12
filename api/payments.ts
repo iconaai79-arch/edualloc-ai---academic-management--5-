@@ -908,6 +908,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         queryData.MpesaReceiptNumber ||
                                         queryData.transactionId ||
                                         queryData.TransactionID ||
+                                        queryData.transactionReference ||
+                                        queryData.TransactionReference ||
                                         null;
                 }
 

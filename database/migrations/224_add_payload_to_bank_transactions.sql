@@ -16,6 +16,17 @@ DECLARE
     payload_credit_acc TEXT;
     payload_shortcode TEXT;
     sync_count integer := 0;
+    
+    -- STK push callback parsing helpers
+    temp_item jsonb;
+    mpesa_receipt text := NULL;
+    stk_amount decimal(12,2) := NULL;
+    stk_phone text := NULL;
+    stk_date text := NULL;
+    metadata_items jsonb := NULL;
+    resolved_txn_id text := NULL;
+    resolved_sender_name text := NULL;
+    payload_receipt_ref text := NULL;
 BEGIN
     FOR log_rec IN 
         SELECT id, payload, created_at, provider 
@@ -26,6 +37,14 @@ BEGIN
         -- Reset variables
         resolved_inst_id := NULL;
         resolved_invoice_id := NULL;
+        resolved_txn_id := NULL;
+        resolved_sender_name := NULL;
+        mpesa_receipt := NULL;
+        stk_amount := NULL;
+        stk_phone := NULL;
+        stk_date := NULL;
+        metadata_items := NULL;
+        payload_receipt_ref := NULL;
         
         -- Parse values from JSON payload dynamically (handles IPN, STK Callbacks, and Sandbox Mocks)
         payload_txn_id := COALESCE(
@@ -46,9 +65,35 @@ BEGIN
             log_rec.payload->>'businessKey'
         );
 
+        -- Parse Safaricom/KCB STK Push Callback Metadata if present
+        BEGIN
+            metadata_items := COALESCE(
+                log_rec.payload->'Body'->'stkCallback'->'CallbackMetadata'->'Item',
+                log_rec.payload->'CallbackMetadata'->'Item',
+                log_rec.payload->'stkCallback'->'CallbackMetadata'->'Item'
+            );
+            
+            IF metadata_items IS NOT NULL AND jsonb_typeof(metadata_items) = 'array' THEN
+                FOR temp_item IN SELECT * FROM jsonb_array_elements(metadata_items) LOOP
+                    IF temp_item->>'Name' = 'MpesaReceiptNumber' THEN
+                        mpesa_receipt := temp_item->>'Value';
+                    ELSIF temp_item->>'Name' = 'Amount' THEN
+                        stk_amount := (temp_item->>'Value')::decimal;
+                    ELSIF temp_item->>'Name' = 'PhoneNumber' THEN
+                        stk_phone := temp_item->>'Value';
+                    ELSIF temp_item->>'Name' = 'TransactionDate' THEN
+                        stk_date := temp_item->>'Value';
+                    END IF;
+                END LOOP;
+            END IF;
+        EXCEPTION WHEN OTHERS THEN
+            -- Ignore metadata extraction errors
+        END;
+
         -- Protect casting from throwing error on bad formats
         BEGIN
             payload_amount := COALESCE(
+                stk_amount,
                 (log_rec.payload->>'transactionAmount')::decimal,
                 (log_rec.payload->>'amount')::decimal,
                 0.00
@@ -60,6 +105,7 @@ BEGIN
         payload_sender := COALESCE(
             log_rec.payload->>'customerName',
             log_rec.payload->>'payerName',
+            stk_phone,
             log_rec.payload->>'customerMobileNumber',
             log_rec.payload->>'phoneNumber',
             'External Deposit'
@@ -80,7 +126,15 @@ BEGIN
         
         -- Handle timestamp parsing
         BEGIN
-            payload_date := (log_rec.payload->>'timestamp')::timestamp with time zone;
+            IF stk_date IS NOT NULL AND stk_date <> '' THEN
+                IF length(stk_date) = 14 THEN
+                    payload_date := to_timestamp(stk_date, 'YYYYMMDDHH24MISS');
+                ELSE
+                    payload_date := stk_date::timestamp with time zone;
+                END IF;
+            ELSE
+                payload_date := (log_rec.payload->>'timestamp')::timestamp with time zone;
+            END IF;
         EXCEPTION WHEN OTHERS THEN
             payload_date := log_rec.created_at;
         END;
@@ -128,6 +182,42 @@ BEGIN
                OR (kcb_config->>'organization_short_code') = payload_shortcode
             LIMIT 1;
         END IF;
+
+        -- 2.5. Try to resolve from mpesa_transactions if missing info (useful for STK push callbacks)
+        IF payload_txn_id IS NOT NULL THEN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mpesa_transactions') THEN
+                DECLARE
+                    mt_id TEXT;
+                    mt_inst_id TEXT;
+                    mt_ref TEXT;
+                    mt_payer_name TEXT;
+                BEGIN
+                    EXECUTE 'SELECT id, institution_id, customer_reference, payer_name FROM public.mpesa_transactions WHERE checkout_request_id = $1 OR transaction_id = $1 LIMIT 1'
+                    INTO mt_id, mt_inst_id, mt_ref, mt_payer_name
+                    USING payload_txn_id;
+                    
+                    IF mt_id IS NOT NULL THEN
+                        resolved_txn_id := mt_id;
+                    END IF;
+                    IF mt_inst_id IS NOT NULL AND resolved_inst_id IS NULL THEN
+                        resolved_inst_id := mt_inst_id;
+                    END IF;
+                    IF mt_ref IS NOT NULL AND mt_ref <> '' AND (payload_ref IS NULL OR payload_ref = '') THEN
+                        payload_ref := mt_ref;
+                    END IF;
+                    IF mt_payer_name IS NOT NULL AND mt_payer_name <> '' THEN
+                        resolved_sender_name := mt_payer_name;
+                    END IF;
+                EXCEPTION WHEN OTHERS THEN
+                    -- Ignore errors here
+                END;
+            END IF;
+        END IF;
+
+        -- Final resolution of ID, reference, and sender name
+        resolved_txn_id := COALESCE(resolved_txn_id, mpesa_receipt, payload_txn_id);
+        payload_receipt_ref := COALESCE(mpesa_receipt, payload_ref, payload_txn_id);
+        payload_sender := COALESCE(resolved_sender_name, payload_sender);
 
         -- 3. Try to resolve by matching customerReference to invoice number across tables
         IF resolved_inst_id IS NULL AND payload_ref IS NOT NULL AND payload_ref <> '' THEN
@@ -332,11 +422,11 @@ BEGIN
                     created_at,
                     payload
                 ) VALUES (
-                    payload_txn_id,
+                    resolved_txn_id,
                     resolved_inst_id,
                     COALESCE(payload_amount, 0),
                     COALESCE(payload_date, log_rec.created_at),
-                    payload_txn_id,
+                    payload_receipt_ref,
                     COALESCE(payload_sender, 'External Deposit'),
                     'KCB',
                     CASE WHEN is_reconciled THEN 'reconciled' ELSE 'unreconciled' END,
