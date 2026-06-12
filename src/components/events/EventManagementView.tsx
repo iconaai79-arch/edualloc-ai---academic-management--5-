@@ -127,9 +127,9 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                 return {
                     ...bt,
                     _table: 'bank_transactions',
-                    timestamp: bt.transaction_date || bt.created_at,
+                    timestamp: bt.transactionDate || bt.transaction_date || bt.createdAt || bt.created_at,
                     transactionId: bt.reference || bt.id,
-                    payerName: bt.sender_name || 'External Deposit',
+                    payerName: bt.senderName || bt.sender_name || 'External Deposit',
                     phoneNumber: meta?.customerMobileNumber || meta?.phoneNumber || '',
                     metadata: bt.payload
                 };
@@ -1364,7 +1364,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
                                             const catName = categories.find(c => c.id === meta?.categoryId)?.name || (tx._table === 'bank_transactions' ? 'Bank Transfer' : 'Unknown Category');
                                             const payerPhone = tx.phoneNumber || tx.customerMobileNumber || meta?.phoneNumber || meta?.customerMobileNumber || '—';
                                             const payerName = tx.payerName || meta?.payerName || meta?.customerName || (tx._table === 'bank_transactions' ? 'External Deposit' : 'Guest Runner');
-                                            const txDate = tx.timestamp || tx.transaction_date || tx.created_at;
+                                            const txDate = tx.timestamp || tx.transactionDate || tx.transaction_date || tx.createdAt || tx.created_at;
                                             return (
                                                 <tr key={tx.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50">
                                                     <td className="py-3 pr-4 text-slate-500 font-mono whitespace-nowrap">
