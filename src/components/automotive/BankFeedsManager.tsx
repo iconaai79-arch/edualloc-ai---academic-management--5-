@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { 
     BankTransaction, 
@@ -18,8 +17,11 @@ import {
     Banknote,
     Link as LinkIcon,
     History,
-    CreditCard
+    CreditCard,
+    X,
+    Trash2
 } from 'lucide-react';
+import { apiService } from '../../services/apiService';
 
 interface BankFeedsManagerProps {
     transactions: BankTransaction[];
@@ -41,6 +43,10 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'reconciled' | 'unreconciled'>('all');
     const [isReconciling, setIsReconciling] = useState(false);
+    
+    // Manual reconciliation modal states
+    const [selectedTransactionForReconcile, setSelectedTransactionForReconcile] = useState<BankTransaction | null>(null);
+    const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
 
     const filteredTransactions = useMemo(() => {
         return transactions
@@ -91,6 +97,33 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         }, 1500);
     };
 
+    const handleDeleteTransaction = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this bank transaction record? This action cannot be undone.')) {
+            return;
+        }
+        try {
+            await apiService.deleteModuleRecord('bank_transactions', id);
+            onFetchFeeds();
+        } catch (error) {
+            console.error('Failed to delete bank transaction:', error);
+            alert('Failed to delete the bank transaction record. Please try again.');
+        }
+    };
+
+    const filteredInvoices = useMemo(() => {
+        // Show only pending/partially_paid invoices
+        const activeInvoices = invoices.filter(inv => inv.status !== 'fully_paid' && inv.status !== 'cancelled');
+        if (!invoiceSearchQuery.trim()) return activeInvoices;
+        const q = invoiceSearchQuery.toLowerCase();
+        return activeInvoices.filter(inv => 
+            (inv.invoiceNumber || '').toLowerCase().includes(q) ||
+            (inv.clientName || '').toLowerCase().includes(q) ||
+            (inv.registrationNumber || '').toLowerCase().includes(q) ||
+            (inv.clientEmail || '').toLowerCase().includes(q) ||
+            (inv.clientPhone || '').toLowerCase().includes(q)
+        );
+    }, [invoices, invoiceSearchQuery]);
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -139,13 +172,13 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                             placeholder="Search by reference or sender..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500"
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white outline-none"
                         />
                     </div>
                     <select 
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value as any)}
-                        className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest focus:ring-2 focus:ring-indigo-500"
+                        className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
                     >
                         <option value="all">All Status</option>
                         <option value="unreconciled">Unreconciled</option>
@@ -215,41 +248,30 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                         </span>
                                     </td>
                                     <td className="px-8 py-6 text-right">
-                                        {transaction.status === 'unreconciled' ? (
+                                        <div className="flex items-center justify-end gap-3">
+                                            {transaction.status === 'unreconciled' ? (
+                                                <button 
+                                                    onClick={() => {
+                                                        setSelectedTransactionForReconcile(transaction);
+                                                        setInvoiceSearchQuery('');
+                                                    }}
+                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100 dark:shadow-none"
+                                                >
+                                                    Manual Reconcile
+                                                </button>
+                                            ) : (
+                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                    Reconciled By {transaction.reconciledBy || 'System'}
+                                                </div>
+                                            )}
                                             <button 
-                                                onClick={() => {
-                                                    // This would ideally open a modal to select an invoice
-                                                    // Prioritize matches that also match reference / registration narration
-                                                    const bestMatch = invoices.find(inv => {
-                                                        const refUpper = transaction.reference.toUpperCase().trim();
-                                                        const invNumUpper = inv.invoiceNumber.toUpperCase().trim();
-                                                        const regNumUpper = inv.registrationNumber ? inv.registrationNumber.toUpperCase().trim() : '';
-
-                                                        const matchesInvoiceNum = refUpper.includes(invNumUpper) || invNumUpper.includes(refUpper);
-                                                        const matchesRegNum = regNumUpper && (refUpper.includes(regNumUpper) || regNumUpper.includes(refUpper));
-
-                                                        return (matchesInvoiceNum || matchesRegNum) && 
-                                                               inv.totalAmount === transaction.amount && 
-                                                               inv.status !== 'fully_paid';
-                                                    }) || invoices.find(inv => 
-                                                        inv.totalAmount === transaction.amount && 
-                                                        inv.status !== 'fully_paid'
-                                                    );
-                                                    if (bestMatch) {
-                                                        onReconcile(transaction.id, bestMatch.id);
-                                                    } else {
-                                                        alert("No automatic match found. Please use the invoice selector (To be implemented).");
-                                                    }
-                                                }}
-                                                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100"
+                                                onClick={() => handleDeleteTransaction(transaction.id)}
+                                                className="p-2.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all active:scale-90"
+                                                title="Delete Transaction Record"
                                             >
-                                                Manual Reconcile
+                                                <Trash2 className="w-4 h-4" />
                                             </button>
-                                        ) : (
-                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                Reconciled By {transaction.reconciledBy || 'System'}
-                                            </div>
-                                        )}
+                                        </div>
                                     </td>
                                 </tr>
                             );
@@ -269,6 +291,157 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     </tbody>
                 </table>
             </div>
+
+            {/* Manual Reconciliation Modal */}
+            {selectedTransactionForReconcile && (
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in" 
+                    onClick={() => setSelectedTransactionForReconcile(null)}
+                >
+                    <div 
+                        className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-3xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" 
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Manual Reconciliation</h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Select an invoice to reconcile with this transaction</p>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedTransactionForReconcile(null)} 
+                                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Transaction Summary Panel */}
+                        <div className="p-8 bg-indigo-50/50 dark:bg-indigo-950/10 border-b border-slate-100 dark:border-slate-800/50 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">Transaction Amount</span>
+                                <p className="text-lg font-black text-slate-900 dark:text-white mt-0.5">
+                                    KES {selectedTransactionForReconcile.amount?.toLocaleString()}
+                                </p>
+                            </div>
+                            <div>
+                                <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">Reference</span>
+                                <p className="text-sm font-black text-slate-700 dark:text-slate-300 font-mono mt-0.5">
+                                    {selectedTransactionForReconcile.reference}
+                                </p>
+                            </div>
+                            <div>
+                                <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">Sender & Date</span>
+                                <p className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-tight mt-0.5">
+                                    {selectedTransactionForReconcile.senderName || 'External Deposit'}
+                                </p>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                                    {new Date(selectedTransactionForReconcile.transactionDate).toLocaleDateString()}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Invoices List Section */}
+                        <div className="p-8 flex flex-col">
+                            {/* Search / Filter bar */}
+                            <div className="relative mb-6">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input 
+                                    type="text"
+                                    placeholder="Search invoices by invoice number, customer name, or registration plate..."
+                                    value={invoiceSearchQuery}
+                                    onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white outline-none"
+                                />
+                            </div>
+
+                            {/* Invoices Scroll Area */}
+                            <div className="overflow-y-auto pr-2 space-y-4 max-h-[300px] no-scrollbar">
+                                {filteredInvoices.map((inv) => {
+                                    const isExactAmount = inv.balanceAmount === selectedTransactionForReconcile.amount || inv.totalAmount === selectedTransactionForReconcile.amount;
+                                    const hasMatchingRef = 
+                                        selectedTransactionForReconcile.reference.toUpperCase().includes(inv.invoiceNumber.toUpperCase()) ||
+                                        (inv.registrationNumber && selectedTransactionForReconcile.reference.toUpperCase().includes(inv.registrationNumber.toUpperCase()));
+
+                                    return (
+                                        <div 
+                                            key={inv.id} 
+                                            className={`p-6 bg-white dark:bg-slate-900 border-2 rounded-3xl transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-lg ${
+                                                isExactAmount && hasMatchingRef 
+                                                ? 'border-indigo-500 bg-indigo-50/10 dark:bg-indigo-950/5' 
+                                                : 'border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                                            }`}
+                                        >
+                                            <div className="space-y-3 flex-1">
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white font-mono">
+                                                        #{inv.invoiceNumber}
+                                                    </h4>
+                                                    <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                                                        inv.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'
+                                                    }`}>
+                                                        {inv.status.replace('_', ' ')}
+                                                    </span>
+                                                    {isExactAmount && (
+                                                        <span className="px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600">
+                                                            Exact Amount Match
+                                                        </span>
+                                                    )}
+                                                    {hasMatchingRef && (
+                                                        <span className="px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600">
+                                                            Ref Match
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-left">
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Customer</p>
+                                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5">{inv.clientName}</p>
+                                                    </div>
+                                                    {inv.registrationNumber && (
+                                                        <div>
+                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Reg Number</p>
+                                                            <p className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">{inv.registrationNumber}</p>
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Amount</p>
+                                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5">KES {inv.totalAmount?.toLocaleString()}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Remaining Balance</p>
+                                                        <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-0.5">KES {inv.balanceAmount?.toLocaleString()}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <button 
+                                                    onClick={() => {
+                                                        onReconcile(selectedTransactionForReconcile.id, inv.id);
+                                                        setSelectedTransactionForReconcile(null);
+                                                    }}
+                                                    className="w-full md:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-indigo-100 dark:shadow-none"
+                                                >
+                                                    Select & Reconcile
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {filteredInvoices.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-full mb-3">
+                                            <Search className="w-8 h-8 text-slate-300" />
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">No matching invoices found</p>
+                                        <p className="text-xs text-slate-500 mt-1 max-w-xs">Try searching for other invoice numbers or check client details.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
