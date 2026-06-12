@@ -82,15 +82,71 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             const narration = payload.description || 
                               payload.narration || 
                               payload.remarks || 
-                              payload.customerReference || 
-                              payload.accountReference || 
-                              payload.billReferenceNumber || 
+                              '';
+
+            const customerReference = payload.customerReference || 
+                                     payload.accountReference || 
+                                     payload.billReferenceNumber || 
+                                     payload.businessKey || 
+                                     (payload.requestPayload?.primaryData?.businessKey) || 
+                                     '';
+
+            let customerMobile = payload.customerMobileNumber || 
+                                 payload.phoneNumber || 
+                                 payload.customer_mobile_number || 
+                                 payload.phone || 
+                                 '';
+            if (!customerMobile) {
+                const items = payload.Body?.stkCallback?.CallbackMetadata?.Item || 
+                              payload.body?.stkCallback?.CallbackMetadata?.Item ||
+                              payload.body?.stkcallback?.CallbackMetadata?.Item ||
+                              payload.CallbackMetadata?.Item || 
+                              payload.callbackMetadata?.Item ||
+                              payload.Body?.stkCallback?.CallbackMetadata?.item ||
+                              payload.CallbackMetadata?.item;
+                if (Array.isArray(items)) {
+                    const phoneItem = items.find(item => {
+                        const key = String(item.Name || item.Key || '').toLowerCase();
+                        return key === 'phonenumber';
+                    });
+                    if (phoneItem) customerMobile = String(phoneItem.Value || '');
+                }
+            }
+            if (!customerMobile) {
+                const params = payload.ResultParameters?.ResultParameter || 
+                               payload.Result?.ResultParameters?.ResultParameter ||
+                               payload.Body?.stkCallback?.ResultParameters?.ResultParameter ||
+                               payload.stkCallback?.ResultParameters?.ResultParameter;
+                if (Array.isArray(params)) {
+                    const phoneItem = params.find(item => {
+                        const key = String(item.Key || item.Name || '').toLowerCase();
+                        return key === 'phonenumber';
+                    });
+                    if (phoneItem) customerMobile = String(phoneItem.Value || '');
+                } else if (params) {
+                    const key = String(params.Key || params.Name || '').toLowerCase();
+                    if (key === 'phonenumber') customerMobile = String(params.Value || '');
+                }
+            }
+
+            const requestId = t.id || 
+                              payload.checkoutRequestId || 
+                              payload.checkoutRequestID || 
+                              payload.CheckoutRequestID || 
+                              payload.requestId || 
+                              payload.transactionId || 
+                              payload.transactionID || 
+                              (payload.Body?.stkCallback?.CheckoutRequestID) || 
+                              (payload.body?.stkCallback?.CheckoutRequestID) || 
                               '';
 
             return {
                 invoiceNum,
                 plate,
                 narration: String(narration).trim(),
+                customerReference: String(customerReference).trim(),
+                customerMobile: String(customerMobile).trim(),
+                requestId: String(requestId).trim(),
                 isLinked: !!linkedInvoice
             };
         };
@@ -117,7 +173,10 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     (t.senderName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (t.details.invoiceNum || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (t.details.plate || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    (t.details.narration || '').toLowerCase().includes(searchQuery.toLowerCase());
+                    (t.details.narration || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (t.details.customerMobile || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (t.details.requestId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (t.details.customerReference || '').toLowerCase().includes(searchQuery.toLowerCase());
                 const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
                 return matchesSearch && matchesStatus;
             })
@@ -241,50 +300,55 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                <table className="w-full text-left border-collapse">
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[1300px]">
                     <thead>
                         <tr className="border-b border-slate-50 dark:border-slate-700">
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Transaction Details</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Amount</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Reference</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Name</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Mobile</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Amount</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Reference</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Request ID</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Reference</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Narration</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                            <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
                         {filteredTransactions.map((transaction) => {
-                            const linkedInvoice = invoices.find(inv => inv.id === transaction.linkedInvoiceId);
-                            
                             return (
                                 <tr key={transaction.id} className="group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
-                                    <td className="px-8 py-6">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${transaction.status === 'reconciled' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                                                {transaction.status === 'reconciled' ? <ArrowDownLeft className="w-5 h-5" /> : <History className="w-5 h-5" />}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                                    {transaction.senderName || 'External Deposit'}
-                                                </p>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                                                    {new Date(transaction.transactionDate).toLocaleDateString()} • {transaction.bankName}
-                                                </p>
-                                            </div>
+                                    <td className="px-6 py-6 text-xs font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                                        <div className="flex flex-col">
+                                            <span>{transaction.transactionDate ? new Date(transaction.transactionDate).toLocaleDateString() : '—'}</span>
+                                            {transaction.bankName && (
+                                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                                                    {transaction.bankName}
+                                                </span>
+                                            )}
                                         </div>
                                     </td>
-                                    <td className="px-8 py-6 text-right">
-                                        <p className="text-sm font-black text-slate-900 dark:text-white">
-                                            KES {transaction.amount?.toLocaleString()}
-                                        </p>
+                                    <td className="px-6 py-6 text-xs font-black text-slate-900 dark:text-white uppercase whitespace-nowrap">
+                                        {transaction.senderName || 'External Deposit'}
                                     </td>
-                                    <td className="px-8 py-6">
-                                        <div className="space-y-1.5">
-                                            <p className="text-[11px] font-black text-slate-600 dark:text-slate-300 font-mono">
-                                                {transaction.reference}
-                                            </p>
-                                            
-                                            <div className="flex flex-wrap gap-1.5">
+                                    <td className="px-6 py-6 text-xs font-medium text-slate-600 dark:text-slate-300 font-mono whitespace-nowrap">
+                                        {transaction.details.customerMobile || '—'}
+                                    </td>
+                                    <td className="px-6 py-6 text-xs font-black text-slate-900 dark:text-white whitespace-nowrap">
+                                        KES {transaction.amount?.toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-6 text-xs font-black text-slate-700 dark:text-slate-300 font-mono whitespace-nowrap">
+                                        {transaction.reference || '—'}
+                                    </td>
+                                    <td className="px-6 py-6 text-xs text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap truncate max-w-[150px]" title={transaction.details.requestId}>
+                                        {transaction.details.requestId || '—'}
+                                    </td>
+                                    <td className="px-6 py-6 text-xs font-semibold text-slate-900 dark:text-white">
+                                        <div className="space-y-1">
+                                            <span>{transaction.details.customerReference || '—'}</span>
+                                            <div className="flex flex-wrap gap-1">
                                                 {transaction.details.invoiceNum && (
                                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
                                                         transaction.details.isLinked 
@@ -295,22 +359,18 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                                         Invoice: {transaction.details.invoiceNum}
                                                     </span>
                                                 )}
-                                                
                                                 {transaction.details.plate && (
                                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-600 dark:bg-amber-950/20">
                                                         Plate: {transaction.details.plate}
                                                     </span>
                                                 )}
                                             </div>
-
-                                            {transaction.details.narration && (
-                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium italic max-w-xs truncate" title={transaction.details.narration}>
-                                                    "{transaction.details.narration}"
-                                                </p>
-                                            )}
                                         </div>
                                     </td>
-                                    <td className="px-8 py-6">
+                                    <td className="px-6 py-6 text-xs text-slate-500 dark:text-slate-400 font-medium italic max-w-[200px] truncate" title={transaction.details.narration}>
+                                        {transaction.details.narration ? `"${transaction.details.narration}"` : '—'}
+                                    </td>
+                                    <td className="px-6 py-6 whitespace-nowrap">
                                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
                                             transaction.status === 'reconciled' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
                                         }`}>
@@ -322,7 +382,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                             {transaction.status}
                                         </span>
                                     </td>
-                                    <td className="px-8 py-6 text-right">
+                                    <td className="px-6 py-6 text-right whitespace-nowrap">
                                         <div className="flex items-center justify-end gap-3">
                                             {transaction.status === 'unreconciled' ? (
                                                 <button 
