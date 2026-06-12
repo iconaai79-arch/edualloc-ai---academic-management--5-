@@ -226,6 +226,8 @@ export const App: React.FC = () => {
     const [isBootstrapped, setIsBootstrapped] = useState(false);
     const isRefreshingRef = React.useRef(false);
     const lastRefreshTimeRef = React.useRef(0);
+    const prevUnreconciledIdsRef = useRef<Set<string>>(new Set());
+    const isFirstLoadDoneRef = useRef(false);
     const [appInitializing, setAppInitializing] = useState(true);
     const [loadStatus, setLoadStatus] = useState<string>("");
     const [loadError, setLoadError] = useState<string>("");
@@ -735,7 +737,7 @@ export const App: React.FC = () => {
     const activeLetterheadConfig = useMemo(() => activeInstitution?.letterheadConfig || companyDetails.letterheadConfig, [activeInstitution, companyDetails]);
     const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
 
-    const loadData = useCallback(async (isFirstLoad = false, force = false, instOverrideId?: string) => {
+    const loadData = useCallback(async (isFirstLoad = false, force = false, instOverrideId?: string, silent = false) => {
         // Prevent concurrent refreshes
         if (isRefreshingRef.current) return;
         
@@ -747,14 +749,14 @@ export const App: React.FC = () => {
         lastRefreshTimeRef.current = now;
 
         if (isFirstLoad) setAppInitializing(true);
-        setLoadStatus("Initializing...");
+        if (!silent) setLoadStatus("Initializing...");
 
         try {
             if (!apiService.isConfigured()) initSupabaseClient();
             setIsBootstrapped(true);
 
             // ── PHASE 1: Health check + identity (blocks UI) ──────────────────
-            setLoadStatus("Connecting...");
+            if (!silent) setLoadStatus("Connecting...");
             const health = await apiService.testDatabaseConnection();
             if (health.status === 'setup_required') {
                 setIsSchemaInitializationRequired(true);
@@ -766,7 +768,7 @@ export const App: React.FC = () => {
             setIsApiOnline(health.status !== 'offline');
             setIsSchemaInitializationRequired(false);
 
-            setLoadStatus("Synchronizing Identity...");
+            if (!silent) setLoadStatus("Synchronizing Identity...");
             
             // Critical identity fetch - needed for Phase 2 logic
             const [insts, cnts, sett, u, reg, imsPhase1, evts] = await Promise.all([
@@ -827,7 +829,7 @@ export const App: React.FC = () => {
                 }
             }
 
-            setLoadStatus("Building Workspace...");
+            if (!silent) setLoadStatus("Building Workspace...");
 
 
             // Also fire core module data in parallel with identity (don't await these yet)
@@ -899,7 +901,7 @@ export const App: React.FC = () => {
             }
 
             // ── UNLOCK UI: dismiss splash now, core data is ready ─────────────
-            setLoadStatus("");
+            if (!silent) setLoadStatus("");
             setAppInitializing(false);
 
             // ── PHASE 2: Resolve core module data (already in-flight) ─────────
@@ -1240,8 +1242,38 @@ export const App: React.FC = () => {
                                     payload.requestPayload?.primaryData?.checkoutRequestID || 
                                     p.id;
                       
-                      const amountStr = payload.transactionAmount || payload.amount || '0';
-                      const amount = parseFloat(amountStr) || 0;
+                      // Robust amount extraction for nested STK push callbacks
+                      let amount = 0;
+                      try {
+                          const rawAmt = payload.transactionAmount || payload.amount;
+                          if (rawAmt) {
+                              amount = parseFloat(rawAmt);
+                          } else {
+                              // Check CallbackMetadata.Item (Safaricom/KCB)
+                              const callbackMetadata = payload.CallbackMetadata || payload.Body?.stkCallback?.CallbackMetadata;
+                              const items = callbackMetadata?.Item || callbackMetadata?.item;
+                              if (items && Array.isArray(items)) {
+                                  const amtItem = items.find((item: any) => String(item.Name || item.Key || '').toLowerCase() === 'amount');
+                                  if (amtItem && amtItem.Value !== undefined) {
+                                      amount = parseFloat(String(amtItem.Value));
+                                  }
+                              }
+                              // Check ResultParameters.ResultParameter (KCB Buni)
+                              if (amount <= 0) {
+                                  const resultParams = payload.ResultParameters || payload.Result?.ResultParameters || payload.Body?.stkCallback?.ResultParameters;
+                                  const pList = resultParams?.ResultParameter;
+                                  if (pList) {
+                                      const list = Array.isArray(pList) ? pList : [pList];
+                                      const amtParam = list.find((p: any) => String(p.Key || p.Name || '').toLowerCase() === 'amount');
+                                      if (amtParam && amtParam.Value !== undefined) {
+                                          amount = parseFloat(String(amtParam.Value));
+                                      }
+                                  }
+                              }
+                          }
+                      } catch (e) {
+                          console.error("Failed to parse amount from integration log:", e);
+                      }
                       const date = payload.timestamp || p.created_at;
                       
                       const sender = payload.customerName || 
@@ -1317,13 +1349,15 @@ export const App: React.FC = () => {
             }
 
             setIsGeneratingDemoData(false);
-            setLoadStatus("");
+            if (!silent) setLoadStatus("");
             setLoadError("");
         } catch (error: any) {
             console.error("Critical Load Error:", error);
             const msg = error.message || "Unknown connectivity failure";
-            setLoadStatus(`Diagnostic Failure: ${msg}`);
-            setLoadError(msg);
+            if (!silent) {
+                setLoadStatus(`Diagnostic Failure: ${msg}`);
+                setLoadError(msg);
+            }
         } finally {
             initialLoadDone.current = true;
             setAppInitializing(false);
@@ -2125,6 +2159,61 @@ export const App: React.FC = () => {
         // Trigger a hard reload when identity, scope, or perspective changes, or limits change
         loadData(true);
     }, [currentUser?.id, currentUser?.institutionId, currentUser?.countyId, impersonatedRole, activityLogLimit, transactionLimit, receiptLimit, notificationLimit]);
+
+    // Reset bank feeds seen ref when institution changes
+    useEffect(() => {
+        isFirstLoadDoneRef.current = false;
+        prevUnreconciledIdsRef.current.clear();
+    }, [activeInstitution?.id]);
+
+    // Show notifications when new unreconciled automotive bank feeds are received
+    useEffect(() => {
+        if (!isAutoMarket) {
+            prevUnreconciledIdsRef.current.clear();
+            return;
+        }
+
+        const currentUnreconciled = carBankTransactions.filter(t => t.status === 'unreconciled');
+
+        if (!isFirstLoadDoneRef.current) {
+            if (carBankTransactions.length > 0) {
+                prevUnreconciledIdsRef.current = new Set(currentUnreconciled.map(t => t.id));
+                isFirstLoadDoneRef.current = true;
+            }
+            return;
+        }
+
+        const newUnreconciled = currentUnreconciled.filter(t => !prevUnreconciledIdsRef.current.has(t.id));
+
+        if (newUnreconciled.length > 0) {
+            newUnreconciled.forEach(txn => {
+                const formattedAmount = typeof txn.amount === 'number'
+                    ? txn.amount.toLocaleString()
+                    : parseFloat(String(txn.amount || 0)).toLocaleString();
+                info(`New unreconciled bank feed received: KES ${formattedAmount} from ${txn.senderName || 'External Deposit'} (${txn.bankName || 'KCB'})`);
+            });
+
+            // Update ref
+            newUnreconciled.forEach(txn => prevUnreconciledIdsRef.current.add(txn.id));
+        }
+
+        // Keep ref synchronized with current status (in case of manual reconciliation)
+        const currentUnreconciledIds = new Set(currentUnreconciled.map(t => t.id));
+        prevUnreconciledIdsRef.current = currentUnreconciledIds;
+    }, [carBankTransactions, isAutoMarket, info]);
+
+    // Poll for new integration logs / bank transactions on automotive marketplace
+    useEffect(() => {
+        if (!currentUser || !isAutoMarket) return;
+
+        const intervalId = setInterval(() => {
+            loadData(false, true, undefined, true); // silent = true, force = true
+        }, 15000);
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [currentUser, isAutoMarket, loadData]);
 
     const handleAddRequisition = async (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => {
         if (!activeInstitution || !currentUser) return;
