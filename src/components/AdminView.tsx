@@ -2978,7 +2978,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 letterheadConfig={props.letterheadConfig}
                             />
                         ) : isAutoMarket ? (
-                            ['director', 'finance'].includes(roleToUse || '') ? (
+                            ['director', 'finance', 'super_admin'].includes(roleToUse || '') ? (
                                 <CarShowroomReportsDashboard
                                     institutionId={props.currentInstitution?.id || ''}
                                     users={props.users || []}

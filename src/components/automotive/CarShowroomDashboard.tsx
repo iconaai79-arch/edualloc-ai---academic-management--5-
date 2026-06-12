@@ -315,7 +315,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                         <p className="text-[9px] text-slate-400 uppercase mt-1">Audit invoices & payments</p>
                                     </button>
 
-                                    {['director', 'finance'].includes(currentUser.role || '') && (
+                                    {['director', 'finance', 'super_admin'].includes(currentUser.role || '') && (
                                         <button 
                                             onClick={() => onAction('reports')}
                                             className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-[2rem] shadow-xl shadow-indigo-100 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
