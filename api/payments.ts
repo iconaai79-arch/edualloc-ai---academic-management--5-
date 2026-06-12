@@ -781,6 +781,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
+        // --- DB Fast Path: Check if IPN/webhook already confirmed the transaction ---
+        // This avoids full KCB API round-trip when the callback has already processed payment.
+        try {
+            const supabaseDb = getSupabase();
+            if (supabaseDb && checkoutRequestId) {
+                const { data: txnRows } = await supabaseDb
+                    .from('mpesa_transactions')
+                    .select('status, transaction_id, mpesa_receipt')
+                    .or(`checkout_request_id.eq.${checkoutRequestId},transaction_id.eq.${checkoutRequestId}`)
+                    .limit(5);
+
+                if (txnRows && txnRows.length > 0) {
+                    const completedTxn = txnRows.find((t: any) => {
+                        const s = String(t.status || '').toLowerCase();
+                        return s === 'completed' || s === 'success';
+                    });
+                    if (completedTxn) {
+                        const receipt = completedTxn.transaction_id || completedTxn.mpesa_receipt || checkoutRequestId;
+                        console.log(`[KCB Query] DB fast path: transaction already completed. Receipt: ${receipt}`);
+                        return res.status(200).json({
+                            success: true,
+                            status: 'COMPLETED',
+                            message: 'Payment confirmed (DB fast path).',
+                            mpesaReceiptNumber: receipt
+                        });
+                    }
+                    // If record exists but still pending, return PENDING so frontend keeps polling
+                    const pendingTxn = txnRows.find((t: any) => {
+                        const s = String(t.status || '').toLowerCase();
+                        return s === 'pending' || s === 'processing';
+                    });
+                    if (pendingTxn) {
+                        console.log(`[KCB Query] DB fast path: transaction still pending, will query KCB API.`);
+                        // Fall through to KCB API query below
+                    }
+                }
+            }
+        } catch (dbFastPathErr) {
+            console.warn('[KCB Query] DB fast path error (non-fatal, will query KCB API):', dbFastPathErr);
+        }
+        // --- End DB Fast Path ---
+
         try {
             const authHeaderVal = Buffer.from(`${appKey}:${appSecret}`).toString('base64');
             let tokenUrl = '';
