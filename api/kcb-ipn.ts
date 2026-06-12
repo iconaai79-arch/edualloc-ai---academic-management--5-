@@ -524,7 +524,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdentifier') || getParam(body, req.query, 'creditAccountIdenti;ier');
         const customerMobileNumber = getParam(body, req.query, 'customerMobileNumber');
         const customerName = getParam(body, req.query, 'customerName');
-        const transactionAmount = getParam(body, req.query, 'transactionAmount');
+        const transactionAmount = getParam(body, req.query, 'transactionAmount') || getParam(body, req.query, 'amount');
 
         const channelCode = getParam(body, req.query, 'channelCode');
         const timestamp = getParam(body, req.query, 'timestamp');
@@ -539,7 +539,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const businessKey = primaryData.businessKey || customerReference || '';
 
         const transactionID = transactionReference || notificationData.transactionID || businessKey || `KCB_IPN_${Date.now()}`;
-        const amount = parseFloat(transactionAmount || notificationData.transactionAmt || '0');
+        const amount = parseFloat(transactionAmount || notificationData.transactionAmt || notificationData.amount || notificationData.transactionAmount || '0');
         const phone = customerMobileNumber || notificationData.debitMSISDN || '';
         const payerName = customerName || `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim();
 

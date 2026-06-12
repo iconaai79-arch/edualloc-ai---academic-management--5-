@@ -291,9 +291,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        // ---- Extract Amount paid ----
+        let callbackAmount = 0;
+        if (callbackMetadata?.Item && Array.isArray(callbackMetadata.Item)) {
+            for (const item of callbackMetadata.Item) {
+                if (String(item.Name || item.Key || '').toLowerCase() === 'amount') {
+                    callbackAmount = parseFloat(String(item.Value || '0'));
+                    break;
+                }
+            }
+        }
+        if (callbackAmount <= 0 && resultParams?.ResultParameter) {
+            const list = Array.isArray(resultParams.ResultParameter) ? resultParams.ResultParameter : [resultParams.ResultParameter];
+            for (const p of list) {
+                if (p && String(p.Key || p.Name || '').toLowerCase() === 'amount') {
+                    callbackAmount = parseFloat(String(p.Value || '0'));
+                    break;
+                }
+            }
+        }
+        if (callbackAmount <= 0) {
+            const rawAmt = getParam(body, req.query, 'transactionAmount') || getParam(body, req.query, 'amount');
+            if (rawAmt) {
+                callbackAmount = parseFloat(rawAmt);
+            }
+        }
+
         console.log(`[KCB STK Callback] CheckoutRequestID: ${checkoutRequestId}`);
         console.log(`[KCB STK Callback] ResultCode: ${resultCode}`);
         console.log(`[KCB STK Callback] M-Pesa Receipt: ${mpesaReceiptNumber || '(not provided)'}`);
+        console.log(`[KCB STK Callback] Callback Amount: ${callbackAmount}`);
 
 
         // --- Caller Authentication Check for Production Setups ---
@@ -365,6 +392,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (mpesaReceiptNumber) {
                 updateData.transaction_id = mpesaReceiptNumber;
             }
+            if (callbackAmount > 0) {
+                updateData.amount = callbackAmount;
+            }
 
             // Map flat KCB callback parameters if available in payload
             const requestId = getParam(body, req.query, 'requestId');
@@ -418,7 +448,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         if (!isReconciled) {
                             const instId = transaction.institution_id;
-                            const amt = transaction.amount || 0;
+                            const amt = callbackAmount > 0 ? callbackAmount : (transaction.amount || 0);
                             const type = metadata.type;
                             
                             // Fetch system settings for SMS pricing/configs
