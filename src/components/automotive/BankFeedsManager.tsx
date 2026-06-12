@@ -49,26 +49,80 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
 
     const filteredTransactions = useMemo(() => {
+        const getDetails = (t: BankTransaction) => {
+            const linkedInvoice = invoices.find(inv => inv.id === t.linkedInvoiceId || inv.id === (t as any).linked_invoice_id);
+            let invoiceNum = linkedInvoice?.invoiceNumber || '';
+            
+            if (!invoiceNum) {
+                const payload = t.payload || {};
+                const refStr = String(t.reference || '').toUpperCase();
+                const custRef = String(payload.customerReference || payload.accountReference || payload.billReferenceNumber || '').toUpperCase();
+                
+                const matchingInv = invoices.find(inv => {
+                    const invNum = String(inv.invoiceNumber || '').toUpperCase();
+                    return (refStr && refStr.includes(invNum)) || (custRef && custRef.includes(invNum));
+                });
+                if (matchingInv) invoiceNum = matchingInv.invoiceNumber;
+            }
+
+            let plate = linkedInvoice?.registrationNumber || '';
+            if (!plate) {
+                const payload = t.payload || {};
+                const refStr = String(t.reference || '').toUpperCase();
+                const custRef = String(payload.customerReference || payload.accountReference || payload.billReferenceNumber || '').toUpperCase();
+                
+                const matchingInv = invoices.find(inv => {
+                    const regNum = String(inv.registrationNumber || '').toUpperCase();
+                    return regNum && ((refStr && refStr.includes(regNum)) || (custRef && custRef.includes(regNum)));
+                });
+                if (matchingInv) plate = matchingInv.registrationNumber || '';
+            }
+
+            const payload = t.payload || {};
+            const narration = payload.description || 
+                              payload.narration || 
+                              payload.remarks || 
+                              payload.customerReference || 
+                              payload.accountReference || 
+                              payload.billReferenceNumber || 
+                              '';
+
+            return {
+                invoiceNum,
+                plate,
+                narration: String(narration).trim(),
+                isLinked: !!linkedInvoice
+            };
+        };
+
         return transactions
-            .map(t => ({
-                ...t,
-                // Normalize snake_case Supabase fields to camelCase
-                transactionDate: t.transactionDate || (t as any).transaction_date || '',
-                senderName: t.senderName || (t as any).sender_name || '',
-                bankName: t.bankName || (t as any).bank_name || '',
-                linkedInvoiceId: t.linkedInvoiceId || (t as any).linked_invoice_id || '',
-                reconciledBy: t.reconciledBy || (t as any).reconciled_by || '',
-                reference: t.reference || '',
-            }))
+            .map(t => {
+                const normalized = {
+                    ...t,
+                    transactionDate: t.transactionDate || (t as any).transaction_date || '',
+                    senderName: t.senderName || (t as any).sender_name || '',
+                    bankName: t.bankName || (t as any).bank_name || '',
+                    linkedInvoiceId: t.linkedInvoiceId || (t as any).linked_invoice_id || '',
+                    reconciledBy: t.reconciledBy || (t as any).reconciled_by || '',
+                    reference: t.reference || '',
+                };
+                return {
+                    ...normalized,
+                    details: getDetails(normalized)
+                };
+            })
             .filter(t => {
                 const matchesSearch = 
                     (t.reference || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    (t.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
+                    (t.senderName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (t.details.invoiceNum || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (t.details.plate || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (t.details.narration || '').toLowerCase().includes(searchQuery.toLowerCase());
                 const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
                 return matchesSearch && matchesStatus;
             })
             .sort((a, b) => new Date(b.transactionDate || 0).getTime() - new Date(a.transactionDate || 0).getTime());
-    }, [transactions, searchQuery, statusFilter]);
+    }, [transactions, invoices, searchQuery, statusFilter]);
 
     const handleAutoReconcile = () => {
         setIsReconciling(true);
@@ -225,15 +279,36 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                         </p>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <p className="text-[11px] font-black text-slate-600 dark:text-slate-300 font-mono">
-                                            {transaction.reference}
-                                        </p>
-                                        {linkedInvoice && (
-                                            <div className="flex items-center gap-1.5 mt-1 text-indigo-600">
-                                                <LinkIcon className="w-3 h-3" />
-                                                <span className="text-[9px] font-black uppercase tracking-widest">Linked to #{linkedInvoice.invoiceNumber}</span>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-black text-slate-600 dark:text-slate-300 font-mono">
+                                                {transaction.reference}
+                                            </p>
+                                            
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {transaction.details.invoiceNum && (
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                                                        transaction.details.isLinked 
+                                                            ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/20' 
+                                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800'
+                                                    }`}>
+                                                        <LinkIcon className="w-2.5 h-2.5" />
+                                                        Invoice: {transaction.details.invoiceNum}
+                                                    </span>
+                                                )}
+                                                
+                                                {transaction.details.plate && (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-600 dark:bg-amber-950/20">
+                                                        Plate: {transaction.details.plate}
+                                                    </span>
+                                                )}
                                             </div>
-                                        )}
+
+                                            {transaction.details.narration && (
+                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium italic max-w-xs truncate" title={transaction.details.narration}>
+                                                    "{transaction.details.narration}"
+                                                </p>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-8 py-6">
                                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
