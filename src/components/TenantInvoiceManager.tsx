@@ -369,7 +369,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right">
                                         <div className="flex justify-end gap-3">
-                                            {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                                            {inv.status !== 'paid' && (
                                                 <button
                                                     onClick={() => startRecordingPayment(inv)}
                                                     className="text-slate-400 hover:text-emerald-600 transition-colors"
