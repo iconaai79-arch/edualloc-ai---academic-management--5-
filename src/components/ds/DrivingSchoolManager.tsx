@@ -292,6 +292,333 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
     );
 };
 
+const SmartStudentBulkUpdaterModal: React.FC<{
+    onClose: () => void;
+    students: DSStudent[];
+    onUpdateStudent: (data: any) => Promise<void>;
+    onRefresh: () => Promise<void>;
+}> = ({ onClose, students, onUpdateStudent, onRefresh }) => {
+    const [file, setFile] = useState<File | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [step, setStep] = useState<'upload' | 'map'>('upload');
+    const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+    const [rawData, setRawData] = useState<any[]>([]);
+    const { error: toastError, success: toastSuccess } = useToast();
+
+    const [mappings, setMappings] = useState<Record<string, string>>({
+        matchKey: '',
+        idNumber: '',
+        enrollmentDate: ''
+    });
+
+    const [matchByField, setMatchByField] = useState<'admissionNumber' | 'phone' | 'email'>('admissionNumber');
+
+    const handleFileSelect = (selectedFile: File) => {
+        setFile(selectedFile);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                const sheetData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                if (sheetData.length === 0) {
+                    toastError("Spreadsheet is empty.");
+                    return;
+                }
+
+                const headers = sheetData[0].filter((h: any) => h !== null && h !== '');
+                setDetectedHeaders(headers);
+
+                const matchedCol = headers.find((h: any) => /adm|reg|admission|enroll|phone|mobile|tel|mail|email/i.test(String(h))) || '';
+                const idCol = headers.find((h: any) => /id|national|passport|doc/i.test(String(h))) || '';
+                const dateCol = headers.find((h: any) => /date|enroll|admit|admission/i.test(String(h))) || '';
+
+                setMappings({
+                    matchKey: matchedCol,
+                    idNumber: idCol,
+                    enrollmentDate: dateCol
+                });
+
+                if (matchedCol) {
+                    const low = String(matchedCol).toLowerCase();
+                    if (low.includes('phone') || low.includes('mobile') || low.includes('tel')) {
+                        setMatchByField('phone');
+                    } else if (low.includes('mail')) {
+                        setMatchByField('email');
+                    } else {
+                        setMatchByField('admissionNumber');
+                    }
+                }
+
+                const rowsJson = XLSX.utils.sheet_to_json(worksheet);
+                setRawData(rowsJson);
+                setStep('map');
+            } catch (err: any) {
+                toastError("Failed to parse sheet: " + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(selectedFile);
+    };
+
+    const previewData = useMemo(() => {
+        return rawData.slice(0, 5).map(row => {
+            const matchValue = row[mappings.matchKey] || '';
+            const idVal = row[mappings.idNumber] || '';
+            
+            const rawDate = row[mappings.enrollmentDate];
+            let dateVal = '—';
+            if (rawDate) {
+                if (rawDate instanceof Date) {
+                    dateVal = rawDate.toISOString().split('T')[0];
+                } else {
+                    dateVal = String(rawDate);
+                }
+            }
+
+            const matchedStudent = students.find(s => {
+                const sVal = String(s[matchByField] || '').trim();
+                return sVal && sVal.toLowerCase() === String(matchValue).trim().toLowerCase();
+            });
+
+            return {
+                matchValue: matchValue || '—',
+                idNumber: idVal || '—',
+                enrollmentDate: dateVal,
+                studentName: matchedStudent ? matchedStudent.fullName : null
+            };
+        });
+    }, [rawData, mappings, matchByField, students]);
+
+    const handleConfirmUpdate = async () => {
+        if (!mappings.matchKey) {
+            toastError("Matching column must be selected.");
+            return;
+        }
+        if (!mappings.idNumber && !mappings.enrollmentDate) {
+            toastError("At least one target update column (ID Number or Admission Date) must be mapped.");
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            let updatedCount = 0;
+            let skippedCount = 0;
+
+            for (const row of rawData) {
+                const matchVal = String(row[mappings.matchKey] || '').trim();
+                if (!matchVal) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const student = students.find((s: any) => {
+                    const sVal = String(s[matchByField] || '').trim();
+                    return sVal && sVal.toLowerCase() === matchVal.toLowerCase();
+                });
+
+                if (!student) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const updatePayload = { ...student };
+                let modified = false;
+
+                if (mappings.idNumber) {
+                    const idVal = String(row[mappings.idNumber] || '').trim();
+                    if (idVal && student.idNumber !== idVal) {
+                        updatePayload.idNumber = idVal;
+                        modified = true;
+                    }
+                }
+
+                if (mappings.enrollmentDate) {
+                    const dateVal = row[mappings.enrollmentDate];
+                    if (dateVal) {
+                        let parsedDateStr = '';
+                        if (dateVal instanceof Date) {
+                            parsedDateStr = dateVal.toISOString().split('T')[0];
+                        } else {
+                            parsedDateStr = String(dateVal).trim();
+                        }
+                        if (parsedDateStr && student.enrollmentDate !== parsedDateStr) {
+                            updatePayload.enrollmentDate = parsedDateStr;
+                            modified = true;
+                        }
+                    }
+                }
+
+                if (modified) {
+                    await onUpdateStudent(updatePayload);
+                    updatedCount++;
+                } else {
+                    skippedCount++;
+                }
+            }
+
+            await onRefresh();
+            toastSuccess(`Successfully completed bulk update! Updated ${updatedCount} students, skipped ${skippedCount}.`);
+            onClose();
+        } catch (err: any) {
+            toastError("Failed to complete bulk update: " + err.message);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-scale-in border border-white/20">
+                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Smart Student Bulk Updater</h3>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                            {step === 'upload' ? 'Upload Excel to update admission date and ID number' : 'Map matching fields and columns'}
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 transition-colors">
+                        <XIcon className="w-5 h-5 text-slate-500" />
+                    </button>
+                </div>
+                
+                <div className="p-8">
+                    {step === 'upload' ? (
+                        <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer text-center">
+                            <input 
+                                type="file" 
+                                accept=".xlsx,.xls,.csv" 
+                                className="hidden" 
+                                id="updater-excel-upload"
+                                onChange={(e) => {
+                                    if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                                }}
+                            />
+                            <label htmlFor="updater-excel-upload" className="cursor-pointer">
+                                <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                                    <ArrowUpTrayIcon className="w-10 h-10 text-indigo-600" />
+                                </div>
+                                <h4 className="text-lg font-black text-slate-900 dark:text-white mb-2">Drop your update Excel here</h4>
+                                <p className="text-xs text-slate-500 font-medium uppercase tracking-widest">or click to browse from computer</p>
+                            </label>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-4 text-left bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/60 animate-fade-in">
+                                <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-xl">
+                                    <SparklesIcon className="w-5 h-5 text-green-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">{file?.name}</h4>
+                                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{(file ? file.size / 1024 : 0).toFixed(1)} KB • Mapping Headers</p>
+                                </div>
+                                <button onClick={() => { setFile(null); setStep('upload'); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest">Change</button>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-800/40 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Match Students By *</label>
+                                    <select 
+                                        value={matchByField}
+                                        onChange={e => setMatchByField(e.target.value as any)}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs text-slate-800 dark:text-slate-200 appearance-none cursor-pointer"
+                                    >
+                                        <option value="admissionNumber">Admission Number</option>
+                                        <option value="phone">Phone Number</option>
+                                        <option value="email">Email Address</option>
+                                    </select>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Match Column in Excel *</label>
+                                    <select 
+                                        value={mappings.matchKey}
+                                        onChange={e => setMappings(prev => ({ ...prev, matchKey: e.target.value }))}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs text-slate-800 dark:text-slate-200 appearance-none cursor-pointer"
+                                    >
+                                        <option value="">-- Select Excel Column --</option>
+                                        {detectedHeaders.map(h => (
+                                            <option key={h} value={h}>{h}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[180px] overflow-y-auto pr-1">
+                                {[
+                                    { key: 'enrollmentDate', label: 'Admission Date', desc: 'Map to enrollment_date' },
+                                    { key: 'idNumber', label: 'National ID Number', desc: 'Map to id_number' }
+                                ].map(field => (
+                                    <div key={field.key} className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/40 flex flex-col gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">{field.label}</label>
+                                            <p className="text-[9px] text-slate-400 font-medium mt-0.5">{field.desc}</p>
+                                        </div>
+                                        <div className="relative">
+                                            <select
+                                                value={mappings[field.key] || ''}
+                                                onChange={(e) => setMappings(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                                className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg focus:ring-1 focus:ring-indigo-500 font-bold text-xs appearance-none cursor-pointer text-slate-700 dark:text-slate-200"
+                                            >
+                                                <option value="">-- Ignore Field --</option>
+                                                {detectedHeaders.map(h => (
+                                                    <option key={h} value={h}>{h}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="space-y-2">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Update Row Preview</h4>
+                                <div className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50 dark:bg-slate-900">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-100 dark:bg-slate-800/50 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                <th className="p-3">Matched Value</th>
+                                                <th className="p-3">Matched Candidate</th>
+                                                <th className="p-3">New ID Number</th>
+                                                <th className="p-3">New Admission Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {previewData.map((row, idx) => (
+                                                <tr key={idx} className="text-slate-700 dark:text-slate-300">
+                                                    <td className="p-3 font-semibold font-mono">{row.matchValue}</td>
+                                                    <td className="p-3 text-slate-900 dark:text-white font-bold">{row.studentName || <span className="text-rose-500 dark:text-rose-400 italic">No Match Found</span>}</td>
+                                                    <td className="p-3 font-mono">{row.idNumber}</td>
+                                                    <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{row.enrollmentDate}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="pt-2">
+                                <button 
+                                    onClick={handleConfirmUpdate}
+                                    disabled={isProcessing || !mappings.matchKey || (!mappings.idNumber && !mappings.enrollmentDate)}
+                                    className="w-full py-4.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
+                                >
+                                    {isProcessing ? 'Updating Records...' : 'Run Smart Bulk Updater'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Supported formats: .xlsx, .csv, .xls</p>
+                    <button onClick={onClose} className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 dark:hover:text-slate-100 transition-colors">Cancel</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const SmartOpeningBalanceImporterModal: React.FC<{
     onClose: () => void;
     onImport: (studentsToCreate: any[], invoicesToCreate: any[]) => Promise<void>;
@@ -3429,6 +3756,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isOpeningBalanceModalOpen, setIsOpeningBalanceModalOpen] = useState(false);
+    const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'vehicle_unavailability' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | 'lead' | null; data?: any; initialData?: any }>({ type: null });
     const [unassignedDueToVehicles, setUnassignedDueToVehicles] = useState<Array<{ name: string; slot: string }>>([]);
@@ -4341,10 +4669,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 </button>
                             )}
                             {activeTab === 'students' && (
-                                <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3">
-                                    <ArrowUpTrayIcon className="w-4 h-4" />
-                                    Bulk Import
-                                </button>
+                                <>
+                                    <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3">
+                                        <ArrowUpTrayIcon className="w-4 h-4" />
+                                        Bulk Import
+                                    </button>
+                                    <button onClick={() => setIsBulkUpdateModalOpen(true)} className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3">
+                                        <ArrowUpTrayIcon className="w-4 h-4" />
+                                        Bulk Update Excel
+                                    </button>
+                                </>
                             )}
                             {(activeTab === 'students' || activeTab === 'finance') && (
                                 <button onClick={() => setIsOpeningBalanceModalOpen(true)} className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3">
@@ -9100,6 +9434,15 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             }
                             success(`Successfully imported ${data.length} students`);
                         }}
+                    />
+                )}
+
+                {isBulkUpdateModalOpen && (
+                    <SmartStudentBulkUpdaterModal 
+                        onClose={() => setIsBulkUpdateModalOpen(false)}
+                        students={students}
+                        onUpdateStudent={onUpdateStudent}
+                        onRefresh={refreshData}
                     />
                 )}
 
