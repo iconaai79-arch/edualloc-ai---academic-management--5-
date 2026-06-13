@@ -41,6 +41,7 @@ interface DrivingSchoolContextType {
     updateSettings: (data: any) => Promise<void>;
     addInvoice: (data: any) => Promise<void>;
     updateInvoice: (data: any) => Promise<void>;
+    deleteInvoice: (id: string) => Promise<void>;
     addPayment: (data: any) => Promise<void>;
     updatePayment: (data: any) => Promise<void>;
     deletePayment: (id: string) => Promise<void>;
@@ -1214,7 +1215,24 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to delete payment");
             throw err;
         }
-    }, [institutionId, payments, invoices, onRefresh, success, error, recalculateInvoicePayments]);
+    const deleteInvoice = useCallback(async (id: string) => {
+        if (!institutionId) return;
+        const linkedPayments = payments.filter(p => p.invoiceId === id);
+        const warnMsg = linkedPayments.length > 0
+            ? `Warning: This invoice has ${linkedPayments.length} linked payments. Deleting this invoice will unlink/affect them. Are you sure you want to delete this invoice?`
+            : "Are you sure you want to delete this invoice? This action cannot be undone.";
+
+        if (!window.confirm(warnMsg)) return;
+
+        try {
+            await apiService.deleteModuleRecord('ds_invoices', id);
+            success("Invoice deleted successfully");
+            await onRefresh();
+        } catch (err) {
+            error("Failed to delete invoice");
+            throw err;
+        }
+    }, [institutionId, payments, onRefresh, success, error]);
 
     const stats = useMemo(() => ({
         totalStudents: students.length,
@@ -1227,7 +1245,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         mpesaTransactions, bankTransactions, leads,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads,
-        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead,
         sendLessonNotification,
         refreshData, stats
     };

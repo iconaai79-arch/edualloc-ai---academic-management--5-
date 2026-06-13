@@ -2136,7 +2136,7 @@ Please change it after login.`;
                         {institutionsSubTab === 'invoices' && (
                             <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in">
                                 <TenantInvoiceManager
-                                    invoices={invoices}
+                                    invoices={invoices.filter(inv => !inv.studentId)}
                                     institutions={institutions}
                                     companyDetails={companyDetails}
                                     logoUrl={logoUrl || null}
@@ -3903,6 +3903,7 @@ Please change it after login.`;
                         <DemoRequestManager 
                             requests={demoRequests} 
                             onUpdateStatus={onUpdateDemoStatus} 
+                            companyDetails={companyDetails}
                         />
                     </div>
                 )}

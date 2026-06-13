@@ -20,9 +20,13 @@ export interface DemoRequest {
     institution: string;
     phone: string;
     message?: string;
-    status: 'new' | 'contacted' | 'scheduled' | 'completed' | 'cancelled';
+    status: 'new' | 'contacted' | 'scheduled' | 'completed' | 'cancelled' | 'quote_sent';
     requestedAt: string;
     createdAt: string;
+    quoteAmount?: number;
+    quoteItems?: InvoiceItem[];
+    payments?: any[];
+    quoteUrl?: string;
 }
 
 export interface MarketingProspect {
