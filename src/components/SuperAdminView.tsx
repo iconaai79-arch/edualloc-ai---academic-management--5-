@@ -91,6 +91,7 @@ import { generateFullSqlScript } from '../utils/sqlGenerator';
 import { BrandedPaper } from './BrandedPaper';
 import { AcademicYearManager } from './AcademicYearManager';
 import { SuperAdminReports } from './SuperAdminReports';
+import { SuperAdminExpenseManager } from './SuperAdminExpenseManager';
 
 import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants';
 import { WallPosterView } from './WallPosterView';
@@ -565,7 +566,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const { success, error: toastError } = useToast();
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations' | 'marketing'>(() => {
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations' | 'marketing' | 'expenses'>(() => {
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view');
         if (view === 'showroom' || params.get('showroom')) return 'auto_marketplace';
@@ -1489,6 +1490,7 @@ Please change it after login.`;
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         { key: 'portal_links', label: 'Portal Links', icon: <GlobeAltIcon className="w-5 h-5 mr-2 text-emerald-500" /> },
+        { key: 'expenses', label: 'Expense Manager', icon: <CreditCardIcon className="w-5 h-5 mr-2 text-rose-500" /> },
     ];
 
 
@@ -5786,6 +5788,12 @@ Please change it after login.`;
                             await apiService.saveCompanySettings(updated);
                             onRefreshData?.();
                         }}
+                    />
+                )}
+                {activeTab === 'expenses' && (
+                    <SuperAdminExpenseManager 
+                        institutions={institutions}
+                        onLogAction={onLogAction}
                     />
                 )}
             </main>

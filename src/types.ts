@@ -909,6 +909,17 @@ export interface GoogleDriveConfig {
     isActive: boolean;
 }
 
+export interface PlatformExpense {
+    id: string;
+    description: string;
+    amount: number;
+    category: 'fuel' | 'accommodation' | 'hosting' | 'meals' | 'marketing' | 'other';
+    date: string;
+    institutionId?: string;
+    notes?: string;
+    createdAt?: string;
+}
+
 export interface ShowcaseItem {
     id: string;
     title: string;

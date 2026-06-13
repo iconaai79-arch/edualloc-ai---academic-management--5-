@@ -572,6 +572,17 @@ CREATE TABLE IF NOT EXISTS receipts (
     invoice_id TEXT REFERENCES invoices(id) ON DELETE SET NULL,
     student_id TEXT REFERENCES users(id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS platform_expenses (
+    id TEXT PRIMARY KEY,
+    description TEXT NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    category TEXT NOT NULL,
+    date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 \n-- 7. OPERATIONS (STORE, LIBRARY, SECURITY) --\n
 CREATE TABLE IF NOT EXISTS inventory (
     id TEXT PRIMARY KEY,
@@ -956,6 +967,7 @@ ALTER TABLE IF EXISTS document_collections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS watchlist_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS maintenance_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS teacher_check_ins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS platform_expenses ENABLE ROW LEVEL SECURITY;
 
 -- 9. CAR WASH BUSINESS MODULE --
 CREATE TABLE IF NOT EXISTS carwash_packages (
@@ -2193,6 +2205,9 @@ BEGIN
         END IF;
     END LOOP;
 END $core_policy$;
+
+DROP POLICY IF EXISTS "Super Admin only access for platform_expenses" ON platform_expenses;
+CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expenses FOR ALL USING (public.get_curr_user_role() = 'super_admin') WITH CHECK (public.get_curr_user_role() = 'super_admin');
 
 `;
 
