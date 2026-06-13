@@ -710,14 +710,60 @@ const SmartOpeningBalanceImporterModal: React.FC<{
             const targetVote = votesList.find((v: any) => v.id === selectedVoteId);
             const voteName = targetVote ? (targetVote.voteName || (targetVote as any).vote_name) : 'Opening Balance';
 
+            // Calculate starting sequential admission number just in case some are empty
+            const prefixStr = (settings?.studentIdPrefix || 'ADM-').trim();
+            const asNum = Number(prefixStr);
+            let nextAdmNum = 0;
+            const isNumericPrefix = !isNaN(asNum) && prefixStr !== '';
+            
+            if (isNumericPrefix) {
+                let maxVal = asNum;
+                students.forEach(s => {
+                    if (s.admissionNumber) {
+                        const sNum = Number(s.admissionNumber.trim());
+                        if (!isNaN(sNum) && sNum > maxVal) {
+                            maxVal = sNum;
+                        }
+                    }
+                });
+                nextAdmNum = maxVal + 1;
+            } else {
+                let maxNum = 0;
+                students.forEach(s => {
+                    if (s.admissionNumber && s.admissionNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
+                        const remainder = s.admissionNumber.slice(prefixStr.length).trim();
+                        const match = remainder.match(/\d+/);
+                        if (match) {
+                            const num = parseInt(match[0], 10);
+                            if (!isNaN(num) && num > maxNum) {
+                                maxNum = num;
+                            }
+                        }
+                    }
+                });
+                nextAdmNum = maxNum + 1;
+            }
+
+            let rowIdx = 0;
             for (const row of rawData) {
                 const nameVal = row[mappings.fullName];
                 const balanceVal = Number(row[mappings.balance]) || 0;
                 if (!nameVal || balanceVal === 0) continue;
 
+                rowIdx++;
+
                 const phoneVal = mappings.phone ? String(row[mappings.phone] || '') : '';
                 const emailVal = mappings.email ? String(row[mappings.email] || '') : '';
-                const admVal = mappings.admissionNumber ? String(row[mappings.admissionNumber] || '') : '';
+                
+                let admVal = mappings.admissionNumber ? String(row[mappings.admissionNumber] || '').trim() : '';
+                if (!admVal) {
+                    if (isNumericPrefix) {
+                        admVal = String(nextAdmNum);
+                    } else {
+                        admVal = `${prefixStr}${String(nextAdmNum).padStart(3, '0')}`;
+                    }
+                    nextAdmNum++;
+                }
 
                 let studentId = '';
                 const existing = students.find((s: any) => 
@@ -728,7 +774,7 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                 if (existing) {
                     studentId = existing.id;
                 } else {
-                    studentId = `dss_opb_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    studentId = `dss_opb_${Date.now()}_${rowIdx}_${Math.random().toString(36).substr(2, 5)}`;
                     const newStudent = {
                         id: studentId,
                         fullName: nameVal,
@@ -741,12 +787,13 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                     studentsToCreate.push(newStudent);
                 }
 
-                const invoiceId = `dsi_opb_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const randomSalt = Math.random().toString(36).substr(2, 4).toUpperCase();
+                const invoiceId = `dsi_opb_${Date.now()}_${rowIdx}_${Math.random().toString(36).substr(2, 5)}`;
                 const invoice = {
                     id: invoiceId,
                     studentId,
                     studentName: nameVal,
-                    invoiceNumber: `OPB-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substr(2, 3).toUpperCase()}`,
+                    invoiceNumber: `OPB-${Date.now().toString().slice(-6)}-${String(rowIdx).padStart(3, '0')}-${randomSalt}`,
                     totalAmount: balanceVal,
                     paidAmount: 0,
                     balance: balanceVal,

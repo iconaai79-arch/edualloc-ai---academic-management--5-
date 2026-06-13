@@ -350,7 +350,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
 
         try {
-            const userId = `u_${Date.now()}`;
+            const userId = data.userId || `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
             const userEmail = data.email || `${userId}@ds.local`;
             
@@ -382,7 +382,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             // 2. Create Driving School specific record
-            const newId = `dss_${Date.now()}`;
+            const newId = data.id || `dss_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             const duration = data.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 0;
             const newStudent = { 
                 ...data, 
@@ -897,7 +897,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const isNumericPrefix = !isNaN(asNum) && prefixStr !== '';
             
             let adheresToPrefix = false;
-            if (invNumber) {
+            if (data.isOpeningBalance) {
+                adheresToPrefix = true;
+            } else if (invNumber) {
                 if (isNumericPrefix) {
                     adheresToPrefix = !isNaN(Number(invNumber)) && Number(invNumber) >= asNum;
                 } else {
@@ -940,7 +942,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const initialBalance = Math.max(0, (data.totalAmount || 0) - totalDiscount - totalSponsor);
             const inv = {
                 ...data,
-                id: `inv_${Date.now()}`,
+                id: data.id || `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 institutionId,
                 invoiceNumber: invNumber,
                 items: (data.items || []).map((it: any) => ({ ...it, paidAmount: 0 })),
@@ -953,7 +955,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             success("Invoice generated successfully");
             
             // Trigger Automation
-            await sendDocumentNotification('invoice', inv, inv.studentId);
+            if (!inv.isOpeningBalance) {
+                await sendDocumentNotification('invoice', inv, inv.studentId);
+            }
             
             await onRefresh();
         } catch (err) {
