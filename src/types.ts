@@ -3998,6 +3998,7 @@ export interface DSLicenseCategory {
     baseFee?: number;
     isActive?: boolean;
     parentCategory?: string;
+    dailyProgram?: Array<{ day: number; topic: string; objective?: string }>;
 }
 
 export interface DSVote {

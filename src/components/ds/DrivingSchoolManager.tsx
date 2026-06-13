@@ -2959,6 +2959,22 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [pendingAttendanceOverride, setPendingAttendanceOverride] = useState<{ lesson: DSLesson; ms: any } | null>(null);
     const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
     const [feeReminderType, setFeeReminderType] = useState<'overall' | 'shortfall'>('overall');
+    const [selectedProgramCategory, setSelectedProgramCategory] = useState<any | null>(null);
+    const [dailyProgramDraft, setDailyProgramDraft] = useState<Array<{ day: number; topic: string; objective?: string }>>([]);
+    const [newProgramDay, setNewProgramDay] = useState<number>(1);
+    const [newProgramTopic, setNewProgramTopic] = useState<string>('');
+    const [newProgramObjective, setNewProgramObjective] = useState<string>('');
+
+    useEffect(() => {
+        if (selectedProgramCategory) {
+            const currentProgram = selectedProgramCategory.dailyProgram || [];
+            setDailyProgramDraft(currentProgram);
+            const maxDay = currentProgram.reduce((max: number, item: any) => item.day > max ? item.day : max, 0);
+            setNewProgramDay(maxDay + 1);
+            setNewProgramTopic('');
+            setNewProgramObjective('');
+        }
+    }, [selectedProgramCategory]);
     
     // Portal states
     const [portalStudentId, setPortalStudentId] = useState<string>('');
@@ -3388,6 +3404,86 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
     };
 
+    const handleBulkUpdateDays = async () => {
+        if (!isSuperAdmin) {
+            toastError("Access Denied: Only Super Admins can perform bulk updates.");
+            return;
+        }
+
+        const newDaysStr = prompt("Enter the new required training days for all enrolled students (e.g. 30):");
+        if (!newDaysStr) return;
+
+        const newDays = parseInt(newDaysStr, 10);
+        if (isNaN(newDays) || newDays <= 0) {
+            alert("Please enter a valid number of days greater than 0.");
+            return;
+        }
+
+        if (!confirm("Are you sure you want to bulk update the required training days to " + newDays + " for all active students?")) {
+            return;
+        }
+
+        setIsActionLoading(true);
+        try {
+            const instId = currentInstitution?.id;
+            if (!instId) throw new Error("Institution ID is missing");
+
+            const sql = `
+DO $$
+DECLARE
+    has_prior_attended_days BOOLEAN;
+    new_days INTEGER := ` + newDays + `;
+    inst_id TEXT := '` + instId + `';
+BEGIN
+    SELECT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'ds_students' 
+          AND column_name = 'prior_attended_days'
+    ) INTO has_prior_attended_days;
+
+    IF has_prior_attended_days THEN
+        EXECUTE format('
+            UPDATE public.ds_students s
+            SET 
+                course_duration_days = %s,
+                remaining_days = GREATEST(0, %s - (
+                    COALESCE((
+                        SELECT COUNT(*) 
+                        FROM public.ds_lessons l 
+                        WHERE l.student_id = s.id AND l.status = ''Completed''
+                    ), 0) + COALESCE(s.prior_attended_days, 0)
+                ))
+            WHERE s.institution_id = %%L AND s.status = ''Enrolled''
+        ', new_days, new_days, inst_id);
+    ELSE
+        EXECUTE format('
+            UPDATE public.ds_students s
+            SET 
+                course_duration_days = %s,
+                remaining_days = GREATEST(0, %s - COALESCE((
+                    SELECT COUNT(*) 
+                    FROM public.ds_lessons l 
+                    WHERE l.student_id = s.id AND l.status = ''Completed''
+                ), 0))
+            WHERE s.institution_id = %%L AND s.status = ''Enrolled''
+        ', new_days, new_days, inst_id);
+    END IF;
+END $$;
+`;
+
+            await apiService.runMigration(sql);
+            success("Successfully updated all enrolled students to " + newDays + " required training days.");
+            await refreshData();
+        } catch (err: any) {
+            console.error("Bulk update days failed:", err);
+            toastError("Failed to update required training days: " + (err?.message || err));
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
 
     useEffect(() => {
         if (currentInstitution?.id) {
@@ -3402,7 +3498,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS room_name text;",
                 "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS theory_test_score integer;",
                 "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS practical_test_score integer;",
-                "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS ntsa_booking_status text;"
+                "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS ntsa_booking_status text;",
+                "ALTER TABLE ds_license_categories ADD COLUMN IF NOT EXISTS daily_program jsonb;"
             ];
 
             migrations.forEach(sql => {
@@ -4920,6 +5017,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         >
                                             Export NTSA Roster
                                         </button>
+                                        {isSuperAdmin && (
+                                            <button 
+                                                onClick={handleBulkUpdateDays}
+                                                className="px-6 py-4 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900/50 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all shadow-sm flex items-center justify-center min-w-max"
+                                            >
+                                                Bulk Update Days
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -7962,6 +8067,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                         </div>
                                                                         {cat.description && <p className="text-xs text-slate-500">{cat.description}</p>}
                                                                         <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(cat.baseFee ?? (cat as any).base_fee ?? 0)?.toLocaleString()}</p>
+                                                                        <div className="flex items-center gap-2 mt-3">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setSelectedProgramCategory(cat)}
+                                                                                className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-xs"
+                                                                            >
+                                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                                                                </svg>
+                                                                                Manage Program per Day
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                     <button
                                                                         type="button"
@@ -9518,6 +9635,156 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             await refreshData();
                         }}
                     />
+                )}
+
+                {selectedProgramCategory && (
+                    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-up">
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg font-black text-xs mr-2">{selectedProgramCategory.code}</span>
+                                    <span className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Daily Program Syllabus</span>
+                                </div>
+                                <button type="button" onClick={() => setSelectedProgramCategory(null)} className="p-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-xl transition-all">
+                                    <XIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                            
+                            <div className="p-8 max-h-[60vh] overflow-y-auto space-y-8">
+                                <div className="p-6 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Add Program Day</p>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Training Day</label>
+                                            <input 
+                                                type="number" 
+                                                min={1}
+                                                value={newProgramDay || ''} 
+                                                onChange={e => setNewProgramDay(Math.max(1, parseInt(e.target.value) || 0))} 
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs"
+                                                placeholder="Day (e.g. 1)"
+                                            />
+                                        </div>
+                                        <div className="space-y-1 md:col-span-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Topic / Lesson Name</label>
+                                            <input 
+                                                type="text" 
+                                                value={newProgramTopic} 
+                                                onChange={e => setNewProgramTopic(e.target.value)} 
+                                                className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs"
+                                                placeholder="e.g. Moving Off and Stopping"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Objective (Optional)</label>
+                                        <input 
+                                            type="text" 
+                                            value={newProgramObjective} 
+                                            onChange={e => setNewProgramObjective(e.target.value)} 
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs"
+                                            placeholder="e.g. Learn clutch control and mirror checks when starting."
+                                        />
+                                    </div>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => {
+                                            if (!newProgramTopic.trim()) {
+                                                toastError("Topic name is required.");
+                                                return;
+                                            }
+                                            if (dailyProgramDraft.some(item => item.day === newProgramDay)) {
+                                                if (!confirm(`Day ${newProgramDay} is already configured. Do you want to replace it?`)) {
+                                                    return;
+                                                }
+                                            }
+                                            const updated = dailyProgramDraft.filter(item => item.day !== newProgramDay);
+                                            updated.push({
+                                                day: newProgramDay,
+                                                topic: newProgramTopic.trim(),
+                                                objective: newProgramObjective.trim() || undefined
+                                            });
+                                            updated.sort((a, b) => a.day - b.day);
+                                            setDailyProgramDraft(updated);
+                                            setNewProgramDay(newProgramDay + 1);
+                                            setNewProgramTopic('');
+                                            setNewProgramObjective('');
+                                        }}
+                                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                                    >
+                                        Add Day to Syllabus
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Syllabus Program List ({dailyProgramDraft.length} Days)</p>
+                                    {dailyProgramDraft.length === 0 ? (
+                                        <p className="p-8 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-dashed">No training program configured per day for this category. Add days above.</p>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {dailyProgramDraft.map((item, idx) => (
+                                                <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-100 dark:border-slate-800 flex items-start justify-between gap-4 animate-fade-in">
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-md font-black text-[10px]">Day {item.day}</span>
+                                                            <h6 className="font-bold text-xs text-slate-800 dark:text-slate-200">{item.topic}</h6>
+                                                        </div>
+                                                        {item.objective && <p className="text-[10px] text-slate-500 mt-1">{item.objective}</p>}
+                                                    </div>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => {
+                                                            setDailyProgramDraft(dailyProgramDraft.filter(d => d.day !== item.day));
+                                                        }}
+                                                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg transition-all"
+                                                    >
+                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="p-8 border-t border-slate-100 dark:border-slate-800 flex gap-3 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
+                                <button type="button" onClick={() => setSelectedProgramCategory(null)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">Cancel</button>
+                                <button 
+                                    type="button" 
+                                    onClick={async () => {
+                                        setIsActionLoading(true);
+                                        try {
+                                            const updatedCats = (settings?.licenseCategories || []).map(cat => {
+                                                if (cat.id === selectedProgramCategory.id) {
+                                                    return {
+                                                        ...cat,
+                                                        dailyProgram: dailyProgramDraft
+                                                    };
+                                                }
+                                                return cat;
+                                            });
+
+                                            await onUpdateSettings({
+                                                ...settings,
+                                                licenseCategories: updatedCats
+                                            });
+
+                                            success("Successfully updated training program for Category " + selectedProgramCategory.code + ".");
+                                            setSelectedProgramCategory(null);
+                                        } catch (err: any) {
+                                            console.error("Save daily program failed:", err);
+                                            toastError("Failed to save training program: " + (err?.message || err));
+                                        } finally {
+                                            setIsActionLoading(false);
+                                        }
+                                    }}
+                                    className="flex-[2] py-4 bg-indigo-600 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                >
+                                    Save Program Syllabus
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 {reasonModal.isOpen && (
