@@ -7,7 +7,9 @@ import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { EyeIcon } from './icons/EyeIcon';
+import { BanknotesIcon } from './icons/BanknotesIcon';
 
+import { apiService } from '../services/apiService';
 import { downloadInvoicePdf } from '../services/pdfService';
 
 interface TenantInvoiceManagerProps {
@@ -49,6 +51,14 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     const [savingStatus, setSavingStatus] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+    
+    // States for recording payment
+    const [recordingPaymentFor, setRecordingPaymentFor] = useState<Invoice | null>(null);
+    const [paymentAmount, setPaymentAmount] = useState<number>(0);
+    const [paymentMethod, setPaymentMethod] = useState<string>('MPESA');
+    const [paymentRef, setPaymentRef] = useState<string>('');
+    const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
 
     const institutionMap = useMemo(() => new Map<string, Institution>(institutions.map(i => [i.id, i])), [institutions]);
 
@@ -94,6 +104,45 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
             setStatusUpdateValues(prev => { const n = { ...prev }; delete n[invoiceId]; return n; });
         } finally {
             setSavingStatus(null);
+        }
+    };
+
+    const startRecordingPayment = (inv: Invoice) => {
+        setRecordingPaymentFor(inv);
+        setPaymentAmount(inv.totalAmount);
+        setPaymentMethod('MPESA');
+        setPaymentRef('');
+        setPaymentDate(new Date().toISOString().split('T')[0]);
+    };
+
+    const handleRecordPaymentSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!recordingPaymentFor) return;
+        setIsSubmittingPayment(true);
+        try {
+            const receipt = {
+                id: `RCT_${Date.now()}`,
+                receiptNumber: `RCT-${Date.now()}`,
+                institutionId: recordingPaymentFor.institutionId,
+                paymentDate: new Date(paymentDate).toISOString(),
+                amountPaid: Number(paymentAmount),
+                paidFor: `Platform Subscription Payment (Invoice ${recordingPaymentFor.invoiceNumber})`,
+                paymentMethod: paymentMethod,
+                relatedTransactionId: paymentRef,
+                invoiceId: recordingPaymentFor.id
+            };
+            await apiService.saveModuleRecord('receipts', receipt);
+            if (onUpdateInvoiceStatus) {
+                await onUpdateInvoiceStatus(recordingPaymentFor.id, 'paid');
+            } else {
+                await apiService.saveModuleRecord('invoices', { ...recordingPaymentFor, status: 'paid' });
+            }
+            alert(`Payment recorded successfully for Invoice ${recordingPaymentFor.invoiceNumber}`);
+            setRecordingPaymentFor(null);
+        } catch (err: any) {
+            alert(err.message || 'Failed to record payment');
+        } finally {
+            setIsSubmittingPayment(false);
         }
     };
 
@@ -320,6 +369,15 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right">
                                         <div className="flex justify-end gap-3">
+                                            {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                                                <button
+                                                    onClick={() => startRecordingPayment(inv)}
+                                                    className="text-slate-400 hover:text-emerald-600 transition-colors"
+                                                    title="Record Payment"
+                                                >
+                                                    <BanknotesIcon className="w-5 h-5" />
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => setPreviewInvoice(inv)}
                                                 className="text-slate-400 hover:text-indigo-600 transition-colors"
@@ -499,6 +557,99 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                     </div>
                 );
             })()}
+
+            {/* Record Payment Modal */}
+            {recordingPaymentFor && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-md flex flex-col overflow-hidden animate-fade-in-up">
+                        <div className="flex justify-between items-center px-8 py-5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                            <h4 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                Record Payment
+                            </h4>
+                            <button 
+                                onClick={() => setRecordingPaymentFor(null)} 
+                                className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+                            >
+                                <XIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleRecordPaymentSubmit} className="p-8 space-y-5">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Invoice Number</label>
+                                <input 
+                                    type="text" 
+                                    value={recordingPaymentFor.invoiceNumber} 
+                                    className="form-input w-full bg-slate-50 dark:bg-slate-900/50 cursor-not-allowed font-bold" 
+                                    disabled 
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Amount Paid (KES)</label>
+                                <input 
+                                    type="number" 
+                                    value={paymentAmount} 
+                                    onChange={e => setPaymentAmount(Number(e.target.value))}
+                                    className="form-input w-full font-black text-indigo-600 dark:text-indigo-400" 
+                                    required 
+                                    min="1"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Payment Method</label>
+                                    <select
+                                        value={paymentMethod}
+                                        onChange={e => setPaymentMethod(e.target.value)}
+                                        className="form-select w-full"
+                                        required
+                                    >
+                                        <option value="MPESA">MPESA</option>
+                                        <option value="Bank Transfer">Bank Transfer</option>
+                                        <option value="Cash">Cash</option>
+                                        <option value="Cheque">Cheque</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Payment Date</label>
+                                    <input 
+                                        type="date" 
+                                        value={paymentDate} 
+                                        onChange={e => setPaymentDate(e.target.value)}
+                                        className="form-input w-full" 
+                                        required 
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Transaction Reference / Code</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. RGX1234567" 
+                                    value={paymentRef} 
+                                    onChange={e => setPaymentRef(e.target.value)}
+                                    className="form-input w-full font-mono uppercase" 
+                                    required 
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" onClick={() => setRecordingPaymentFor(null)} className="btn-secondary">Cancel</button>
+                                <button 
+                                    type="submit" 
+                                    disabled={isSubmittingPayment}
+                                    className="btn-primary px-8 py-2 rounded-xl text-white text-sm font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isSubmittingPayment ? 'Saving...' : 'Record Payment'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
