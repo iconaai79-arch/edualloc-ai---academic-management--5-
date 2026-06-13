@@ -258,40 +258,163 @@ export const generateReceiptPdfDataUri = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
+
+    // Load branding configurations
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
-    const tableStartY = createPdfWithLetterhead(doc, 'RECEIPT', companyDetails, institution, logoImg);
+
+    // Create Page Header with Letterhead Cascade
+    const tableStartY = createPdfWithLetterhead(doc, 'PAYMENT RECEIPT', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
 
+    // Dynamically shift table starting position to accommodate metadata block card
+    const finalTableStartY = tableStartY + 38;
+
+    // Parse brand primary theme color for styled headers
+    const themeColorHex = companyDetails?.themeColor || '#4f46e5';
+    const hexToRgb = (hex: string): [number, number, number] => {
+        let cleanHex = hex.replace('#', '');
+        if (cleanHex.length === 3) {
+            cleanHex = cleanHex.split('').map(char => char + char).join('');
+        }
+        const num = parseInt(cleanHex, 16);
+        return [
+            (num >> 16) & 255,
+            (num >> 8) & 255,
+            num & 255
+        ];
+    };
+    const primaryColor = hexToRgb(themeColorHex);
+
+    // Draw clean modern Metadata block card container
+    doc.setFillColor(248, 250, 252); // Slate-50 background
+    doc.setDrawColor(226, 232, 240); // Slate-200 border
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, tableStartY - 5, pageWidth - (margin * 2), 34, 2, 2, 'FD');
+
+    // Column 1 Content: Receipt details
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('RECEIPT #:', pageWidth - margin - 40, margin + 55);
-    doc.text('PAYMENT DATE:', pageWidth - margin - 40, margin + 60);
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105); // Slate-600
+    doc.text('RECEIPT INFORMATION', margin + 6, tableStartY + 1);
 
     doc.setFont('helvetica', 'normal');
-    doc.text(receipt.receiptNumber, pageWidth - margin, margin + 55, { align: 'right' });
-    doc.text(new Date(receipt.paymentDate).toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
+    doc.setFontSize(8);
+    doc.setTextColor(30, 41, 59); // Slate-800
+    doc.text(`Receipt Reference :  ${receipt?.receiptNumber || 'N/A'}`, margin + 6, tableStartY + 7);
+    doc.text(`Payment Date      :  ${receipt?.paymentDate ? new Date(receipt.paymentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}`, margin + 6, tableStartY + 13);
+    
+    // Payment status badge with colored background and text
+    doc.text('Payment Status    :  ', margin + 6, tableStartY + 19);
+    const badgeX = margin + 31;
+    doc.setFillColor(240, 253, 250); // Teal-50
+    doc.roundedRect(badgeX, tableStartY + 16, 22, 4.5, 0.8, 0.8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(13, 148, 136); // Teal-600
+    doc.text('PAID / SECURED', badgeX + 2, tableStartY + 19.5);
 
+    // Column 2 Content: Payer / Transaction details
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('BILL TO / TRANSACTION INFO', pageWidth / 2 + 6, tableStartY + 1);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Payer / Organization :  ${institution?.name || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 7);
+    doc.text(`Client Representative :  ${transaction?.payerName || 'Platform Representative'}`, pageWidth / 2 + 6, tableStartY + 13);
+    
+    const paymentMethodText = `${receipt?.paymentMethod || 'M-PESA'} (${transaction?.transactionId || receipt?.relatedTransactionId || 'N/A'})`;
+    doc.text(`Method / Channel     :  ${paymentMethodText}`, pageWidth / 2 + 6, tableStartY + 19);
+
+    // Main line items table
+    const head = [['#', 'DESCRIPTION / ITEM DETAILS', 'REFERENCE / TRANS ID', 'AMOUNT PAID (KES)']];
     const body = [
-        ['Payment For', receipt.paidFor],
-        ['Payment Method', receipt.paymentMethod],
-        ['Transaction ID', transaction.transactionId],
-        ['Payer Name', transaction.payerName],
+        [
+            1,
+            receipt?.paidFor || 'Platform Subscription Service Fee',
+            transaction?.transactionId || receipt?.relatedTransactionId || 'N/A',
+            `KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`
+        ]
     ];
 
     doc.autoTable({
+        head: head,
         body: body,
-        startY: tableStartY,
-        theme: 'plain',
-        styles: { fontSize: 10 },
-        columnStyles: { 0: { fontStyle: 'bold' } },
+        startY: finalTableStartY,
+        theme: 'striped',
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 8.5, cellPadding: 5.5 },
+        columnStyles: {
+            0: { cellWidth: 10 },
+            1: { fontStyle: 'bold' },
+            3: { halign: 'right', fontStyle: 'bold' }
+        }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY;
-    doc.setFontSize(14);
+    const finalY = (doc as any).lastAutoTable.finalY || (finalTableStartY + 25);
+
+    // Financial totals summary section
+    doc.setDrawColor(226, 232, 240); // Slate-200
+    doc.setLineWidth(0.3);
+    doc.line(margin, finalY + 5, pageWidth - margin, finalY + 5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139); // Slate-500
+    doc.text('SUBTOTAL:', pageWidth - margin - 75, finalY + 12);
     doc.setFont('helvetica', 'bold');
-    doc.text('AMOUNT PAID:', margin, finalY + 15);
-    doc.text(`KES ${receipt.amountPaid?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+    doc.setTextColor(30, 41, 59);
+    doc.text(`KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('VAT / TAX (0%):', pageWidth - margin - 75, finalY + 17);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('KES 0.00', pageWidth - margin, finalY + 17, { align: 'right' });
+
+    // Net total paid amount container box
+    const totalBoxY = finalY + 21;
+    doc.setFillColor(240, 253, 250); // Teal-50
+    doc.roundedRect(pageWidth - margin - 80, totalBoxY, 80, 11, 1, 1, 'F');
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(13, 148, 136); // Teal-600
+    doc.text('TOTAL AMOUNT PAID:', pageWidth - margin - 75, totalBoxY + 7);
+    doc.text(`KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
+
+    // Professional Stamp & Authorized Signature section (Bottom Left)
+    const sigBaseY = pageHeight - 55;
+    
+    // Draw fine stamp if available
+    if (stampImg) {
+        const stampWidth = 26;
+        const stampHeight = (stampImg.height * stampWidth) / stampImg.width;
+        // Draw centered on the line Y
+        doc.addImage(stampImg, 'PNG', margin + 12, sigBaseY - 14, stampWidth, stampHeight);
+    }
+    
+    doc.setDrawColor(148, 163, 184); // Slate-400
+    doc.setLineWidth(0.4);
+    doc.line(margin, sigBaseY + 6, margin + 50, sigBaseY + 6);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Authorized Signature & Stamp', margin, sigBaseY + 10);
+
+    // Process footers on all pages
+    setupPdfFooter(doc, footerImg, footerText);
 
     return doc.output('datauristring');
 };
