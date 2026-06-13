@@ -154,7 +154,7 @@ export const PublicInvoiceView: React.FC<PublicInvoiceViewProps> = ({ invoiceId 
                     if (db && invoice) {
                         const { data } = await db.from('ds_invoices').select('*').eq('id', invoice.id).maybeSingle();
                         if (data) {
-                            setInvoice(prev => prev ? {
+                            setInvoice((prev: any) => prev ? {
                                 ...prev,
                                 paidAmount: data.paid_amount || data.paidAmount,
                                 balance: data.balance !== undefined ? data.balance : (data.total_amount - (data.paid_amount || 0)),
@@ -354,15 +354,22 @@ export const PublicInvoiceView: React.FC<PublicInvoiceViewProps> = ({ invoiceId 
                         <div className="pt-6 border-t border-slate-900">
                             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-4">Billed Breakdown</p>
                             <div className="space-y-3">
-                                {invoice.items?.map((item: any, idx: number) => (
-                                    <div key={idx} className="flex justify-between items-center py-3 px-4 bg-slate-950/40 rounded-xl border border-slate-900">
-                                        <div>
-                                            <p className="text-xs font-black text-slate-200 uppercase">{item.name}</p>
-                                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Priority: {item.priority || "Standard"}</p>
+                                {(() => {
+                                    const itemsList = Array.isArray(invoice.items)
+                                        ? invoice.items
+                                        : (typeof invoice.items === 'string'
+                                            ? JSON.parse(invoice.items)
+                                            : []);
+                                    return itemsList.map((item: any, idx: number) => (
+                                        <div key={idx} className="flex justify-between items-center py-3 px-4 bg-slate-950/40 rounded-xl border border-slate-900">
+                                            <div>
+                                                <p className="text-xs font-black text-slate-200 uppercase">{item.name}</p>
+                                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Priority: {item.priority || "Standard"}</p>
+                                            </div>
+                                            <p className="text-xs font-black text-slate-300">KES {item.amount?.toLocaleString()}</p>
                                         </div>
-                                        <p className="text-xs font-black text-slate-300">KES {item.amount?.toLocaleString()}</p>
-                                    </div>
-                                ))}
+                                    ));
+                                })()}
                             </div>
                         </div>
                     </div>

@@ -120,9 +120,10 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         if (!recordingPaymentFor) return;
         setIsSubmittingPayment(true);
         try {
+            const prefix = (companyDetails?.globalReceiptPrefix || 'RCT-').trim();
             const receipt = {
                 id: `RCT_${Date.now()}`,
-                receiptNumber: `RCT-${Date.now()}`,
+                receiptNumber: `${prefix}${Date.now()}`,
                 institutionId: recordingPaymentFor.institutionId,
                 paymentDate: new Date(paymentDate).toISOString(),
                 amountPaid: Number(paymentAmount),
@@ -503,14 +504,21 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                                {previewInvoice.items.map((item, idx) => (
-                                                    <tr key={idx} className="text-xs text-slate-700 dark:text-slate-300">
-                                                        <td className="px-5 py-3 font-semibold text-slate-800 dark:text-white">{item.description}</td>
-                                                        <td className="px-5 py-3 text-center font-mono">{item.quantity}</td>
-                                                        <td className="px-5 py-3 text-right font-mono">{item.unitPrice?.toLocaleString()}</td>
-                                                        <td className="px-5 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">{(item.quantity * item.unitPrice)?.toLocaleString()}</td>
-                                                    </tr>
-                                                ))}
+                                                {(() => {
+                                                    const itemsList = Array.isArray(previewInvoice.items)
+                                                        ? previewInvoice.items
+                                                        : (typeof previewInvoice.items === 'string'
+                                                            ? JSON.parse(previewInvoice.items)
+                                                            : []);
+                                                    return itemsList.map((item: any, idx: number) => (
+                                                        <tr key={idx} className="text-xs text-slate-700 dark:text-slate-300">
+                                                            <td className="px-5 py-3 font-semibold text-slate-800 dark:text-white">{item.description}</td>
+                                                            <td className="px-5 py-3 text-center font-mono">{item.quantity}</td>
+                                                            <td className="px-5 py-3 text-right font-mono">{item.unitPrice?.toLocaleString()}</td>
+                                                            <td className="px-5 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">{(item.quantity * item.unitPrice)?.toLocaleString()}</td>
+                                                        </tr>
+                                                    ));
+                                                })()}
                                             </tbody>
                                         </table>
                                     </div>

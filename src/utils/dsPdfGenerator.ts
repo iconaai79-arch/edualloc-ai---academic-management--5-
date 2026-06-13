@@ -141,7 +141,8 @@ export const generateDSPDF = async (
     if (type === 'invoice') {
         const inv = data as DSInvoice;
         tableHead = ['Description', 'Amount (KES)', 'Paid (KES)', 'Balance (KES)'];
-        tableData = (inv.items || []).map(item => [
+        const itemsList = Array.isArray(inv.items) ? inv.items : (typeof inv.items === 'string' ? JSON.parse(inv.items) : []);
+        tableData = itemsList.map((item: any) => [
             item.name,
             item.amount?.toLocaleString(),
             (item.paidAmount || 0)?.toLocaleString(),
@@ -174,14 +175,15 @@ export const generateDSPDF = async (
     let renderYAfterTable = (doc as any).lastAutoTable.finalY || 150;
 
     // Render Votes Breakdown for Receipts if associated invoice exists
-    if (type === 'receipt' && associatedInvoice && Array.isArray(associatedInvoice.items) && associatedInvoice.items.length > 0) {
+    const associatedInvoiceItems = associatedInvoice ? (Array.isArray(associatedInvoice.items) ? associatedInvoice.items : (typeof associatedInvoice.items === 'string' ? JSON.parse(associatedInvoice.items) : [])) : [];
+    if (type === 'receipt' && associatedInvoice && associatedInvoiceItems.length > 0) {
         renderYAfterTable += 12;
         doc.setFontSize(11);
         doc.setTextColor(30, 41, 59);
         doc.setFont(undefined, 'bold');
         doc.text("VOTES BREAKDOWN (FEE ALLOCATION)", margin, renderYAfterTable);
 
-        const votesData = associatedInvoice.items.map(item => [
+        const votesData = associatedInvoiceItems.map((item: any) => [
             item.name,
             `KES ${item.amount?.toLocaleString()}`,
             `KES ${(item.paidAmount || 0)?.toLocaleString()}`,
@@ -355,13 +357,14 @@ export const generateDSThermalReceipt = async (
     doc.text(`Kes ${payment.amount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 8;
 
-    if (associatedInvoice && Array.isArray(associatedInvoice.items) && associatedInvoice.items.length > 0) {
+    const thermalInvoiceItems = associatedInvoice ? (Array.isArray(associatedInvoice.items) ? associatedInvoice.items : (typeof associatedInvoice.items === 'string' ? JSON.parse(associatedInvoice.items) : [])) : [];
+    if (associatedInvoice && thermalInvoiceItems.length > 0) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
         doc.text("--- Votes Breakdown ---", margin, yPos);
         yPos += 4;
         doc.setFont('helvetica', 'normal');
-        associatedInvoice.items.forEach(it => {
+        thermalInvoiceItems.forEach((it: any) => {
             doc.text(`${it.name}`, margin, yPos);
             doc.text(`Kes ${it.amount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
             yPos += 4;

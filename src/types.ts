@@ -943,6 +943,8 @@ export interface CompanyDetails {
     mpesaConfig: MpesaConfig;
     airtelMoneyConfig?: AirtelMoneyConfig;
     intasendConfig?: IntasendConfig;
+    globalInvoicePrefix?: string;
+    globalReceiptPrefix?: string;
     ncbaConfig?: NcbaConfig;
     kcbConfig?: KcbConfig;
     coopConfig?: CoopB2bConfig;

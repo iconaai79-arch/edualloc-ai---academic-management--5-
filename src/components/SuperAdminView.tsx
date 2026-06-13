@@ -852,6 +852,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         chatEnabled: companyDetails?.chatAssistantConfig?.enabled ?? true,
         enforceGlobalOtp: companyDetails?.enforceGlobalOtp ?? false,
         marketplaceConfig: companyDetails?.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
+        globalInvoicePrefix: companyDetails?.globalInvoicePrefix || 'INV-',
+        globalReceiptPrefix: companyDetails?.globalReceiptPrefix || 'RCT-',
         showcaseConfig: companyDetails?.showcaseConfig || { 
             enabled: true, 
             showLoginLink: true,
@@ -900,6 +902,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 chatEnabled: companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: companyDetails.enforceGlobalOtp ?? false,
                 marketplaceConfig: companyDetails.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
+                globalInvoicePrefix: companyDetails.globalInvoicePrefix || 'INV-',
+                globalReceiptPrefix: companyDetails.globalReceiptPrefix || 'RCT-',
                 showcaseConfig: companyDetails.showcaseConfig || { 
                     enabled: true, 
                     showLoginLink: true,
@@ -4185,6 +4189,29 @@ Please change it after login.`;
                                                     </div>
                                                 </div>
 
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Tenant Invoice Prefix</label>
+                                                        <input
+                                                            type="text"
+                                                            value={localCompanyInfo.globalInvoicePrefix || ''}
+                                                            onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalInvoicePrefix: e.target.value })}
+                                                            className="form-input h-12 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
+                                                            placeholder="e.g. INV-"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Tenant Receipt Prefix</label>
+                                                        <input
+                                                            type="text"
+                                                            value={localCompanyInfo.globalReceiptPrefix || ''}
+                                                            onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalReceiptPrefix: e.target.value })}
+                                                            className="form-input h-12 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
+                                                            placeholder="e.g. RCT-"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                
                                                 <div>
                                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">System Logo (Dark Mode Compatible)</label>
                                                     <label className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-500 transition-colors">

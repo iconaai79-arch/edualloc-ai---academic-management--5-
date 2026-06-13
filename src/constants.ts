@@ -60,7 +60,9 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     marketplaceConfig: {
         pricingAmount: 150,
         customUrl: "https://marketplace.eduai.co.ke"
-    }
+    },
+    globalInvoicePrefix: 'INV-',
+    globalReceiptPrefix: 'RCT-'
 };
 
 const generatePeriods = (count: number, duration: number, start: string): TimetablePeriod[] => {

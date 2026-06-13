@@ -153,6 +153,9 @@ const ls = {
 };
 
 export const apiService = {
+    getSupabase() {
+        return _supabase;
+    },
     isConfigured() {
         return !!_supabase;
     },

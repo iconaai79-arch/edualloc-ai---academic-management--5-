@@ -4046,7 +4046,8 @@ export const App: React.FC = () => {
         themeColor: activeBranding.primaryColor,
         invoices,
         onManualInvoice: async (institutionId: string, items: any[], totalAmount: number, dueDate: string) => {
-            const invoiceNumber = `INV-${Date.now()}`;
+            const prefix = (companyDetails?.globalInvoicePrefix || 'INV-').trim();
+            const invoiceNumber = `${prefix}${Date.now()}`;
             const newInvoice = {
                 id: `inv_${Date.now()}`,
                 invoiceNumber,
