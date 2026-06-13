@@ -39,6 +39,8 @@ BEGIN
             NEW.payload->>'requestId',
             NEW.payload->>'transactionId',
             NEW.payload->>'transactionID',
+            NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'transactionID',
+            NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'transactionId',
             NEW.payload->'Body'->'stkCallback'->>'CheckoutRequestID',
             NEW.payload->'Body'->'stkCallback'->>'checkoutRequestID',
             NEW.payload->'Body'->'stkCallback'->>'checkoutRequestId',
@@ -137,6 +139,8 @@ BEGIN
         -- Check flat keys
         IF mpesa_receipt IS NULL OR mpesa_receipt = '' THEN
             mpesa_receipt := COALESCE(
+                NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'transactionID',
+                NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'transactionId',
                 NEW.payload->'requestPayload'->'primaryData'->>'mpesaReceiptNumber',
                 NEW.payload->'requestPayload'->'primaryData'->>'MpesaReceiptNumber',
                 NEW.payload->'requestPayload'->'primaryData'->>'transactionId',
@@ -154,6 +158,9 @@ BEGIN
         BEGIN
             payload_amount := COALESCE(
                 stk_amount,
+                (NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'transactionAmt')::decimal,
+                (NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'transactionAmount')::decimal,
+                (NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'amount')::decimal,
                 (NEW.payload->>'transactionAmount')::decimal,
                 (NEW.payload->>'amount')::decimal,
                 (NEW.payload->'requestPayload'->'primaryData'->>'transactionAmount')::decimal,
@@ -166,6 +173,11 @@ BEGIN
         payload_sender := COALESCE(
             NEW.payload->>'customerName',
             NEW.payload->>'payerName',
+            CASE WHEN NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'firstName' IS NOT NULL 
+                 THEN (NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'firstName' || ' ' || COALESCE(NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'lastName', ''))
+                 ELSE NULL 
+            END,
+            NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'debitMSISDN',
             stk_phone,
             NEW.payload->>'customerMobileNumber',
             NEW.payload->>'phoneNumber',
@@ -173,12 +185,16 @@ BEGIN
         );
 
         payload_credit_acc := COALESCE(
+            NEW.payload->'requestPayload'->'primaryData'->>'creditAccountIdentifier',
             NEW.payload->>'creditAccountIdentifier',
             NEW.payload->>'institutionId',
             NEW.payload->>'institution_id'
         );
 
         payload_shortcode := COALESCE(
+            NEW.payload->'requestPayload'->'primaryData'->>'organizationShortCode',
+            NEW.payload->'requestPayload'->'primaryData'->>'shortCode',
+            NEW.payload->'requestPayload'->'primaryData'->>'tillNumber',
             NEW.payload->>'organizationShortCode',
             NEW.payload->>'shortCode',
             NEW.payload->>'short_code',
@@ -192,17 +208,27 @@ BEGIN
         );
         
         BEGIN
-            IF stk_date IS NOT NULL AND stk_date <> '' THEN
-                IF length(stk_date) = 14 THEN
-                    payload_date := to_timestamp(stk_date, 'YYYYMMDDHH24MISS');
+            DECLARE
+                raw_date_str TEXT;
+            BEGIN
+                raw_date_str := COALESCE(
+                    stk_date,
+                    NEW.payload->'requestPayload'->'primaryData'->>'timestamp',
+                    NEW.payload->'requestPayload'->'additionalData'->'notificationData'->>'transactionDate',
+                    NEW.payload->>'timestamp'
+                );
+                IF raw_date_str IS NOT NULL AND raw_date_str <> '' THEN
+                    IF length(raw_date_str) = 14 AND raw_date_str ~ '^\d+$' THEN
+                        payload_date := to_timestamp(raw_date_str, 'YYYYMMDDHH24MISS');
+                    ELSE
+                        payload_date := raw_date_str::timestamp with time zone;
+                    END IF;
                 ELSE
-                    payload_date := stk_date::timestamp with time zone;
+                    payload_date := NEW.created_at;
                 END IF;
-            ELSE
-                payload_date := (NEW.payload->>'timestamp')::timestamp with time zone;
-            END IF;
-        EXCEPTION WHEN OTHERS THEN
-            payload_date := NEW.created_at;
+            EXCEPTION WHEN OTHERS THEN
+                payload_date := NEW.created_at;
+            END;
         END;
         
         IF payload_txn_id IS NULL THEN
