@@ -1199,12 +1199,12 @@ export const App: React.FC = () => {
                       if (!p || !p.payload) return false;
                       const provider = p.provider;
                       const status = (p.status || '').toLowerCase();
-                      if (!['kcb_ipn', 'kcb_stk_callback', 'coop'].includes(provider) || status !== 'received') return false;
+                      if (!['kcb_ipn', 'kcb_stk_callback', 'coop', 'coop_b2b', 'kcb'].includes(provider) || status !== 'received') return false;
 
                       // Tenancy filter: Match this payload to the active institution
                       const payload = p.payload;
-                      const creditAcc = payload.creditAccountIdentifier || payload.institutionId || payload.institution_id;
-                      const shortCode = payload.organizationShortCode || payload.shortCode || payload.short_code || payload.paybill || payload.tillNumber;
+                      const creditAcc = payload.creditAccountIdentifier || payload.institutionId || payload.institution_id || payload.requestPayload?.primaryData?.creditAccountIdentifier;
+                      const shortCode = payload.organizationShortCode || payload.shortCode || payload.short_code || payload.paybill || payload.tillNumber || payload.requestPayload?.primaryData?.organizationShortCode || payload.requestPayload?.primaryData?.shortCode || payload.requestPayload?.primaryData?.tillNumber;
 
                       // 1. Direct ID/Code check
                       if (creditAcc && (creditAcc === effectiveInstIdFinal || creditAcc === currentInst?.institutionCode)) {
@@ -1231,63 +1231,170 @@ export const App: React.FC = () => {
                   })
                   .map(p => {
                       const payload = p.payload;
+
+                      // Extract STK push parameters
+                      let mpesaReceipt = '';
+                      let stkAmount = 0;
+                      let stkPhone = '';
+                      let stkDate = '';
+
+                      // Parse Safaricom/KCB STK Push Callback Metadata
+                      try {
+                          const callbackMetadata = payload.CallbackMetadata || payload.callbackMetadata || payload.Body?.stkCallback?.CallbackMetadata || payload.Body?.stkCallback?.callbackMetadata || payload.body?.stkCallback?.CallbackMetadata || payload.body?.stkcallback?.CallbackMetadata || payload.stkCallback?.CallbackMetadata || payload.stkcallback?.CallbackMetadata || payload.Body?.stkCallback?.CallbackMetadata?.item || payload.stkCallback?.CallbackMetadata?.item;
+                          const items = callbackMetadata?.Item || callbackMetadata?.item;
+                          if (items && Array.isArray(items)) {
+                              items.forEach((item: any) => {
+                                  const name = String(item.Name || item.Key || '').toLowerCase();
+                                  if (name === 'mpesareceiptnumber') {
+                                      mpesaReceipt = String(item.Value || '');
+                                  } else if (name === 'amount') {
+                                      stkAmount = parseFloat(String(item.Value || '0'));
+                                  } else if (name === 'phonenumber') {
+                                      stkPhone = String(item.Value || '');
+                                  } else if (name === 'transactiondate') {
+                                      stkDate = String(item.Value || '');
+                                  }
+                              });
+                          }
+                      } catch (e) {}
+
+                      // Parse ResultParameters.ResultParameter (KCB Buni format)
+                      if (!mpesaReceipt) {
+                          try {
+                              const resultParams = payload.ResultParameters || payload.Result?.ResultParameters || payload.Body?.stkCallback?.ResultParameters || payload.stkCallback?.ResultParameters;
+                              const pList = resultParams?.ResultParameter;
+                              if (pList) {
+                                  const list = Array.isArray(pList) ? pList : [pList];
+                                  list.forEach((item: any) => {
+                                      const key = String(item.Key || item.Name || '').toLowerCase();
+                                      if (key === 'mpesareceiptnumber' || key === 'transactionid' || key === 'mpesaref') {
+                                          mpesaReceipt = String(item.Value || '');
+                                      } else if (key === 'amount') {
+                                          stkAmount = parseFloat(String(item.Value || '0'));
+                                      } else if (key === 'phonenumber') {
+                                          stkPhone = String(item.Value || '');
+                                      } else if (key === 'transactiondate') {
+                                          stkDate = String(item.Value || '');
+                                      }
+                                  });
+                              }
+                          } catch (e) {}
+                      }
+
+                      // Check flat keys for mpesaReceipt
+                      if (!mpesaReceipt) {
+                          mpesaReceipt = payload.requestPayload?.additionalData?.notificationData?.transactionID ||
+                                        payload.requestPayload?.additionalData?.notificationData?.transactionId ||
+                                        payload.requestPayload?.primaryData?.mpesaReceiptNumber ||
+                                        payload.requestPayload?.primaryData?.MpesaReceiptNumber ||
+                                        payload.requestPayload?.primaryData?.transactionId ||
+                                        payload.requestPayload?.primaryData?.businessKey ||
+                                        payload.mpesaReceiptNumber ||
+                                        payload.MpesaReceiptNumber ||
+                                        payload.transactionId ||
+                                        payload.transactionID ||
+                                        payload.businessKey ||
+                                        payload.transactionReference ||
+                                        payload.customerReference ||
+                                        '';
+                      }
+
                       // Resolve transaction ID / reference
-                      const txnId = payload.transactionReference || 
-                                    payload.checkoutRequestId || 
-                                    payload.checkoutRequestID || 
-                                    payload.requestId || 
-                                    payload.transactionId || 
-                                    payload.transactionID || 
-                                    payload.Body?.stkCallback?.CheckoutRequestID || 
-                                    payload.requestPayload?.primaryData?.checkoutRequestID || 
-                                    p.id;
+                      const payloadTxnId = payload.transactionReference || 
+                                           payload.checkoutRequestId || 
+                                           payload.checkoutRequestID || 
+                                           payload.requestId || 
+                                           payload.transactionId || 
+                                           payload.transactionID || 
+                                           payload.Body?.stkCallback?.CheckoutRequestID || 
+                                           payload.requestPayload?.primaryData?.checkoutRequestID || 
+                                           payload.requestPayload?.additionalData?.notificationData?.transactionID ||
+                                           payload.requestPayload?.additionalData?.notificationData?.transactionId ||
+                                           payload.Body?.stkCallback?.checkoutRequestID ||
+                                           payload.Body?.stkCallback?.checkoutRequestId ||
+                                           payload.body?.stkCallback?.CheckoutRequestID ||
+                                           payload.body?.stkCallback?.checkoutRequestID ||
+                                           payload.body?.stkCallback?.checkoutRequestId ||
+                                           payload.body?.stkcallback?.checkoutRequestId ||
+                                           payload.body?.stkcallback?.checkoutRequestID ||
+                                           payload.stkCallback?.CheckoutRequestID ||
+                                           payload.stkcallback?.checkoutRequestId ||
+                                           payload.requestPayload?.primaryData?.checkoutRequestId ||
+                                           p.id;
+
+                      const resolvedTxnId = mpesaReceipt || payloadTxnId || p.id;
                       
-                      // Robust amount extraction for nested STK push callbacks
+                      // Extract amount
                       let amount = 0;
                       try {
-                          const rawAmt = payload.transactionAmount || payload.amount;
-                          if (rawAmt) {
-                              amount = parseFloat(rawAmt);
+                          if (stkAmount > 0) {
+                              amount = stkAmount;
                           } else {
-                              // Check CallbackMetadata.Item (Safaricom/KCB)
-                              const callbackMetadata = payload.CallbackMetadata || payload.Body?.stkCallback?.CallbackMetadata;
-                              const items = callbackMetadata?.Item || callbackMetadata?.item;
-                              if (items && Array.isArray(items)) {
-                                  const amtItem = items.find((item: any) => String(item.Name || item.Key || '').toLowerCase() === 'amount');
-                                  if (amtItem && amtItem.Value !== undefined) {
-                                      amount = parseFloat(String(amtItem.Value));
-                                  }
-                              }
-                              // Check ResultParameters.ResultParameter (KCB Buni)
-                              if (amount <= 0) {
-                                  const resultParams = payload.ResultParameters || payload.Result?.ResultParameters || payload.Body?.stkCallback?.ResultParameters;
-                                  const pList = resultParams?.ResultParameter;
-                                  if (pList) {
-                                      const list = Array.isArray(pList) ? pList : [pList];
-                                      const amtParam = list.find((p: any) => String(p.Key || p.Name || '').toLowerCase() === 'amount');
-                                      if (amtParam && amtParam.Value !== undefined) {
-                                          amount = parseFloat(String(amtParam.Value));
-                                      }
-                                  }
+                              const rawAmt = payload.transactionAmount || 
+                                             payload.amount ||
+                                             payload.requestPayload?.additionalData?.notificationData?.transactionAmt ||
+                                             payload.requestPayload?.additionalData?.notificationData?.transactionAmount ||
+                                             payload.requestPayload?.additionalData?.notificationData?.amount ||
+                                             payload.requestPayload?.primaryData?.transactionAmount;
+                              if (rawAmt) {
+                                  amount = parseFloat(rawAmt);
                               }
                           }
                       } catch (e) {
                           console.error("Failed to parse amount from integration log:", e);
                       }
-                      const date = payload.timestamp || p.created_at;
+
+                      // Extract date
+                      let date = p.created_at;
+                      try {
+                          const rawDateStr = stkDate ||
+                                             payload.requestPayload?.primaryData?.timestamp ||
+                                             payload.requestPayload?.additionalData?.notificationData?.transactionDate ||
+                                             payload.timestamp;
+                          if (rawDateStr) {
+                              if (typeof rawDateStr === 'string' && rawDateStr.length === 14 && /^\d+$/.test(rawDateStr)) {
+                                  const y = rawDateStr.substring(0, 4);
+                                  const m = rawDateStr.substring(4, 6);
+                                  const d = rawDateStr.substring(6, 8);
+                                  const h = rawDateStr.substring(8, 10);
+                                  const mi = rawDateStr.substring(10, 12);
+                                  const s = rawDateStr.substring(12, 14);
+                                  date = new Date(`${y}-${m}-${d}T${h}:${mi}:${s}`).toISOString();
+                              } else {
+                                  date = new Date(rawDateStr).toISOString();
+                              }
+                          }
+                      } catch (e) {}
+
+                      // Extract sender
+                      const firstName = payload.requestPayload?.additionalData?.notificationData?.firstName || '';
+                      const lastName = payload.requestPayload?.additionalData?.notificationData?.lastName || '';
+                      const nestedName = firstName ? `${firstName} ${lastName}`.trim() : '';
                       
                       const sender = payload.customerName || 
                                      payload.payerName || 
+                                     nestedName ||
+                                     payload.requestPayload?.additionalData?.notificationData?.debitMSISDN ||
+                                     stkPhone ||
                                      payload.customerMobileNumber || 
                                      payload.phoneNumber || 
                                      'External Deposit';
 
+                      // Extract customer reference
+                      const payloadRef = payload.customerReference ||
+                                         payload.accountReference ||
+                                         payload.requestPayload?.primaryData?.businessKey ||
+                                         payload.businessKey ||
+                                         '';
+
+                      const payloadReceiptRef = mpesaReceipt || payloadRef || payloadTxnId || '';
+
                       return {
-                          id: txnId,
+                          id: resolvedTxnId,
                           institutionId: effectiveInstIdFinal,
                           amount: amount,
                           transactionDate: date,
-                          reference: txnId,
+                          reference: payloadReceiptRef,
                           senderName: sender,
                           bankName: p.provider === 'coop' ? 'Co-op Bank' : 'KCB',
                           status: 'unreconciled',
