@@ -517,22 +517,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const additionalData = body.requestPayload?.additionalData || {};
         const notificationData = additionalData.notificationData || {};
 
-        // Flat format key fields resolved via robust getParam
-        const transactionReference = getParam(body, req.query, 'transactionReference');
-        const requestId = getParam(body, req.query, 'requestId');
-        const customerReference = getParam(body, req.query, 'customerReference');
-        const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdentifier') || getParam(body, req.query, 'creditAccountIdenti;ier');
-        const customerMobileNumber = getParam(body, req.query, 'customerMobileNumber');
-        const customerName = getParam(body, req.query, 'customerName');
-        const transactionAmount = getParam(body, req.query, 'transactionAmount') || getParam(body, req.query, 'amount');
+        // Flat format key fields resolved via robust getParam with nested fallbacks
+        const transactionReference = getParam(body, req.query, 'transactionReference') ||
+                                     getParam(body, req.query, 'checkoutRequestId') ||
+                                     getParam(body, req.query, 'checkoutRequestID') ||
+                                     primaryData.checkoutRequestID ||
+                                     primaryData.checkoutRequestId ||
+                                     '';
 
-        const channelCode = getParam(body, req.query, 'channelCode');
-        const timestamp = getParam(body, req.query, 'timestamp');
-        const currency = getParam(body, req.query, 'currency');
-        const balance = getParam(body, req.query, 'balance');
-        const narration = getParam(body, req.query, 'narration');
-        const organizationShortCode = getParam(body, req.query, 'organizationShortCode');
-        const tillNumber = getParam(body, req.query, 'tillNumber');
+        const requestId = getParam(body, req.query, 'requestId') ||
+                          header.messageID ||
+                          '';
+
+        const customerReference = getParam(body, req.query, 'customerReference') ||
+                                  getParam(body, req.query, 'accountReference') ||
+                                  getParam(body, req.query, 'businessKey') ||
+                                  primaryData.businessKey ||
+                                  '';
+
+        const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdentifier') ||
+                                        getParam(body, req.query, 'creditAccountIdenti;ier') ||
+                                        primaryData.creditAccountIdentifier ||
+                                        primaryData.creditAccountIdenti;ier ||
+                                        '';
+
+        const customerMobileNumber = getParam(body, req.query, 'customerMobileNumber') ||
+                                     getParam(body, req.query, 'phoneNumber') ||
+                                     notificationData.debitMSISDN ||
+                                     '';
+
+        const customerName = getParam(body, req.query, 'customerName') ||
+                             getParam(body, req.query, 'payerName') ||
+                             `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim() ||
+                             '';
+
+        const transactionAmount = getParam(body, req.query, 'transactionAmount') ||
+                                  getParam(body, req.query, 'amount') ||
+                                  notificationData.transactionAmt ||
+                                  notificationData.transactionAmount ||
+                                  notificationData.amount ||
+                                  primaryData.transactionAmount ||
+                                  '';
+
+        const channelCode = getParam(body, req.query, 'channelCode') || '';
+        
+        const timestamp = getParam(body, req.query, 'timestamp') ||
+                          primaryData.timestamp ||
+                          notificationData.transactionDate ||
+                          '';
+
+        const currency = getParam(body, req.query, 'currency') || '';
+        const balance = getParam(body, req.query, 'balance') || '';
+        const narration = getParam(body, req.query, 'narration') || '';
+        
+        const organizationShortCode = getParam(body, req.query, 'organizationShortCode') ||
+                                      getParam(body, req.query, 'shortCode') ||
+                                      getParam(body, req.query, 'short_code') ||
+                                      getParam(body, req.query, 'paybill') ||
+                                      primaryData.organizationShortCode ||
+                                      primaryData.shortCode ||
+                                      primaryData.short_code ||
+                                      primaryData.paybill ||
+                                      '';
+
+        const tillNumber = getParam(body, req.query, 'tillNumber') ||
+                           getParam(body, req.query, 'till_number') ||
+                           primaryData.tillNumber ||
+                           primaryData.till_number ||
+                           '';
 
         const messageID = header.messageID || requestId || `MSG_${Date.now()}`;
         const originatorConversationID = header.originatorConversationID || header.conversationID || requestId || '';
@@ -567,27 +619,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!resolvedInstitutionId && creditAccountIdentifier) {
             const { data: instData } = await supabase
                 .from('institutions')
-                .select('id, kcb_config')
+                .select('id, kcb_config, mpesa_config')
                 .or(`id.eq.${creditAccountIdentifier},institution_code.eq.${creditAccountIdentifier}`)
                 .maybeSingle();
             if (instData) {
                 resolvedInstitutionId = instData.id;
                 kcbConfig = instData.kcb_config || {};
             } else {
-                // Search in kcb_config JSON properties for a match
+                // Search in kcb_config and mpesa_config JSON properties for a match
                 const { data: instList } = await supabase
                     .from('institutions')
-                    .select('id, kcb_config')
-                    .not('kcb_config', 'is', null);
+                    .select('id, kcb_config, mpesa_config');
                 if (instList && instList.length > 0) {
                     const found = instList.find(i => {
                         const cfg = i.kcb_config || {};
+                        const mCfg = i.mpesa_config || {};
                         return String(cfg.shortCode || cfg.short_code || '').trim() === creditAccountIdentifier.trim() ||
                                String(cfg.tillNumber || cfg.till_number || '').trim() === creditAccountIdentifier.trim() ||
                                String(cfg.companyCode || cfg.company_code || '').trim() === creditAccountIdentifier.trim() ||
                                String(cfg.creditAccountIdentifier || cfg.credit_account_identifier || '').trim() === creditAccountIdentifier.trim() ||
                                String(cfg.accountNumber || cfg.account_number || '').trim() === creditAccountIdentifier.trim() ||
-                               String(cfg.bank_account || cfg.bankAccount || '').trim() === creditAccountIdentifier.trim();
+                               String(cfg.bank_account || cfg.bankAccount || '').trim() === creditAccountIdentifier.trim() ||
+                               String(mCfg.paybillNumber || mCfg.paybill_number || '').trim() === creditAccountIdentifier.trim();
                     });
                     if (found) {
                         resolvedInstitutionId = found.id;
@@ -601,7 +654,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const directKey = customerReference || businessKey || '';
             const { data: instData } = await supabase
                 .from('institutions')
-                .select('id, kcb_config')
+                .select('id, kcb_config, mpesa_config')
                 .or(`id.eq.${directKey},institution_code.eq.${directKey}`)
                 .maybeSingle();
             if (instData) {
@@ -613,26 +666,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!resolvedInstitutionId && (tillNumber || organizationShortCode)) {
             const { data: instList } = await supabase
                 .from('institutions')
-                .select('id, kcb_config')
-                .not('kcb_config', 'is', null);
+                .select('id, kcb_config, mpesa_config');
             if (instList && instList.length > 0) {
                 const found = instList.find(i => {
                     const cfg = i.kcb_config || {};
+                    const mCfg = i.mpesa_config || {};
                     const sc = String(cfg.shortCode || cfg.short_code || '').trim();
                     const tn = String(cfg.tillNumber || cfg.till_number || '').trim();
                     const cc = String(cfg.companyCode || cfg.company_code || '').trim();
                     const osc = String(cfg.organizationShortCode || cfg.organization_short_code || '').trim();
+                    const mPaybill = String(mCfg.paybillNumber || mCfg.paybill_number || '').trim();
 
                     // Prioritize matching tillNumber if present
                     if (tillNumber) {
                         const payloadTill = String(tillNumber).trim();
-                        if (tn === payloadTill || sc === payloadTill) return true;
+                        if (tn === payloadTill || sc === payloadTill || mPaybill === payloadTill) return true;
                     }
 
                     // Fallback to matching organizationShortCode
                     if (organizationShortCode) {
                         const payloadOsc = String(organizationShortCode).trim();
-                        if (osc === payloadOsc || sc === payloadOsc || tn === payloadOsc || cc === payloadOsc) return true;
+                        if (osc === payloadOsc || sc === payloadOsc || tn === payloadOsc || cc === payloadOsc || mPaybill === payloadOsc) return true;
                     }
 
                     return false;
@@ -1382,18 +1436,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                // Mark transaction as reconciled (setting reconciled: true in metadata)
-                await supabase.from('mpesa_transactions').update({
-                    metadata: { ...metadata, reconciled: true, reconciled_at: new Date().toISOString() }
-                }).eq('id', transaction.id);
+                const shouldMarkReconciled = type !== 'bank_feed';
 
-                // Update local metadata object so that checks down below can read it correctly
-                metadata.reconciled = true;
-                metadata.reconciled_at = new Date().toISOString();
+                if (shouldMarkReconciled) {
+                    // Mark transaction as reconciled (setting reconciled: true in metadata)
+                    await supabase.from('mpesa_transactions').update({
+                        metadata: { ...metadata, reconciled: true, reconciled_at: new Date().toISOString() }
+                    }).eq('id', transaction.id);
+
+                    // Update local metadata object so that checks down below can read it correctly
+                    metadata.reconciled = true;
+                    metadata.reconciled_at = new Date().toISOString();
+                }
 
                 // Write/Upsert to bank_transactions so it appears in Bank Feeds
                 try {
-                    const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'ds_invoice' || type === 'pm_invoice' || type === 'event_registration';
+                    const isReconciledNow = shouldMarkReconciled && (metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'ds_invoice' || type === 'pm_invoice' || type === 'event_registration');
                     
                     // Delete any temporary duplicate records created by database triggers under the raw reference ID
                     if (transactionID) {
