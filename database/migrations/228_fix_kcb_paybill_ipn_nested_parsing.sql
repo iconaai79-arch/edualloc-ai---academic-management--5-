@@ -34,7 +34,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mpesa_transactions') THEN
         DELETE FROM public.bank_transactions bt
         USING public.mpesa_transactions mt
-        WHERE (bt.id = mt.checkout_request_id OR bt.id = mt.transaction_id)
+        WHERE (bt.id = mt.checkout_request_id OR bt.id = mt.transaction_id) 
           AND bt.id <> mt.id
           AND EXISTS (
               SELECT 1 FROM public.bank_transactions bt2 
@@ -479,7 +479,7 @@ BEGIN
             BEGIN
                 IF resolved_invoice_id IS NOT NULL THEN
                     IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'car_sales_invoices') THEN
-                        EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.car_sales_invoices WHERE id = $1 AND LOWER(status) = ''paid'')'
+                        EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.car_sales_invoices WHERE id = $1 AND LOWER(status) IN (''paid'', ''fully_paid'', ''fully paid'', ''partially_paid'', ''partially paid''))'
                         INTO is_reconciled
                         USING resolved_invoice_id;
                     END IF;
@@ -491,7 +491,7 @@ BEGIN
                     END IF;
                     
                     IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_invoices') THEN
-                        EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.ds_invoices WHERE id = $1 AND LOWER(status) = ''paid'')'
+                        EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.ds_invoices WHERE id = $1 AND LOWER(status) IN (''paid'', ''fully_paid'', ''fully paid'', ''partially_paid'', ''partially paid''))'
                         INTO is_reconciled
                         USING resolved_invoice_id;
                     END IF;
@@ -986,13 +986,13 @@ BEGIN
         IF resolved_inst_id IS NOT NULL THEN
             IF resolved_invoice_id IS NOT NULL THEN
                 IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'car_sales_invoices') THEN
-                    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.car_sales_invoices WHERE id = $1 AND LOWER(status) = ''paid'')' INTO is_reconciled USING resolved_invoice_id;
+                    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.car_sales_invoices WHERE id = $1 AND LOWER(status) IN (''paid'', ''fully_paid'', ''fully paid'', ''partially_paid'', ''partially paid''))' INTO is_reconciled USING resolved_invoice_id;
                 END IF;
                 IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'invoices') THEN
                     EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.invoices WHERE id = $1 AND LOWER(status) = ''paid'')' INTO is_reconciled USING resolved_invoice_id;
                 END IF;
                 IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_invoices') THEN
-                    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.ds_invoices WHERE id = $1 AND LOWER(status) = ''paid'')' INTO is_reconciled USING resolved_invoice_id;
+                    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.ds_invoices WHERE id = $1 AND LOWER(status) IN (''paid'', ''fully_paid'', ''fully paid'', ''partially_paid'', ''partially paid''))' INTO is_reconciled USING resolved_invoice_id;
                 END IF;
                 IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pm_invoices') THEN
                     EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.pm_invoices WHERE id = $1 AND LOWER(status) = ''paid'')' INTO is_reconciled USING resolved_invoice_id;

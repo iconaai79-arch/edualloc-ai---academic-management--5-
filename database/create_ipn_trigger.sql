@@ -397,21 +397,21 @@ BEGIN
 
         -- Inject verified amount into raw payload to guarantee it is always present
         IF payload_amount > 0 THEN
-            NEW.payload := jsonb_set(COALESCE(NEW.payload, ''{}''::jsonb), ''{amount}'', to_jsonb(payload_amount));
-            NEW.payload := jsonb_set(NEW.payload, ''{transactionAmount}'', to_jsonb(payload_amount));
+            NEW.payload := jsonb_set(COALESCE(NEW.payload, '{}'::jsonb), '{amount}', to_jsonb(payload_amount));
+            NEW.payload := jsonb_set(NEW.payload, '{transactionAmount}', to_jsonb(payload_amount));
         END IF;
 
         -- 6. Upsert to bank_transactions
         IF resolved_inst_id IS NOT NULL THEN
             IF resolved_invoice_id IS NOT NULL THEN
                 IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'car_sales_invoices') THEN
-                    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.car_sales_invoices WHERE id = $1 AND LOWER(status) = ''paid'')' INTO is_reconciled USING resolved_invoice_id;
+                    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.car_sales_invoices WHERE id = $1 AND LOWER(status) IN (''paid'', ''fully_paid'', ''fully paid'', ''partially_paid'', ''partially paid''))' INTO is_reconciled USING resolved_invoice_id;
                 END IF;
                 IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'invoices') THEN
                     EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.invoices WHERE id = $1 AND LOWER(status) = ''paid'')' INTO is_reconciled USING resolved_invoice_id;
                 END IF;
                 IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_invoices') THEN
-                    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.ds_invoices WHERE id = $1 AND LOWER(status) = ''paid'')' INTO is_reconciled USING resolved_invoice_id;
+                    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.ds_invoices WHERE id = $1 AND LOWER(status) IN (''paid'', ''fully_paid'', ''fully paid'', ''partially_paid'', ''partially paid''))' INTO is_reconciled USING resolved_invoice_id;
                 END IF;
                 IF NOT is_reconciled AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pm_invoices') THEN
                     EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.pm_invoices WHERE id = $1 AND LOWER(status) = ''paid'')' INTO is_reconciled USING resolved_invoice_id;

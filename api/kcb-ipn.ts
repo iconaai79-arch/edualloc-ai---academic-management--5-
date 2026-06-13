@@ -528,7 +528,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdentifier') ||
                                         getParam(body, req.query, 'creditAccountIdenti;ier') ||
                                         primaryData.creditAccountIdentifier ||
-                                        primaryData.creditAccountIdenti;ier ||
+                                        primaryData['creditAccountIdenti;ier'] ||
                                         '';
 
         const customerMobileNumber = getParam(body, req.query, 'customerMobileNumber') ||

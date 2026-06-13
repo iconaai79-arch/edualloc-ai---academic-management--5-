@@ -3499,7 +3499,9 @@ END $$;
                 "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS theory_test_score integer;",
                 "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS practical_test_score integer;",
                 "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS ntsa_booking_status text;",
-                "ALTER TABLE ds_license_categories ADD COLUMN IF NOT EXISTS daily_program jsonb;"
+                "ALTER TABLE ds_license_categories ADD COLUMN IF NOT EXISTS daily_program jsonb;",
+                "ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS audited_by text;",
+                "ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS audited_at timestamp with time zone;"
             ];
 
             migrations.forEach(sql => {

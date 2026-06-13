@@ -1885,6 +1885,296 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             else if (meta.type === 'invoice' && invId) {
                 await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId);
             }
+            // 4.1. Handle Car Invoice
+            else if ((meta.type === 'car_invoice' || meta.type === 'car_sales_invoices') && invId) {
+                const { data: carInvoice } = await supabase
+                    .from('car_sales_invoices')
+                    .select('*')
+                    .eq('id', invId)
+                    .maybeSingle();
+
+                if (carInvoice) {
+                    const paidAmount = parseFloat(String(carInvoice.paid_amount || 0)) + amt;
+                    const balanceAmount = Math.max(0, parseFloat(String(carInvoice.total_amount || 0)) - paidAmount);
+                    const status = balanceAmount <= 0 ? 'fully_paid' : 'partially_paid';
+
+                    await supabase
+                        .from('car_sales_invoices')
+                        .update({
+                            paid_amount: paidAmount,
+                            balance_amount: balanceAmount,
+                            status,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', invId);
+
+                    await supabase.from('car_sales_payments').insert({
+                        id: `pay_${Date.now()}`,
+                        invoice_id: invId,
+                        institution_id: instId || carInvoice.institution_id || 'SYSTEM',
+                        amount: amt,
+                        payment_method: txn.provider || 'KCB STK',
+                        transaction_reference: txn.transaction_id || txn.id,
+                        payment_date: new Date().toISOString().split('T')[0],
+                        receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                        received_by: 'KCB STK Integration',
+                        notes: `Payment received via status query. Ref: ${txn.transaction_id || txn.id}`,
+                        created_at: new Date().toISOString()
+                    });
+
+                    if (meta.requesterId) {
+                        await supabase.from('app_notifications').insert({
+                            id: `ntf_car_${Date.now()}`,
+                            user_id: meta.requesterId,
+                            message: `Car payment of KES ${amt} successful for Invoice ${carInvoice.invoice_number}!`,
+                            type: 'success',
+                            is_read: false,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+            }
+            // 4.2. Handle Driving School Invoice
+            else if (meta.type === 'ds_invoice' && invId) {
+                const { data: dsInvoice } = await supabase
+                    .from('ds_invoices')
+                    .select('*')
+                    .eq('id', invId)
+                    .maybeSingle();
+
+                if (dsInvoice) {
+                    const paidAmount = parseFloat(String(dsInvoice.paid_amount || 0)) + amt;
+                    const balanceAmount = Math.max(0, parseFloat(String(dsInvoice.total_amount || 0)) - paidAmount);
+                    const status = balanceAmount <= 0 ? 'Fully Paid' : 'Partially Paid';
+
+                    let remainingAmount = amt;
+                    const items = Array.isArray(dsInvoice.items) ? dsInvoice.items : JSON.parse(dsInvoice.items || '[]');
+                    const updatedItems = items.map((item: any) => {
+                        const itemBalance = item.amount - (item.paidAmount || 0);
+                        if (remainingAmount <= 0) return item;
+                        const distribution = Math.min(remainingAmount, itemBalance);
+                        remainingAmount -= distribution;
+                        return {
+                            ...item,
+                            paidAmount: (item.paidAmount || 0) + distribution
+                        };
+                    });
+
+                    await supabase
+                        .from('ds_invoices')
+                        .update({
+                            paid_amount: paidAmount,
+                            balance: balanceAmount,
+                            status,
+                            items: updatedItems,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', invId);
+
+                    await supabase.from('ds_payments').insert({
+                        id: `pay_${Date.now()}`,
+                        institution_id: instId || dsInvoice.institution_id || 'SYSTEM',
+                        invoice_id: invId,
+                        student_id: dsInvoice.student_id,
+                        student_name: dsInvoice.student_name,
+                        amount: amt,
+                        payment_method: txn.provider || 'KCB STK',
+                        transaction_reference: txn.transaction_id || txn.id,
+                        payment_date: new Date().toISOString(),
+                        receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                        received_by: 'KCB STK Integration'
+                    });
+
+                    if (meta.requesterId) {
+                        await supabase.from('app_notifications').insert({
+                            id: `ntf_ds_${Date.now()}`,
+                            user_id: meta.requesterId,
+                            message: `Driving School invoice payment successful via KCB STK! Ref: ${txn.transaction_id || txn.id}.`,
+                            type: 'success',
+                            is_read: false,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+            }
+            // 4.3. Handle Property Management Invoice
+            else if (meta.type === 'pm_invoice' && invId) {
+                const { data: pmInvoice } = await supabase
+                    .from('pm_invoices')
+                    .select('*')
+                    .eq('id', invId)
+                    .maybeSingle();
+
+                if (pmInvoice) {
+                    await supabase
+                        .from('pm_invoices')
+                        .update({
+                            status: 'Paid',
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', invId);
+
+                    const { data: lease } = await supabase
+                        .from('pm_leases')
+                        .select('*')
+                        .eq('id', pmInvoice.lease_id)
+                        .maybeSingle();
+
+                    let commissionAmount = 0;
+                    if (lease) {
+                        const { data: unit } = await supabase
+                            .from('pm_units')
+                            .select('*')
+                            .eq('id', lease.unit_id)
+                            .maybeSingle();
+                        if (unit) {
+                            const { data: property } = await supabase
+                                .from('pm_properties')
+                                .select('*')
+                                .eq('id', unit.property_id)
+                                .maybeSingle();
+                            if (property && property.commission_rate && parseFloat(String(property.commission_rate)) > 0) {
+                                commissionAmount = (amt * parseFloat(String(property.commission_rate))) / 100;
+                            }
+                        }
+                    }
+
+                    await supabase.from('pm_payments').insert({
+                        id: `pay_${Date.now()}`,
+                        lease_id: pmInvoice.lease_id,
+                        amount: amt,
+                        payment_date: new Date().toISOString().split('T')[0],
+                        payment_method: txn.provider || 'KCB STK',
+                        payment_type: 'Rent',
+                        status: 'Completed',
+                        commission_amount: commissionAmount,
+                        institution_id: instId || pmInvoice.institution_id || 'SYSTEM',
+                        created_at: new Date().toISOString()
+                    });
+
+                    if (meta.requesterId) {
+                        await supabase.from('app_notifications').insert({
+                            id: `ntf_pm_${Date.now()}`,
+                            user_id: meta.requesterId,
+                            message: `Rent payment of KES ${amt} successful via KCB STK! Ref: ${txn.transaction_id || txn.id}.`,
+                            type: 'success',
+                            is_read: false,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+            }
+            // 4.4. Handle Event Registration
+            else if (meta.type === 'event_registration') {
+                const eventId = meta.eventId;
+                const categoryId = meta.categoryId;
+                const firstName = meta.firstName || 'Runner';
+                const lastName = meta.lastName || '';
+                const email = meta.email || '';
+                const phone = meta.phone || txn.phone_number || '';
+                const gender = meta.gender || 'male';
+                const age = meta.age ? parseInt(String(meta.age)) : null;
+                const tShirtSize = meta.tShirtSize || 'M';
+                const emergencyContactName = meta.emergencyContactName || '';
+                const emergencyContactPhone = meta.emergencyContactPhone || '';
+                const initialPledge = meta.initialPledge ? parseFloat(String(meta.initialPledge)) : 0;
+                const sponsorName = meta.sponsorName || `${firstName} ${lastName}`.trim();
+
+                // Check if participant already exists matching categoryId + email or categoryId + phone
+                let participant: any = null;
+                if (email || phone) {
+                    let queryBuilder = supabase
+                        .from('event_participants')
+                        .select('*')
+                        .eq('category_id', categoryId);
+                    
+                    const orConditions: string[] = [];
+                    if (email) orConditions.push(`email.ieq.${email.trim()}`);
+                    if (phone) orConditions.push(`phone.eq.${phone.trim()}`);
+                    
+                    if (orConditions.length > 0) {
+                        queryBuilder = queryBuilder.or(orConditions.join(','));
+                        const { data: existingParticipants } = await queryBuilder;
+                        if (existingParticipants && existingParticipants.length > 0) {
+                            participant = existingParticipants[0];
+                        }
+                    }
+                }
+
+                if (participant) {
+                    await supabase
+                        .from('event_participants')
+                        .update({
+                            payment_status: 'paid',
+                            mpesa_reference: txn.transaction_id || txn.id || ''
+                        })
+                        .eq('id', participant.id);
+
+                    await supabase
+                        .from('event_pledges')
+                        .update({ payment_status: 'paid' })
+                        .eq('participant_id', participant.id);
+                    
+                    console.log(`[Reconcile - event_registration] Updated existing event participant ${participant.id} and pledges to paid.`);
+                } else {
+                    // Generate new BIB number
+                    const { data: allParticipants } = await supabase
+                        .from('event_participants')
+                        .select('bib_number');
+                    const existingBibs = (allParticipants || [])
+                        .map(p => parseInt(p.bib_number || '0'))
+                        .filter(b => !isNaN(b));
+                    const maxBib = existingBibs.length > 0 ? Math.max(...existingBibs) : 1000;
+                    const newBib = String(maxBib + 1);
+
+                    const participantId = `part_${Date.now()}`;
+                    const { error: insertPartErr } = await supabase
+                        .from('event_participants')
+                        .insert({
+                            id: participantId,
+                            category_id: categoryId,
+                            bib_number: newBib,
+                            first_name: firstName,
+                            last_name: lastName,
+                            email: email,
+                            phone: phone,
+                            gender: gender,
+                            age: age,
+                            t_shirt_size: tShirtSize,
+                            waiver_signed: true,
+                            payment_status: 'paid',
+                            mpesa_reference: txn.transaction_id || txn.id || '',
+                            emergency_contact_name: emergencyContactName,
+                            emergency_contact_phone: emergencyContactPhone,
+                            status: 'registered',
+                            created_at: new Date().toISOString()
+                        });
+
+                    if (insertPartErr) {
+                        console.error('[Reconcile - event_registration] Failed to insert event participant:', insertPartErr.message);
+                    } else {
+                        console.log(`[Reconcile - event_registration] Created new event participant ${participantId}, BIB: ${newBib}`);
+                        if (initialPledge > 0) {
+                            const pledgeId = `pledge_${Date.now()}`;
+                            const { error: insertPledgeErr } = await supabase
+                                .from('event_pledges')
+                                .insert({
+                                    id: pledgeId,
+                                    participant_id: participantId,
+                                    sponsor_name: sponsorName,
+                                    amount: initialPledge,
+                                    payment_status: 'paid',
+                                    created_at: new Date().toISOString()
+                                });
+                            if (insertPledgeErr) {
+                                console.error('[Reconcile - event_registration] Failed to insert event pledge:', insertPledgeErr.message);
+                            } else {
+                                console.log(`[Reconcile - event_registration] Created new event pledge ${pledgeId} for ${initialPledge}`);
+                            }
+                        }
+                    }
+                }
+            }
 
             // 5. Create Receipt
             if (invId) {
