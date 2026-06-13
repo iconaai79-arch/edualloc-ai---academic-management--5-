@@ -501,16 +501,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!supabase) return res.status(503).json({ error: 'Database context missing' });
 
     try {
-        // Log the raw IPN
-        const { error: logError } = await supabase.from('integration_logs').insert({
-            provider: 'kcb_ipn',
-            payload: body,
-            status: 'received',
-            created_at: new Date().toISOString()
-        });
-
-        if (logError) console.warn('[KCB IPN] Failed to log IPN:', logError);
-
         // Support both KCB nested structure and flat structure
         const header = body.header || {};
         const primaryData = body.requestPayload?.primaryData || {};
@@ -594,6 +584,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const amount = parseFloat(transactionAmount || notificationData.transactionAmt || notificationData.amount || notificationData.transactionAmount || '0');
         const phone = customerMobileNumber || notificationData.debitMSISDN || '';
         const payerName = customerName || `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim();
+
+        // Construct normalized flat payload as requested
+        const normalizedPayload = {
+            balance: balance || "0.00",
+            currency: currency || "KES",
+            narration: narration || "Transfer",
+            requestId: requestId || "",
+            timestamp: timestamp || "",
+            tillNumber: tillNumber || "Not Provided",
+            channelCode: channelCode || "100",
+            customerName: customerName || "",
+            customerReference: customerReference || "",
+            transactionAmount: transactionAmount || "",
+            customerMobileNumber: customerMobileNumber || "",
+            transactionReference: transactionReference || transactionID || "",
+            organizationShortCode: organizationShortCode || "",
+            creditAccountIdentifier: creditAccountIdentifier || ""
+        };
+
+        // Log the raw IPN in the requested flat format
+        const { error: logError } = await supabase.from('integration_logs').insert({
+            provider: 'kcb_ipn',
+            payload: normalizedPayload,
+            status: 'received',
+            created_at: new Date().toISOString()
+        });
+
+        if (logError) console.warn('[KCB IPN] Failed to log IPN:', logError);
 
         // 1. Locate matching transaction
         const lookupKey = businessKey || originatorConversationID || '';
@@ -1475,7 +1493,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         reconciled_at: isReconciledNow ? new Date().toISOString() : null,
                         reconciled_by: isReconciledNow ? 'KCB IPN' : null,
                         created_at: transaction.created_at || new Date().toISOString(),
-                        payload: body
+                        payload: normalizedPayload
                     });
                     if (bankTxnErr) console.error('[KCB IPN] Failed to write to bank_transactions:', bankTxnErr);
                 } catch (bankErr) {
