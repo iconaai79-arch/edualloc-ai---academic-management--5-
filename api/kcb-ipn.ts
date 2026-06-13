@@ -923,6 +923,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const txnMetadata: Record<string, any> = {
                     payerPhoneNumber: phone,
                     payerName: payerName,
+                    amount,
                     channelCode,
                     timestamp,
                     currency,
