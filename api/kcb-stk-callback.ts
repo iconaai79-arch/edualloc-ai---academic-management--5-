@@ -892,6 +892,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             // Write/Upsert to bank_transactions so it appears in Bank Feeds
                             try {
                                 const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'ds_invoice' || type === 'pm_invoice' || type === 'event_registration';
+                                
+                                // Delete any temporary duplicate records created by database triggers under the raw reference ID
+                                const rawRef = mpesaReceiptNumber || transaction.transaction_id;
+                                if (rawRef) {
+                                    await supabase
+                                        .from('bank_transactions')
+                                        .delete()
+                                        .eq('id', rawRef);
+                                }
+
                                 const { error: bankTxnErr } = await supabase.from('bank_transactions').upsert({
                                     id: transaction.id,
                                     institution_id: instId || resolvedInstitutionId,

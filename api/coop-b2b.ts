@@ -843,6 +843,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Write/Upsert to bank_transactions so it appears in Bank Feeds
             try {
                 const isReconciledNow = !!invoice;
+                
+                // Delete any temporary duplicate records created by database triggers under the raw reference ID
+                if (bankTxnId) {
+                    await supabase
+                        .from('bank_transactions')
+                        .delete()
+                        .eq('id', bankTxnId);
+                }
+
                 const { error: bankTxnErr } = await supabase.from('bank_transactions').upsert({
                     id: coopTxnId,
                     institution_id: targetInstId,
