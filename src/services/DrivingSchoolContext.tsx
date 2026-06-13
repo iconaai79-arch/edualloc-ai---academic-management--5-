@@ -1215,6 +1215,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to delete payment");
             throw err;
         }
+    }, [institutionId, invoices, payments, onRefresh, success, error]);
+
     const deleteInvoice = useCallback(async (id: string) => {
         if (!institutionId) return;
         const linkedPayments = payments.filter(p => p.invoiceId === id);
