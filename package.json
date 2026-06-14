@@ -11,9 +11,15 @@
     "migrate": "node database/run_migration_direct.js",
     "migrate:library": "node database/run_migration_direct.js library_management_update.sql",
     "migrate:boarding": "node database/run_migration_direct.js migrations/002_boarding_management.sql",
-    "upload:showcase": "node scripts/upload_showcase_ftp.js"
+    "upload:showcase": "node scripts/upload_showcase_ftp.js",
+    "android:init": "cap init eduai-academic-management com.eduai.academic --web-dir=dist",
+    "android:add": "cap add android",
+    "android:sync": "vite build && cap sync",
+    "android:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
     "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.45.4",
     "@vercel/node": "^5.5.16",
@@ -30,6 +36,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.0",
     "@types/node": "^22.5.0",
     "@types/nodemailer": "^6.4.14",
     "@types/pg": "^8.11.0",
