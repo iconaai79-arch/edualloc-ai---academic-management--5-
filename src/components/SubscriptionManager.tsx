@@ -536,7 +536,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                 allBillingDocs.map(doc => {
                                     const handleDownload = () => {
                                         if (doc.type === 'Invoice') {
-                                            downloadInvoicePdf(doc as Invoice, institution, companyDetails, logoUrl);
+                                            downloadInvoicePdf(doc as Invoice, institution, companyDetails, logoUrl, true);
                                         } else {
                                             // Unified camelCase property
                                             const transaction = transactions.find(t => t.id === (doc as Receipt).relatedTransactionId);

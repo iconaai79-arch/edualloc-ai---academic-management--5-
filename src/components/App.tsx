@@ -4061,6 +4061,26 @@ export const App: React.FC = () => {
             };
             await apiService.saveModuleRecord('invoices', newInvoice);
             await handleLogAction(`Super Admin generated ${isQuote ? 'quote' : 'invoice'} ${invoiceNumber} for institution ${institutionId}`);
+            
+            // Send email to client institution
+            const inst = institutions.find((i: any) => i.id === institutionId);
+            if (inst?.email) {
+                const subject = isQuote 
+                    ? `New Quotation ${invoiceNumber} - ${companyDetails?.name || 'EduAi Network'}`
+                    : `New Invoice ${invoiceNumber} - ${companyDetails?.name || 'EduAi Network'}`;
+                const body = isQuote 
+                    ? `Dear Admin,\n\nA new pro-forma quotation ${invoiceNumber} has been generated for your institution.\n\nQuotation Number: ${invoiceNumber}\nValid Until: ${new Date(dueDate).toLocaleDateString()}\nTotal Estimated Amount: KES ${totalAmount.toLocaleString()}.00\n\nThank you,\nThe ${companyDetails?.name || 'EduAi Network'} Team`
+                    : `Dear Admin,\n\nA new invoice ${invoiceNumber} has been generated for your institution.\n\nInvoice Number: ${invoiceNumber}\nDue Date: ${new Date(dueDate).toLocaleDateString()}\nTotal Payable: KES ${totalAmount.toLocaleString()}.00\n\nPlease use the official platform payment instructions to settle this invoice.\n\nThank you,\nThe ${companyDetails?.name || 'EduAi Network'} Team`;
+                
+                sendEmailNotification(
+                    inst.email,
+                    subject,
+                    body,
+                    companyDetails?.emailConfig,
+                    companyDetails?.name || 'EduAi Network'
+                ).catch(err => console.error("Email sending failed:", err));
+            }
+
             await loadData(false, false);
         },
         onUpdateInvoiceStatus: async (invoiceId: string, status: string) => {

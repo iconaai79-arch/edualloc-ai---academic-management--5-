@@ -11,6 +11,7 @@ import { BanknotesIcon } from './icons/BanknotesIcon';
 
 import { apiService } from '../services/apiService';
 import { downloadInvoicePdf, downloadQuotePdf } from '../services/pdfService';
+import { sendEmailNotification } from '../services/emailService';
 
 interface TenantInvoiceManagerProps {
     invoices: Invoice[];
@@ -138,6 +139,21 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
             } else {
                 await apiService.saveModuleRecord('invoices', { ...recordingPaymentFor, status: 'paid' });
             }
+
+            // Send payment confirmation receipt email to client
+            const inst = institutions.find(i => i.id === recordingPaymentFor.institutionId);
+            if (inst?.email) {
+                const emailBody = `Dear Admin,\n\nThis is a confirmation that payment of KES ${Number(paymentAmount).toLocaleString()}.00 has been received and recorded for Invoice ${recordingPaymentFor.invoiceNumber}.\n\nReceipt Number: ${receipt.receiptNumber}\nPayment Date: ${new Date(paymentDate).toLocaleDateString()}\nPayment Method: ${paymentMethod}\nTransaction Reference: ${paymentRef}\n\nThank you for your business!\nThe ${companyDetails?.name || 'EduAi Network'} Team`;
+                
+                sendEmailNotification(
+                    inst.email,
+                    `Payment Confirmation & Receipt ${receipt.receiptNumber} - ${companyDetails?.name || 'EduAi Network'}`,
+                    emailBody,
+                    companyDetails?.emailConfig,
+                    companyDetails?.name || 'EduAi Network'
+                ).catch(err => console.error("Receipt email sending failed:", err));
+            }
+
             alert(`Payment recorded successfully for Invoice ${recordingPaymentFor.invoiceNumber}`);
             setRecordingPaymentFor(null);
         } catch (err: any) {
@@ -390,9 +406,9 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                                 <button
                                                     onClick={() => {
                                                         if (inv.status === 'quote') {
-                                                            downloadQuotePdf(inv, inst, companyDetails, logoUrl);
+                                                            downloadQuotePdf(inv, inst, companyDetails, logoUrl, true);
                                                         } else {
-                                                            downloadInvoicePdf(inv, inst, companyDetails, logoUrl);
+                                                            downloadInvoicePdf(inv, inst, companyDetails, logoUrl, true);
                                                         }
                                                     }}
                                                     className="text-slate-400 hover:text-indigo-600 transition-colors"
@@ -435,9 +451,9 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                         <button
                                             onClick={() => {
                                                 if (previewInvoice.status === 'quote') {
-                                                    downloadQuotePdf(previewInvoice, inst, companyDetails, logoUrl);
+                                                    downloadQuotePdf(previewInvoice, inst, companyDetails, logoUrl, true);
                                                 } else {
-                                                    downloadInvoicePdf(previewInvoice, inst, companyDetails, logoUrl);
+                                                    downloadInvoicePdf(previewInvoice, inst, companyDetails, logoUrl, true);
                                                 }
                                             }}
                                             className="btn-secondary py-1.5 px-4 text-xs flex items-center gap-1.5"

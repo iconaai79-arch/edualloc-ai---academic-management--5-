@@ -238,7 +238,7 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
     const handleDownloadQuotePreview = async (request: DemoRequest) => {
         try {
             const { mockQuote, mockInstitution, effectiveCompanyDetails } = buildMockInvoiceAndInstitution(request);
-            await downloadQuotePdf(mockQuote, mockInstitution, effectiveCompanyDetails, effectiveCompanyDetails.logoUrl || null);
+            await downloadQuotePdf(mockQuote, mockInstitution, effectiveCompanyDetails, effectiveCompanyDetails.logoUrl || null, true);
         } catch (e: any) {
             alert("Error downloading preview: " + e.message);
         }
@@ -250,7 +250,7 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
             const { mockQuote, mockInstitution, effectiveCompanyDetails } = buildMockInvoiceAndInstitution(request);
             
             // 1. Generate PDF data URI
-            const dataUri = await generateQuotePdfDataUri(mockQuote, mockInstitution, effectiveCompanyDetails, effectiveCompanyDetails.logoUrl || null);
+            const dataUri = await generateQuotePdfDataUri(mockQuote, mockInstitution, effectiveCompanyDetails, effectiveCompanyDetails.logoUrl || null, true);
 
             // 2. Convert to file object
             const base64Marker = 'base64,';

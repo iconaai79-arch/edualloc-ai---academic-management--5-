@@ -201,22 +201,36 @@ export const generateInvoicePdfDataUri = async (
     invoice: Invoice,
     institution: Institution,
     companyDetails: CompanyDetails,
-    logoUrl: string | null
+    logoUrl: string | null,
+    isPlatformInvoice?: boolean
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
 
     // Load branding configurations
-    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const letterConfig = isPlatformInvoice 
+        ? companyDetails?.letterheadConfig 
+        : (institution?.letterheadConfig || companyDetails?.letterheadConfig);
     const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
     const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
     const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
     const footerText = letterConfig?.footerText || '';
-    const logoImg = await loadImage(logoUrl);
+    const logoImg = await loadImage(isPlatformInvoice ? companyDetails?.logoUrl : logoUrl);
 
     // Create Page Header with Letterhead Cascade
-    const tableStartY = createPdfWithLetterhead(doc, 'SALES INVOICE', companyDetails, institution, logoImg, headerImg);
+    const tableStartY = createPdfWithLetterhead(
+        doc, 
+        'SALES INVOICE', 
+        companyDetails, 
+        isPlatformInvoice ? {
+            name: companyDetails.name,
+            email: companyDetails.email,
+            phoneNumber: companyDetails.phone
+        } as Institution : institution, 
+        logoImg, 
+        headerImg
+    );
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -969,8 +983,14 @@ export const generateCarSalesSummaryPdf = async (
     return doc.output('datauristring');
 };
 
-export const downloadInvoicePdf = async (invoice: Invoice, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null) => {
-    const dataUri = await generateInvoicePdfDataUri(invoice, institution, companyDetails, logoUrl);
+export const downloadInvoicePdf = async (
+    invoice: Invoice,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    isPlatformInvoice?: boolean
+) => {
+    const dataUri = await generateInvoicePdfDataUri(invoice, institution, companyDetails, logoUrl, isPlatformInvoice);
     const link = document.createElement('a');
     link.href = dataUri;
     link.download = `Invoice-${invoice.invoiceNumber}.pdf`;
@@ -981,22 +1001,36 @@ export const generateQuotePdfDataUri = async (
     quote: Invoice,
     institution: Institution,
     companyDetails: CompanyDetails,
-    logoUrl: string | null
+    logoUrl: string | null,
+    isPlatformInvoice?: boolean
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
 
     // Load branding configurations
-    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const letterConfig = isPlatformInvoice 
+        ? companyDetails?.letterheadConfig 
+        : (institution?.letterheadConfig || companyDetails?.letterheadConfig);
     const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
     const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
     const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
     const footerText = letterConfig?.footerText || '';
-    const logoImg = await loadImage(logoUrl);
+    const logoImg = await loadImage(isPlatformInvoice ? companyDetails?.logoUrl : logoUrl);
 
     // Create Page Header with Letterhead Cascade
-    const tableStartY = createPdfWithLetterhead(doc, 'QUOTATION', companyDetails, institution, logoImg, headerImg);
+    const tableStartY = createPdfWithLetterhead(
+        doc, 
+        'QUOTATION', 
+        companyDetails, 
+        isPlatformInvoice ? {
+            name: companyDetails.name,
+            email: companyDetails.email,
+            phoneNumber: companyDetails.phone
+        } as Institution : institution, 
+        logoImg, 
+        headerImg
+    );
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1136,8 +1170,14 @@ export const generateQuotePdfDataUri = async (
     return doc.output('datauristring');
 };
 
-export const downloadQuotePdf = async (quote: Invoice, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null) => {
-    const dataUri = await generateQuotePdfDataUri(quote, institution, companyDetails, logoUrl);
+export const downloadQuotePdf = async (
+    quote: Invoice,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    isPlatformInvoice?: boolean
+) => {
+    const dataUri = await generateQuotePdfDataUri(quote, institution, companyDetails, logoUrl, isPlatformInvoice);
     const link = document.createElement('a');
     link.href = dataUri;
     link.download = `Quotation-${quote.invoiceNumber}.pdf`;
