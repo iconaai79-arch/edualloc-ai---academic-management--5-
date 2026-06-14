@@ -71,6 +71,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         admissionNumber: '',
         status: 'Enrolled' as StudentEnrollment['status'],
         enrollmentDate: new Date().toISOString().split('T')[0],
+        gender: '' as 'Male' | 'Female' | 'Other' | '',
         // Context-specific metadata
         metadata: {
             licenseCategory: '',
@@ -79,7 +80,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             priorAttendedDays: 0,
             gradeLevel: '',
             stream: '',
-            subjects: [] as string[]
+            subjects: [] as string[],
+            parentName: '',
+            parentPhone: '',
+            parentEmail: '',
+            parentRelation: 'Father' as 'Father' | 'Mother' | 'Guardian' | 'Other'
         }
     });
 
@@ -244,6 +249,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             
             if (existingUser) {
                 userId = existingUser.id;
+                if (formData.gender && existingUser.gender !== formData.gender) {
+                    await apiService.saveModuleRecord('users', {
+                        ...existingUser,
+                        gender: formData.gender as any
+                    });
+                }
             } else {
                 // Create a base user identity profile
                 const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -256,6 +267,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     institutionId: currentInstitution.id,
                     createdAt: new Date().toISOString()
                 };
+                if (formData.gender) {
+                    newUser.gender = formData.gender as any;
+                }
                 
                 await apiService.saveModuleRecord('users', newUser);
                 userId = newUserId;
@@ -268,7 +282,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     admissionNumber: formData.admissionNumber,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
-                    metadata: formData.metadata,
+                    metadata: {
+                        ...formData.metadata,
+                        gender: formData.gender
+                    },
                     updatedAt: new Date().toISOString()
                 };
                 await apiService.updateModuleRecord('student_enrollments', editingEnrollment.id, updated);
@@ -283,7 +300,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     admissionNumber: formData.admissionNumber || `ADM-${Date.now().toString().slice(-5)}`,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
-                    metadata: formData.metadata,
+                    metadata: {
+                        ...formData.metadata,
+                        gender: formData.gender
+                    },
                     createdAt: new Date().toISOString()
                 };
                 await apiService.saveModuleRecord('student_enrollments', newEnrollment);
@@ -302,6 +322,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 admissionNumber: '',
                 status: 'Enrolled',
                 enrollmentDate: new Date().toISOString().split('T')[0],
+                gender: '',
                 metadata: {
                     licenseCategory: '',
                     preferredInstructorId: '',
@@ -309,7 +330,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     priorAttendedDays: 0,
                     gradeLevel: '',
                     stream: '',
-                    subjects: []
+                    subjects: [],
+                    parentName: '',
+                    parentPhone: '',
+                    parentEmail: '',
+                    parentRelation: 'Father'
                 }
             });
         } catch (err: any) {
@@ -331,6 +356,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             admissionNumber: enr.admissionNumber || '',
             status: enr.status,
             enrollmentDate: enr.enrollmentDate,
+            gender: (associatedUser?.gender || enr.metadata?.gender || '') as any,
             metadata: {
                 licenseCategory: enr.metadata?.licenseCategory || '',
                 preferredInstructorId: enr.metadata?.preferredInstructorId || '',
@@ -338,7 +364,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 priorAttendedDays: enr.metadata?.priorAttendedDays || 0,
                 gradeLevel: enr.metadata?.gradeLevel || '',
                 stream: enr.metadata?.stream || '',
-                subjects: enr.metadata?.subjects || []
+                subjects: enr.metadata?.subjects || [],
+                parentName: enr.metadata?.parentName || '',
+                parentPhone: enr.metadata?.parentPhone || '',
+                parentEmail: enr.metadata?.parentEmail || '',
+                parentRelation: enr.metadata?.parentRelation || 'Father'
             }
         });
         setIsFormOpen(true);
@@ -1378,22 +1408,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             {/* Original Form modal */}
             {isFormOpen && (
                 <div className="fixed inset-0 bg-slate-950/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsFormOpen(false)}>
-                    <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-6">
+                    <div className="bg-slate-900/90 border border-indigo-500/20 shadow-[0_0_50px_rgba(99,102,241,0.15)] rounded-[2.5rem] p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
                             <div>
-                                <h3 className="text-xl font-black text-white uppercase tracking-tighter">
+                                <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-2">
+                                    <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
                                     {editingEnrollment ? 'Modify Student Enrollment' : 'Onboard New Student'}
                                 </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Configure user identity and enrollment context</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Configure student identity and placement matrices</p>
                             </div>
                             <button 
                                 onClick={() => setIsFormOpen(false)}
-                                className="p-3 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                className="p-3 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-all duration-300"
                             >
                                 <XCircle className="w-5 h-5" />
                             </button>
                         </div>
-
+ 
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div>
@@ -1404,7 +1435,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         placeholder="First & Last Name"
                                         value={formData.fullName}
                                         onChange={e => setFormData({ ...formData, fullName: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                     />
                                 </div>
                                 <div>
@@ -1415,7 +1446,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         placeholder="+254..."
                                         value={formData.phoneNumber}
                                         onChange={e => setFormData({ ...formData, phoneNumber: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                     />
                                 </div>
                                 <div>
@@ -1426,7 +1457,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         placeholder="name@example.com"
                                         value={formData.email}
                                         onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                     />
                                 </div>
                                 <div>
@@ -1436,15 +1467,39 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         placeholder="Leave blank to auto-generate"
                                         value={formData.admissionNumber}
                                         onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                     />
                                 </div>
+ 
+                                <div className="sm:col-span-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student Gender Identity</label>
+                                    <div className="grid grid-cols-3 gap-3 mt-2">
+                                        {['Male', 'Female', 'Other'].map((g) => {
+                                            const isActive = formData.gender === g;
+                                            return (
+                                                <button
+                                                    key={g}
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, gender: g as any })}
+                                                    className={`py-3.5 rounded-2xl border text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                                                        isActive
+                                                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.25)]'
+                                                            : 'bg-slate-950/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {g}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+ 
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</label>
                                     <select
                                         value={formData.status}
                                         onChange={e => setFormData({ ...formData, status: e.target.value as any })}
-                                        className="form-select mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                        className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                     >
                                         <option value="Enrolled">Enrolled</option>
                                         <option value="Active">Active</option>
@@ -1460,11 +1515,80 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         required
                                         value={formData.enrollmentDate}
                                         onChange={e => setFormData({ ...formData, enrollmentDate: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                     />
                                 </div>
                             </div>
-
+ 
+                            {/* Guardian Details Card Section */}
+                            <div className="border-t border-white/10 pt-6">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <Users className="w-4 h-4 text-indigo-400" />
+                                    <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">
+                                        Guardian Authorization Registry
+                                    </h4>
+                                </div>
+                                <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Guardian Name</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Parent/Guardian Full Name"
+                                                value={formData.metadata.parentName || ''}
+                                                onChange={e => setFormData({ 
+                                                    ...formData, 
+                                                    metadata: { ...formData.metadata, parentName: e.target.value } 
+                                                })}
+                                                className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Relationship</label>
+                                            <select
+                                                value={formData.metadata.parentRelation || 'Father'}
+                                                onChange={e => setFormData({ 
+                                                    ...formData, 
+                                                    metadata: { ...formData.metadata, parentRelation: e.target.value as any } 
+                                                })}
+                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                            >
+                                                <option value="Father">Father</option>
+                                                <option value="Mother">Mother</option>
+                                                <option value="Guardian">Guardian</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contact Phone</label>
+                                            <input 
+                                                type="tel" 
+                                                placeholder="e.g. +2547..."
+                                                value={formData.metadata.parentPhone || ''}
+                                                onChange={e => setFormData({ 
+                                                    ...formData, 
+                                                    metadata: { ...formData.metadata, parentPhone: e.target.value } 
+                                                })}
+                                                className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                                            <input 
+                                                type="email" 
+                                                placeholder="parent@example.com"
+                                                value={formData.metadata.parentEmail || ''}
+                                                onChange={e => setFormData({ 
+                                                    ...formData, 
+                                                    metadata: { ...formData.metadata, parentEmail: e.target.value } 
+                                                })}
+                                                className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+ 
                             {/* Context Specific Fields */}
                             <div className="border-t border-white/10 pt-6">
                                 <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider mb-4">
@@ -1482,7 +1606,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, licenseCategory: e.target.value } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                             >
                                                 <option value="" disabled>Select Class</option>
                                                 <option value="Class B1 (Light Manual)">Class B1 (Light Manual)</option>
@@ -1499,7 +1623,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, preferredInstructorId: e.target.value } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                             >
                                                 <option value="">Any Instructor (Default)</option>
                                                 {instructors.map(i => (
@@ -1515,7 +1639,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, preferredLessonHours: e.target.value as any } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                             >
                                                 <option value="Morning">Morning Sessions (7:00 AM - 12:00 PM)</option>
                                                 <option value="Noon">Noon Sessions (12:00 PM - 4:00 PM)</option>
@@ -1532,7 +1656,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, priorAttendedDays: parseInt(e.target.value) || 0 } 
                                                 })}
-                                                className="form-input mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                                className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                             />
                                         </div>
                                     </div>
@@ -1547,7 +1671,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, gradeLevel: e.target.value } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                             >
                                                 <option value="" disabled>Select Grade</option>
                                                 <option value="Grade 1">Grade 1</option>
@@ -1572,7 +1696,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, stream: e.target.value } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none"
+                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                                             >
                                                 <option value="">Select Stream</option>
                                                 <option value="North">North</option>
@@ -1585,18 +1709,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     </div>
                                 )}
                             </div>
-
+ 
                             <div className="flex items-center justify-end gap-4 border-t border-white/10 pt-6">
                                 <button
                                     type="button"
                                     onClick={() => setIsFormOpen(false)}
-                                    className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                    className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-white/10 text-slate-400 hover:text-white transition-all duration-300"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg"
+                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 shadow-lg shadow-indigo-500/10"
                                 >
                                     {editingEnrollment ? 'Save Changes' : 'Confirm Enrollment'}
                                 </button>
