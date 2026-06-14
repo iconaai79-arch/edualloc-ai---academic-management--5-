@@ -34,11 +34,13 @@ import { apiService } from '../../services/apiService';
 interface StudentEnrollmentManagerProps {
     context: 'academic' | 'driving_school';
     currentInstitution: Institution;
+    activeTab?: 'students' | 'broadcaster' | 'calendar' | 'guests';
 }
 
 export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> = ({ 
     context, 
-    currentInstitution 
+    currentInstitution,
+    activeTab: passedActiveTab
 }) => {
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [users, setUsers] = useState<User[]>([]);
@@ -47,7 +49,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [subjects, setSubjects] = useState<Subject[]>([]);
     
     // Sub-tab Navigation
-    const [activeTab, setActiveTab] = useState<'students' | 'broadcaster' | 'calendar' | 'guests'>('students');
+    const activeTab = passedActiveTab || 'students';
     
     // New Feature Lists
     const [broadcasterMessages, setBroadcasterMessages] = useState<any[]>([]);
@@ -751,53 +753,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 )}
             </div>
 
-            {/* Sub-Navigation Tabs */}
-            <div className="flex border-b border-white/10 gap-2 overflow-x-auto pb-px">
-                <button
-                    onClick={() => setActiveTab('students')}
-                    className={`flex items-center gap-2 px-5 py-3.5 border-b-2 font-bold text-xs uppercase tracking-widest transition-all whitespace-nowrap ${
-                        activeTab === 'students'
-                            ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                            : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'
-                    } rounded-t-xl`}
-                >
-                    <Users className="w-4 h-4" />
-                    Students Registry
-                </button>
-                <button
-                    onClick={() => setActiveTab('broadcaster')}
-                    className={`flex items-center gap-2 px-5 py-3.5 border-b-2 font-bold text-xs uppercase tracking-widest transition-all whitespace-nowrap ${
-                        activeTab === 'broadcaster'
-                            ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                            : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'
-                    } rounded-t-xl`}
-                >
-                    <Mail className="w-4 h-4" />
-                    Broadcaster Service
-                </button>
-                <button
-                    onClick={() => setActiveTab('calendar')}
-                    className={`flex items-center gap-2 px-5 py-3.5 border-b-2 font-bold text-xs uppercase tracking-widest transition-all whitespace-nowrap ${
-                        activeTab === 'calendar'
-                            ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                            : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'
-                    } rounded-t-xl`}
-                >
-                    <Calendar className="w-4 h-4" />
-                    Events & PINs
-                </button>
-                <button
-                    onClick={() => setActiveTab('guests')}
-                    className={`flex items-center gap-2 px-5 py-3.5 border-b-2 font-bold text-xs uppercase tracking-widest transition-all whitespace-nowrap ${
-                        activeTab === 'guests'
-                            ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                            : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5'
-                    } rounded-t-xl`}
-                >
-                    <ShieldCheck className="w-4 h-4" />
-                    Cleared Guests
-                </button>
-            </div>
+
 
             {/* Status Alerts */}
             {statusMsg.type !== 'idle' && (

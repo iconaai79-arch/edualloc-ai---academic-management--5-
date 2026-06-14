@@ -476,6 +476,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
+    const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'broadcaster' | 'calendar' | 'guests'>('students');
     const [timetablePreselectedViewMode, setTimetablePreselectedViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test' | null>(null);
     const [timetablePreselectedLecturerId, setTimetablePreselectedLecturerId] = useState<string>('');
     const [timetablePreselectedCourseId, setTimetablePreselectedCourseId] = useState<string>('all');
@@ -2219,10 +2220,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'enrollment' && (
-                    <StudentEnrollmentManager
-                        context={isDS ? 'driving_school' : 'academic'}
-                        currentInstitution={props.currentInstitution!}
-                    />
+                    <div className="space-y-6">
+                        <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full">
+                            <button onClick={() => setEnrollmentSubTab('students')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'students' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Students Registry</button>
+                            <button onClick={() => setEnrollmentSubTab('broadcaster')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'broadcaster' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Broadcaster Service</button>
+                            <button onClick={() => setEnrollmentSubTab('calendar')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'calendar' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Events & PINs</button>
+                            <button onClick={() => setEnrollmentSubTab('guests')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'guests' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Cleared Guests</button>
+                        </div>
+                        <div className="animate-fade-in-up">
+                            <StudentEnrollmentManager
+                                context={isDS ? 'driving_school' : 'academic'}
+                                currentInstitution={props.currentInstitution!}
+                                activeTab={enrollmentSubTab}
+                            />
+                        </div>
+                    </div>
                 )}
 
                 {activeTab === 'users' && (
