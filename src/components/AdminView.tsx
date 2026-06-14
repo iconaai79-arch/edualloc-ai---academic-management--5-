@@ -798,9 +798,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 { id: 'ds_finance', label: 'Finance', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_broadcaster', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             ];
-            if (isModuleActive('enrollment_manager')) {
-                dsTabs.push({ id: 'enrollment', label: 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> });
-            }
+            dsTabs.push({ id: 'enrollment', label: 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> });
             dsTabs.push(
                 { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> }
@@ -859,7 +857,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     const academicsTabs = ['settings', 'reports'];
                     if (isModuleActive('timetable')) academicsTabs.push('timetable');
                     if (isModuleActive('academics')) academicsTabs.push('courses');
-                    if (isModuleActive('enrollment_manager')) academicsTabs.push('enrollment');
+                    academicsTabs.push('enrollment');
                     return academicsTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
@@ -956,7 +954,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
 
             if (tab.id === 'enrollment') {
-                return isModuleActive('enrollment_manager');
+                return true;
             }
 
             return true;
@@ -1096,7 +1094,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded font-black tracking-wider uppercase flex items-center gap-1 animate-pulse">
                                         Trial
                                     </span>
-                                ) : (tab.id === 'timetable' || tab.id === 'courses' || tab.id === 'boarding' || tab.id === 'leaveout' || tab.id === 'transport' || tab.id === 'retail' || tab.id === 'enrollment') && (!modState || modState.status !== 'active') ? (
+                                ) : (tab.id === 'timetable' || tab.id === 'courses' || tab.id === 'boarding' || tab.id === 'leaveout' || tab.id === 'transport' || tab.id === 'retail') && (!modState || modState.status !== 'active') ? (
                                     <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded font-medium normal-case flex items-center gap-1">
                                         <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                         Unlock
@@ -2221,18 +2219,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'enrollment' && (
-                    <ModuleAccessGuard
-                        moduleId="enrollment_manager"
-                        moduleName="Student Enrollment Manager"
-                        description="Unified student registry and enrollment portal supporting both academic and driving school curriculums with biometric scanner integration."
-                        institution={props.currentInstitution}
-                        onActivateTrial={onActivateModuleTrial}
-                    >
-                        <StudentEnrollmentManager
-                            context={isDS ? 'driving_school' : 'academic'}
-                            currentInstitution={props.currentInstitution!}
-                        />
-                    </ModuleAccessGuard>
+                    <StudentEnrollmentManager
+                        context={isDS ? 'driving_school' : 'academic'}
+                        currentInstitution={props.currentInstitution!}
+                    />
                 )}
 
                 {activeTab === 'users' && (
