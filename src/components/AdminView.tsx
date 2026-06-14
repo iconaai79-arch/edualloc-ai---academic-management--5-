@@ -772,7 +772,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'fuel_station', label: 'Fuel Station', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'showcase', label: 'Digital Presence', icon: <GlobeAltIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
-            { id: 'enrollment', label: 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
+            { id: 'enrollment', label: isEdu ? 'Students Registry' : 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
         ];
 
 
@@ -961,6 +961,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             return true;
         });
 
+        if (isEdu && activeScope === 'academics') {
+            const order = ['enrollment', 'timetable', 'courses', 'reports', 'settings'];
+            filteredTabs.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+        }
+
         return filteredTabs;
     }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency, activeScope]);
 
@@ -1147,7 +1152,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 return;
                                             }
                                             setActiveScope('academics'); 
-                                            setActiveTab('timetable'); 
+                                            setActiveTab('enrollment'); 
                                         }}
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
