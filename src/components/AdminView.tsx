@@ -471,7 +471,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds'>('console_hub');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
@@ -772,7 +772,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'fuel_station', label: 'Fuel Station', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'showcase', label: 'Digital Presence', icon: <GlobeAltIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
-            { id: 'enrollment', label: isEdu ? 'Students Registry' : 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
+            { id: 'enrollment_students', label: 'Students Registry', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
+            { id: 'enrollment_broadcaster', label: 'Broadcaster Service', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+            { id: 'enrollment_calendar', label: 'Events & PINs', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
+            { id: 'enrollment_guests', label: 'Cleared Guests', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
+            { id: 'enrollment', label: 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
         ];
 
 
@@ -845,6 +849,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         let filteredTabs = baseTabs.filter(tab => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
+            if (['enrollment_students', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(tab.id)) {
+                return isEdu && activeScope === 'academics';
+            }
+
             if (roleToUse === 'mechanic_admin') {
                 return ['dashboard', 'car_service', 'reports', 'settings'].includes(tab.id);
             }
@@ -858,7 +866,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     const academicsTabs = ['settings', 'reports'];
                     if (isModuleActive('timetable')) academicsTabs.push('timetable');
                     if (isModuleActive('academics')) academicsTabs.push('courses');
-                    academicsTabs.push('enrollment');
+                    academicsTabs.push('enrollment_students', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests');
                     return academicsTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
@@ -962,7 +970,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         });
 
         if (isEdu && activeScope === 'academics') {
-            const order = ['enrollment', 'timetable', 'courses', 'reports', 'settings'];
+            const order = [
+                'enrollment_students',
+                'enrollment_broadcaster',
+                'enrollment_calendar',
+                'enrollment_guests',
+                'timetable',
+                'courses',
+                'reports',
+                'settings'
+            ];
             filteredTabs.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
         }
 
@@ -1059,7 +1076,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         else if (tabId === 'boarding' || tabId === 'leaveout') moduleId = 'boarding';
         else if (tabId === 'transport') moduleId = 'transport';
         else if (tabId === 'retail') moduleId = 'school_store';
-        else if (tabId === 'enrollment') moduleId = 'enrollment_manager';
+        else if (['enrollment', 'enrollment_students', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(tabId)) moduleId = 'enrollment_manager';
         
         if (!moduleId) return null;
         return props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
@@ -1152,7 +1169,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 return;
                                             }
                                             setActiveScope('academics'); 
-                                            setActiveTab('enrollment'); 
+                                            setActiveTab('enrollment_students'); 
                                         }}
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
                                     >
@@ -2239,6 +2256,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 activeTab={enrollmentSubTab}
                             />
                         </div>
+                    </div>
+                )}
+
+                {['enrollment_students', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(activeTab) && (
+                    <div className="animate-fade-in-up">
+                        <StudentEnrollmentManager
+                            context={isDS ? 'driving_school' : 'academic'}
+                            currentInstitution={props.currentInstitution!}
+                            activeTab={
+                                activeTab === 'enrollment_students' ? 'students' :
+                                activeTab === 'enrollment_broadcaster' ? 'broadcaster' :
+                                activeTab === 'enrollment_calendar' ? 'calendar' :
+                                'guests'
+                            }
+                        />
                     </div>
                 )}
 
