@@ -936,6 +936,7 @@ export interface CompanyDetails {
     phone: string;
     website: string;
     logoUrl: string | null;
+    paymentInstructions?: string;
     marketplaceConfig?: {
         pricingAmount: number;
         customUrl: string;

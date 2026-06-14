@@ -340,8 +340,10 @@ export const generateInvoicePdfDataUri = async (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Please complete settlement of this invoice using the official system Paybill:`, margin, instructionsY + 6);
-    doc.text(`Paybill Number: ${companyDetails?.mpesaConfig?.paybillNumber || 'N/A'}  |  Account Name: [Institution Code / Invoice Number]`, margin, instructionsY + 11);
+    const instructionsText = companyDetails?.paymentInstructions || 
+        `Please complete settlement of this invoice using the official system Paybill:\nPaybill Number: ${companyDetails?.mpesaConfig?.paybillNumber || 'N/A'}  |  Account Name: [Institution Code / Invoice Number]`;
+    const splitInstructions = doc.splitTextToSize(instructionsText, pageWidth - (margin * 2));
+    doc.text(splitInstructions, margin, instructionsY + 6);
 
     // Stamp / Authorized Signature
     const sigBaseY = pageHeight - 55;

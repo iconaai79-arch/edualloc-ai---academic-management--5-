@@ -855,6 +855,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         marketplaceConfig: companyDetails?.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
         globalInvoicePrefix: companyDetails?.globalInvoicePrefix || 'INV-',
         globalReceiptPrefix: companyDetails?.globalReceiptPrefix || 'RCT-',
+        paymentInstructions: companyDetails?.paymentInstructions || '',
         showcaseConfig: companyDetails?.showcaseConfig || { 
             enabled: true, 
             showLoginLink: true,
@@ -905,6 +906,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 marketplaceConfig: companyDetails.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
                 globalInvoicePrefix: companyDetails.globalInvoicePrefix || 'INV-',
                 globalReceiptPrefix: companyDetails.globalReceiptPrefix || 'RCT-',
+                paymentInstructions: companyDetails.paymentInstructions || '',
                 showcaseConfig: companyDetails.showcaseConfig || { 
                     enabled: true, 
                     showLoginLink: true,
@@ -924,7 +926,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         }
     }, [companyDetails]);
 
-    const handleLocalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
+    const handleLocalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer' | 'stamp') => {
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -940,6 +942,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     setLocalCompanyInfo((prev: any) => ({
                         ...prev,
                         letterheadConfig: { ...prev.letterheadConfig, headerImageUrl: publicUrl }
+                    }));
+                }
+                if (type === 'stamp') {
+                    setLocalCompanyInfo((prev: any) => ({
+                        ...prev,
+                        letterheadConfig: { ...prev.letterheadConfig, stampImageUrl: publicUrl }
                     }));
                 }
                 if (type === 'footer') setLocalCompanyInfo((prev: any) => ({ ...prev, footerImageUrl: publicUrl }));
@@ -4213,6 +4221,20 @@ Please change it after login.`;
                                                         />
                                                     </div>
                                                 </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Invoice Payment Instructions</label>
+                                                    <textarea
+                                                        value={localCompanyInfo.paymentInstructions || ''}
+                                                        onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, paymentInstructions: e.target.value })}
+                                                        rows={3}
+                                                        className="form-textarea w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 font-bold text-sm shadow-inner transition-all resize-none text-slate-900 dark:text-white"
+                                                        placeholder="Enter payment instructions to print on invoices..."
+                                                    />
+                                                    <p className="text-[10px] text-slate-400 mt-2 ml-1 italic font-medium uppercase tracking-tighter">
+                                                        These instructions will be formatted and printed at the bottom of the invoice.
+                                                    </p>
+                                                </div>
                                                 
                                                 <div>
                                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">System Logo (Dark Mode Compatible)</label>
@@ -4276,6 +4298,32 @@ Please change it after login.`;
                                                     {localCompanyInfo.footerImageUrl && (
                                                         <div className="mt-2 h-10 w-full rounded-lg bg-slate-100 overflow-hidden relative">
                                                             <img loading="lazy" src={localCompanyInfo.footerImageUrl} alt="Footer" className="w-full h-full object-cover opacity-50" />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Official Stamp Image</label>
+                                                    <label className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-500 transition-colors">
+                                                        <div className="p-2 bg-white rounded-lg shadow-sm">
+                                                            <ArrowUpTrayIcon className="w-5 h-5 text-indigo-600" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <p className="text-xs font-bold text-slate-700">Upload Stamp Image</p>
+                                                            <p className="text-[10px] text-slate-400">PNG with transparency (Max 1MB)</p>
+                                                        </div>
+                                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLocalImageUpload(e, 'stamp')} />
+                                                    </label>
+                                                    {localCompanyInfo.letterheadConfig?.stampImageUrl && (
+                                                        <div className="mt-3 flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                            <img loading="lazy" src={localCompanyInfo.letterheadConfig.stampImageUrl} className="h-12 object-contain" alt="Stamp Preview" />
+                                                            <div>
+                                                                <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white">Active Stamp</p>
+                                                                <button type="button" onClick={() => setLocalCompanyInfo({
+                                                                    ...localCompanyInfo,
+                                                                    letterheadConfig: { ...localCompanyInfo.letterheadConfig, stampImageUrl: null }
+                                                                } as any)} className="text-[9px] font-bold text-red-500 uppercase hover:underline">Remove Stamp</button>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
