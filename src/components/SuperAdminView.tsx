@@ -350,7 +350,7 @@ export interface SuperAdminViewProps {
     examTimetable?: ExamTimetableEntry[];
     onSwitchPerspective?: (role: Role) => void;
     onWithdrawRequestStatus?: (id: string) => Promise<void>;
-    onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
+    onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string, isQuote?: boolean) => void;
     onUpdateInvoiceStatus?: (invoiceId: string, status: string) => Promise<void>;
     onUpdateCompanyDetails?: (data: Partial<CompanyDetails>) => Promise<void>;
     onAddInstitution?: (data: Omit<Institution, 'id'>) => Promise<void>;

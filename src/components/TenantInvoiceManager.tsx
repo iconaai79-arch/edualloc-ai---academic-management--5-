@@ -10,7 +10,7 @@ import { EyeIcon } from './icons/EyeIcon';
 import { BanknotesIcon } from './icons/BanknotesIcon';
 
 import { apiService } from '../services/apiService';
-import { downloadInvoicePdf } from '../services/pdfService';
+import { downloadInvoicePdf, downloadQuotePdf } from '../services/pdfService';
 
 interface TenantInvoiceManagerProps {
     invoices: Invoice[];
@@ -388,7 +388,13 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                             </button>
                                             {inst && (
                                                 <button
-                                                    onClick={() => downloadInvoicePdf(inv, inst, companyDetails, logoUrl)}
+                                                    onClick={() => {
+                                                        if (inv.status === 'quote') {
+                                                            downloadQuotePdf(inv, inst, companyDetails, logoUrl);
+                                                        } else {
+                                                            downloadInvoicePdf(inv, inst, companyDetails, logoUrl);
+                                                        }
+                                                    }}
                                                     className="text-slate-400 hover:text-indigo-600 transition-colors"
                                                     title="Download PDF"
                                                 >
@@ -427,7 +433,13 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                 <div className="flex items-center gap-3">
                                     {inst && (
                                         <button
-                                            onClick={() => downloadInvoicePdf(previewInvoice, inst, companyDetails, logoUrl)}
+                                            onClick={() => {
+                                                if (previewInvoice.status === 'quote') {
+                                                    downloadQuotePdf(previewInvoice, inst, companyDetails, logoUrl);
+                                                } else {
+                                                    downloadInvoicePdf(previewInvoice, inst, companyDetails, logoUrl);
+                                                }
+                                            }}
                                             className="btn-secondary py-1.5 px-4 text-xs flex items-center gap-1.5"
                                             title="Download PDF"
                                         >

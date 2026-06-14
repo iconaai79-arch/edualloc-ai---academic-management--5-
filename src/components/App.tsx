@@ -4045,8 +4045,8 @@ export const App: React.FC = () => {
         finalTimetableUrl: null,
         themeColor: activeBranding.primaryColor,
         invoices,
-        onManualInvoice: async (institutionId: string, items: any[], totalAmount: number, dueDate: string) => {
-            const prefix = (companyDetails?.globalInvoicePrefix || 'INV-').trim();
+        onManualInvoice: async (institutionId: string, items: any[], totalAmount: number, dueDate: string, isQuote?: boolean) => {
+            const prefix = isQuote ? 'QT-' : (companyDetails?.globalInvoicePrefix || 'INV-').trim();
             const invoiceNumber = `${prefix}${Date.now()}`;
             const newInvoice = {
                 id: `inv_${Date.now()}`,
@@ -4056,11 +4056,11 @@ export const App: React.FC = () => {
                 totalAmount,
                 dueDate,
                 issueDate: new Date().toISOString(),
-                status: 'pending',
+                status: isQuote ? 'quote' : 'pending',
                 createdAt: new Date().toISOString(),
             };
             await apiService.saveModuleRecord('invoices', newInvoice);
-            await handleLogAction(`Super Admin generated invoice ${invoiceNumber} for institution ${institutionId}`);
+            await handleLogAction(`Super Admin generated ${isQuote ? 'quote' : 'invoice'} ${invoiceNumber} for institution ${institutionId}`);
             await loadData(false, false);
         },
         onUpdateInvoiceStatus: async (invoiceId: string, status: string) => {
