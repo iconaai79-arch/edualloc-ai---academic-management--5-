@@ -33,6 +33,7 @@ interface HeaderProps {
     primaryColor?: string;
     secondaryColor?: string;
     hidePerspectiveSwitcher?: boolean;
+    androidUrl?: string;
 }
 
 const formatRoleName = (role?: Role, institution?: Institution | null): string => {
@@ -80,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
     applicationTitle, notifications, onMarkAsRead, currentInstitution, 
     isApiOnline = true, activeRole, onSwitchRole, onExitPerspective, 
     onToggleHealthSystem, isHealthSystemOpen, onTogglePharmacySystem, isPharmacySystemOpen, primaryColor, secondaryColor,
-    hidePerspectiveSwitcher
+    hidePerspectiveSwitcher, androidUrl
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -240,6 +241,7 @@ export const Header: React.FC<HeaderProps> = ({
                             applicationTitle={applicationTitle}
                             logoUrl={logoUrl}
                             primaryColor={primaryColor}
+                            androidUrl={androidUrl}
                         />
 
                         <NotificationBell notifications={notifications || []} onMarkAsRead={onMarkAsRead || (() => {})} />

@@ -845,6 +845,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         email: companyDetails?.email || '',
         phone: companyDetails?.phone || '',
         website: companyDetails?.website || '',
+        androidUrl: companyDetails?.androidUrl || '',
         address: companyDetails?.address || '',
         logoUrl: companyDetails?.logoUrl || '',
         footerImageUrl: companyDetails?.footerImageUrl || '',
@@ -896,6 +897,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 email: companyDetails.email || '',
                 phone: companyDetails.phone || '',
                 website: companyDetails.website || '',
+                androidUrl: companyDetails.androidUrl || '',
                 address: companyDetails.address || '',
                 logoUrl: companyDetails.logoUrl || '',
                 footerImageUrl: companyDetails.footerImageUrl || '',
@@ -4097,6 +4099,10 @@ Please change it after login.`;
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Website URL</label>
                                                 <input type="url" value={localCompanyInfo.website} onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, website: e.target.value })} className="form-input" placeholder="https://..." />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Android Application URL</label>
+                                                <input type="url" value={localCompanyInfo.androidUrl || ''} onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, androidUrl: e.target.value })} className="form-input" placeholder="https://play.google.com/store/apps/..." />
                                             </div>
                                             <div className="md:col-span-2">
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Physical Address</label>

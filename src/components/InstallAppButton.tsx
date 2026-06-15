@@ -18,6 +18,7 @@ interface InstallAppButtonProps {
     logoUrl?: string | null;
     primaryColor?: string;
     className?: string;
+    androidUrl?: string;
 }
 
 export const InstallAppButton: React.FC<InstallAppButtonProps> = ({
@@ -26,7 +27,8 @@ export const InstallAppButton: React.FC<InstallAppButtonProps> = ({
     applicationTitle = 'EduAI',
     logoUrl,
     primaryColor = '#4f46e5',
-    className = ''
+    className = '',
+    androidUrl
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [copiedState, setCopiedState] = useState<'url' | 'downloaded' | ''>('');
@@ -222,6 +224,28 @@ export const InstallAppButton: React.FC<InstallAppButtonProps> = ({
 
                             {activeTab === 'mobile' && (
                                 <div className="space-y-4 animate-fade-in">
+                                    {androidUrl && (
+                                        <a
+                                            href={androidUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl group hover:shadow-md transition-all"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-emerald-500/20">
+                                                    <SmartphoneIcon className="w-5 h-5 text-white" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-xs text-emerald-900 dark:text-emerald-200">Download Android App</h4>
+                                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Get the native mobile app from the Play Store</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex-shrink-0 group-hover:scale-105">
+                                                <DownloadIcon className="w-3.5 h-3.5" />
+                                                <span>Download</span>
+                                            </div>
+                                        </a>
+                                    )}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                                             <div className="flex items-center gap-2 mb-2">

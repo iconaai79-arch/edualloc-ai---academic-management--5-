@@ -935,6 +935,7 @@ export interface CompanyDetails {
     email: string;
     phone: string;
     website: string;
+    androidUrl?: string;
     logoUrl: string | null;
     paymentInstructions?: string;
     marketplaceConfig?: {

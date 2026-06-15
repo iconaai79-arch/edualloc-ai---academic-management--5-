@@ -5040,6 +5040,7 @@ export const App: React.FC = () => {
                             isHealthSystemOpen={isHealthSystemOpen}
                             isPharmacySystemOpen={isPharmacySystemOpen}
                             hidePerspectiveSwitcher={isAutoMarket}
+                            androidUrl={companyDetails.androidUrl}
                         />
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
                             <Suspense fallback={<SystemPulseLoader message="Initializing Portal..." status="Loading perspective environment" />}>

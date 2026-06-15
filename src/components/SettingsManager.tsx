@@ -635,6 +635,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         email: props.companyDetails?.email || '',
         phone: props.companyDetails?.phone || '',
         website: props.companyDetails?.website || '',
+        androidUrl: props.companyDetails?.androidUrl || '',
         address: props.companyDetails?.address || '',
         logoUrl: props.companyDetails?.logoUrl || '',
         footerImageUrl: props.companyDetails?.footerImageUrl || '',
@@ -680,6 +681,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 email: props.companyDetails.email || '',
                 phone: props.companyDetails.phone || '',
                 website: props.companyDetails.website || '',
+                androidUrl: props.companyDetails.androidUrl || '',
                 address: props.companyDetails.address || '',
                 logoUrl: props.companyDetails.logoUrl || '',
                 footerImageUrl: props.companyDetails.footerImageUrl || '',
@@ -970,6 +972,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Platform Website</label>
                                             <input type="url" value={localCompanyInfo.website} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalCompanyInfo({ ...localCompanyInfo, website: e.target.value })} className="form-input" placeholder="https://..." />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Android App URL</label>
+                                            <input type="url" value={localCompanyInfo.androidUrl || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalCompanyInfo({ ...localCompanyInfo, androidUrl: e.target.value })} className="form-input" placeholder="https://play.google.com/store/apps/..." />
+                                            <p className="text-[9px] text-slate-400 mt-1 italic ml-1">Google Play Store or direct APK download link. Displayed to users as a native app download option.</p>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Office Physical Address</label>
