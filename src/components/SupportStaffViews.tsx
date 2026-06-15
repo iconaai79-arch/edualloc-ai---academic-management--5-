@@ -152,6 +152,7 @@ export interface SupportStaffViewProps {
     onUpdateDepartment?: (id: string, data: any) => Promise<void>;
     onDeleteDepartment?: (id: string) => Promise<void>;
     onImportStudents?: (students: any[]) => Promise<void>;
+    onImportUsers?: (users: any[]) => Promise<void>;
     smsConfig?: SmsConfig;
     letterheadConfig?: LetterheadConfig;
     logoUrl?: string | null;
@@ -701,6 +702,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
         onUpdateDepartment,
         onDeleteDepartment,
         onImportStudents,
+        onImportUsers,
         departments = [],
         smsConfig,
         subjects,
@@ -1910,7 +1912,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     }}
                     onDeleteUser={async (uid) => { await onDeleteUser?.(uid); }}
                     onImportStudents={onImportStudents!}
-                    onImportUsers={async () => { }}
+                    onImportUsers={onImportUsers!}
                     smsConfig={smsConfig!}
                     subjects={subjects || []}
                     letterheadConfig={letterheadConfig!}
@@ -1951,7 +1953,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     }}
                     onDeleteUser={async (uid) => { await onDeleteUser?.(uid); }}
                     onImportStudents={onImportStudents!}
-                    onImportUsers={async () => { }}
+                    onImportUsers={onImportUsers!}
                     smsConfig={smsConfig!}
                     subjects={subjects || []}
                     letterheadConfig={letterheadConfig!}

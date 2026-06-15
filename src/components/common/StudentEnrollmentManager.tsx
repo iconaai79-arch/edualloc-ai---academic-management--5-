@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     Users, 
     UserPlus, 
@@ -28,8 +28,11 @@ import {
     CheckCircle,
     Key
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor } from '../../types';
 import { apiService } from '../../services/apiService';
+import Webcam from 'react-webcam';
+import { ExcelSmartImporter } from './ExcelSmartImporter';
 
 interface StudentEnrollmentManagerProps {
     context: 'academic' | 'driving_school';
@@ -64,6 +67,25 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingEnrollment, setEditingEnrollment] = useState<StudentEnrollment | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+
+    const enrollmentFields = useMemo(() => [
+        { key: 'name', label: 'Student Full Name', required: true },
+        { key: 'email', label: 'Student Email Address' },
+        { key: 'phoneNumber', label: 'Student Phone Number' },
+        { key: 'admissionNumber', label: 'Admission Number' },
+        { key: 'gender', label: 'Gender (Male/Female)' },
+        ...(context === 'driving_school'
+            ? [{ key: 'licenseCategory', label: 'License Class / Category' }]
+            : [
+                { key: 'gradeLevel', label: 'Grade Level' },
+                { key: 'stream', label: 'Class Stream / Allocation' }
+              ]
+        ),
+        { key: 'parentName', label: 'Guardian / Parent Name' },
+        { key: 'parentPhone', label: 'Parent Phone Number' },
+        { key: 'parentEmail', label: 'Parent Email Address' }
+    ], [context]);
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -72,6 +94,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         status: 'Enrolled' as StudentEnrollment['status'],
         enrollmentDate: new Date().toISOString().split('T')[0],
         gender: '' as 'Male' | 'Female' | 'Other' | '',
+        passportPhoto: '',
         // Context-specific metadata
         metadata: {
             licenseCategory: '',
@@ -218,6 +241,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
                     END LOOP;
                 END $$;
+
+                ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS guests TEXT;
+                ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS vehicle_registration TEXT;
+                
+                DROP POLICY IF EXISTS "Public select: event_pins" ON public.event_pins;
+                CREATE POLICY "Public select: event_pins" ON public.event_pins FOR SELECT USING (true);
+                
+                DROP POLICY IF EXISTS "Public update: event_pins" ON public.event_pins;
+                CREATE POLICY "Public update: event_pins" ON public.event_pins FOR UPDATE USING (true) WITH CHECK (true);
+                
+                DROP POLICY IF EXISTS "Public select: institution_events" ON public.institution_events;
+                CREATE POLICY "Public select: institution_events" ON public.institution_events FOR SELECT USING (true);
+                
+                DROP POLICY IF EXISTS "Public select: users" ON public.users;
+                CREATE POLICY "Public select: users" ON public.users FOR SELECT USING (true);
             `;
             try {
                 await apiService.runMigration(createTableSql);
@@ -249,12 +287,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             
             if (existingUser) {
                 userId = existingUser.id;
+                const updatedUser = {
+                    ...existingUser,
+                    metadata: {
+                        ...(existingUser.metadata || {}),
+                        passportPhoto: formData.passportPhoto || existingUser.metadata?.passportPhoto
+                    }
+                };
                 if (formData.gender && existingUser.gender !== formData.gender) {
-                    await apiService.saveModuleRecord('users', {
-                        ...existingUser,
-                        gender: formData.gender as any
-                    });
+                    updatedUser.gender = formData.gender as any;
                 }
+                await apiService.saveModuleRecord('users', updatedUser);
             } else {
                 // Create a base user identity profile
                 const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -265,7 +308,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     phoneNumber: formData.phoneNumber,
                     role: 'student',
                     institutionId: currentInstitution.id,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    metadata: {
+                        passportPhoto: formData.passportPhoto
+                    }
                 };
                 if (formData.gender) {
                     newUser.gender = formData.gender as any;
@@ -284,7 +330,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     enrollmentDate: formData.enrollmentDate,
                     metadata: {
                         ...formData.metadata,
-                        gender: formData.gender
+                        gender: formData.gender,
+                        passportPhoto: formData.passportPhoto
                     },
                     updatedAt: new Date().toISOString()
                 };
@@ -302,7 +349,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     enrollmentDate: formData.enrollmentDate,
                     metadata: {
                         ...formData.metadata,
-                        gender: formData.gender
+                        gender: formData.gender,
+                        passportPhoto: formData.passportPhoto
                     },
                     createdAt: new Date().toISOString()
                 };
@@ -323,6 +371,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 status: 'Enrolled',
                 enrollmentDate: new Date().toISOString().split('T')[0],
                 gender: '',
+                passportPhoto: '',
                 metadata: {
                     licenseCategory: '',
                     preferredInstructorId: '',
@@ -357,6 +406,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             status: enr.status,
             enrollmentDate: enr.enrollmentDate,
             gender: (associatedUser?.gender || enr.metadata?.gender || '') as any,
+            passportPhoto: associatedUser?.metadata?.passportPhoto || enr.metadata?.passportPhoto || '',
             metadata: {
                 licenseCategory: enr.metadata?.licenseCategory || '',
                 preferredInstructorId: enr.metadata?.preferredInstructorId || '',
@@ -389,6 +439,125 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setStatusMsg({ type: 'error', message: 'Failed to remove enrollment.' });
         }
         setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+    };
+
+    const handleBulkComplete = async (data: any[]) => {
+        setIsUploading(false);
+        setStatusMsg({ type: 'info', message: `Ingesting ${data.length} students from spreadsheet...` });
+        setIsLoading(true);
+
+        try {
+            // Keep a local copy of users and enrollments to match against for duplicates / batch upserts
+            let currentUsersList = [...users];
+            let currentEnrollmentsList = [...enrollments];
+            let successCount = 0;
+
+            const batchSize = 10;
+            for (let i = 0; i < data.length; i += batchSize) {
+                const batch = data.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (item) => {
+                    try {
+                        let userId = '';
+                        
+                        // 1. Check if user already exists
+                        let existingUser = currentUsersList.find(u => 
+                            (item.email && u.email && u.email.toLowerCase() === String(item.email).trim().toLowerCase()) || 
+                            (item.phoneNumber && u.phoneNumber && String(u.phoneNumber).replace(/\D/g, '') === String(item.phoneNumber).replace(/\D/g, ''))
+                        );
+
+                        if (existingUser) {
+                            userId = existingUser.id;
+                            // Optionally update user properties if they changed
+                            const updatedUser = {
+                                ...existingUser,
+                                name: item.name || existingUser.name,
+                                gender: (item.gender || existingUser.gender) as any,
+                            };
+                            await apiService.saveModuleRecord('users', updatedUser);
+                        } else {
+                            // Create new user profile
+                            const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                            const newUser: User = {
+                                id: newUserId,
+                                name: String(item.name).trim(),
+                                email: item.email ? String(item.email).trim() : null,
+                                phoneNumber: item.phoneNumber ? String(item.phoneNumber).trim() : null,
+                                role: 'student',
+                                institutionId: currentInstitution.id,
+                                createdAt: new Date().toISOString(),
+                                metadata: {}
+                            };
+                            if (item.gender) {
+                                newUser.gender = String(item.gender).trim() as any;
+                            }
+                            await apiService.saveModuleRecord('users', newUser);
+                            userId = newUserId;
+                            currentUsersList.push(newUser);
+                        }
+
+                        // 2. Check if enrollment record exists
+                        let existingEnrollment = currentEnrollmentsList.find(e => 
+                            e.userId === userId || 
+                            (item.admissionNumber && e.admissionNumber && String(e.admissionNumber).trim().toLowerCase() === String(item.admissionNumber).trim().toLowerCase())
+                        );
+
+                        const admissionNumberValue = item.admissionNumber 
+                            ? String(item.admissionNumber).trim() 
+                            : (existingEnrollment?.admissionNumber || `ADM-${Date.now().toString().slice(-5)}_${Math.floor(Math.random()*1000)}`);
+
+                        const metadataObj = {
+                            ...(existingEnrollment?.metadata || {}),
+                            gender: item.gender || existingEnrollment?.metadata?.gender || '',
+                            licenseCategory: item.licenseCategory || existingEnrollment?.metadata?.licenseCategory || '',
+                            gradeLevel: item.gradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
+                            stream: item.stream || existingEnrollment?.metadata?.stream || '',
+                            parentName: item.parentName || existingEnrollment?.metadata?.parentName || '',
+                            parentPhone: item.parentPhone || existingEnrollment?.metadata?.parentPhone || '',
+                            parentEmail: item.parentEmail || existingEnrollment?.metadata?.parentEmail || '',
+                            parentRelation: 'Father'
+                        };
+
+                        if (existingEnrollment) {
+                            const updated: StudentEnrollment = {
+                                ...existingEnrollment,
+                                admissionNumber: admissionNumberValue,
+                                metadata: metadataObj,
+                                updatedAt: new Date().toISOString()
+                            };
+                            await apiService.updateModuleRecord('student_enrollments', existingEnrollment.id, updated);
+                        } else {
+                            const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                            const newEnrollment: StudentEnrollment = {
+                                id: enrollmentId,
+                                institutionId: currentInstitution.id,
+                                userId: userId,
+                                enrollmentType: context,
+                                admissionNumber: admissionNumberValue,
+                                status: 'Enrolled',
+                                enrollmentDate: new Date().toISOString().split('T')[0],
+                                metadata: metadataObj,
+                                createdAt: new Date().toISOString()
+                            };
+                            await apiService.saveModuleRecord('student_enrollments', newEnrollment);
+                            currentEnrollmentsList.push(newEnrollment);
+                        }
+
+                        successCount++;
+                    } catch (err: any) {
+                        console.error(`Failed to ingest student row ${item.name}:`, err);
+                    }
+                }));
+            }
+
+            setStatusMsg({ type: 'success', message: `Successfully imported ${successCount} student enrollment(s).` });
+            loadAllData();
+        } catch (err: any) {
+            console.error("Bulk ingestion failed:", err);
+            setStatusMsg({ type: 'error', message: `Import failed: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 5000);
+        }
     };
 
     // Register WebAuthn Biometric passkey
@@ -587,11 +756,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 if (!associatedUser) continue;
 
                 // Check if a PIN already exists
-                const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === associatedUser.id && p.status === 'pending');
+                const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === associatedUser.id);
                 const pinCode = existingPin ? existingPin.pin : Math.floor(100000 + Math.random() * 900000).toString();
+                const pinId = existingPin ? existingPin.id : `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
                 if (!existingPin) {
-                    const pinId = `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                     const newPinRecord = {
                         id: pinId,
                         institutionId: currentInstitution.id,
@@ -604,8 +773,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     await apiService.saveModuleRecord('event_pins', newPinRecord);
                 }
 
-                // Send notification with Pin details
-                const message = `Attendance verification PIN for "${event.title}" on ${event.eventDate} is: ${pinCode}. Enter this PIN to confirm your attendance. Note: It will expire once verified.`;
+                // Construct Confirmation Link & Shorten it
+                const rawLink = `${window.location.origin}/?view=event-confirm&pinId=${pinId}`;
+                const confirmationLink = await apiService.shortenUrl(rawLink);
+
+                // Send notification with RSVP details
+                const message = `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
                 
                 if (associatedUser.phoneNumber) {
                     try {
@@ -616,7 +789,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
                 if (associatedUser.email) {
                     try {
-                        await apiService.sendEmail(associatedUser.email, `Event Attendance Pin - ${event.title}`, message, currentInstitution.emailConfig);
+                        await apiService.sendEmail(associatedUser.email, `Event Attendance Invitation - ${event.title}`, message, currentInstitution.emailConfig);
                     } catch (e) {
                         console.error("Email PIN send failed", e);
                     }
@@ -630,6 +803,123 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             console.error("Failed to generate/send PINs:", err);
             setStatusMsg({ type: 'error', message: `PIN dispatch failed: ${err.message}` });
         } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
+    // Invite External Parents via Excel Spreadsheet Upload
+    const handleInviteExternalExcel = async (event: any, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setStatusMsg({ type: 'info', message: 'Reading Excel sheet...' });
+        setIsLoading(true);
+
+        try {
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const data = evt.target?.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const sheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const rows = XLSX.utils.sheet_to_json<any>(sheet);
+
+                    if (rows.length === 0) {
+                        throw new Error("The selected sheet is empty.");
+                    }
+
+                    setStatusMsg({ type: 'info', message: `Importing and inviting ${rows.length} parents...` });
+
+                    let successCount = 0;
+                    for (const row of rows) {
+                        let parentName = '';
+                        let parentPhone = '';
+                        let parentEmail = '';
+
+                        // Dynamically map headers (case-insensitive key checks)
+                        for (const key of Object.keys(row)) {
+                            const keyLower = key.toLowerCase().replace(/[\s_-]/g, '');
+                            if (keyLower.includes('name')) {
+                                parentName = String(row[key] || '').trim();
+                            } else if (keyLower.includes('phone') || keyLower.includes('mobile') || keyLower.includes('contact')) {
+                                parentPhone = String(row[key] || '').trim();
+                            } else if (keyLower.includes('email')) {
+                                parentEmail = String(row[key] || '').trim();
+                            }
+                        }
+
+                        if (!parentName && !parentPhone && !parentEmail) continue;
+                        if (!parentName) parentName = 'Invited Parent';
+
+                        // 1. Create a guest/parent profile in 'users' table
+                        const newUserId = `u_ext_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        const newUser = {
+                            id: newUserId,
+                            institutionId: currentInstitution.id,
+                            name: parentName,
+                            email: parentEmail || null,
+                            phoneNumber: parentPhone || null,
+                            role: 'parent',
+                            metadata: { external: true },
+                            createdAt: new Date().toISOString()
+                        };
+                        await apiService.saveModuleRecord('users', newUser);
+
+                        // 2. Generate event PIN record
+                        const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+                        const pinId = `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        const newPinRecord = {
+                            id: pinId,
+                            institutionId: currentInstitution.id,
+                            eventId: event.id,
+                            userId: newUserId,
+                            pin: pinCode,
+                            status: 'pending',
+                            createdAt: new Date().toISOString()
+                        };
+                        await apiService.saveModuleRecord('event_pins', newPinRecord);
+
+                        // 3. Construct RSVP Link & Shorten
+                        const rawLink = `${window.location.origin}/?view=event-confirm&pinId=${pinId}`;
+                        const confirmationLink = await apiService.shortenUrl(rawLink);
+                        
+                        const message = `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
+
+                        // 4. Send Stage 1 Notifications
+                        if (parentPhone) {
+                            try {
+                                await apiService.sendSms(parentPhone, message, currentInstitution.smsConfig, 1, currentInstitution.id);
+                            } catch (smsErr) {
+                                console.error("SMS Invite failed", smsErr);
+                            }
+                        }
+                        if (parentEmail) {
+                            try {
+                                await apiService.sendEmail(parentEmail, `Event Attendance Invitation - ${event.title}`, message, currentInstitution.emailConfig);
+                            } catch (emailErr) {
+                                console.error("Email Invite failed", emailErr);
+                            }
+                        }
+
+                        successCount++;
+                    }
+
+                    setStatusMsg({ type: 'success', message: `Successfully invited ${successCount} external parents to "${event.title}"!` });
+                    loadAllData();
+                } catch (err: any) {
+                    console.error("Excel import/invite failed:", err);
+                    setStatusMsg({ type: 'error', message: `Import failed: ${err.message}` });
+                } finally {
+                    setIsLoading(false);
+                    setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+                }
+            };
+            reader.readAsBinaryString(file);
+        } catch (err: any) {
+            console.error("FileReader exception:", err);
+            setStatusMsg({ type: 'error', message: `Failed to read file: ${err.message}` });
             setIsLoading(false);
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
         }
@@ -662,7 +952,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const activePin = eventPins.find(p => 
                 p.userId === matchedUser.id && 
                 p.pin === verifyPin.trim() && 
-                p.status === 'pending'
+                (p.status === 'pending' || p.status === 'accepted')
             );
 
             if (!activePin) {
@@ -751,6 +1041,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     return (
         <div className="space-y-6">
+            {isUploading && (
+                <ExcelSmartImporter 
+                    fields={enrollmentFields} 
+                    onComplete={handleBulkComplete} 
+                    onClose={() => setIsUploading(false)} 
+                />
+            )}
             {/* Header section */}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
                 <div className="flex items-center gap-4">
@@ -769,6 +1066,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 
                 {activeTab === 'students' && (
                     <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setIsUploading(true)}
+                            className="px-6 py-3 bg-slate-900 border border-slate-800 hover:bg-slate-850 hover:border-slate-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg"
+                        >
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                            Import Excel
+                        </button>
                         <button
                             onClick={() => {
                                 setEditingEnrollment(null);
@@ -1255,12 +1559,24 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     <div className="text-[10px] font-bold text-slate-500 text-left w-full sm:w-auto">
                                                         <span>Pins: {verifiedPins.length} verified / {pendingPins.length} pending</span>
                                                     </div>
-                                                    <button
-                                                        onClick={() => handleSendAttendancePin(event)}
-                                                        className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                                    >
-                                                        Send PINs
-                                                    </button>
+                                                    <div className="flex gap-2 w-full sm:w-auto">
+                                                        <button
+                                                            onClick={() => handleSendAttendancePin(event)}
+                                                            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                            title="Send invitations to registered cohort students/parents"
+                                                        >
+                                                            Send PINs
+                                                        </button>
+                                                        <label className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center">
+                                                            <span>Invite Excel</span>
+                                                            <input 
+                                                                type="file" 
+                                                                accept=".xlsx, .xls, .csv" 
+                                                                onChange={(e) => handleInviteExternalExcel(event, e)}
+                                                                className="hidden" 
+                                                            />
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -1295,14 +1611,39 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 const event = events.find(e => e.id === pin.eventId);
                                                 return (
                                                     <tr key={pin.id}>
-                                                        <td className="py-2 px-3 font-bold text-white">{student?.name || 'Unknown User'}</td>
+                                                        <td className="py-2 px-3 font-bold text-white">
+                                                            <div>{student?.name || 'Unknown User'}</div>
+                                                            {pin.guests && (
+                                                                <div className="text-[9px] text-slate-400 font-normal">
+                                                                    Guests: {(() => {
+                                                                        try {
+                                                                            const parsed = JSON.parse(pin.guests);
+                                                                            return Array.isArray(parsed) ? parsed.join(', ') : pin.guests;
+                                                                        } catch (e) {
+                                                                            return pin.guests;
+                                                                        }
+                                                                    })()}
+                                                                </div>
+                                                            )}
+                                                            {pin.vehicleRegistration && (
+                                                                <div className="text-[9px] text-indigo-405 text-indigo-400 font-bold mt-0.5">
+                                                                    Vehicle: {pin.vehicleRegistration}
+                                                                </div>
+                                                            )}
+                                                        </td>
                                                         <td className="py-2 px-3 text-slate-400 max-w-[120px] truncate">{event?.title || 'Unknown Event'}</td>
                                                         <td className="py-2 px-3 font-mono font-black text-indigo-400 text-center">{pin.pin}</td>
                                                         <td className="py-2 px-3 text-right">
                                                             <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
-                                                                pin.status === 'used' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                                                pin.status === 'used' ? 'bg-slate-500/10 text-slate-400 border border-slate-500/20' :
+                                                                pin.status === 'accepted' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                                pin.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                                                                'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                                             }`}>
-                                                                {pin.status === 'used' ? 'Expired' : 'Active'}
+                                                                {pin.status === 'used' ? 'Verified / Expired' : 
+                                                                 pin.status === 'accepted' ? 'Confirmed' : 
+                                                                 pin.status === 'rejected' ? 'Declined' : 
+                                                                 'Pending RSVP'}
                                                             </span>
                                                         </td>
                                                     </tr>
@@ -1407,72 +1748,72 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             {/* Original Form modal */}
             {isFormOpen && (
-                <div className="fixed inset-0 bg-slate-950/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsFormOpen(false)}>
-                    <div className="bg-slate-900/90 border border-indigo-500/20 shadow-[0_0_50px_rgba(99,102,241,0.15)] rounded-[2.5rem] p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-6" onClick={() => setIsFormOpen(false)}>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] rounded-[3rem] p-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-8 border-b border-slate-100 dark:border-slate-800/60 pb-6">
                             <div>
-                                <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-2">
-                                    <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                                <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-2">
+                                    <Sparkles className="w-6 h-6 text-indigo-500 animate-pulse" />
                                     {editingEnrollment ? 'Modify Student Enrollment' : 'Onboard New Student'}
                                 </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Configure student identity and placement matrices</p>
+                                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-widest mt-1">Configure student identity and placement matrices</p>
                             </div>
                             <button 
                                 onClick={() => setIsFormOpen(false)}
-                                className="p-3 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-all duration-300"
+                                className="w-12 h-12 bg-slate-50 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800 rounded-2xl flex items-center justify-center text-slate-450 hover:text-slate-800 dark:hover:text-white transition-all shadow-sm"
                             >
-                                <XCircle className="w-5 h-5" />
+                                <XCircle className="w-6 h-6" />
                             </button>
                         </div>
  
-                        <form onSubmit={handleSubmit} className="space-y-6">
+                        <form onSubmit={handleSubmit} className="space-y-8">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Full Name</label>
                                     <input 
                                         type="text" 
                                         required 
                                         placeholder="First & Last Name"
                                         value={formData.fullName}
                                         onChange={e => setFormData({ ...formData, fullName: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                        className="form-input mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Phone Number</label>
                                     <input 
                                         type="tel" 
                                         required 
                                         placeholder="+254..."
                                         value={formData.phoneNumber}
                                         onChange={e => setFormData({ ...formData, phoneNumber: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                        className="form-input mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Email Address</label>
                                     <input 
                                         type="email" 
                                         required 
                                         placeholder="name@example.com"
                                         value={formData.email}
                                         onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                        className="form-input mt-1.5 w-full bg-slate-550/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Admission Number</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Admission Number</label>
                                     <input 
                                         type="text" 
                                         placeholder="Leave blank to auto-generate"
                                         value={formData.admissionNumber}
                                         onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                        className="form-input mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     />
                                 </div>
  
                                 <div className="sm:col-span-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student Gender Identity</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Student Gender Identity</label>
                                     <div className="grid grid-cols-3 gap-3 mt-2">
                                         {['Male', 'Female', 'Other'].map((g) => {
                                             const isActive = formData.gender === g;
@@ -1481,10 +1822,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     key={g}
                                                     type="button"
                                                     onClick={() => setFormData({ ...formData, gender: g as any })}
-                                                    className={`py-3.5 rounded-2xl border text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                                                    className={`py-4 rounded-2xl border text-xs font-black uppercase tracking-widest transition-all duration-300 ${
                                                         isActive
-                                                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.25)]'
-                                                            : 'bg-slate-950/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
+                                                            ? 'bg-indigo-600 text-white border-indigo-650 shadow-[0_8px_25px_-4px_rgba(99,102,241,0.45)]'
+                                                            : 'bg-slate-50 dark:bg-slate-950/45 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-350 dark:hover:border-slate-700 hover:text-slate-800 dark:hover:text-white'
                                                     }`}
                                                 >
                                                     {g}
@@ -1495,11 +1836,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 </div>
  
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</label>
+                                    <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Status</label>
                                     <select
                                         value={formData.status}
                                         onChange={e => setFormData({ ...formData, status: e.target.value as any })}
-                                        className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                        className="form-select mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     >
                                         <option value="Enrolled">Enrolled</option>
                                         <option value="Active">Active</option>
@@ -1509,29 +1850,29 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Enrollment Date</label>
+                                    <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Enrollment Date</label>
                                     <input 
                                         type="date" 
                                         required
                                         value={formData.enrollmentDate}
                                         onChange={e => setFormData({ ...formData, enrollmentDate: e.target.value })}
-                                        className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                        className="form-input mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     />
                                 </div>
                             </div>
  
                             {/* Guardian Details Card Section */}
-                            <div className="border-t border-white/10 pt-6">
+                            <div className="border-t border-slate-100 dark:border-slate-800/80 pt-6">
                                 <div className="flex items-center gap-2 mb-4">
-                                    <Users className="w-4 h-4 text-indigo-400" />
-                                    <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">
+                                    <Users className="w-4 h-4 text-indigo-500" />
+                                    <h4 className="text-xs font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider">
                                         Guardian Authorization Registry
                                     </h4>
                                 </div>
-                                <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 space-y-4">
+                                <div className="bg-slate-50/40 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850/80 rounded-3xl p-6 space-y-4">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Guardian Name</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Guardian Name</label>
                                             <input 
                                                 type="text" 
                                                 placeholder="Parent/Guardian Full Name"
@@ -1540,18 +1881,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, parentName: e.target.value } 
                                                 })}
-                                                className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-input mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Relationship</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Relationship</label>
                                             <select
                                                 value={formData.metadata.parentRelation || 'Father'}
                                                 onChange={e => setFormData({ 
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, parentRelation: e.target.value as any } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-select mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
                                                 <option value="Father">Father</option>
                                                 <option value="Mother">Mother</option>
@@ -1560,7 +1901,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contact Phone</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Contact Phone</label>
                                             <input 
                                                 type="tel" 
                                                 placeholder="e.g. +2547..."
@@ -1569,11 +1910,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, parentPhone: e.target.value } 
                                                 })}
-                                                className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-input mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
                                             <input 
                                                 type="email" 
                                                 placeholder="parent@example.com"
@@ -1582,7 +1923,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, parentEmail: e.target.value } 
                                                 })}
-                                                className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-input mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             />
                                         </div>
                                     </div>
@@ -1590,15 +1931,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             </div>
  
                             {/* Context Specific Fields */}
-                            <div className="border-t border-white/10 pt-6">
-                                <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider mb-4">
+                            <div className="border-t border-slate-100 dark:border-slate-800/80 pt-6">
+                                <h4 className="text-xs font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider mb-4">
                                     {context === 'driving_school' ? 'Driving School Curriculum Details' : 'Academic Placement Details'}
                                 </h4>
                                 
                                 {context === 'driving_school' ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Class / Category</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">License Class / Category</label>
                                             <select
                                                 required
                                                 value={formData.metadata.licenseCategory}
@@ -1606,7 +1947,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, licenseCategory: e.target.value } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-select mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
                                                 <option value="" disabled>Select Class</option>
                                                 <option value="Class B1 (Light Manual)">Class B1 (Light Manual)</option>
@@ -1616,14 +1957,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Preferred Instructor</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Preferred Instructor</label>
                                             <select
                                                 value={formData.metadata.preferredInstructorId}
                                                 onChange={e => setFormData({ 
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, preferredInstructorId: e.target.value } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-select mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
                                                 <option value="">Any Instructor (Default)</option>
                                                 {instructors.map(i => (
@@ -1632,14 +1973,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Preferred Time Hours</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Preferred Time Hours</label>
                                             <select
                                                 value={formData.metadata.preferredLessonHours}
                                                 onChange={e => setFormData({ 
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, preferredLessonHours: e.target.value as any } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-select mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
                                                 <option value="Morning">Morning Sessions (7:00 AM - 12:00 PM)</option>
                                                 <option value="Noon">Noon Sessions (12:00 PM - 4:00 PM)</option>
@@ -1647,7 +1988,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Prior Attended Sessions</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Prior Attended Sessions</label>
                                             <input 
                                                 type="number" 
                                                 min="0"
@@ -1656,14 +1997,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, priorAttendedDays: parseInt(e.target.value) || 0 } 
                                                 })}
-                                                className="form-input mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-input mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             />
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Grade Level</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Grade Level</label>
                                             <select
                                                 required
                                                 value={formData.metadata.gradeLevel}
@@ -1671,7 +2012,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, gradeLevel: e.target.value } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-select mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
                                                 <option value="" disabled>Select Grade</option>
                                                 <option value="Grade 1">Grade 1</option>
@@ -1689,14 +2030,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Stream / Allocation</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Stream / Allocation</label>
                                             <select
                                                 value={formData.metadata.stream}
                                                 onChange={e => setFormData({ 
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, stream: e.target.value } 
                                                 })}
-                                                className="form-select mt-1.5 w-full bg-slate-950/40 border border-white/10 rounded-2xl px-4 py-3.5 font-bold text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                                                className="form-select mt-1.5 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
                                                 <option value="">Select Stream</option>
                                                 <option value="North">North</option>
@@ -1710,17 +2051,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 )}
                             </div>
  
-                            <div className="flex items-center justify-end gap-4 border-t border-white/10 pt-6">
+                            <div className="flex items-center justify-end gap-4 border-t border-slate-100 dark:border-slate-800 pt-6">
                                 <button
                                     type="button"
                                     onClick={() => setIsFormOpen(false)}
-                                    className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-white/10 text-slate-400 hover:text-white transition-all duration-300"
+                                    className="px-8 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 hover:bg-slate-100 dark:hover:bg-slate-900"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 shadow-lg shadow-indigo-500/10"
+                                    className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0"
                                 >
                                     {editingEnrollment ? 'Save Changes' : 'Confirm Enrollment'}
                                 </button>

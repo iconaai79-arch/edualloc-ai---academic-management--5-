@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import type { User, Course, Department, TimetableEntry, Subject, AllocationRequest, TimeOffRequest } from '../../types';
 import { SearchIcon as Search } from '../icons/SearchIcon';
 import { UserIcon } from '../icons/UserIcon';
@@ -34,6 +35,9 @@ interface TimetableUserDirectoryProps {
     onAddTimeOffRequest?: (data: Partial<TimeOffRequest>) => Promise<void>;
     onRestoreSchedule?: (userId: string) => void;
     isSchool?: boolean;
+    // Import callbacks
+    onImportStudents?: (students: any[]) => Promise<void>;
+    onImportUsers?: (users: any[]) => Promise<void>;
 }
 
 export function TimetableUserDirectory({
@@ -52,14 +56,121 @@ export function TimetableUserDirectory({
     onAddTimeOffRequest,
     onRestoreSchedule,
     isSchool,
+    onImportStudents,
+    onImportUsers,
 }: TimetableUserDirectoryProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState('all');
+    const [isImporting, setIsImporting] = useState(false);
+    const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Teacher action modal state
     const [managingWorkloadFor, setManagingWorkloadFor] = useState<User | null>(null);
     const [requestingTimeOffFor, setRequestingTimeOffFor] = useState<User | null>(null);
     const [confirmRestoreFor, setConfirmRestoreFor] = useState<User | null>(null);
+
+    const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsImporting(true);
+        setImportResult(null);
+        try {
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+            if (rows.length === 0) {
+                alert('The uploaded file appears to be empty or has no data rows.');
+                setIsImporting(false);
+                return;
+            }
+
+            // Smart column mapping — case-insensitive, handles common column name variants
+            const sanitized = rows.map((row: any) => {
+                const get = (...keys: string[]) => {
+                    for (const k of keys) {
+                        const found = Object.keys(row).find(rk => rk.toLowerCase().replace(/[^a-z0-9]/g, '') === k.toLowerCase().replace(/[^a-z0-9]/g, ''));
+                        if (found && String(row[found]).trim()) return String(row[found]).trim();
+                    }
+                    return '';
+                };
+
+                const name = get('name', 'fullname', 'studentname', 'teachername', 'staffname');
+                const email = get('email', 'emailaddress', 'mail');
+                const phone = get('phone', 'phonenumber', 'mobile', 'contact', 'tel');
+                const admissionNumber = get('admissionnumber', 'admno', 'regno', 'registrationnumber', 'studentid', 'id');
+                const staffId = get('staffid', 'employeeid', 'staffno', 'id');
+                const gender = get('gender', 'sex');
+                const courseName = get('course', 'class', 'grade', 'program', 'stream');
+                const departmentName = get('department', 'dept', 'faculty', 'section');
+
+                // Try to resolve courseId from course name
+                const matchedCourse = allCourses.find(c =>
+                    c.name.toLowerCase() === courseName.toLowerCase() ||
+                    c.code?.toLowerCase() === courseName.toLowerCase()
+                );
+
+                // Try to resolve departmentId from department name
+                const matchedDept = departments.find(d =>
+                    d.name.toLowerCase() === departmentName.toLowerCase()
+                );
+
+                if (role === 'student') {
+                    return {
+                        name: name || 'Unknown',
+                        email,
+                        phoneNumber: phone,
+                        admissionNumber,
+                        gender: gender || 'Male',
+                        role: 'student',
+                        roles: ['student'],
+                        courseId: matchedCourse?.id || '',
+                        institutionId,
+                    };
+                } else {
+                    return {
+                        name: name || 'Unknown',
+                        email,
+                        phoneNumber: phone,
+                        staffId,
+                        gender: gender || 'Male',
+                        role: 'teacher',
+                        roles: ['teacher'],
+                        departmentId: matchedDept?.id || '',
+                        institutionId,
+                    };
+                }
+            }).filter((r: any) => r.name && r.name !== 'Unknown');
+
+            if (sanitized.length === 0) {
+                alert('No valid records found. Ensure the file has a "Name" column and at least one data row.');
+                setIsImporting(false);
+                return;
+            }
+
+            if (role === 'student' && onImportStudents) {
+                await onImportStudents(sanitized);
+            } else if (role === 'teacher' && onImportUsers) {
+                await onImportUsers(sanitized);
+            } else {
+                alert(`${sanitized.length} records parsed. No import handler connected — please use the main User Manager to complete the import.`);
+                setIsImporting(false);
+                return;
+            }
+
+            setImportResult({ success: sanitized.length, failed: rows.length - sanitized.length });
+            alert(`✅ Import complete! ${sanitized.length} ${role === 'student' ? 'students' : 'teachers'} imported successfully.${rows.length - sanitized.length > 0 ? ` ${rows.length - sanitized.length} rows skipped (missing name).` : ''}`);
+        } catch (err: any) {
+            console.error('[Import Error]', err);
+            alert(`Import failed: ${err.message || 'Unknown error. Ensure the file is a valid .xlsx or .csv.'}`);
+        } finally {
+            setIsImporting(false);
+            // Reset file input so same file can be re-uploaded
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     const displayUsers = useMemo(() => {
         const targetRoles = role === 'teacher' ? ['teacher', 'lecturer'] : ['student'];
@@ -157,24 +268,26 @@ export function TimetableUserDirectory({
                                     {displayUsers.length} total active {role === 'teacher' ? 'teachers' : 'students'}
                                 </p>
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".csv,.xlsx,.xls"
+                                    className="hidden"
+                                    onChange={handleFileImport}
+                                />
                                 <button
-                                    onClick={() => {
-                                        const input = document.createElement('input');
-                                        input.type = 'file';
-                                        input.accept = '.csv,.xlsx,.xls';
-                                        input.onchange = (e: any) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                                alert(`Initiating smart parsing for "${file.name}" to import ${role === 'teacher' ? 'teachers' : 'students'} registry...`);
-                                            }
-                                        };
-                                        input.click();
-                                    }}
-                                    className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isImporting}
+                                    className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98 disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    <UploadIcon className="w-3.5 h-3.5" />
-                                    Import {role === 'teacher' ? 'Teachers' : 'Students'}
+                                    <UploadIcon className={`w-3.5 h-3.5 ${isImporting ? 'animate-spin' : ''}`} />
+                                    {isImporting ? 'Importing...' : `Import ${role === 'teacher' ? 'Teachers' : 'Students'}`}
                                 </button>
+                                {importResult && (
+                                    <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-md">
+                                        ✓ {importResult.success} imported
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>

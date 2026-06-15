@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import type { User, Course, Department } from '../../types';
 import { apiService } from '../../services/apiService';
 import { SearchIcon as Search } from '../icons/SearchIcon';
@@ -309,7 +310,57 @@ export function RetailUserDirectory({
                                     input.onchange = (e: any) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
-                                            alert(`Initiating smart parsing for "${file.name}" to import ${role === 'teacher' ? 'teachers' : 'students'} registry...`);
+                                            const reader = new FileReader();
+                                            reader.onload = async (evt) => {
+                                                try {
+                                                    const bstr = evt.target?.result;
+                                                    const wb = XLSX.read(bstr, { type: 'binary' });
+                                                    const wsname = wb.SheetNames[0];
+                                                    const ws = wb.Sheets[wsname];
+                                                    const data: any[] = XLSX.utils.sheet_to_json(ws);
+                                                    
+                                                    if (data.length === 0) {
+                                                        alert("No records found in the selected file.");
+                                                        return;
+                                                    }
+                                                    
+                                                    let successCount = 0;
+                                                    for (const row of data) {
+                                                        const name = row.name || row.Name || row.fullName || row.FullName;
+                                                        if (!name) continue;
+                                                        
+                                                        const email = row.email || row.Email || `${String(name).toLowerCase().replace(/[^a-z0-9]/g, '')}@${currentInstitution?.email?.split('@')[1] || 'institution.edu'}`;
+                                                        const phoneNumber = row.phoneNumber || row.phone || row.Phone || '';
+                                                        const idVal = row.admissionNumber || row.admission_number || row.staffId || row.staff_id || row.id || '';
+                                                        
+                                                        const newUser: any = {
+                                                            id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                                            name: String(name).trim(),
+                                                            email: String(email).trim(),
+                                                            phoneNumber: String(phoneNumber).trim(),
+                                                            role: role === 'student' ? 'student' : (role === 'support_staff' ? 'support_staff' : 'teacher'),
+                                                            roles: role === 'student' ? ['student'] : [role === 'support_staff' ? 'support_staff' : 'teacher'],
+                                                            institutionId,
+                                                            status: 'active',
+                                                            ...(role === 'student' ? {
+                                                                admissionNumber: String(idVal).trim(),
+                                                                admission_number: String(idVal).trim()
+                                                            } : {
+                                                                staffId: String(idVal).trim()
+                                                            })
+                                                        };
+                                                        
+                                                        await apiService.registerUser(newUser);
+                                                        setUsers(prev => [newUser, ...prev]);
+                                                        successCount++;
+                                                    }
+                                                    alert(`Successfully imported ${successCount} ${role === 'teacher' ? 'teachers' : role === 'support_staff' ? 'support staff' : 'students'}!`);
+                                                } catch (err: any) {
+                                                    console.error("Failed to parse and import file:", err);
+                                                    alert("Import failed: " + err.message);
+                                                }
+                                            };
+                                            reader.readAsBinaryString(file);
                                         }
                                     };
                                     input.click();

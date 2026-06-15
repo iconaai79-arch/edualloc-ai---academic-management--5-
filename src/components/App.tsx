@@ -94,6 +94,7 @@ const CampaignSocialPortal = safeLazy(() => import('./CampaignSocialPortal').the
 const CampaignLoginView = safeLazy(() => import('./CampaignLoginView').then(m => ({ default: m.CampaignLoginView })));
 const PublicCarInvoicePayment = safeLazy(() => import('./automotive/PublicCarInvoicePayment').then(m => ({ default: m.PublicCarInvoicePayment })));
 const PublicEventRegistration = safeLazy(() => import('./events/PublicEventRegistration').then(m => ({ default: m.PublicEventRegistration })));
+const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfirmation').then(m => ({ default: m.PublicEventConfirmation })));
 const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m.PublicInvoiceView })));
 
@@ -425,6 +426,15 @@ export const App: React.FC = () => {
             return false;
         }
     }, [isEventSubdomain]);
+
+    const showPublicEventConfirmation = useMemo(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'event-confirm';
+        } catch (e) {
+            return false;
+        }
+    }, []);
 
     const [showDrivingSchoolPortal, setShowDrivingSchoolPortal] = useState(() => {
         try {
@@ -4770,6 +4780,7 @@ export const App: React.FC = () => {
         onUpdateDepartment: handleUpdateDepartment,
         onDeleteDepartment: handleDeleteDepartment,
         onImportStudents: handleImportStudents,
+        onImportUsers: onImportUsers,
         smsConfig: activeInstitution?.smsConfig || companyDetails.smsConfig,
         letterheadConfig: activeLetterheadConfig,
         logoUrl: activeBranding.logoUrl,
@@ -4779,7 +4790,7 @@ export const App: React.FC = () => {
         onRefreshData: async () => await loadData(false, true),
         onAccessAlumnaPortal: handleAccessAlumnaPortal,
         schoolRegistry
-    }), [currentUser, activeInstitution, users, visitors, handleAddVisitor, handleCheckoutVisitor, handleAddAppointment, handleUpdateVisitor, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, handleAddAlert, handleResolveAlert, appointments, handleUpdateAppointmentStatus, retailInventory, stockTransactions, suppliers, handleAddStoreItem, handleAddSupplier, handleImportStoreItems, handleAddStoreTransaction, transactions, invoices, handleAddInvoice, receipts, handleAddReceipt, requisitions, handleVerifyRequisition, handleMarkInventoryReceived, handleLogAction, vehicles, vehicleLogs, transportOnboarding, handleLogGateAction, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, handleOnboardStudent, handleOffboardStudent, onEditUser, onDeleteUser, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry, onImportStudents]);
+    }), [currentUser, activeInstitution, users, visitors, handleAddVisitor, handleCheckoutVisitor, handleAddAppointment, handleUpdateVisitor, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, handleAddAlert, handleResolveAlert, appointments, handleUpdateAppointmentStatus, retailInventory, stockTransactions, suppliers, handleAddStoreItem, handleAddSupplier, handleImportStoreItems, handleAddStoreTransaction, transactions, invoices, handleAddInvoice, receipts, handleAddReceipt, requisitions, handleVerifyRequisition, handleMarkInventoryReceived, handleLogAction, vehicles, vehicleLogs, transportOnboarding, handleLogGateAction, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, handleOnboardStudent, handleOffboardStudent, onEditUser, onDeleteUser, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry, onImportStudents, onImportUsers]);
 
     const boardingMasterProps = useMemo(() => ({
         currentUser: currentUser || undefined,
@@ -5001,6 +5012,10 @@ export const App: React.FC = () => {
                     lessonId={targetManageLessonId} 
                     onClose={() => { window.location.href = '/'; }} 
                 />
+            ) : showPublicEventConfirmation ? (
+                <Suspense fallback={<SystemPulseLoader message="Loading Event Confirmation..." />}>
+                    <PublicEventConfirmation />
+                </Suspense>
             ) : showPublicEventRegistration ? (
                 <Suspense fallback={<SystemPulseLoader message="Loading Registration Page..." />}>
                     <PublicEventRegistration />
