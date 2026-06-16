@@ -1996,6 +1996,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         </div>
  
                         <form onSubmit={handleSubmit} className="space-y-6">
+                            {statusMsg.type !== 'idle' && (
+                                <div className={`p-4 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all ${
+                                    statusMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                    statusMsg.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                                    'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                                }`}>
+                                    {statusMsg.message}
+                                </div>
+                            )}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Full Name</label>
