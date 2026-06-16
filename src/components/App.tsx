@@ -1209,7 +1209,7 @@ export const App: React.FC = () => {
                       if (!p || !p.payload) return false;
                       const provider = p.provider;
                       const status = (p.status || '').toLowerCase();
-                      if (!['kcb_ipn', 'kcb_stk_callback', 'coop', 'coop_b2b', 'kcb'].includes(provider) || status !== 'received') return false;
+                      if (!['kcb_ipn', 'kcb_stk_callback', 'coop', 'coop_b2b', 'kcb'].includes(provider) || !['received', 'pending'].includes(status)) return false;
 
                       // Tenancy filter: Match this payload to the active institution
                       const payload = p.payload;
@@ -1655,7 +1655,7 @@ export const App: React.FC = () => {
         const existing = (users || []).find(u => u.id === id);
         if (existing) {
             const updatedUser = { ...existing, ...data, id };
-            await apiService.saveModuleRecord('users', updatedUser);
+            await apiService.updateModuleRecord('users', id, updatedUser);
 
             // Update local state immediately for better responsiveness
             setUsers(prev => prev.map(u => u.id === id ? updatedUser : u));
@@ -5324,7 +5324,39 @@ export const App: React.FC = () => {
                                         footerImageUrl={activeFooterImageUrl}
                                         logoUrl={activeBranding.logoUrl}
                                         buildings={buildings}
-                                        onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
+                                        onAddParent={async (sid: string, p: any) => {
+                                             let existingParent = null;
+                                             if (p.email) {
+                                                 const globalRecords = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                                     filter: { email: p.email.toLowerCase() }
+                                                 });
+                                                 if (globalRecords && globalRecords.length > 0) {
+                                                     existingParent = globalRecords[0];
+                                                 }
+                                             }
+                                             if (existingParent) {
+                                                 const currentStudentIds = Array.isArray(existingParent.studentIds) ? existingParent.studentIds : [];
+                                                 const updatedStudentIds = currentStudentIds.includes(sid) ? currentStudentIds : [...currentStudentIds, sid];
+                                                 const updated = {
+                                                     ...existingParent,
+                                                     role: 'parent',
+                                                     institutionId: currentUser.institutionId,
+                                                     studentIds: updatedStudentIds
+                                                 };
+                                                 await apiService.updateModuleRecord('users', existingParent.id, updated);
+                                                 return { success: true, message: 'Parent associated.' };
+                                             } else {
+                                                 const newId = `u_par_${Date.now()}`;
+                                                 await apiService.saveModuleRecord('users', { 
+                                                     ...p, 
+                                                     role: 'parent', 
+                                                     id: newId, 
+                                                     institutionId: currentUser.institutionId, 
+                                                     studentIds: [sid] 
+                                                 });
+                                                 return { success: true, message: 'Parent added.' };
+                                             }
+                                         }}
                                         onDeleteParent={() => { }}
                                         departments={departments}
                                         onSubmitEnrollmentRequest={async (sids, sig) => { }}
@@ -6248,7 +6280,7 @@ export const App: React.FC = () => {
                         }}
                         onChangePassword={async (id, data) => {
                             try {
-                                await apiService.saveModuleRecord('users', { ...currentUser, password: data.newPassword });
+                                await apiService.updateModuleRecord('users', currentUser.id, { password: data.newPassword });
                                 return { success: true, message: 'Password updated successfully' };
                             } catch (err: any) {
                                 return { success: false, message: err.message || 'Failed to update password' };

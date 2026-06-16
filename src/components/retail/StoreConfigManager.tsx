@@ -651,7 +651,7 @@ function StoreStaffPanel({ institutionId, currentUser, isPrincipal }: {
             const user = allUsers.find(u => u.id === selectedUserId);
             if (user) {
                 const updatedUser = { ...user, role: 'store' };
-                await apiService.saveModuleRecord('users', updatedUser);
+                await apiService.updateModuleRecord('users', selectedUserId, updatedUser);
                 setAllUsers(prev => prev.map(u => u.id === selectedUserId ? updatedUser : u));
                 setSelectedUserId('');
                 setShowAddForm(false);
@@ -700,7 +700,7 @@ function StoreStaffPanel({ institutionId, currentUser, isPrincipal }: {
             const user = allUsers.find(u => u.id === userId);
             if (user) {
                 const updatedUser = { ...user, role: 'staff' };
-                await apiService.saveModuleRecord('users', updatedUser);
+                await apiService.updateModuleRecord('users', userId, updatedUser);
                 setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
             }
         } catch (err: any) {

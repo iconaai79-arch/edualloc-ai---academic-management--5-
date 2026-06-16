@@ -4347,7 +4347,7 @@ export interface BankTransaction {
     sender_name?: string;
     bankName?: string;
     bank_name?: string;
-    status: 'reconciled' | 'unreconciled';
+    status: 'reconciled' | 'unreconciled' | 'pending';
     linkedInvoiceId?: string;
     linked_invoice_id?: string;
     reconciledAt?: string;

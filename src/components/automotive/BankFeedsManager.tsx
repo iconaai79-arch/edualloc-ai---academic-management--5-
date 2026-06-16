@@ -41,7 +41,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     institution
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'reconciled' | 'unreconciled'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'reconciled' | 'unreconciled' | 'pending'>('all');
     const [isReconciling, setIsReconciling] = useState(false);
     
     // Manual reconciliation modal states
@@ -177,7 +177,9 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     (t.details.customerMobile || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (t.details.requestId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (t.details.customerReference || '').toLowerCase().includes(searchQuery.toLowerCase());
-                const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
+                const matchesStatus = statusFilter === 'all' || 
+                                      t.status === statusFilter || 
+                                      (statusFilter === 'unreconciled' && t.status === 'pending');
                 return matchesSearch && matchesStatus;
             })
             .sort((a, b) => new Date(b.transactionDate || 0).getTime() - new Date(a.transactionDate || 0).getTime());
@@ -187,7 +189,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         setIsReconciling(true);
         // Simulate a delay for "processing"
         setTimeout(() => {
-            transactions.filter(t => t.status === 'unreconciled').forEach(t => {
+            transactions.filter(t => t.status === 'unreconciled' || t.status === 'pending').forEach(t => {
                 // Logic: Match reference with invoice number or registration plate (case-insensitive) and exact amount
                 const matchingInvoice = invoices.find(inv => {
                     const refUpper = t.reference.toUpperCase().trim();
@@ -268,13 +270,13 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Unreconciled</p>
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">
-                        {transactions.filter(t => t.status === 'unreconciled').length}
+                        {transactions.filter(t => t.status === 'unreconciled' || t.status === 'pending').length}
                     </h3>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Pending Amount</p>
                     <h3 className="text-2xl font-black text-emerald-600">
-                        KES {transactions.filter(t => t.status === 'unreconciled').reduce((sum, t) => sum + t.amount, 0)?.toLocaleString()}
+                        KES {transactions.filter(t => t.status === 'unreconciled' || t.status === 'pending').reduce((sum, t) => sum + t.amount, 0)?.toLocaleString()}
                     </h3>
                 </div>
                 <div className="md:col-span-2 bg-white dark:bg-slate-800 p-4 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-4">
@@ -295,6 +297,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     >
                         <option value="all">All Status</option>
                         <option value="unreconciled">Unreconciled</option>
+                        <option value="pending">Pending</option>
                         <option value="reconciled">Reconciled</option>
                     </select>
                 </div>
@@ -384,7 +387,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                     </td>
                                     <td className="px-6 py-6 text-right whitespace-nowrap">
                                         <div className="flex items-center justify-end gap-3">
-                                            {transaction.status === 'unreconciled' ? (
+                                            {transaction.status === 'unreconciled' || transaction.status === 'pending' ? (
                                                 <button 
                                                     onClick={() => {
                                                         setSelectedTransactionForReconcile(transaction);

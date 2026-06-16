@@ -50,6 +50,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [instructors, setInstructors] = useState<User[]>([]);
     const [courseLevels, setCourseLevels] = useState<CourseLevel[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
+    const isPrimaryOrSecondary = useMemo(() => {
+        const type = (currentInstitution?.institutionType || '').toLowerCase();
+        const cat = (currentInstitution?.category || '').toLowerCase();
+        return ['primary', 'secondary'].includes(type) || ['primary', 'secondary'].includes(cat);
+    }, [currentInstitution]);
     
     // Sub-tab Navigation
     const activeTab = passedActiveTab || 'students';
@@ -334,21 +339,89 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     // Handle Form Submit
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Explicit client-side validation to prevent browser silent block on hidden/scrolled inputs
+        if (!formData.fullName || !formData.fullName.trim()) {
+            setStatusMsg({ type: 'error', message: 'Student Full Name is required.' });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+            return;
+        }
+        if (!isPrimaryOrSecondary) {
+            if (!formData.phoneNumber || !formData.phoneNumber.trim()) {
+                setStatusMsg({ type: 'error', message: 'Student Phone Number is required.' });
+                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+                return;
+            }
+            if (!formData.email || !formData.email.trim()) {
+                setStatusMsg({ type: 'error', message: 'Student Email Address is required.' });
+                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+                return;
+            }
+        }
+        if (!formData.enrollmentDate) {
+            setStatusMsg({ type: 'error', message: 'Enrollment Date is required.' });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+            return;
+        }
+
+        if (context === 'driving_school') {
+            if (!formData.metadata.licenseCategory) {
+                setStatusMsg({ type: 'error', message: 'License Class / Category is required.' });
+                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+                return;
+            }
+        } else {
+            // academic context
+            if (!formData.metadata.gradeLevel) {
+                setStatusMsg({ type: 'error', message: 'Grade Level is required.' });
+                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+                return;
+            }
+            
+            const parents = formData.metadata.parents || [];
+            if (parents.length === 0) {
+                setStatusMsg({ type: 'error', message: 'At least one Parent / Guardian is required for academic registry.' });
+                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+                return;
+            }
+            for (let i = 0; i < parents.length; i++) {
+                if (!parents[i].name || !parents[i].name.trim() || !parents[i].phone || !parents[i].phone.trim()) {
+                    setStatusMsg({ type: 'error', message: `Please enter both Name and Phone for Parent / Guardian #${i + 1}.` });
+                    setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+                    return;
+                }
+            }
+        }
+
         setStatusMsg({ type: 'info', message: 'Saving enrollment...' });
         
         try {
             let userId = '';
             
-            // 1. Centralized Identity setup: check if User already exists with the same phone/email
-            const existingUser = users.find(u => 
-                (u.email && u.email.toLowerCase() === formData.email.toLowerCase()) || 
-                (u.phoneNumber && u.phoneNumber === formData.phoneNumber)
+            // 1. Centralized Identity setup: check if User already exists with the same phone/email locally
+            let existingUser = users.find(u => 
+                (formData.email && u.email && u.email.toLowerCase() === formData.email.toLowerCase()) || 
+                (formData.phoneNumber && u.phoneNumber && u.phoneNumber === formData.phoneNumber)
             );
+
+            // Query globally to avoid unique email constraint violation (Error 23505)
+            if (!existingUser && formData.email && formData.email.trim()) {
+                const globalRecords = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                    filter: { email: formData.email.toLowerCase() }
+                });
+                if (globalRecords && globalRecords.length > 0) {
+                    existingUser = globalRecords[0];
+                }
+            }
             
             if (existingUser) {
                 userId = existingUser.id;
                 const updatedUser = {
                     ...existingUser,
+                    email: formData.email && formData.email.trim() 
+                        ? formData.email.trim() 
+                        : (existingUser.email && !existingUser.email.endsWith('@eduai.local') ? existingUser.email : `student_${existingUser.id}@eduai.local`),
+                    phoneNumber: formData.phoneNumber || existingUser.phoneNumber || '',
                     metadata: {
                         ...(existingUser.metadata || {}),
                         passportPhoto: formData.passportPhoto || existingUser.metadata?.passportPhoto,
@@ -359,15 +432,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 if (formData.gender && existingUser.gender !== formData.gender) {
                     updatedUser.gender = formData.gender as any;
                 }
-                await apiService.saveModuleRecord('users', updatedUser);
+                if (updatedUser.institutionId !== currentInstitution.id) {
+                    updatedUser.institutionId = currentInstitution.id;
+                }
+                await apiService.updateModuleRecord('users', existingUser.id, updatedUser);
             } else {
                 // Create a base user identity profile
                 const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const studentEmail = formData.email && formData.email.trim()
+                    ? formData.email.trim()
+                    : `student_${newUserId}@eduai.local`;
+                
                 const newUser: User = {
                     id: newUserId,
                     name: formData.fullName,
-                    email: formData.email,
-                    phoneNumber: formData.phoneNumber,
+                    email: studentEmail,
+                    phoneNumber: formData.phoneNumber || '',
                     role: 'student',
                     institutionId: currentInstitution.id,
                     createdAt: new Date().toISOString(),
@@ -549,11 +629,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     try {
                         let userId = '';
                         
-                        // 1. Check if user already exists
+                        // 1. Check if user already exists locally
                         let existingUser = currentUsersList.find(u => 
                             (item.email && u.email && u.email.toLowerCase() === String(item.email).trim().toLowerCase()) || 
                             (item.phoneNumber && u.phoneNumber && String(u.phoneNumber).replace(/\D/g, '') === String(item.phoneNumber).replace(/\D/g, ''))
                         );
+
+                        // Query globally to avoid unique email constraint violation (Error 23505)
+                        if (!existingUser && item.email) {
+                            const globalRecords = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                filter: { email: String(item.email).trim().toLowerCase() }
+                            });
+                            if (globalRecords && globalRecords.length > 0) {
+                                existingUser = globalRecords[0];
+                            }
+                        }
 
                         if (existingUser) {
                             userId = existingUser.id;
@@ -563,15 +653,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 name: item.name || existingUser.name,
                                 gender: (item.gender || existingUser.gender) as any,
                             };
-                            await apiService.saveModuleRecord('users', updatedUser);
+                            if (updatedUser.institutionId !== currentInstitution.id) {
+                                updatedUser.institutionId = currentInstitution.id;
+                            }
+                            await apiService.updateModuleRecord('users', existingUser.id, updatedUser);
                         } else {
                             // Create new user profile
                             const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                            const generatedEmail = item.email && String(item.email).trim()
+                                ? String(item.email).trim()
+                                : `student_${newUserId}@eduai.local`;
+                            
                             const newUser: User = {
                                 id: newUserId,
                                 name: String(item.name).trim(),
-                                email: item.email ? String(item.email).trim() : null,
-                                phoneNumber: item.phoneNumber ? String(item.phoneNumber).trim() : null,
+                                email: generatedEmail,
+                                phoneNumber: item.phoneNumber ? String(item.phoneNumber).trim() : '',
                                 role: 'student',
                                 institutionId: currentInstitution.id,
                                 createdAt: new Date().toISOString(),
@@ -686,7 +783,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             
             const userToUpdate = users.find(u => u.id === userId);
             if (userToUpdate) {
-                await apiService.saveModuleRecord('users', {
+                await apiService.updateModuleRecord('users', userToUpdate.id, {
                     ...userToUpdate,
                     metadata: {
                         ...(userToUpdate.metadata || {}),
@@ -963,19 +1060,41 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         if (!parentName && !parentPhone && !parentEmail) continue;
                         if (!parentName) parentName = 'Invited Parent';
 
-                        // 1. Create a guest/parent profile in 'users' table
-                        const newUserId = `u_ext_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                        const newUser = {
-                            id: newUserId,
-                            institutionId: currentInstitution.id,
-                            name: parentName,
-                            email: parentEmail || null,
-                            phoneNumber: parentPhone || null,
-                            role: 'parent',
-                            metadata: { external: true },
-                            createdAt: new Date().toISOString()
-                        };
-                        await apiService.saveModuleRecord('users', newUser);
+                        // 1. Create or retrieve a guest/parent profile in 'users' table
+                        let existingParent = null;
+                        if (parentEmail) {
+                            const globalRecords = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                filter: { email: parentEmail.toLowerCase() }
+                            });
+                            if (globalRecords && globalRecords.length > 0) {
+                                existingParent = globalRecords[0];
+                            }
+                        }
+
+                        let parentUserId = '';
+                        if (existingParent) {
+                            parentUserId = existingParent.id;
+                            const updatedUser = {
+                                ...existingParent,
+                                role: 'parent',
+                                institutionId: currentInstitution.id
+                            };
+                            await apiService.updateModuleRecord('users', existingParent.id, updatedUser);
+                        } else {
+                            const newUserId = `u_ext_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                            const newUser = {
+                                id: newUserId,
+                                institutionId: currentInstitution.id,
+                                name: parentName,
+                                email: parentEmail || null,
+                                phoneNumber: parentPhone || null,
+                                role: 'parent',
+                                metadata: { external: true },
+                                createdAt: new Date().toISOString()
+                            };
+                            await apiService.saveModuleRecord('users', newUser);
+                            parentUserId = newUserId;
+                        }
 
                         // 2. Generate event PIN record
                         const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -984,7 +1103,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             id: pinId,
                             institutionId: currentInstitution.id,
                             eventId: event.id,
-                            userId: newUserId,
+                            userId: parentUserId,
                             pin: pinCode,
                             status: 'pending',
                             createdAt: new Date().toISOString()
@@ -1080,7 +1199,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 status: 'used' as 'used'
             };
 
-            await apiService.saveModuleRecord('event_pins', updated);
+            await apiService.updateModuleRecord('event_pins', activePin.id, updated);
             setStatusMsg({ type: 'success', message: `Verified attendance successfully for ${matchedUser.name} at "${eventName}"! PIN has been expired.` });
             
             setVerifyIdentifier('');
@@ -1106,7 +1225,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     status: 'checked_out',
                     timeOut: new Date().toLocaleTimeString()
                 };
-                await apiService.saveModuleRecord('visitors', updatedGuest);
+                await apiService.updateModuleRecord('visitors', guest.id, updatedGuest);
                 setStatusMsg({ type: 'success', message: `Checked out visitor ${guest.name || guest.fullName || 'Guest'}.` });
                 loadAllData();
             }
@@ -1893,8 +2012,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Phone Number</label>
                                     <input 
                                         type="tel" 
-                                        required 
-                                        placeholder="+254..."
+                                        required={!isPrimaryOrSecondary} 
+                                        placeholder={isPrimaryOrSecondary ? "Optional" : "+254..."}
                                         value={formData.phoneNumber}
                                         onChange={e => setFormData({ ...formData, phoneNumber: e.target.value })}
                                         className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
@@ -1904,8 +2023,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Email Address</label>
                                     <input 
                                         type="email" 
-                                        required 
-                                        placeholder="name@example.com"
+                                        required={!isPrimaryOrSecondary} 
+                                        placeholder={isPrimaryOrSecondary ? "Optional" : "name@example.com"}
                                         value={formData.email}
                                         onChange={e => setFormData({ ...formData, email: e.target.value })}
                                         className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
@@ -2075,135 +2194,135 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             </div>
  
                             {/* Guardian Details Card Section */}
-                            <div className="border-t border-slate-100 dark:border-slate-800/80 pt-5">
-                                <div className="flex items-center justify-between gap-2 mb-3">
-                                    <div className="flex items-center gap-2">
-                                        <Users className="w-4 h-4 text-indigo-500" />
-                                        <h4 className="text-xs font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider">
-                                            Guardian Authorization Registry
-                                        </h4>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const updatedParents = [...(formData.metadata.parents || [])];
-                                            updatedParents.push({ name: '', phone: '', email: '', relation: 'Father' });
-                                            setFormData({
-                                                ...formData,
-                                                metadata: {
-                                                    ...formData.metadata,
-                                                    parents: updatedParents
-                                                }
-                                            });
-                                        }}
-                                        className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-50 dark:bg-indigo-950/30 px-2 py-1 rounded"
-                                    >
-                                        + Add Parent
-                                    </button>
-                                </div>
-                                <div className="space-y-4">
-                                    {(formData.metadata.parents || []).map((parent: any, idx: number) => (
-                                        <div key={idx} className="bg-slate-50/40 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850/80 rounded-2xl p-4 sm:p-5 space-y-3 relative">
-                                            {formData.metadata.parents && formData.metadata.parents.length > 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const updatedParents = (formData.metadata.parents || []).filter((_: any, pIdx: number) => pIdx !== idx);
-                                                        setFormData({
-                                                            ...formData,
-                                                            metadata: {
-                                                                ...formData.metadata,
-                                                                parents: updatedParents
-                                                            }
-                                                        });
-                                                    }}
-                                                    className="absolute top-4 right-4 text-[9px] font-black uppercase tracking-wider text-red-500 hover:underline bg-red-50 dark:bg-red-950/30 px-2 py-0.5 rounded"
-                                                >
-                                                    Remove
-                                                </button>
-                                            )}
-                                            <div className="text-[10px] font-black text-indigo-500/80 dark:text-indigo-400/80 uppercase tracking-widest">
-                                                Parent / Guardian #{idx + 1}
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Guardian Name</label>
-                                                    <input 
-                                                        type="text" 
-                                                        required
-                                                        placeholder="Parent/Guardian Full Name"
-                                                        value={parent.name || ''}
-                                                        onChange={e => {
-                                                            const updatedParents = [...(formData.metadata.parents || [])];
-                                                            updatedParents[idx] = { ...updatedParents[idx], name: e.target.value };
-                                                            setFormData({
-                                                                ...formData,
-                                                                metadata: { ...formData.metadata, parents: updatedParents }
-                                                            });
-                                                        }}
-                                                        className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Relationship</label>
-                                                    <select
-                                                        value={parent.relation || 'Father'}
-                                                        onChange={e => {
-                                                            const updatedParents = [...(formData.metadata.parents || [])];
-                                                            updatedParents[idx] = { ...updatedParents[idx], relation: e.target.value };
-                                                            setFormData({
-                                                                ...formData,
-                                                                metadata: { ...formData.metadata, parents: updatedParents }
-                                                            });
-                                                        }}
-                                                        className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
-                                                    >
-                                                        <option value="Father">Father</option>
-                                                        <option value="Mother">Mother</option>
-                                                        <option value="Guardian">Guardian</option>
-                                                        <option value="Other">Other</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Contact Phone</label>
-                                                    <input 
-                                                        type="tel" 
-                                                        required
-                                                        placeholder="e.g. +2547..."
-                                                        value={parent.phone || ''}
-                                                        onChange={e => {
-                                                            const updatedParents = [...(formData.metadata.parents || [])];
-                                                            updatedParents[idx] = { ...updatedParents[idx], phone: e.target.value };
-                                                            setFormData({
-                                                                ...formData,
-                                                                metadata: { ...formData.metadata, parents: updatedParents }
-                                                            });
-                                                        }}
-                                                        className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
-                                                    <input 
-                                                        type="email" 
-                                                        placeholder="parent@example.com"
-                                                        value={parent.email || ''}
-                                                        onChange={e => {
-                                                            const updatedParents = [...(formData.metadata.parents || [])];
-                                                            updatedParents[idx] = { ...updatedParents[idx], email: e.target.value };
-                                                            setFormData({
-                                                                ...formData,
-                                                                metadata: { ...formData.metadata, parents: updatedParents }
-                                                            });
-                                                        }}
-                                                        className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
-                                                    />
-                                                </div>
-                                            </div>
+                            {context === 'academic' && (
+                                <div className="border-t border-slate-100 dark:border-slate-800/80 pt-5">
+                                    <div className="flex items-center justify-between gap-2 mb-3">
+                                        <div className="flex items-center gap-2">
+                                            <Users className="w-4 h-4 text-indigo-500" />
+                                            <h4 className="text-xs font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider">
+                                                Guardian Authorization Registry
+                                            </h4>
                                         </div>
-                                    ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const updatedParents = [...(formData.metadata.parents || [])];
+                                                updatedParents.push({ name: '', phone: '', email: '', relation: 'Father' });
+                                                setFormData({
+                                                    ...formData,
+                                                    metadata: {
+                                                        ...formData.metadata,
+                                                        parents: updatedParents
+                                                    }
+                                                });
+                                            }}
+                                            className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-50 dark:bg-indigo-950/30 px-2 py-1 rounded"
+                                        >
+                                            + Add Parent
+                                        </button>
+                                    </div>
+                                    <div className="space-y-4">
+                                        {(formData.metadata.parents || []).map((parent: any, idx: number) => (
+                                            <div key={idx} className="bg-slate-50/40 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850/80 rounded-2xl p-4 sm:p-5 space-y-3 relative">
+                                                {formData.metadata.parents && formData.metadata.parents.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const updatedParents = (formData.metadata.parents || []).filter((_: any, pIdx: number) => pIdx !== idx);
+                                                            setFormData({
+                                                                                            ...formData,
+                                                                metadata: {
+                                                                    ...formData.metadata,
+                                                                    parents: updatedParents
+                                                                }
+                                                            });
+                                                        }}
+                                                        className="absolute top-4 right-4 text-[9px] font-black uppercase tracking-wider text-red-500 hover:underline bg-red-50 dark:bg-red-950/30 px-2 py-0.5 rounded"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                )}
+                                                <div className="text-[10px] font-black text-indigo-500/80 dark:text-indigo-400/80 uppercase tracking-widest">
+                                                    Parent / Guardian #{idx + 1}
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Guardian Name</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Parent/Guardian Full Name"
+                                                            value={parent.name || ''}
+                                                            onChange={e => {
+                                                                const updatedParents = [...(formData.metadata.parents || [])];
+                                                                updatedParents[idx] = { ...updatedParents[idx], name: e.target.value };
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    metadata: { ...formData.metadata, parents: updatedParents }
+                                                                });
+                                                            }}
+                                                            className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Relationship</label>
+                                                        <select
+                                                            value={parent.relation || 'Father'}
+                                                            onChange={e => {
+                                                                const updatedParents = [...(formData.metadata.parents || [])];
+                                                                updatedParents[idx] = { ...updatedParents[idx], relation: e.target.value as any };
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    metadata: { ...formData.metadata, parents: updatedParents }
+                                                                });
+                                                            }}
+                                                            className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                                        >
+                                                            <option value="Father">Father</option>
+                                                            <option value="Mother">Mother</option>
+                                                            <option value="Guardian">Guardian</option>
+                                                            <option value="Other">Other</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Contact Phone</label>
+                                                        <input 
+                                                            type="tel" 
+                                                            placeholder="e.g. +2547..."
+                                                            value={parent.phone || ''}
+                                                            onChange={e => {
+                                                                const updatedParents = [...(formData.metadata.parents || [])];
+                                                                updatedParents[idx] = { ...updatedParents[idx], phone: e.target.value };
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    metadata: { ...formData.metadata, parents: updatedParents }
+                                                                });
+                                                            }}
+                                                            className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                                                        <input 
+                                                            type="email" 
+                                                            placeholder="parent@example.com"
+                                                            value={parent.email || ''}
+                                                            onChange={e => {
+                                                                const updatedParents = [...(formData.metadata.parents || [])];
+                                                                updatedParents[idx] = { ...updatedParents[idx], email: e.target.value };
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    metadata: { ...formData.metadata, parents: updatedParents }
+                                                                });
+                                                            }}
+                                                            className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
  
                             {/* Context Specific Fields */}
                             <div className="border-t border-slate-100 dark:border-slate-800/80 pt-5">
@@ -2216,7 +2335,6 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <div>
                                             <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">License Class / Category</label>
                                             <select
-                                                required
                                                 value={formData.metadata.licenseCategory}
                                                 onChange={e => setFormData({ 
                                                     ...formData, 
@@ -2281,7 +2399,6 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <div>
                                             <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Grade Level</label>
                                             <select
-                                                required
                                                 value={formData.metadata.gradeLevel}
                                                 onChange={e => setFormData({ 
                                                     ...formData, 

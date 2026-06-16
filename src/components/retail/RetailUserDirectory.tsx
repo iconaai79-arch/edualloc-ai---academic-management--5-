@@ -214,7 +214,7 @@ export function RetailUserDirectory({
                 if (onEditUser) {
                     await onEditUser(editingUser.id, updatedData);
                 } else {
-                    await apiService.saveModuleRecord('users', { ...editingUser, ...updatedData });
+                    await apiService.updateModuleRecord('users', editingUser.id, { ...editingUser, ...updatedData });
                 }
 
                 setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, ...updatedData } as User : u));

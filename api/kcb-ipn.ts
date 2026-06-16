@@ -963,6 +963,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     txnMetadata.type = 'bank_feed';
                 }
 
+                const isPendingNarration = /chq|mobi|transfer|cash\s+deposit/i.test(narration || '');
+                const initialStatus = isPendingNarration ? 'pending' : 'completed';
+
                 const { data: newTxn, error: insertErr } = await supabase.from('mpesa_transactions').insert({
                     id: `txn_${Date.now()}`,
                     transaction_id: transactionID,
@@ -971,7 +974,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     amount: amount,
                     phone_number: phone,
                     payer_name: payerName,
-                    status: 'completed',
+                    status: initialStatus,
                     provider: 'kcb',
                     request_id: requestId,
                     channel_code: channelCode,
@@ -997,8 +1000,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // 3. Process reconciliation and notifications if transaction is active and completed
         if (transaction) {
-            // Update transaction to completed if it was pending
-            if (transaction.status === 'pending') {
+            // Update transaction to completed if it was pending and not a pending narration type
+            const isPendingNarration = /chq|mobi|transfer|cash\s+deposit/i.test(transaction.narration || narration || '');
+            if (transaction.status === 'pending' && !isPendingNarration) {
                 await supabase
                     .from('mpesa_transactions')
                     .update({
