@@ -2642,8 +2642,13 @@ export const App: React.FC = () => {
             }
 
             if (!admin) {
-                console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to any user.`);
-                admin = users.find(u => u.institutionId === institutionId);
+                console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to non-portal user.`);
+                // Avoid logging in as student/parent/customer unless explicitly requested via initialRole
+                const excludedRoles = ['student', 'parent', 'customer'];
+                const fallbackUsers = users.filter(u => u.institutionId === institutionId && (!excludedRoles.includes(u.role) || initialRole === u.role));
+                if (fallbackUsers.length > 0) {
+                    admin = fallbackUsers[0];
+                }
             }
 
             if (!admin) {
