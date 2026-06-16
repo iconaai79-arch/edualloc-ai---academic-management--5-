@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+
 import { 
     Users, 
     UserPlus, 
@@ -1412,7 +1414,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     return (
         <div className="space-y-6">
-            {isUploading && (
+            {isUploading && createPortal(
                 <ExcelSmartImporter 
                     fields={enrollmentFields} 
                     onComplete={handleBulkComplete} 
@@ -1458,10 +1460,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             </div>
                         </div>
                     )}
-                </ExcelSmartImporter>
+                </ExcelSmartImporter>,
+                document.body
             )}
             {/* Header section */}
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
                         <GraduationCap className="w-6 h-6" />
@@ -1480,7 +1483,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     <div className="flex items-center gap-3">
                         <button 
                             onClick={() => setIsUploading(true)}
-                            className="px-6 py-3 bg-slate-900 border border-slate-800 hover:bg-slate-850 hover:border-slate-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg"
+                            className="px-6 py-3 bg-slate-900 dark:bg-slate-850 border border-slate-800 dark:border-slate-755 hover:bg-slate-850 dark:hover:bg-slate-800 hover:border-slate-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg"
                         >
                             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
                             Import Excel
@@ -1516,7 +1519,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             {activeTab === 'students' && (
                 <>
                     {/* Filters Bar */}
-                    <div className="flex flex-col gap-3 p-4 bg-white/5 border border-white/5 rounded-2xl">
+                    <div className="flex flex-col gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
                         {/* Row 1: Search */}
                         <div className="w-full relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -1525,7 +1528,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 placeholder="Search by name, phone or admission number..." 
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-11 pr-4 py-3 bg-slate-900/30 border border-white/10 rounded-xl font-bold text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                                className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors"
                             />
                         </div>
 
@@ -1537,7 +1540,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <select
                                 value={statusFilter}
                                 onChange={e => setStatusFilter(e.target.value as any)}
-                                className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-900/30 border border-white/10 rounded-xl font-bold text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                                className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
                             >
                                 <option value="All">All Statuses</option>
                                 <option value="Enrolled">Enrolled</option>
@@ -1546,13 +1549,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 <option value="Suspended">Suspended</option>
                                 <option value="Dropped">Dropped</option>
                             </select>
-
+                            
                             {/* Grade Level filter — academic context only */}
                             {context === 'academic' && (
                                 <select
                                     value={gradeFilter}
                                     onChange={e => setGradeFilter(e.target.value)}
-                                    className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-900/30 border border-white/10 rounded-xl font-bold text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                                    className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
                                 >
                                     <option value="">All Grades</option>
                                     {cohortsList.map(grade => (
@@ -1566,7 +1569,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 <select
                                     value={streamFilter}
                                     onChange={e => setStreamFilter(e.target.value)}
-                                    className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-900/30 border border-white/10 rounded-xl font-bold text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                                    className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
                                 >
                                     <option value="">All Streams</option>
                                     {streamsList.map(stream => (
@@ -1620,9 +1623,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <p className="text-xs font-black uppercase tracking-widest">Retrieving enrollments...</p>
                         </div>
                     ) : filteredEnrollments.length === 0 ? (
-                        <div className="text-center py-20 bg-white/5 border border-white/5 rounded-3xl border-dashed">
-                            <Users className="w-12 h-12 mx-auto text-slate-500 mb-4" />
-                            <p className="text-sm font-bold text-slate-400">No enrollment records found.</p>
+                        <div className="text-center py-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl border-dashed">
+                            <Users className="w-12 h-12 mx-auto text-slate-400 mb-4" />
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No enrollment records found.</p>
                             <p className="text-xs text-slate-500 mt-1">Enroll a new student to get started or adjust your filters.</p>
                         </div>
                     ) : (
@@ -1776,19 +1779,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             {activeTab === 'broadcaster' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Compose Form */}
-                    <div className="lg:col-span-1 bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md space-y-4">
-                        <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider mb-2">
+                    <div className="lg:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+                        <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider mb-2">
                             <Send className="w-4 h-4" />
                             Compose Announcement
                         </div>
 
                         <form onSubmit={handleSendBroadcast} className="space-y-4">
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Cohort</label>
+                                <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Target Cohort</label>
                                 <select
                                     value={broadcastTarget}
                                     onChange={e => setBroadcastTarget(e.target.value)}
-                                    className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white focus:outline-none focus:border-indigo-500"
+                                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500"
                                 >
                                     <option value="All">All Registered Cohorts</option>
                                     {cohortsList.map(cohort => (
@@ -1798,46 +1801,46 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject (Email Only)</label>
+                                <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Subject (Email Only)</label>
                                 <input
                                     type="text"
                                     placeholder="Enter announcement subject..."
                                     value={broadcastSubject}
                                     onChange={e => setBroadcastSubject(e.target.value)}
-                                    className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500"
                                 />
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Message Body</label>
+                                <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Message Body</label>
                                 <textarea
                                     rows={5}
                                     required
                                     placeholder="Write broadcast details here..."
                                     value={broadcastBody}
                                     onChange={e => setBroadcastBody(e.target.value)}
-                                    className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 resize-none"
+                                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 resize-none"
                                 />
                             </div>
 
                             <div className="space-y-2 pt-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Delivery Channels</label>
+                                <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest block ml-1">Delivery Channels</label>
                                 <div className="flex items-center gap-6">
-                                    <label className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer select-none">
+                                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                                         <input
                                             type="checkbox"
                                             checked={broadcastChannels.sms}
                                             onChange={e => setBroadcastChannels({ ...broadcastChannels, sms: e.target.checked })}
-                                            className="w-4 h-4 rounded border-white/10 bg-slate-950 accent-indigo-600 focus:ring-indigo-500"
+                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 accent-indigo-600 focus:ring-indigo-500"
                                         />
                                         SMS Alerts
                                     </label>
-                                    <label className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer select-none">
+                                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                                         <input
                                             type="checkbox"
                                             checked={broadcastChannels.email}
                                             onChange={e => setBroadcastChannels({ ...broadcastChannels, email: e.target.checked })}
-                                            className="w-4 h-4 rounded border-white/10 bg-slate-950 accent-indigo-600 focus:ring-indigo-500"
+                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 accent-indigo-600 focus:ring-indigo-500"
                                         />
                                         Email Notifications
                                     </label>
@@ -1856,8 +1859,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     </div>
 
                     {/* Broadcast Logs */}
-                    <div className="lg:col-span-2 bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md space-y-4">
-                        <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider mb-2">
+                    <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+                        <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider mb-2">
                             <Bell className="w-4 h-4" />
                             Broadcast Logs & History
                         </div>
@@ -1869,9 +1872,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs text-slate-300">
+                                <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                                     <thead>
-                                        <tr className="border-b border-white/10 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                                        <tr className="border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-400 tracking-widest">
                                             <th className="pb-3 pr-4">Broadcast Time</th>
                                             <th className="pb-3 pr-4">Target Cohort</th>
                                             <th className="pb-3 pr-4">Subject & Preview</th>
@@ -1879,23 +1882,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             <th className="pb-3 text-right">Delivered</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-white/5">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {broadcasterMessages.slice().sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || '')).map((msg) => (
-                                            <tr key={msg.id} className="hover:bg-white/5">
-                                                <td className="py-3 pr-4 font-mono font-bold text-slate-400 whitespace-nowrap">
+                                            <tr key={msg.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20">
+                                                <td className="py-3 pr-4 font-mono font-bold text-slate-500 whitespace-nowrap">
                                                     {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : 'N/A'}
                                                 </td>
                                                 <td className="py-3 pr-4">
-                                                    <span className="bg-indigo-500/10 text-indigo-400 font-bold px-2 py-1 rounded text-[10px]">
+                                                    <span className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold px-2 py-1 rounded text-[10px] border border-indigo-100 dark:border-indigo-500/20">
                                                         {msg.target}
                                                     </span>
                                                 </td>
                                                 <td className="py-3 pr-4 max-w-xs truncate">
-                                                    <p className="font-bold text-white">{msg.subject || 'Announcement'}</p>
+                                                    <p className="font-bold text-slate-850 dark:text-white">{msg.subject || 'Announcement'}</p>
                                                     <p className="text-slate-500 text-[10px] mt-0.5 truncate">{msg.body}</p>
                                                 </td>
-                                                <td className="py-3 pr-4 font-bold text-slate-400">{msg.channel}</td>
-                                                <td className="py-3 text-right font-black text-white">{msg.recipientsCount || 0}</td>
+                                                <td className="py-3 pr-4 font-bold text-slate-500">{msg.channel}</td>
+                                                <td className="py-3 text-right font-black text-slate-850 dark:text-white">{msg.recipientsCount || 0}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -2234,11 +2237,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             {/* Tab: Cleared Guests */}
             {activeTab === 'guests' && (
-                <div className="bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md space-y-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div>
-                            <h3 className="text-lg font-black text-white uppercase tracking-tighter">Cleared Guests Pipeline</h3>
-                            <p className="text-xs text-slate-400 mt-1">Real-time pipeline of visitors vetted and cleared by gate campus security guards.</p>
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Cleared Guests Pipeline</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Real-time pipeline of visitors vetted and cleared by gate campus security guards.</p>
                         </div>
                     </div>
 
@@ -2248,15 +2251,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Loading guest registry...</p>
                         </div>
                     ) : visitors.length === 0 ? (
-                        <div className="text-center py-20 border border-dashed border-white/5 rounded-2xl">
-                            <ShieldCheck className="w-12 h-12 text-slate-600 mx-auto mb-2" />
+                        <div className="text-center py-20 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                            <ShieldCheck className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
                             <p className="text-xs font-bold text-slate-400">No visitors recorded under this institution.</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs text-slate-300">
+                            <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                                 <thead>
-                                    <tr className="border-b border-white/10 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                                    <tr className="border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-400 tracking-widest">
                                         <th className="py-3 px-4">Visitor Profile</th>
                                         <th className="py-3 px-4">Identifier / Plate</th>
                                         <th className="py-3 px-4">Purpose of Visit</th>
@@ -2265,37 +2268,37 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <th className="py-3 px-4 text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-white/5">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {visitors.slice().sort((a,b) => (b.timeIn || '').localeCompare(a.timeIn || '')).map(guest => {
                                         const host = users.find(u => u.id === guest.hostId);
                                         const isCheckedOut = guest.timeOut || (guest as any).status === 'checked_out';
 
                                         return (
-                                            <tr key={guest.id} className="hover:bg-white/5">
+                                            <tr key={guest.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20">
                                                 <td className="py-3 px-4">
-                                                    <div className="font-bold text-white">{guest.name || guest.fullName}</div>
-                                                    <div className="text-[10px] text-slate-500 mt-0.5">{guest.phoneNumber || 'No Contact phone'}</div>
+                                                    <div className="font-bold text-slate-850 dark:text-white">{guest.name || guest.fullName}</div>
+                                                    <div className="text-[10px] text-slate-550 dark:text-slate-500 mt-0.5">{guest.phoneNumber || 'No Contact phone'}</div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <div className="font-mono text-slate-400">{guest.idNumber || 'No ID Ref'}</div>
-                                                    {guest.vehiclePlate && <div className="text-[10px] text-indigo-400 mt-0.5">{guest.vehiclePlate} ({guest.vehicleModel || 'Vehicle'})</div>}
+                                                    <div className="font-mono text-slate-600 dark:text-slate-400">{guest.idNumber || 'No ID Ref'}</div>
+                                                    {guest.vehiclePlate && <div className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-0.5">{guest.vehiclePlate} ({guest.vehicleModel || 'Vehicle'})</div>}
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <p className="font-bold text-slate-300">{guest.purpose}</p>
+                                                    <p className="font-bold text-slate-800 dark:text-slate-200">{guest.purpose}</p>
                                                     <p className="text-[10px] text-slate-500 mt-0.5">Host: {host?.name || 'Staff'}</p>
                                                 </td>
-                                                <td className="py-3 px-4">
+                                                <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
                                                     <div>Date: {guest.visitDate || 'Today'}</div>
-                                                    <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1">
+                                                    <div className="text-[10px] text-slate-550 dark:text-slate-500 mt-0.5 flex items-center gap-1">
                                                         <Clock className="w-3 h-3" />
                                                         In: {guest.timeIn || 'N/A'} {isCheckedOut && `| Out: ${guest.timeOut}`}
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                                                    <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded ${
                                                         isCheckedOut 
-                                                            ? 'bg-slate-500/10 text-slate-400 border border-slate-500/20' 
-                                                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 animate-pulse'
+                                                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-400 border border-slate-200 dark:border-slate-700' 
+                                                            : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20'
                                                     }`}>
                                                         {isCheckedOut ? 'Checked Out' : 'On Premises'}
                                                     </span>
@@ -2321,7 +2324,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             )}
 
             {/* Original Form modal */}
-            {isFormOpen && (
+            {isFormOpen && createPortal(
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 sm:p-6" onClick={() => setIsFormOpen(false)}>
                     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] rounded-3xl p-6 sm:p-8 w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
@@ -2803,11 +2806,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ── Parent Invite Modal ── */}
-            {inviteModalEnrollment && (() => {
+            {inviteModalEnrollment && createPortal(
+                (() => {
                 const student = users.find(u => u.id === inviteModalEnrollment.userId);
                 const rawParents: { name: string; phone: string; email: string; relation: string }[] =
                     inviteModalEnrollment.metadata?.parents || [];
@@ -2964,7 +2969,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         </div>
                     </div>
                 );
-            })()}
+            })(),
+            document.body
+        )}
         </div>
     );
 };
