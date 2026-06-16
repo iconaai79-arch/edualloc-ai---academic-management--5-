@@ -296,7 +296,10 @@ export const PublicEventConfirmation: React.FC = () => {
             
             // Trigger Stage 2 notification only when Accepted
             if (status === 'accepted') {
-                const passUrl = `${window.location.origin}/?view=event-confirm&pinId=${pinRecord.id}`;
+                const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                    ? 'https://portal.eduai.co.ke'
+                    : window.location.origin;
+                const passUrl = `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
                 const shortenedPassUrl = await apiService.shortenUrl(passUrl);
                 
                 const eventTitle = eventRecord ? eventRecord.title : 'the event';

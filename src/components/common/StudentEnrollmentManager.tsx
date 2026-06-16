@@ -717,7 +717,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 });
             }
 
-            const rawLink = `${window.location.origin}/?view=event-confirm&pinId=${pinId}`;
+            const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                ? 'https://portal.eduai.co.ke'
+                : window.location.origin;
+            const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
             const confirmationLink = await apiService.shortenUrl(rawLink);
             const studentName = users.find(u => u.id === inviteModalEnrollment.userId)?.name || 'your child';
             const message = `Dear ${parent.name || 'Guardian'}, you are invited to "${selectedEvent.title}" on ${selectedEvent.eventDate} at ${selectedEvent.eventTime}, ${selectedEvent.venue} — regarding ${studentName}. Confirm attendance: ${confirmationLink}`;
@@ -1119,8 +1122,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
 
             let pinCount = 0;
+            let currentUsersList = [...users];
+
             for (const enr of targetEnrollments) {
-                const associatedUser = users.find(u => u.id === enr.userId);
+                const associatedUser = currentUsersList.find(u => u.id === enr.userId);
                 if (!associatedUser) {
                     results.push({
                         recipientName: `Enrollment ID: ${enr.id}`,
@@ -1131,8 +1136,57 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     continue;
                 }
 
+                // Resolve Parent(s) from enrollment metadata/fallback
+                const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
+                const fallbackParent = {
+                    name: enr.metadata?.parentName || '',
+                    phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                    email: enr.metadata?.parentEmail || '',
+                    relation: enr.metadata?.parentRelation || 'Guardian'
+                };
+                const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+                const primaryParent = resolvedParents[0];
+
+                let targetUserId = associatedUser.id;
+                let targetName = associatedUser.name;
+                let targetPhone = associatedUser.phoneNumber;
+                let targetEmail = associatedUser.email;
+
+                if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                    // Try to find if this parent user already exists in the local copy or system database
+                    let parentUser = currentUsersList.find(u =>
+                        (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                    );
+
+                    if (!parentUser) {
+                        // Create temporary parent user profile
+                        const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        parentUser = {
+                            id: newId,
+                            institutionId: currentInstitution.id,
+                            name: primaryParent.name || 'Parent / Guardian',
+                            email: primaryParent.email || null,
+                            phoneNumber: primaryParent.phone || null,
+                            role: 'parent',
+                            metadata: {},
+                            createdAt: new Date().toISOString()
+                        } as any;
+                        await apiService.saveModuleRecord('users', parentUser);
+                        
+                        // Update local copy and main list so subsequent loops don't recreate them
+                        currentUsersList.push(parentUser!);
+                        setUsers(prev => [...prev, parentUser!]);
+                    }
+
+                    targetUserId = parentUser.id;
+                    targetName = primaryParent.name || 'Parent / Guardian';
+                    targetPhone = primaryParent.phone;
+                    targetEmail = primaryParent.email;
+                }
+
                 // Check if a PIN already exists
-                const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === associatedUser.id);
+                const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === targetUserId);
                 const pinCode = existingPin ? existingPin.pin : Math.floor(100000 + Math.random() * 900000).toString();
                 const pinId = existingPin ? existingPin.id : `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
@@ -1141,7 +1195,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         id: pinId,
                         institutionId: currentInstitution.id,
                         eventId: event.id,
-                        userId: associatedUser.id,
+                        userId: targetUserId,
                         pin: pinCode,
                         status: 'pending',
                         createdAt: new Date().toISOString()
@@ -1150,42 +1204,49 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
 
                 // Construct Confirmation Link & Shorten it
-                const rawLink = `${window.location.origin}/?view=event-confirm&pinId=${pinId}`;
+                const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                    ? 'https://portal.eduai.co.ke'
+                    : window.location.origin;
+                const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
                 const confirmationLink = await apiService.shortenUrl(rawLink);
 
                 // Send notification with RSVP details
-                const message = `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
+                const studentName = associatedUser.name || 'your child';
+                const message = primaryParent
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}. Confirm attendance: ${confirmationLink}`
+                    : `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
                 
-                if (associatedUser.phoneNumber) {
+                if (targetPhone) {
                     try {
-                        const res = await apiService.sendSms(associatedUser.phoneNumber, message, currentInstitution.smsConfig, 1, currentInstitution.id);
+                        const res = await apiService.sendSms(targetPhone, message, currentInstitution.smsConfig, 1, currentInstitution.id);
                         const isSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
                         results.push({
-                            recipientName: associatedUser.name,
-                            phone: associatedUser.phoneNumber,
+                            recipientName: targetName,
+                            phone: targetPhone,
                             success: isSuccess,
                             errorMsg: isSuccess ? undefined : (res?.message || 'Rejected by SMS gateway')
                         });
                     } catch (e: any) {
                         console.error("SMS PIN send failed", e);
                         results.push({
-                            recipientName: associatedUser.name,
-                            phone: associatedUser.phoneNumber,
+                            recipientName: targetName,
+                            phone: targetPhone,
                             success: false,
                             errorMsg: e.message || 'Connection failed'
                         });
                     }
                 } else {
                     results.push({
-                        recipientName: associatedUser.name,
+                        recipientName: targetName,
                         phone: 'No phone number',
                         success: false,
-                        errorMsg: 'No phone number configured for user'
+                        errorMsg: 'No phone number configured'
                     });
                 }
-                if (associatedUser.email) {
+
+                if (targetEmail) {
                     try {
-                        await apiService.sendEmail(associatedUser.email, `Event Attendance Invitation - ${event.title}`, message, currentInstitution.emailConfig);
+                        await apiService.sendEmail(targetEmail, `Event Attendance Invitation - ${event.title}`, message, currentInstitution.emailConfig);
                     } catch (e) {
                         console.error("Email PIN send failed", e);
                     }
@@ -1301,7 +1362,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         await apiService.saveModuleRecord('event_pins', newPinRecord);
 
                         // 3. Construct RSVP Link & Shorten
-                        const rawLink = `${window.location.origin}/?view=event-confirm&pinId=${pinId}`;
+                        const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                            ? 'https://portal.eduai.co.ke'
+                            : window.location.origin;
+                        const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
                         const confirmationLink = await apiService.shortenUrl(rawLink);
                         
                         const message = `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
@@ -2402,7 +2466,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 <div className="shrink-0 flex items-center gap-1">
                                                     <button
                                                         onClick={async () => {
-                                                            const rawLink = `${window.location.origin}/?view=event-confirm&pinId=${pin.id}`;
+                                                            const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                                                                ? 'https://portal.eduai.co.ke'
+                                                                : window.location.origin;
+                                                            const rawLink = `${origin}/?view=event-confirm&pinId=${pin.id}`;
                                                             try {
                                                                 await navigator.clipboard.writeText(rawLink);
                                                                 setStatusMsg({ type: 'success', message: 'RSVP invitation link copied to clipboard!' });
