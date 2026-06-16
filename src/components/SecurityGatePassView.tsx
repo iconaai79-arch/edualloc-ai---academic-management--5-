@@ -9,6 +9,164 @@ import { UserIcon } from './icons/UserIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 
 import type { TransportVehicle, VehicleLog, User, Institution, Visitor } from '../types';
+import { apiService } from '../services/apiService';
+
+const printEposGatePass = (pin: any, parent: any, event: any, institution: any) => {
+    let iframe = document.getElementById('epos-print-iframe') as HTMLIFrameElement;
+    if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'epos-print-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+    }
+
+    const guests = (() => {
+        try {
+            return JSON.parse(pin.guests || '[]');
+        } catch (e) {
+            return pin.guests ? [pin.guests] : [];
+        }
+    })();
+
+    const timestamp = new Date().toLocaleString();
+
+    const htmlContent = `
+        <html>
+        <head>
+            <style>
+                @page {
+                    size: 80mm auto;
+                    margin: 0;
+                }
+                body {
+                    width: 72mm;
+                    margin: 0 auto;
+                    padding: 5mm 0;
+                    font-family: 'Courier New', Courier, monospace;
+                    font-size: 11px;
+                    line-height: 1.3;
+                    color: #000;
+                    background-color: #fff;
+                }
+                .text-center {
+                    text-align: center;
+                }
+                .bold {
+                    font-weight: bold;
+                }
+                .title {
+                    font-size: 14px;
+                    margin: 4px 0;
+                    text-transform: uppercase;
+                }
+                .subtitle {
+                    font-size: 11px;
+                    margin-bottom: 8px;
+                    text-transform: uppercase;
+                }
+                .separator {
+                    border-top: 1px dashed #000;
+                    margin: 8px 0;
+                }
+                .info-table {
+                    width: 100%;
+                    margin-bottom: 8px;
+                }
+                .info-table td {
+                    padding: 2px 0;
+                    vertical-align: top;
+                }
+                .info-label {
+                    width: 40%;
+                }
+                .guests-title {
+                    margin-top: 8px;
+                    text-transform: uppercase;
+                }
+                .guest-item {
+                    padding: 2px 0;
+                }
+                .footer {
+                    margin-top: 15px;
+                    font-size: 9px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="text-center">
+                <div class="bold title">${institution?.name || 'Academic Institution'}</div>
+                <div class="subtitle">Gate Entry Pass</div>
+                <div class="separator"></div>
+                <div class="bold" style="font-size: 12px; margin: 5px 0;">EVENT CHECK-IN PASS</div>
+                <div class="separator"></div>
+            </div>
+
+            <table class="info-table">
+                <tr>
+                    <td class="info-label bold">EVENT:</td>
+                    <td>${event?.title || 'School Event'}</td>
+                </tr>
+                <tr>
+                    <td class="info-label bold">HOLDER:</td>
+                    <td>${parent?.name || 'Invited Guest'}</td>
+                </tr>
+                <tr>
+                    <td class="info-label bold">PHONE:</td>
+                    <td>${parent?.phoneNumber || parent?.phone_number || 'N/A'}</td>
+                </tr>
+                ${pin.vehicleRegistration || pin.vehicle_registration ? `
+                <tr>
+                    <td class="info-label bold">VEHICLE:</td>
+                    <td class="bold">${pin.vehicleRegistration || pin.vehicle_registration}</td>
+                </tr>
+                ` : ''}
+                <tr>
+                    <td class="info-label bold">TIME:</td>
+                    <td>${timestamp}</td>
+                </tr>
+                <tr>
+                    <td class="info-label bold">PIN CODE:</td>
+                    <td class="bold">${pin.pin}</td>
+                </tr>
+            </table>
+
+            <div class="separator"></div>
+
+            <div class="bold guests-title">Accompanying Guests (${guests.length}):</div>
+            ${guests.length > 0 
+                ? guests.map((g: string, idx: number) => `<div class="guest-item">${idx + 1}. ${g}</div>`).join('')
+                : '<div class="guest-item">No accompanying guests</div>'
+            }
+
+            <div class="separator"></div>
+
+            <div class="text-center footer">
+                <div class="bold">ENTRY APPROVED</div>
+                <div style="margin-top: 4px;">Thank you for attending.</div>
+                <div style="font-size: 8px; margin-top: 6px; color: #555;">Powered by Edualloc-AI</div>
+            </div>
+            
+            <script>
+                window.onload = function() {
+                    window.print();
+                }
+            </script>
+        </body>
+        </html>
+    `;
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (doc) {
+        doc.open();
+        doc.write(htmlContent);
+        doc.close();
+    }
+};
 
 interface SecurityGatePassViewProps {
     vehicles: TransportVehicle[];
@@ -36,6 +194,8 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const [parentSearchTerm, setParentSearchTerm] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
     const [selectedParent, setSelectedParent] = useState<User | null>(null);
+    const [selectedPin, setSelectedPin] = useState<any | null>(null);
+    const [associatedEvent, setAssociatedEvent] = useState<any | null>(null);
 
     const filteredVehicles = vehicles.filter(v =>
         v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -43,10 +203,64 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     );
 
     // Parent Search Logic
-    const handleSearchParent = () => {
+    const handleSearchParent = async () => {
+        setSelectedPin(null);
+        setAssociatedEvent(null);
+        
         if (parentSearchTerm.length < 3) return;
         
         const term = parentSearchTerm.toLowerCase();
+        
+        // 0. Search by Event PIN first
+        try {
+            const pinRecords = await apiService.fetchModuleRecords('event_pins', currentInstitution.id, undefined, {
+                filter: { pin: term.toUpperCase() }
+            });
+
+            if (pinRecords && pinRecords.length > 0) {
+                const pin = pinRecords[0];
+                setSelectedPin(pin);
+                
+                // Fetch associated parent user
+                const parentMatch = users.find(u => u.id === pin.userId);
+                if (parentMatch) {
+                    setSelectedParent(parentMatch);
+                } else {
+                    const parentUsers = await apiService.fetchModuleRecords('users', currentInstitution.id, undefined, {
+                        filter: { id: pin.userId }
+                    });
+                    if (parentUsers && parentUsers.length > 0) {
+                        setSelectedParent(parentUsers[0]);
+                    } else {
+                        setSelectedParent({
+                            id: pin.userId,
+                            name: 'Invited Guest',
+                            phoneNumber: pin.phone_number || '',
+                            role: 'parent',
+                            institutionId: currentInstitution.id
+                        } as any);
+                    }
+                }
+
+                // Fetch event details
+                const events = await apiService.fetchModuleRecords('institution_events', currentInstitution.id, undefined, {
+                    filter: { id: pin.eventId }
+                });
+                if (events && events.length > 0) {
+                    setAssociatedEvent(events[0]);
+                }
+                
+                const childMatch = users.find(u => u.role === 'student' && (u.parentIds?.includes(pin.userId) || (u as any).parentPhone === (parentMatch?.phoneNumber || pin.phone_number)));
+                if (childMatch) {
+                    setSelectedStudent(childMatch);
+                } else {
+                    setSelectedStudent(null);
+                }
+                return;
+            }
+        } catch (e) {
+            console.error("Failed to query event PIN:", e);
+        }
         
         // 1. Search by Student Admission Number or Name
         const studentMatch = users.find(u => 
@@ -124,16 +338,24 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         try {
             await onAddVisitor({
                 name: selectedParent.name,
-                phoneNumber: selectedParent.phoneNumber,
+                phoneNumber: selectedParent.phoneNumber || selectedParent.phone_number || '',
                 purpose: `Event Check-In: Parent of ${selectedStudent?.name || 'Student'}`,
                 visitDate: new Date().toISOString().split('T')[0],
                 timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 institutionId: currentInstitution.id,
                 hostId: selectedStudent?.id || currentUser.id
             });
+            
+            if (selectedPin) {
+                printEposGatePass(selectedPin, selectedParent, associatedEvent, currentInstitution);
+            }
+            
             alert('Parent verified and logged successfully for entry.');
+            
             setSelectedParent(null);
             setSelectedStudent(null);
+            setSelectedPin(null);
+            setAssociatedEvent(null);
             setParentSearchTerm('');
         } catch (err: any) {
             alert(err.message || 'Error logging parent entry');
@@ -280,11 +502,48 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                             <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                                                 <UserIcon className="w-4 h-4 text-slate-400" />
                                                 <span>{selectedStudent.name}</span>
-                                                {selectedStudent.admissionNumber && (
+                                                {(selectedStudent.admissionNumber || selectedStudent.admission_number) && (
                                                     <span className="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs rounded-md ml-auto">
-                                                        {selectedStudent.admissionNumber}
+                                                        {selectedStudent.admissionNumber || selectedStudent.admission_number}
                                                     </span>
                                                 )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {selectedPin && (
+                                        <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-800/50 space-y-3">
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Event Invitation</p>
+                                                <p className="text-sm font-bold text-slate-850 dark:text-white mt-1">{associatedEvent?.title || 'Institution Event'}</p>
+                                            </div>
+                                            
+                                            {(selectedPin.vehicleRegistration || selectedPin.vehicle_registration) && (
+                                                <div>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vehicle Registration</p>
+                                                    <span className="inline-block px-2.5 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 rounded-lg text-xs font-bold mt-1">
+                                                        {selectedPin.vehicleRegistration || selectedPin.vehicle_registration}
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accompanying Guests</p>
+                                                <div className="mt-1 space-y-1">
+                                                    {(() => {
+                                                        try {
+                                                            const parsed = JSON.parse(selectedPin.guests || '[]');
+                                                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                                                return parsed.map((g: string, idx: number) => (
+                                                                    <div key={idx} className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                                                        • {g}
+                                                                    </div>
+                                                                ));
+                                                            }
+                                                        } catch (e) {}
+                                                        return <span className="text-xs text-slate-400 italic">No accompanying guests</span>;
+                                                    })()}
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -342,7 +601,9 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     className="w-full flex items-center justify-center gap-3 p-5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl transition-all shadow-lg shadow-purple-200 dark:shadow-none"
                                 >
                                     <CheckCircleIcon className="w-6 h-6" />
-                                    <span className="font-black uppercase text-base tracking-wide">Verify & Grant Entry</span>
+                                    <span className="font-black uppercase text-base tracking-wide">
+                                        {selectedPin ? 'Verify & Print EPOS Gatepass' : 'Verify & Grant Entry'}
+                                    </span>
                                 </button>
                                 {!onAddVisitor && (
                                     <p className="text-red-500 text-xs font-bold mt-3 text-center uppercase">System Error: Visitor logging not connected.</p>

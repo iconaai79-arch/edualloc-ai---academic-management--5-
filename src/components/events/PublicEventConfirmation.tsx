@@ -584,6 +584,19 @@ export const PublicEventConfirmation: React.FC = () => {
                     {/* PHASE 2: Confirmed Pass Card */}
                     {rsvpStatus === 'accepted' && (
                         <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl space-y-8 text-center print:border-none print:shadow-none print:bg-white print:text-black">
+                            {/* Prominent PIN Display for Security Gate */}
+                            <div className="bg-indigo-600/90 border border-indigo-500/30 rounded-[2rem] p-6 text-center shadow-lg print:hidden animate-pulse">
+                                <span className="text-[10px] font-black uppercase text-indigo-200 tracking-widest block mb-1">
+                                    Gate Access PIN Code
+                                </span>
+                                <div className="text-4xl font-mono font-black text-white tracking-widest my-2">
+                                    {pinRecord?.pin}
+                                </div>
+                                <p className="text-indigo-100 text-[11px] leading-relaxed max-w-xs mx-auto">
+                                    Present this PIN at the security gate check-in to verify entry and print your gatepass.
+                                </p>
+                            </div>
+
                             <div className="space-y-2 print:hidden">
                                 <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 mx-auto mb-2">
                                     <CheckCircle className="w-6 h-6" />
