@@ -583,6 +583,47 @@ CREATE TABLE IF NOT EXISTS platform_expenses (
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS student_enrollments (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    enrollment_type TEXT NOT NULL,
+    admission_number TEXT,
+    status TEXT DEFAULT 'Enrolled',
+    enrollment_date TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bank_transactions (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    amount DECIMAL(12, 2) NOT NULL,
+    transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    reference TEXT NOT NULL,
+    sender_name TEXT,
+    bank_name TEXT,
+    status TEXT NOT NULL DEFAULT 'unreconciled',
+    linked_invoice_id TEXT,
+    reconciled_at TIMESTAMP WITH TIME ZONE,
+    reconciled_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    payload JSONB
+);
+
+CREATE TABLE IF NOT EXISTS store_categories (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    icon TEXT,
+    color TEXT,
+    description TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 \n-- 7. OPERATIONS (STORE, LIBRARY, SECURITY) --\n
 CREATE TABLE IF NOT EXISTS inventory (
     id TEXT PRIMARY KEY,
@@ -2194,7 +2235,8 @@ BEGIN
         'his_broadcasts', 'institution_module_states',
         'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_settings', 'ds_fee_structures', 'ds_invoices', 'ds_payments', 'ds_license_categories', 'ds_votes',
         'car_sales_listings', 'car_test_drive_bookings', 'car_appraisals', 'car_sales_invoices', 'car_sales_payments', 'showroom_settings',
-        'heritage_members', 'heritage_stories', 'heritage_galleries', 'heritage_announcements'
+        'heritage_members', 'heritage_stories', 'heritage_galleries', 'heritage_announcements',
+        'student_enrollments', 'bank_transactions', 'store_categories'
     ]) LOOP
         IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
             EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
