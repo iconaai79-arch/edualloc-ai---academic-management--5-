@@ -35,6 +35,7 @@ export const PublicEventConfirmation: React.FC = () => {
     const [verificationPhone, setVerificationPhone] = useState('');
     const [isVerified, setIsVerified] = useState(false);
     const [verificationError, setVerificationError] = useState('');
+    const [isVerifying, setIsVerifying] = useState(false);
 
     useEffect(() => {
         try {
@@ -174,29 +175,105 @@ export const PublicEventConfirmation: React.FC = () => {
         setGuests(guests.filter((_, i) => i !== index));
     };
 
-    const handleVerifyPhone = (e: React.FormEvent) => {
+    const handleVerifyPhone = async (e: React.FormEvent) => {
         e.preventDefault();
         setVerificationError('');
-        const enteredDigits = verificationPhone.replace(/[^\d]/g, '');
-        const dbPhone = (userRecord?.phoneNumber || userRecord?.phone_number || '').replace(/[^\d]/g, '');
+        setIsVerifying(true);
         
-        if (!enteredDigits) {
-            setVerificationError('Please enter your phone number.');
-            return;
-        }
-        if (!dbPhone) {
-            setVerificationError('No contact number on record. Please contact the administrator.');
-            return;
-        }
-        
-        const match = enteredDigits.length >= 9 && dbPhone.length >= 9 
-            ? enteredDigits.slice(-9) === dbPhone.slice(-9)
-            : enteredDigits === dbPhone;
+        try {
+            const enteredDigits = verificationPhone.replace(/[^\d]/g, '');
+            const dbPhone = (userRecord?.phoneNumber || userRecord?.phone_number || '').replace(/[^\d]/g, '');
+            
+            if (!enteredDigits) {
+                setVerificationError('Please enter your phone number.');
+                setIsVerifying(false);
+                return;
+            }
+            if (!dbPhone) {
+                setVerificationError('No contact number on record. Please contact the administrator.');
+                setIsVerifying(false);
+                return;
+            }
+            
+            const match = enteredDigits.length >= 9 && dbPhone.length >= 9 
+                ? enteredDigits.slice(-9) === dbPhone.slice(-9)
+                : enteredDigits === dbPhone;
 
-        if (match) {
-            setIsVerified(true);
-        } else {
-            setVerificationError('Verification failed. The phone number does not match our records.');
+            if (match) {
+                setIsVerified(true);
+                
+                // Pre-populate children as accompanying guests by default if guests array is empty
+                try {
+                    const enrollments = await apiService.fetchModuleRecords('student_enrollments', pinRecord?.institutionId);
+                    const students = await apiService.fetchModuleRecords('users', pinRecord?.institutionId, undefined, {
+                        filter: { role: 'student' }
+                    });
+
+                    const dbParentPhone = dbPhone.slice(-9);
+                    
+                    const matchedStudents = students.filter((stu: any) => {
+                        const studentParentIds = stu.parentIds || stu.parent_ids || [];
+                        const isIdMatch = Array.isArray(studentParentIds) 
+                            ? studentParentIds.includes(userRecord.id)
+                            : typeof studentParentIds === 'string' && studentParentIds.includes(userRecord.id);
+
+                        const sParentPhone = (stu.parentPhone || stu.parent_phone || stu.phoneNumber || stu.phone_number || '').replace(/[^\d]/g, '').slice(-9);
+                        const isPhoneMatch = sParentPhone && dbParentPhone && (sParentPhone === dbParentPhone);
+
+                        return isIdMatch || isPhoneMatch;
+                    });
+
+                    const matchedEnrollments = enrollments.filter((enr: any) => {
+                        const eParentPhone = (enr.metadata?.parentPhone || enr.metadata?.parent_phone || '').replace(/[^\d]/g, '').slice(-9);
+                        return eParentPhone && dbParentPhone && (eParentPhone === dbParentPhone);
+                    });
+
+                    const childrenGuests: string[] = [];
+
+                    matchedStudents.forEach((stu: any) => {
+                        const enr = enrollments.find((e: any) => e.userId === stu.id);
+                        const adm = stu.admissionNumber || stu.admission_number || enr?.admissionNumber || enr?.admission_number || 'N/A';
+                        const name = stu.name;
+                        const grade = enr?.metadata?.gradeLevel || enr?.metadata?.grade_level || stu.gradeLevel || stu.grade_level || '';
+                        const stream = enr?.metadata?.stream || '';
+                        const className = [grade, stream].filter(Boolean).join(' ') || 'N/A';
+                        
+                        const guestStr = `${adm} - ${name} (${className})`;
+                        if (!childrenGuests.includes(guestStr)) {
+                            childrenGuests.push(guestStr);
+                        }
+                    });
+
+                    matchedEnrollments.forEach((enr: any) => {
+                        const stu = students.find((s: any) => s.id === enr.userId);
+                        if (!stu) return;
+                        
+                        const adm = stu.admissionNumber || stu.admission_number || enr.admissionNumber || enr.admission_number || 'N/A';
+                        const name = stu.name;
+                        const grade = enr.metadata?.gradeLevel || enr.metadata?.grade_level || stu.gradeLevel || stu.grade_level || '';
+                        const stream = enr.metadata?.stream || '';
+                        const className = [grade, stream].filter(Boolean).join(' ') || 'N/A';
+                        
+                        const guestStr = `${adm} - ${name} (${className})`;
+                        if (!childrenGuests.includes(guestStr)) {
+                            childrenGuests.push(guestStr);
+                        }
+                    });
+
+                    if (childrenGuests.length > 0 && guests.length === 0) {
+                        setGuests(childrenGuests);
+                    }
+                } catch (err) {
+                    console.error("Failed to pre-populate children guests:", err);
+                }
+            } else {
+                setVerificationError('Verification failed. The phone number does not match our records.');
+            }
+        } catch (error: any) {
+            console.error("Verification processing error:", error);
+            setVerificationError('An error occurred during verification. Please try again.');
+        } finally {
+            setIsVerifying(false);
         }
     };
 
@@ -398,9 +475,10 @@ export const PublicEventConfirmation: React.FC = () => {
 
                                         <button 
                                             type="submit"
-                                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01]"
+                                            disabled={isVerifying}
+                                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-50"
                                         >
-                                            Verify Identity
+                                            {isVerifying ? 'Verifying...' : 'Verify Identity'}
                                         </button>
                                     </form>
                                 </div>
