@@ -2611,19 +2611,35 @@ export const App: React.FC = () => {
 
 
 
-    const onLoginAsAdmin = useCallback((institutionId: string, initialRole?: Role | null) => {
+     const onLoginAsAdmin = useCallback((institutionId: string, initialRole?: Role | null) => {
         setIsTransitioning(true);
         setTimeout(() => {
             const adminRoles = [
-                'admin', 'head_teacher', 'deputy', 'dos', 'hod', 'tto', 'teacher', 'lecturer', 
-                'academics_officer', 'finance', 'finance_officer', 'hr_officer', 'boarding_master', 
-                'librarian', 'security', 'info_desk', 'store', 'driver', 'transport_assistant', 
-                'transport_admin', 'event_manager', 'property_admin', 'landlord', 'cooperative_manager', 
-                'coop_admin', 'coop_chairman', 'sacco_officer', 'agrovet_admin', 'his_admin', 
-                'pharmacy_admin', 'carwash_admin', 'mechanic_admin', 'fuel_admin', 'legal_admin', 
-                'church_admin', 'pastor', 'elder', 'deacon', 'treasurer', 'secretary', 'driving_instructor', 'campaign_admin', 'reseller'
+                // Top Tier Admin
+                'admin', 'head_teacher', 'deputy', 'dos', 'hod', 'tto', 
+                // Business/Institution Admins
+                'reseller', 'property_admin', 'cooperative_manager', 'coop_admin', 'coop_chairman',
+                'sacco_officer', 'agrovet_admin', 'his_admin', 'pharmacy_admin', 'carwash_admin',
+                'mechanic_admin', 'fuel_admin', 'legal_admin', 'church_admin', 'pastor', 'elder',
+                'deacon', 'treasurer', 'secretary', 'driving_instructor', 'campaign_admin',
+                // Staff / Officers
+                'finance', 'finance_officer', 'academics_officer', 'hr_officer', 'transport_admin',
+                'boarding_master', 'librarian', 'store', 'event_manager', 'security', 'info_desk',
+                // Instructors / Teachers
+                'teacher', 'lecturer',
+                // Assistant / Support staff
+                'transport_assistant', 'driver'
             ];
-            let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
+            const matchedAdmins = users.filter(u => u.institutionId === institutionId && adminRoles.includes(u.role));
+            let admin = null;
+            if (matchedAdmins.length > 0) {
+                matchedAdmins.sort((a, b) => {
+                    const indexA = adminRoles.indexOf(a.role);
+                    const indexB = adminRoles.indexOf(b.role);
+                    return indexA - indexB;
+                });
+                admin = matchedAdmins[0];
+            }
 
             if (!admin) {
                 console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to any user.`);
