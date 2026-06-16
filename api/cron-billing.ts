@@ -75,6 +75,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `;
         };
 
+        const invoicePrefix = (settings.global_invoice_prefix || settings.globalInvoicePrefix || 'INV-').trim();
+        const prefixSub = `${invoicePrefix}SUB-`;
+
         // Process billing for each institution
         for (const inst of institutions) {
             const instId = inst.id;
@@ -88,7 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .select('id')
                 .eq('institution_id', instId)
                 .gte('created_at', fifteenDaysAgo.toISOString())
-                .ilike('invoice_number', 'INV-SUB-%');
+                .or(`invoice_number.ilike.INV-SUB-%,invoice_number.ilike.${prefixSub}%`);
 
             if (invError) {
                 console.error(`[Cron Billing] Failed to query existing invoices for ${inst.name}:`, invError);
@@ -109,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             const invoiceId = `inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-            const invoiceNumber = `INV-SUB-${Date.now().toString().slice(-6)}`;
+            const invoiceNumber = `${prefixSub}${Date.now().toString().slice(-6)}`;
             const dueDate = inst.subscription_ends_at;
 
             const nextExpiryDate = new Date(new Date(inst.subscription_ends_at).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });

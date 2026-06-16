@@ -1031,6 +1031,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.error('[KCB IPN] Failed to fetch settings:', e);
                 }
 
+                const invoicePrefix = (settings.global_invoice_prefix || settings.globalInvoicePrefix || 'INV-').trim();
+                const receiptPrefix = (settings.global_receipt_prefix || settings.globalReceiptPrefix || 'RCT-').trim();
+
                 if (!inst && instId && instId !== 'SYSTEM' && instId !== 'GLOBAL') {
                     const { data: instData } = await supabase.from('institutions').select('*').eq('id', instId).maybeSingle();
                     inst = instData;
@@ -1066,7 +1069,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const invoiceId = `inv_sms_${Date.now()}`;
                     await supabase.from('invoices').insert({
                         id: invoiceId,
-                        invoice_number: `INV-SMS-${Date.now().toString().slice(-6)}`,
+                        invoice_number: `${invoicePrefix}SMS-${Date.now().toString().slice(-6)}`,
                         institution_id: instId || 'SYSTEM',
                         issue_date: new Date().toISOString().split('T')[0],
                         due_date: new Date().toISOString().split('T')[0],
@@ -1082,7 +1085,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     await supabase.from('receipts').insert({
                         id: `rec_sms_${Date.now()}`,
-                        receipt_number: transactionID || `REC-SMS-${Date.now().toString().slice(-6)}`,
+                        receipt_number: transactionID || `${receiptPrefix}SMS-${Date.now().toString().slice(-6)}`,
                         institution_id: instId || 'SYSTEM',
                         invoice_id: invoiceId,
                         amount_paid: amt,
@@ -1116,7 +1119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const invoiceId = `inv_sub_${Date.now()}`;
                     await supabase.from('invoices').insert({
                         id: invoiceId,
-                        invoice_number: `INV-SUB-${Date.now().toString().slice(-6)}`,
+                        invoice_number: `${invoicePrefix}SUB-${Date.now().toString().slice(-6)}`,
                         institution_id: instId,
                         issue_date: new Date().toISOString().split('T')[0],
                         due_date: new Date().toISOString().split('T')[0],
@@ -1132,7 +1135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     await supabase.from('receipts').insert({
                         id: `rec_sub_${Date.now()}`,
-                        receipt_number: transactionID || `REC-SUB-${Date.now().toString().slice(-6)}`,
+                        receipt_number: transactionID || `${receiptPrefix}SUB-${Date.now().toString().slice(-6)}`,
                         institution_id: instId,
                         invoice_id: invoiceId,
                         amount_paid: amt,
@@ -1156,7 +1159,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     await supabase.from('receipts').insert({
                         id: `rec_inv_${Date.now()}`,
-                        receipt_number: transactionID || `REC-INV-${Date.now().toString().slice(-6)}`,
+                        receipt_number: transactionID || `${receiptPrefix}INV-${Date.now().toString().slice(-6)}`,
                         institution_id: instId || 'SYSTEM',
                         invoice_id: metadata.invoiceId,
                         amount_paid: amt,

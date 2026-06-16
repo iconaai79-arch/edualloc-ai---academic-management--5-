@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course } from '../../types';
+import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
@@ -42,6 +42,7 @@ interface FinanceManagerProps {
     voteHeads?: VoteHead[];
     courses?: Course[];
     onRefreshData?: () => Promise<void>;
+    companyDetails?: CompanyDetails;
 }
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
@@ -509,6 +510,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         semesters={props.semesters}
                         institution={props.institution}
                         onGenerateInvoices={props.onGenerateInvoices}
+                        companyDetails={props.companyDetails}
                     />
                 )}
 

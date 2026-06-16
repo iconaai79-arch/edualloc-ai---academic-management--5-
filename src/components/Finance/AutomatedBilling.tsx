@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import type { FeeStructure, User, AcademicYear, Semester, Institution } from '../../types';
+import type { FeeStructure, User, AcademicYear, Semester, Institution, CompanyDetails } from '../../types';
 import { ZapIcon } from '../icons/ZapIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
@@ -11,6 +11,7 @@ interface AutomatedBillingProps {
     semesters: Semester[];
     institution: Institution;
     onGenerateInvoices: (invoices: any[]) => Promise<void>;
+    companyDetails?: CompanyDetails;
 }
 
 export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
@@ -19,7 +20,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     academicYears: rawAcademicYears,
     semesters: rawSemesters,
     institution,
-    onGenerateInvoices
+    onGenerateInvoices,
+    companyDetails
 }) => {
     const feeStructures = Array.isArray(rawFeeStructures) ? rawFeeStructures : [];
     const students = Array.isArray(rawStudents) ? rawStudents : [];
@@ -52,12 +54,13 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             await new Promise(r => setTimeout(r, 200));
         }
 
+        const prefix = (companyDetails?.globalInvoicePrefix || 'INV-').trim();
         const mockInvoices = students.map(s => {
             const studentFeeStructures = activeFeeStructures.filter(f => !f.courseId || f.courseId === s.courseId);
             const totalAmount = studentFeeStructures.reduce((acc, f) => acc + f.amount, 0);
             return {
                 id: `inv_auto_${Date.now()}_${s.id}`,
-                invoiceNumber: `INV-${Date.now().toString().slice(-6)}-${s.id.slice(-4)}`,
+                invoiceNumber: `${prefix}${Date.now().toString().slice(-6)}-${s.id.slice(-4)}`,
                 studentId: s.id,
                 totalAmount: totalAmount,
                 status: 'pending' as const,

@@ -1777,6 +1777,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.error('[Reconcile] Failed to fetch system settings:', e);
             }
             const defaultUnitPrice = parseFloat(String(settings.sms_unit_price || settings.smsUnitPrice || 2));
+            const invoicePrefix = (settings.global_invoice_prefix || settings.globalInvoicePrefix || 'INV-').trim();
+            const receiptPrefix = (settings.global_receipt_prefix || settings.globalReceiptPrefix || 'RCT-').trim();
 
             // 1. Fetch Institution
             let inst = null;
@@ -1809,7 +1811,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     invId = `inv_sub_${Date.now()}`;
                     await supabase.from('invoices').insert({
                         id: invId,
-                        invoice_number: `INV-SUB-${Date.now().toString().slice(-6)}`,
+                        invoice_number: `${invoicePrefix}SUB-${Date.now().toString().slice(-6)}`,
                         institution_id: instId,
                         issue_date: new Date().toISOString().split('T')[0],
                         due_date: new Date().toISOString().split('T')[0],
@@ -1864,7 +1866,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     invId = `inv_sms_${Date.now()}`;
                     await supabase.from('invoices').insert({
                         id: invId,
-                        invoice_number: `INV-SMS-${Date.now().toString().slice(-6)}`,
+                        invoice_number: `${invoicePrefix}SMS-${Date.now().toString().slice(-6)}`,
                         institution_id: instId || 'SYSTEM',
                         issue_date: new Date().toISOString(),
                         due_date: new Date().toISOString(),
@@ -1916,7 +1918,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         payment_method: txn.provider || 'KCB STK',
                         transaction_reference: txn.transaction_id || txn.id,
                         payment_date: new Date().toISOString().split('T')[0],
-                        receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                        receipt_number: `${receiptPrefix}${Date.now().toString().slice(-6)}`,
                         received_by: 'KCB STK Integration',
                         notes: `Payment received via status query. Ref: ${txn.transaction_id || txn.id}`,
                         created_at: new Date().toISOString()
@@ -1981,7 +1983,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         payment_method: txn.provider || 'KCB STK',
                         transaction_reference: txn.transaction_id || txn.id,
                         payment_date: new Date().toISOString(),
-                        receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                        receipt_number: `${receiptPrefix}${Date.now().toString().slice(-6)}`,
                         received_by: 'KCB STK Integration'
                     });
 
@@ -2180,7 +2182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (invId) {
                 await supabase.from('receipts').insert({
                     id: `rec_${Date.now()}`,
-                    receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                    receipt_number: `${receiptPrefix}${Date.now().toString().slice(-6)}`,
                     institution_id: instId,
                     invoice_id: invId,
                     amount_paid: amt,

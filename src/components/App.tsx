@@ -797,7 +797,7 @@ export const App: React.FC = () => {
             setEvents(evts || []);
             if (cnts) setCounties(cnts);
             if (reg) setSchoolRegistry(reg);
-            if (sett) setCompanyDetails(sett);
+            if (sett) setCompanyDetails(prev => ({ ...prev, ...sett }));
             if (imsPhase1) setInstitutionModuleStates(imsPhase1);
 
             const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
@@ -879,7 +879,7 @@ export const App: React.FC = () => {
             if (cnts && cnts.length > 0) setCounties(cnts);
             if (reg) setSchoolRegistry(reg);
             if (sett) {
-                setCompanyDetails(sett);
+                setCompanyDetails(prev => ({ ...prev, ...sett }));
                 if (sett.marketplaceConfig?.customUrl) {
                     try {
                         const marketUrl = new URL(sett.marketplaceConfig.customUrl);
@@ -2614,7 +2614,15 @@ export const App: React.FC = () => {
     const onLoginAsAdmin = useCallback((institutionId: string, initialRole?: Role | null) => {
         setIsTransitioning(true);
         setTimeout(() => {
-            const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'mechanic_admin'];
+            const adminRoles = [
+                'admin', 'head_teacher', 'deputy', 'dos', 'hod', 'tto', 'teacher', 'lecturer', 
+                'academics_officer', 'finance', 'finance_officer', 'hr_officer', 'boarding_master', 
+                'librarian', 'security', 'info_desk', 'store', 'driver', 'transport_assistant', 
+                'transport_admin', 'event_manager', 'property_admin', 'landlord', 'cooperative_manager', 
+                'coop_admin', 'coop_chairman', 'sacco_officer', 'agrovet_admin', 'his_admin', 
+                'pharmacy_admin', 'carwash_admin', 'mechanic_admin', 'fuel_admin', 'legal_admin', 
+                'church_admin', 'pastor', 'elder', 'deacon', 'treasurer', 'secretary', 'driving_instructor', 'campaign_admin', 'reseller'
+            ];
             let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
 
             if (!admin) {
@@ -4100,6 +4108,15 @@ export const App: React.FC = () => {
                 await loadData(false, false);
             }
         },
+        onUpdateInvoice: async (invoiceId: string, updates: Partial<Invoice>) => {
+            const existing = invoices.find((inv: any) => inv.id === invoiceId);
+            if (existing) {
+                const updated = { ...existing, ...updates };
+                await apiService.saveModuleRecord('invoices', updated);
+                await handleLogAction(`Super Admin updated invoice ${existing.invoiceNumber}`);
+                await loadData(false, false);
+            }
+        },
         extensionRequests,
         voteHeads,
         onUpdateVoteHeads: handleUpdateVoteHeads,
@@ -5498,6 +5515,7 @@ export const App: React.FC = () => {
                                         <FinanceOfficerView
                                             currentUser={currentUser}
                                             currentInstitution={activeInstitution!}
+                                            companyDetails={companyDetails}
                                             invoices={invoices}
                                             receipts={receipts}
                                             expenses={expenses}
@@ -6115,7 +6133,17 @@ export const App: React.FC = () => {
                                 }
 
                                 // Prioritize administrative roles over portal/client roles
-                                const rolePriority = ['super_admin', 'reseller', 'county_admin', 'admin', 'head_teacher', 'property_admin', 'agrovet_admin', 'carwash_admin', 'transport_admin', 'his_admin', 'mechanic_admin'];
+                                const rolePriority = [
+                                    'super_admin', 'reseller', 'county_admin', 
+                                    'admin', 'head_teacher', 'deputy', 'dos', 'hod', 'tto',
+                                    'teacher', 'lecturer', 'academics_officer', 'finance', 'finance_officer', 'hr_officer',
+                                    'boarding_master', 'librarian', 'security', 'info_desk', 'store',
+                                    'transport_admin', 'transport_assistant', 'event_manager',
+                                    'property_admin', 'landlord', 'cooperative_manager', 'coop_admin', 'coop_chairman', 
+                                    'sacco_officer', 'agrovet_admin', 'his_admin', 'pharmacy_admin', 'carwash_admin', 
+                                    'mechanic_admin', 'fuel_admin', 'legal_admin', 'church_admin', 'pastor', 'elder', 
+                                    'deacon', 'treasurer', 'secretary', 'driving_instructor', 'campaign_admin'
+                                ];
                                 matchedUsers.sort((a, b) => {
                                     const indexA = rolePriority.indexOf(a.role);
                                     const indexB = rolePriority.indexOf(b.role);

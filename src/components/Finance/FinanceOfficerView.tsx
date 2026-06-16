@@ -1,6 +1,6 @@
 
 import React from 'react';
-import type { User, Institution, Invoice, Receipt, Expense, FinancialGoal, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course } from '../../types';
+import type { User, Institution, Invoice, Receipt, Expense, FinancialGoal, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails } from '../../types';
 import { FinanceManager } from './FinanceManager';
 import { Header } from '../Header';
 
@@ -30,6 +30,7 @@ interface FinanceOfficerViewProps {
     voteHeads?: VoteHead[];
     courses?: Course[];
     onRefreshData?: () => Promise<void>;
+    companyDetails?: CompanyDetails;
 }
 
 export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
@@ -57,7 +58,8 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     onUpdateRequisition,
     voteHeads,
     courses,
-    onRefreshData
+    onRefreshData,
+    companyDetails
 }) => {
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -91,6 +93,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                     academicYears={academicYears || []}
                     semesters={semesters || []}
                     institution={currentInstitution}
+                    companyDetails={companyDetails}
                     onGenerateInvoices={onGenerateInvoices || (async () => {})}
                     onAddExpense={onAddExpense || (async () => {})}
                     receiptLimit={receiptLimit}

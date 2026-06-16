@@ -8,6 +8,7 @@ import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { EyeIcon } from './icons/EyeIcon';
 import { BanknotesIcon } from './icons/BanknotesIcon';
+import { PencilIcon } from './icons/PencilIcon';
 
 import { apiService } from '../services/apiService';
 import { downloadInvoicePdf, downloadQuotePdf } from '../services/pdfService';
@@ -20,6 +21,7 @@ interface TenantInvoiceManagerProps {
     logoUrl: string | null;
     onCreateInvoice: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string, isQuote?: boolean) => void;
     onUpdateInvoiceStatus?: (invoiceId: string, status: string) => Promise<void>;
+    onUpdateInvoice?: (invoiceId: string, updates: Partial<Invoice>) => Promise<void>;
 }
 
 const STATUS_OPTIONS = [
@@ -40,7 +42,7 @@ const InvoiceStatusBadge: React.FC<{ status: string }> = ({ status }) => {
 };
 
 export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
-    invoices, institutions, companyDetails, logoUrl, onCreateInvoice, onUpdateInvoiceStatus
+    invoices, institutions, companyDetails, logoUrl, onCreateInvoice, onUpdateInvoiceStatus, onUpdateInvoice
 }) => {
     const [isCreating, setIsCreating] = useState(false);
     const [documentType, setDocumentType] = useState<'invoice' | 'quote'>('invoice');
@@ -50,6 +52,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     const [updatingStatusFor, setUpdatingStatusFor] = useState<string | null>(null);
     const [statusUpdateValues, setStatusUpdateValues] = useState<Record<string, string>>({});
     const [savingStatus, setSavingStatus] = useState<string | null>(null);
+    const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
     
@@ -81,13 +84,63 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
 
     const calculateTotal = () => items.reduce((sum, item) => sum + item.amount, 0);
 
+    const handleCancel = () => {
+        setIsCreating(false);
+        setEditingInvoice(null);
+        setItems([{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
+        setSelectedInstId('');
+        setDueDate('');
+        setDocumentType('invoice');
+    };
+
+    const startEditing = (inv: Invoice) => {
+        setEditingInvoice(inv);
+        setDocumentType(inv.status === 'quote' ? 'quote' : 'invoice');
+        setSelectedInstId(inv.institutionId);
+        
+        let formattedDate = '';
+        try {
+            formattedDate = new Date(inv.dueDate).toISOString().split('T')[0];
+        } catch (e) {
+            formattedDate = inv.dueDate;
+        }
+        setDueDate(formattedDate);
+        
+        const itemsList = (Array.isArray(inv.items)
+            ? inv.items
+            : (typeof inv.items === 'string'
+                ? JSON.parse(inv.items)
+                : [])) as any[];
+        setItems(itemsList.length > 0 ? itemsList.map((it: any) => ({
+            description: it.description || '',
+            quantity: Number(it.quantity) || 1,
+            unitPrice: Number(it.unitPrice) || 0,
+            amount: (Number(it.quantity) || 1) * (Number(it.unitPrice) || 0)
+        })) : [{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
+        
+        setIsCreating(true);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedInstId || !dueDate || items.some(i => !i.description || i.amount <= 0)) {
             alert('Please fill in all fields correctly.');
             return;
         }
-        onCreateInvoice(selectedInstId, items, calculateTotal(), dueDate, documentType === 'quote');
+        if (editingInvoice) {
+            if (onUpdateInvoice) {
+                onUpdateInvoice(editingInvoice.id, {
+                    institutionId: selectedInstId,
+                    dueDate,
+                    items,
+                    totalAmount: calculateTotal(),
+                    status: documentType === 'quote' ? 'quote' : (editingInvoice.status === 'quote' ? 'pending' : editingInvoice.status)
+                });
+            }
+            setEditingInvoice(null);
+        } else {
+            onCreateInvoice(selectedInstId, items, calculateTotal(), dueDate, documentType === 'quote');
+        }
         setIsCreating(false);
         setItems([{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
         setSelectedInstId('');
@@ -207,10 +260,10 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                 </button>
                             </div>
                             <h4 className={`font-black text-lg uppercase tracking-tight ${documentType === 'quote' ? 'text-blue-600' : 'text-indigo-600'}`}>
-                                New {documentType === 'quote' ? 'Quotation' : 'Invoice'}
+                                {editingInvoice ? `Edit ${documentType === 'quote' ? 'Quotation' : 'Invoice'} ${editingInvoice.invoiceNumber}` : `New ${documentType === 'quote' ? 'Quotation' : 'Invoice'}`}
                             </h4>
                         </div>
-                        <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                        <button onClick={handleCancel} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
                             <XIcon className="w-5 h-5 text-slate-400" />
                         </button>
                     </div>
@@ -284,9 +337,9 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                 <p className="text-2xl font-black text-slate-900 dark:text-white">KES {calculateTotal()?.toLocaleString()}</p>
                             </div>
                             <div className="flex gap-3">
-                                <button type="button" onClick={() => setIsCreating(false)} className="btn-secondary">Cancel</button>
+                                <button type="button" onClick={handleCancel} className="btn-secondary">Cancel</button>
                                 <button type="submit" className={`${documentType === 'quote' ? 'bg-blue-600 hover:bg-blue-700' : 'btn-primary'} px-8 py-2 rounded-xl text-white text-sm font-bold transition-colors`}>
-                                    Generate {documentType === 'quote' ? 'Quote' : 'Invoice'}
+                                    {editingInvoice ? 'Save Changes' : `Generate ${documentType === 'quote' ? 'Quote' : 'Invoice'}`}
                                 </button>
                             </div>
                         </div>
@@ -393,6 +446,15 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                                     title="Record Payment"
                                                 >
                                                     <BanknotesIcon className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                            {onUpdateInvoice && inv.status !== 'paid' && (
+                                                <button
+                                                    onClick={() => startEditing(inv)}
+                                                    className="text-slate-400 hover:text-indigo-600 transition-colors"
+                                                    title="Edit Document"
+                                                >
+                                                    <PencilIcon className="w-5 h-5" />
                                                 </button>
                                             )}
                                             <button
