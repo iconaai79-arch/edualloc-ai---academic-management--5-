@@ -111,7 +111,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         msgLower.includes('verificaiton code') || // Typo tolerance
         msgLower.includes('password reset') ||
         msgLower.includes('recovery link') ||
-        msgLower.includes('resettoken=');
+        msgLower.includes('resettoken=') ||
+        msgLower.includes('invited to') ||
+        msgLower.includes('confirm attendance') ||
+        msgLower.includes('confirm your attendance') ||
+        msgLower.includes('show this pin') ||
+        msgLower.includes('rsvp') ||
+        msgLower.includes('temporary password') ||
+        msgLower.includes('your driving school') ||
+        msgLower.includes('your driving instructor') ||
+        msgLower.includes('temp password');
 
     // Robust phone normalization function
     const normalizePhone = (p: string): string => {
@@ -464,7 +473,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 'admin', 'super_admin', 'reseller', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'county_director', 'county_co', 
                 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'academics_officer',
                 'agrovet_admin', 'coop_admin', 'coop_chairman', 'sacco_officer', 'cooperative_manager',
-                'property_admin', 'landlord', 'his_admin', 'carwash_admin', 'transport_admin', 'mechanic_admin', 'church_admin'
+                'property_admin', 'landlord', 'his_admin', 'carwash_admin', 'transport_admin', 'mechanic_admin', 'church_admin',
+                'teacher', 'lecturer'
             ];
 
             if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {

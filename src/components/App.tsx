@@ -421,7 +421,8 @@ export const App: React.FC = () => {
     const showPublicEventRegistration = useMemo(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            return params.get('view') === 'event-register' || isEventSubdomain;
+            const view = params.get('view');
+            return view === 'event-register' || view === 'event-registration' || isEventSubdomain;
         } catch (e) {
             return false;
         }
@@ -786,7 +787,7 @@ export const App: React.FC = () => {
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers(currentUser?.role === 'super_admin' ? undefined : currentUser?.institutionId).catch(() => []),
-                (isAlumnaeMode && !showAlumnaeRegister && !showInstitutionClaim) ? Promise.resolve([]) : apiService.fetchFullRegistry().catch(() => []),
+                (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchFullRegistry().catch(() => []) : Promise.resolve([]),
                 apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
                 apiService.fetchModuleRecords<any>('events').catch(() => []),
             ]);
@@ -2699,9 +2700,9 @@ export const App: React.FC = () => {
     
 
 
-    // On-demand Registry Load for Alumnae Registration
+    // On-demand Registry Load for Alumnae/Institution pages
     useEffect(() => {
-        if (showAlumnaeRegister && schoolRegistry.length === 0) {
+        if ((showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) && schoolRegistry.length === 0) {
             const loadRegistry = async () => {
                 try {
                     const reg = await apiService.fetchFullRegistry();
@@ -2710,7 +2711,7 @@ export const App: React.FC = () => {
             };
             loadRegistry();
         }
-    }, [showAlumnaeRegister, schoolRegistry.length]);
+    }, [showAlumnaeRegister, showInstitutionClaim, showAlumnaeActivation, schoolRegistry.length]);
 
     // Role-based view logic
     useEffect(() => {
@@ -4908,7 +4909,7 @@ export const App: React.FC = () => {
     }
 
     // ── EARLY ESCAPE: Public event registration URL — skip auth & boot entirely ──
-    if (window.location.search.includes('view=event-register')) {
+    if (window.location.search.includes('view=event-register') || window.location.search.includes('view=event-registration')) {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <PublicEventRegistration />
