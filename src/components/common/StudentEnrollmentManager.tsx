@@ -93,6 +93,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         success: boolean;
         errorMsg?: string;
     }[] | null>(null);
+
+    // Event Attendance Analysis Modal State
+    const [selectedAnalysisEvent, setSelectedAnalysisEvent] = useState<any | null>(null);
+    const [analysisSearchTerm, setAnalysisSearchTerm] = useState('');
+    const [analysisStatusFilter, setAnalysisStatusFilter] = useState<'All' | 'Checked-in' | 'Accepted' | 'Declined' | 'Pending'>('All');
     
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1092,6 +1097,61 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setIsLoading(false);
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
         }
+    };
+
+    // Export Attendance List as CSV
+    const handleExportAttendanceCsv = (event: any, pinsList: any[]) => {
+        const headers = ['Recipient Name', 'Role', 'Contact Phone', 'Contact Email', 'RSVP Status', 'PIN', 'Guests', 'Vehicle Registration', 'Check-In Status'];
+        const rows = pinsList.map(p => {
+            const user = users.find(u => u.id === p.userId);
+            const userName = user?.name || 'Unknown Recipient';
+            const userRole = user?.role || 'Guest';
+            const userPhone = user?.phoneNumber || 'N/A';
+            const userEmail = user?.email || 'N/A';
+            
+            let guestNames = '';
+            if (p.guests) {
+                try {
+                    const parsed = JSON.parse(p.guests);
+                    guestNames = Array.isArray(parsed) ? parsed.join(', ') : String(parsed);
+                } catch (e) {
+                    guestNames = String(p.guests);
+                }
+            }
+
+            let rsvpVal = 'Pending';
+            if (p.status === 'used') {
+                rsvpVal = 'Accepted';
+            } else if (p.status === 'rejected') {
+                rsvpVal = 'Declined';
+            } else if (p.status === 'accepted') {
+                rsvpVal = 'Accepted';
+            }
+            
+            const checkinVal = p.status === 'used' ? 'Checked-In' : 'Not Checked-In';
+
+            return [
+                userName,
+                userRole,
+                userPhone,
+                userEmail,
+                rsvpVal,
+                p.pin || '',
+                guestNames,
+                p.vehicleRegistration || p.vehicle_registration || 'N/A',
+                checkinVal
+            ];
+        });
+
+        const csvContent = '\uFEFF' + [headers, ...rows].map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Attendance_List_${event.title.replace(/[\s/]+/g, '_')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     // Send Attendance Pin
@@ -2354,40 +2414,57 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 </div>
 
                                                 {/* Action buttons */}
-                                                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex gap-2">
-                                                    <button
-                                                        onClick={() => handleSendAttendancePin(event)}
-                                                        className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-indigo-500/20 flex items-center justify-center gap-1.5"
-                                                    >
-                                                        <Send className="w-3 h-3" /> Send PINs
-                                                    </button>
-                                                    <button
-                                                        onClick={async () => {
-                                                            const regUrl = `${window.location.origin}/?view=event-registration&eventId=${event.id}`;
-                                                            try {
-                                                                await navigator.clipboard.writeText(regUrl);
-                                                                setStatusMsg({ type: 'success', message: 'Public event registration link copied to clipboard!' });
-                                                                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
-                                                            } catch (err) {
-                                                                alert(`Registration Link: ${regUrl}`);
-                                                            }
-                                                        }}
-                                                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-slate-600 dark:text-slate-350 hover:text-indigo-650 dark:hover:text-indigo-400 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
-                                                        title="Copy Public Registration Link"
-                                                    >
-                                                        <Link className="w-3 h-3" /> Registration Link
-                                                    </button>
-                                                    <label
-                                                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-1.5"
-                                                    >
-                                                        <FileSpreadsheet className="w-3 h-3" /> Excel
-                                                        <input
-                                                            type="file"
-                                                            accept=".xlsx,.xls,.csv"
-                                                            onChange={e => handleInviteExternalExcel(event, e)}
-                                                            className="hidden"
-                                                        />
-                                                    </label>
+                                                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleSendAttendancePin(event)}
+                                                            className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-indigo-500/20 flex items-center justify-center gap-1.5"
+                                                        >
+                                                            <Send className="w-3 h-3" /> Send PINs
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                                                                    ? 'https://portal.eduai.co.ke'
+                                                                    : window.location.origin;
+                                                                const regUrl = `${origin}/?view=event-registration&eventId=${event.id}`;
+                                                                try {
+                                                                    await navigator.clipboard.writeText(regUrl);
+                                                                    setStatusMsg({ type: 'success', message: 'Public event registration link copied to clipboard!' });
+                                                                    setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+                                                                } catch (err) {
+                                                                    alert(`Registration Link: ${regUrl}`);
+                                                                }
+                                                            }}
+                                                            className="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-slate-600 dark:text-slate-350 hover:text-indigo-650 dark:hover:text-indigo-400 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                                                            title="Copy Public Registration Link"
+                                                        >
+                                                            <Link className="w-3 h-3" /> Registration Link
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedAnalysisEvent(event);
+                                                                setAnalysisSearchTerm('');
+                                                                setAnalysisStatusFilter('All');
+                                                            }}
+                                                            className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-1.5"
+                                                        >
+                                                            <UserCheck className="w-3 h-3" /> Attendance &amp; Analysis
+                                                        </button>
+                                                        <label
+                                                            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                                                        >
+                                                            <FileSpreadsheet className="w-3 h-3" /> Excel
+                                                            <input
+                                                                type="file"
+                                                                accept=".xlsx,.xls,.csv"
+                                                                onChange={e => handleInviteExternalExcel(event, e)}
+                                                                className="hidden"
+                                                            />
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -3329,6 +3406,313 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             >
                                 Dismiss Report
                             </button>
+                        </div>
+                    </div>
+                );
+            })(),
+            document.body
+        )}
+
+        {/* ── Event Attendance List & Analysis Dashboard Modal ── */}
+        {selectedAnalysisEvent && createPortal(
+            (() => {
+                const event = selectedAnalysisEvent;
+                const eventMatchingPins = eventPins.filter(p => p.eventId === event.id);
+
+                // Calculations
+                const totalInvited = eventMatchingPins.length;
+                const checkedInCount = eventMatchingPins.filter(p => p.status === 'used').length;
+                const acceptedCount = eventMatchingPins.filter(p => p.status === 'accepted').length;
+                const declinedCount = eventMatchingPins.filter(p => p.status === 'rejected').length;
+                const pendingCount = eventMatchingPins.filter(p => p.status === 'pending').length;
+
+                // Total accepted responses (checked-in or accepted state)
+                const totalAttendingResponses = checkedInCount + acceptedCount;
+
+                // Accompanying guests calculations
+                let totalAccompanyingGuests = 0;
+                eventMatchingPins.forEach(p => {
+                    if (p.status === 'used' || p.status === 'accepted') {
+                        if (p.guests) {
+                            try {
+                                const parsed = JSON.parse(p.guests);
+                                if (Array.isArray(parsed)) {
+                                    totalAccompanyingGuests += parsed.length;
+                                } else if (p.guests.trim()) {
+                                    totalAccompanyingGuests += 1;
+                                }
+                            } catch (e) {
+                                if (p.guests.trim()) {
+                                    totalAccompanyingGuests += 1;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                const totalExpectedTurnout = totalAttendingResponses + totalAccompanyingGuests;
+                const turnoutRate = totalInvited > 0 ? Math.round((totalAttendingResponses / totalInvited) * 100) : 0;
+
+                // Vehicles count
+                const totalVehicles = eventMatchingPins.filter(p => p.vehicleRegistration || p.vehicle_registration).length;
+
+                // Filter & Search Logic
+                const filteredPins = eventMatchingPins.filter(p => {
+                    const user = users.find(u => u.id === p.userId);
+                    const userName = (user?.name || '').toLowerCase();
+                    const userPhone = (user?.phoneNumber || '').toLowerCase();
+                    const userEmail = (user?.email || '').toLowerCase();
+                    const sQuery = analysisSearchTerm.toLowerCase();
+                    
+                    const matchesSearch = userName.includes(sQuery) || userPhone.includes(sQuery) || userEmail.includes(sQuery);
+
+                    if (!matchesSearch) return false;
+
+                    if (analysisStatusFilter === 'All') return true;
+                    if (analysisStatusFilter === 'Checked-in') return p.status === 'used';
+                    if (analysisStatusFilter === 'Accepted') return p.status === 'accepted';
+                    if (analysisStatusFilter === 'Declined') return p.status === 'rejected';
+                    if (analysisStatusFilter === 'Pending') return p.status === 'pending';
+                    return true;
+                });
+
+                return (
+                    <div
+                        className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4"
+                        onClick={() => setSelectedAnalysisEvent(null)}
+                    >
+                        <div
+                            className="bg-slate-900 border border-white/10 shadow-2xl rounded-3xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto no-scrollbar"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                                        <UserCheck className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-black text-white uppercase tracking-tight font-sans">Attendance List &amp; Analysis</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{event.title} — {event.eventDate}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedAnalysisEvent(null)}
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                >
+                                    <XCircle className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Analysis Metrics Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-center">
+                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">RSVP Turnout Rate</p>
+                                    <p className="text-2xl font-black text-white mt-1 font-mono">{turnoutRate}%</p>
+                                    <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{totalAttendingResponses} of {totalInvited} accepted</p>
+                                </div>
+                                <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4 text-center">
+                                    <p className="text-[9px] font-black uppercase text-emerald-500/60 tracking-wider">Checked-In / Present</p>
+                                    <p className="text-2xl font-black text-emerald-400 mt-1 font-mono">{checkedInCount}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{totalInvited - checkedInCount} remaining</p>
+                                </div>
+                                <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 text-center">
+                                    <p className="text-[9px] font-black uppercase text-indigo-500/60 tracking-wider">Total Expected Turnout</p>
+                                    <p className="text-2xl font-black text-indigo-400 mt-1 font-mono">{totalExpectedTurnout}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{totalAttendingResponses} primary + {totalAccompanyingGuests} guests</p>
+                                </div>
+                                <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4 text-center">
+                                    <p className="text-[9px] font-black uppercase text-amber-500/60 tracking-wider">Vehicles Registered</p>
+                                    <p className="text-2xl font-black text-amber-400 mt-1 font-mono">{totalVehicles}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">At event check-in gate</p>
+                                </div>
+                            </div>
+
+                            {/* RSVP Summary Progress bar */}
+                            <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mb-6">
+                                <div className="flex justify-between items-center mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <span>RSVP Response Breakdown</span>
+                                    <span>{totalInvited} Invited</span>
+                                </div>
+                                <div className="h-3.5 w-full bg-slate-950/50 rounded-full overflow-hidden flex">
+                                    {checkedInCount > 0 && (
+                                        <div
+                                            style={{ width: `${(checkedInCount / totalInvited) * 100}%` }}
+                                            className="bg-emerald-500 h-full"
+                                            title={`Checked-In: ${checkedInCount}`}
+                                        />
+                                    )}
+                                    {acceptedCount > 0 && (
+                                        <div
+                                            style={{ width: `${(acceptedCount / totalInvited) * 100}%` }}
+                                            className="bg-indigo-500 h-full"
+                                            title={`Accepted: ${acceptedCount}`}
+                                        />
+                                    )}
+                                    {declinedCount > 0 && (
+                                        <div
+                                            style={{ width: `${(declinedCount / totalInvited) * 100}%` }}
+                                            className="bg-rose-500 h-full"
+                                            title={`Declined: ${declinedCount}`}
+                                        />
+                                    )}
+                                    {pendingCount > 0 && (
+                                        <div
+                                            style={{ width: `${(pendingCount / totalInvited) * 100}%` }}
+                                            className="bg-slate-700 h-full"
+                                            title={`Pending: ${pendingCount}`}
+                                        />
+                                    )}
+                                </div>
+                                <div className="flex gap-4 mt-3 text-[10px] font-black uppercase tracking-wider flex-wrap">
+                                    <span className="flex items-center gap-1 text-emerald-450"><span className="w-2.5 h-2.5 rounded bg-emerald-500" /> Checked-In ({checkedInCount})</span>
+                                    <span className="flex items-center gap-1 text-indigo-400"><span className="w-2.5 h-2.5 rounded bg-indigo-500" /> Accepted ({acceptedCount})</span>
+                                    <span className="flex items-center gap-1 text-rose-450"><span className="w-2.5 h-2.5 rounded bg-rose-500" /> Declined ({declinedCount})</span>
+                                    <span className="flex items-center gap-1 text-slate-500"><span className="w-2.5 h-2.5 rounded bg-slate-700" /> Pending ({pendingCount})</span>
+                                </div>
+                            </div>
+
+                            {/* Search & Filter Bar */}
+                            <div className="flex flex-col sm:flex-row gap-3 mb-5">
+                                <div className="relative flex-1">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                                        <Search className="w-4 h-4" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Search invitees by name, phone or email..."
+                                        value={analysisSearchTerm}
+                                        onChange={e => setAnalysisSearchTerm(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2.5 bg-slate-950/40 border border-white/10 rounded-xl font-bold text-xs text-white placeholder-slate-655 focus:outline-none focus:border-indigo-500 transition-colors"
+                                    />
+                                </div>
+                                <div className="flex gap-1 bg-slate-950/40 border border-white/10 rounded-xl p-1 overflow-x-auto no-scrollbar shrink-0">
+                                    {(['All', 'Checked-in', 'Accepted', 'Declined', 'Pending'] as const).map(tab => (
+                                        <button
+                                            key={tab}
+                                            onClick={() => setAnalysisStatusFilter(tab)}
+                                            className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all whitespace-nowrap ${
+                                                analysisStatusFilter === tab
+                                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                                    : 'text-slate-400 hover:text-slate-200'
+                                            }`}
+                                        >
+                                            {tab}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Details List/Table */}
+                            <div className="border border-white/10 rounded-2xl overflow-hidden bg-slate-950/20 mb-6 max-h-[350px] overflow-y-auto no-scrollbar pr-1">
+                                {filteredPins.length === 0 ? (
+                                    <div className="text-center py-12 text-slate-500 font-bold text-xs">
+                                        No invitation records match the active search/filters.
+                                    </div>
+                                ) : (
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-white/5 border-b border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                <th className="py-3 px-4">Recipient Name</th>
+                                                <th className="py-3 px-4">Contact Info</th>
+                                                <th className="py-3 px-4">RSVP Status</th>
+                                                <th className="py-3 px-4">Guests</th>
+                                                <th className="py-3 px-4">Vehicle</th>
+                                                <th className="py-3 px-4">Check-In</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5 font-bold">
+                                            {filteredPins.map(p => {
+                                                const user = users.find(u => u.id === p.userId);
+                                                const userName = user?.name || 'Unknown Recipient';
+                                                const userRole = user?.role || 'Guest';
+                                                
+                                                let rsvpStatusLabel = 'Pending';
+                                                let rsvpCls = 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+                                                if (p.status === 'used' || p.status === 'accepted') {
+                                                    rsvpStatusLabel = 'Accepted';
+                                                    rsvpCls = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                                                } else if (p.status === 'rejected') {
+                                                    rsvpStatusLabel = 'Declined';
+                                                    rsvpCls = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+                                                }
+
+                                                let checkInLabel = 'Pending';
+                                                let checkInCls = 'bg-slate-500/10 text-slate-450';
+                                                if (p.status === 'used') {
+                                                    checkInLabel = 'Checked-In';
+                                                    checkInCls = 'bg-emerald-500/10 text-emerald-400';
+                                                }
+
+                                                let parsedGuests: string[] = [];
+                                                if (p.guests) {
+                                                    try {
+                                                        const parsed = JSON.parse(p.guests);
+                                                        parsedGuests = Array.isArray(parsed) ? parsed : [p.guests];
+                                                    } catch (e) {
+                                                        if (p.guests.trim()) parsedGuests = [p.guests];
+                                                    }
+                                                }
+
+                                                return (
+                                                    <tr key={p.id} className="text-xs hover:bg-white/5 transition-colors">
+                                                        <td className="py-3 px-4 min-w-[150px]">
+                                                            <p className="font-black text-slate-100">{userName}</p>
+                                                            <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-wider mt-0.5">{userRole}</p>
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            <p className="font-semibold text-slate-350">{user?.phoneNumber || 'No phone'}</p>
+                                                            {user?.email && <p className="text-[10px] text-slate-500 mt-0.5">{user.email}</p>}
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            <span className={`inline-flex items-center text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${rsvpCls}`}>
+                                                                {rsvpStatusLabel}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3 px-4 min-w-[180px]">
+                                                            {parsedGuests.length > 0 ? (
+                                                                <div className="space-y-1 max-w-[200px]">
+                                                                    {parsedGuests.map((g, idx) => (
+                                                                        <p key={idx} className="text-[10px] font-bold text-slate-300 truncate bg-white/5 px-2 py-0.5 rounded border border-white/5">{g}</p>
+                                                                    ))}
+                                                                </div>
+                                                             ) : (
+                                                                <span className="text-[10px] text-slate-600 font-semibold italic">None</span>
+                                                             )}
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono font-bold text-slate-300">
+                                                            {p.vehicleRegistration || p.vehicle_registration || <span className="text-slate-600 italic font-sans font-semibold">N/A</span>}
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            <span className={`inline-flex items-center text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${checkInCls}`}>
+                                                                {checkInLabel}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+
+                            {/* Actions footer */}
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)}
+                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15"
+                                >
+                                    <FileSpreadsheet className="w-4 h-4" /> Export CSV List
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedAnalysisEvent(null)}
+                                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                >
+                                    Dismiss Dashboard
+                                </button>
+                            </div>
                         </div>
                     </div>
                 );
