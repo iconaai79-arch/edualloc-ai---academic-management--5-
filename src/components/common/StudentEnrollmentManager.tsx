@@ -86,6 +86,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteMsg, setInviteMsg] = useState<{ type: 'success' | 'error' | 'info' | 'idle'; message: string }>({ type: 'idle', message: '' });
     
+    // SMS Delivery Report State
+    const [smsDeliveryReport, setSmsDeliveryReport] = useState<{
+        recipientName: string;
+        phone: string;
+        success: boolean;
+        errorMsg?: string;
+    }[] | null>(null);
+    
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingEnrollment, setEditingEnrollment] = useState<StudentEnrollment | null>(null);
@@ -1088,6 +1096,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setStatusMsg({ type: 'info', message: 'Generating and dispatching attendance PINs...' });
         setIsLoading(true);
 
+        const results: { recipientName: string; phone: string; success: boolean; errorMsg?: string }[] = [];
+
         try {
             const targetEnrollments = enrollments.filter(enr => {
                 if (event.target === 'All') return true;
@@ -1111,7 +1121,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             let pinCount = 0;
             for (const enr of targetEnrollments) {
                 const associatedUser = users.find(u => u.id === enr.userId);
-                if (!associatedUser) continue;
+                if (!associatedUser) {
+                    results.push({
+                        recipientName: `Enrollment ID: ${enr.id}`,
+                        phone: 'N/A',
+                        success: false,
+                        errorMsg: 'User record not found'
+                    });
+                    continue;
+                }
 
                 // Check if a PIN already exists
                 const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === associatedUser.id);
@@ -1140,10 +1158,30 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 
                 if (associatedUser.phoneNumber) {
                     try {
-                        await apiService.sendSms(associatedUser.phoneNumber, message, currentInstitution.smsConfig, 1, currentInstitution.id);
-                    } catch (e) {
+                        const res = await apiService.sendSms(associatedUser.phoneNumber, message, currentInstitution.smsConfig, 1, currentInstitution.id);
+                        const isSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
+                        results.push({
+                            recipientName: associatedUser.name,
+                            phone: associatedUser.phoneNumber,
+                            success: isSuccess,
+                            errorMsg: isSuccess ? undefined : (res?.message || 'Rejected by SMS gateway')
+                        });
+                    } catch (e: any) {
                         console.error("SMS PIN send failed", e);
+                        results.push({
+                            recipientName: associatedUser.name,
+                            phone: associatedUser.phoneNumber,
+                            success: false,
+                            errorMsg: e.message || 'Connection failed'
+                        });
                     }
+                } else {
+                    results.push({
+                        recipientName: associatedUser.name,
+                        phone: 'No phone number',
+                        success: false,
+                        errorMsg: 'No phone number configured for user'
+                    });
                 }
                 if (associatedUser.email) {
                     try {
@@ -1156,6 +1194,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
 
             setStatusMsg({ type: 'success', message: `Successfully generated and sent ${pinCount} PINs.` });
+            setSmsDeliveryReport(results);
             loadAllData();
         } catch (err: any) {
             console.error("Failed to generate/send PINs:", err);
@@ -3119,6 +3158,110 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                );
+            })(),
+            document.body
+        )}
+
+        {/* ── SMS Delivery Report Modal ── */}
+        {smsDeliveryReport && createPortal(
+            (() => {
+                const totalCount = smsDeliveryReport.length;
+                const successCount = smsDeliveryReport.filter(r => r.success).length;
+                const failureCount = totalCount - successCount;
+
+                return (
+                    <div
+                        className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4"
+                        onClick={() => setSmsDeliveryReport(null)}
+                    >
+                        <div
+                            className="bg-slate-900 border border-white/10 shadow-2xl rounded-3xl p-6 w-full max-w-lg"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                        <Bell className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-black text-white uppercase tracking-tight">SMS Delivery Report</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">PIN Dispatch Status Summary</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSmsDeliveryReport(null)}
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                >
+                                    <XCircle className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Stats Section */}
+                            <div className="grid grid-cols-3 gap-3 mb-5">
+                                <div className="bg-white/5 border border-white/5 rounded-2xl p-3 text-center">
+                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Total Targets</p>
+                                    <p className="text-xl font-black text-white mt-1">{totalCount}</p>
+                                </div>
+                                <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3 text-center">
+                                    <p className="text-[9px] font-black uppercase text-emerald-500/60 tracking-wider">Successful</p>
+                                    <p className="text-xl font-black text-emerald-400 mt-1">{successCount}</p>
+                                </div>
+                                <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-3 text-center">
+                                    <p className="text-[9px] font-black uppercase text-red-500/6 tracking-wider">Failed</p>
+                                    <p className="text-xl font-black text-red-400 mt-1">{failureCount}</p>
+                                </div>
+                            </div>
+
+                            {/* List Section */}
+                            <div className="space-y-2.5 max-h-[300px] overflow-y-auto no-scrollbar pr-1 mb-6">
+                                {smsDeliveryReport.map((report, idx) => (
+                                    <div
+                                        key={idx}
+                                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                                            report.success
+                                                ? 'bg-emerald-500/5 border-emerald-500/10 text-slate-200'
+                                                : 'bg-red-500/5 border-red-500/10 text-slate-300'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                                report.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                                            }`}>
+                                                {report.success ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-black truncate">{report.recipientName}</p>
+                                                <p className="text-[10px] text-slate-500 font-bold mt-0.5 truncate">{report.phone}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right shrink-0 ml-2">
+                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                                report.success
+                                                    ? 'bg-emerald-500/10 text-emerald-400'
+                                                    : 'bg-red-500/10 text-red-400'
+                                            }`}>
+                                                {report.success ? 'Sent' : 'Failed'}
+                                            </span>
+                                            {!report.success && report.errorMsg && (
+                                                <p className="text-[9px] text-red-400/85 font-black mt-1 max-w-[150px] truncate" title={report.errorMsg}>{report.errorMsg}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Action buttons */}
+                            <button
+                                type="button"
+                                onClick={() => setSmsDeliveryReport(null)}
+                                className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                Dismiss Report
+                            </button>
                         </div>
                     </div>
                 );
