@@ -1882,72 +1882,77 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     {/* Create Event & Verify forms */}
                     <div className="lg:col-span-1 space-y-6">
                         {/* Create Event */}
-                        <div className="bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md space-y-4">
-                            <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider mb-2">
-                                <Plus className="w-4 h-4" />
-                                Schedule New Event
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                            <div className="flex items-center gap-2.5 mb-5">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center">
+                                    <Plus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">Schedule Event</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Create a new institution event</p>
+                                </div>
                             </div>
                             <form onSubmit={handleCreateEvent} className="space-y-4">
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Event Title</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Event Title</label>
                                     <input
                                         type="text"
                                         required
                                         placeholder="e.g. Matriculation Ceremony"
                                         value={eventTitle}
                                         onChange={e => setEventTitle(e.target.value)}
-                                        className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                                        className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Description</label>
                                     <textarea
-                                        rows={3}
-                                        placeholder="Enter details..."
+                                        rows={2}
+                                        placeholder="Optional details..."
                                         value={eventDescription}
                                         onChange={e => setEventDescription(e.target.value)}
-                                        className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 resize-none"
+                                        className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all resize-none"
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</label>
+                                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Date</label>
                                         <input
                                             type="date"
                                             required
                                             value={eventDate}
                                             onChange={e => setEventDate(e.target.value)}
-                                            className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white focus:outline-none"
+                                            className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time</label>
+                                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Time</label>
                                         <input
                                             type="time"
                                             required
                                             value={eventTime}
                                             onChange={e => setEventTime(e.target.value)}
-                                            className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white focus:outline-none"
+                                            className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Venue</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Venue</label>
                                     <input
                                         type="text"
                                         required
-                                        placeholder="e.g. Campus Amphitheater"
+                                        placeholder="e.g. Main Hall"
                                         value={eventVenue}
                                         onChange={e => setEventVenue(e.target.value)}
-                                        className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                                        className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Cohort</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Target Cohort</label>
                                     <select
                                         value={eventTarget}
                                         onChange={e => setEventTarget(e.target.value)}
-                                        className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white focus:outline-none"
+                                        className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
                                     >
                                         <option value="All">All Cohorts</option>
                                         {cohortsList.map(cohort => (
@@ -1958,118 +1963,162 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    className="w-full mt-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg"
+                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
                                 >
-                                    Schedule Event
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    {isLoading ? 'Saving...' : 'Schedule Event'}
                                 </button>
                             </form>
                         </div>
 
-                        {/* PIN Verification Widget */}
-                        <div className="bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md space-y-4">
-                            <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider mb-2">
-                                <Key className="w-4 h-4" />
-                                Verify Attendance PIN
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                            <div className="flex items-center gap-2.5 mb-4">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center">
+                                    <Key className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">Verify PIN</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Check-in attendance</p>
+                                </div>
                             </div>
-                            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
-                                Verify student check-in credentials. Correct code records attendance & immediately invalidates the PIN.
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed mb-4">
+                                Enter the student identifier and their 6-digit PIN. A correct PIN records attendance and immediately expires the code.
                             </p>
                             <form onSubmit={handleVerifyPin} className="space-y-4">
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Identifier</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Student Identifier</label>
                                     <input
                                         type="text"
-                                        placeholder="Email, phone, or admission number..."
+                                        placeholder="Email, phone or admission no."
                                         value={verifyIdentifier}
                                         onChange={e => setVerifyIdentifier(e.target.value)}
-                                        className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-bold text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                                        className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">6-Digit PIN Code</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">6-Digit PIN</label>
                                     <input
                                         type="text"
                                         maxLength={6}
-                                        placeholder="e.g. 847291"
+                                        placeholder="· · · · · ·"
                                         value={verifyPin}
                                         onChange={e => setVerifyPin(e.target.value)}
-                                        className="w-full mt-1.5 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 font-mono font-bold text-sm text-indigo-400 placeholder-slate-600 text-center tracking-widest focus:outline-none focus:border-indigo-500"
+                                        className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 font-mono font-black text-2xl text-emerald-600 dark:text-emerald-400 placeholder-slate-300 dark:placeholder-slate-700 text-center tracking-[0.4em] focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all"
                                     />
                                 </div>
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg"
+                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                                 >
-                                    Verify & Check In
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    Verify &amp; Check In
                                 </button>
                             </form>
                         </div>
                     </div>
 
-                    {/* Events List & Logs */}
-                    <div className="lg:col-span-2 bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md space-y-6">
-                        <div>
-                            <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider mb-4">
-                                <Calendar className="w-4 h-4" />
-                                Scheduled Events & Attendance Control
+                    {/* ── Right Column: Events List + PIN Ledger ── */}
+                    <div className="lg:col-span-2 space-y-6">
+
+                        {/* Events Grid */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                            <div className="flex items-center justify-between mb-5">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-xl bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center">
+                                        <Calendar className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">Scheduled Events</h4>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{events.length} event{events.length !== 1 ? 's' : ''} on record</p>
+                                    </div>
+                                </div>
                             </div>
 
                             {events.length === 0 ? (
-                                <div className="text-center py-12 text-slate-500">
-                                    <Calendar className="w-12 h-12 mx-auto text-slate-600 mb-2" />
-                                    <p className="text-xs font-bold">No events scheduled. Create one to dispatch PINs.</p>
+                                <div className="text-center py-16 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                                    <Calendar className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-700 mb-3" />
+                                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No events scheduled yet</p>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Use the panel on the left to create your first event.</p>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {events.map(event => {
+                                    {events.map((event, i) => {
                                         const eventMatchingPins = eventPins.filter(p => p.eventId === event.id);
-                                        const pendingPins = eventMatchingPins.filter(p => p.status === 'pending');
+                                        const pendingPins  = eventMatchingPins.filter(p => p.status === 'pending');
                                         const verifiedPins = eventMatchingPins.filter(p => p.status === 'used');
+                                        const accentColors = [
+                                            'border-l-indigo-500', 'border-l-violet-500',
+                                            'border-l-emerald-500', 'border-l-rose-500',
+                                            'border-l-amber-500',  'border-l-cyan-500'
+                                        ];
+                                        const accent = accentColors[i % accentColors.length];
 
                                         return (
-                                            <div key={event.id} className="bg-slate-950/30 border border-white/5 rounded-2xl p-5 flex flex-col justify-between hover:border-white/10 transition-colors">
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-2 py-0.5 rounded">
+                                            <div
+                                                key={event.id}
+                                                className={`relative bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 border-l-4 ${accent} rounded-2xl p-5 flex flex-col justify-between hover:shadow-md transition-shadow`}
+                                            >
+                                                <div className="space-y-2.5">
+                                                    {/* Top row */}
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 px-2.5 py-0.5 rounded-full">
                                                             {event.target}
                                                         </span>
-                                                        <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
-                                                            <Clock className="w-3.5 h-3.5" />
+                                                        <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1 shrink-0">
+                                                            <Clock className="w-3 h-3" />
                                                             {event.eventTime}
                                                         </span>
                                                     </div>
-                                                    <h4 className="text-sm font-black text-white">{event.title}</h4>
-                                                    {event.description && <p className="text-xs text-slate-400 line-clamp-2">{event.description}</p>}
-                                                    
-                                                    <div className="text-xs text-slate-400 flex flex-col gap-1 pt-1">
-                                                        <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-500" /> {event.eventDate}</span>
-                                                        <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-500" /> {event.venue}</span>
+
+                                                    {/* Title */}
+                                                    <h4 className="text-sm font-black text-slate-800 dark:text-white leading-tight">{event.title}</h4>
+                                                    {event.description && (
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">{event.description}</p>
+                                                    )}
+
+                                                    {/* Date & Venue */}
+                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                                                        <span className="flex items-center gap-1.5 font-semibold">
+                                                            <Calendar className="w-3 h-3 text-slate-400" />
+                                                            {event.eventDate}
+                                                        </span>
+                                                        <span className="flex items-center gap-1.5 font-semibold">
+                                                            <MapPin className="w-3 h-3 text-slate-400" />
+                                                            {event.venue}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* PIN stats */}
+                                                    <div className="flex gap-2 pt-1">
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20">
+                                                            <CheckCircle className="w-3 h-3" /> {verifiedPins.length} verified
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20">
+                                                            <Clock className="w-3 h-3" /> {pendingPins.length} pending
+                                                        </span>
                                                     </div>
                                                 </div>
 
-                                                <div className="mt-4 pt-3 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
-                                                    <div className="text-[10px] font-bold text-slate-500 text-left w-full sm:w-auto">
-                                                        <span>Pins: {verifiedPins.length} verified / {pendingPins.length} pending</span>
-                                                    </div>
-                                                    <div className="flex gap-2 w-full sm:w-auto">
-                                                        <button
-                                                            onClick={() => handleSendAttendancePin(event)}
-                                                            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                                            title="Send invitations to registered cohort students/parents"
-                                                        >
-                                                            Send PINs
-                                                        </button>
-                                                        <label className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center">
-                                                            <span>Invite Excel</span>
-                                                            <input 
-                                                                type="file" 
-                                                                accept=".xlsx, .xls, .csv" 
-                                                                onChange={(e) => handleInviteExternalExcel(event, e)}
-                                                                className="hidden" 
-                                                            />
-                                                        </label>
-                                                    </div>
+                                                {/* Action buttons */}
+                                                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+                                                    <button
+                                                        onClick={() => handleSendAttendancePin(event)}
+                                                        className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-indigo-500/20 flex items-center justify-center gap-1.5"
+                                                    >
+                                                        <Send className="w-3 h-3" /> Send PINs
+                                                    </button>
+                                                    <label
+                                                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center gap-1.5"
+                                                    >
+                                                        <FileSpreadsheet className="w-3 h-3" /> Excel
+                                                        <input
+                                                            type="file"
+                                                            accept=".xlsx,.xls,.csv"
+                                                            onChange={e => handleInviteExternalExcel(event, e)}
+                                                            className="hidden"
+                                                        />
+                                                    </label>
                                                 </div>
                                             </div>
                                         );
@@ -2078,72 +2127,74 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             )}
                         </div>
 
-                        {/* Event PIN Ledger */}
-                        <div className="border-t border-white/5 pt-6 space-y-3">
-                            <div className="text-indigo-400 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
-                                <Key className="w-4 h-4" />
-                                Active Event PIN Ledger
+                        {/* PIN Ledger */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                            <div className="flex items-center gap-2.5 mb-5">
+                                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+                                    <Key className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">PIN Attendance Ledger</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{eventPins.length} PIN{eventPins.length !== 1 ? 's' : ''} issued</p>
+                                </div>
                             </div>
-                            
+
                             {eventPins.length === 0 ? (
-                                <p className="text-xs text-slate-500">No PIN records generated yet.</p>
+                                <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                                    <Key className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-700 mb-2" />
+                                    <p className="text-xs font-bold text-slate-400 dark:text-slate-500">No PINs generated yet</p>
+                                </div>
                             ) : (
-                                <div className="max-h-60 overflow-y-auto border border-white/5 rounded-2xl bg-slate-950/20 p-2">
-                                    <table className="w-full text-left text-[11px] text-slate-350">
-                                        <thead>
-                                            <tr className="border-b border-white/10 text-[9px] font-black uppercase text-slate-500 tracking-widest">
-                                                <th className="py-2 px-3">Student</th>
-                                                <th className="py-2 px-3">Event</th>
-                                                <th className="py-2 px-3 text-center">PIN</th>
-                                                <th className="py-2 px-3 text-right">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/5">
-                                            {eventPins.slice().sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || '')).map(pin => {
-                                                const student = users.find(u => u.id === pin.userId);
-                                                const event = events.find(e => e.id === pin.eventId);
-                                                return (
-                                                    <tr key={pin.id}>
-                                                        <td className="py-2 px-3 font-bold text-white">
-                                                            <div>{student?.name || 'Unknown User'}</div>
-                                                            {pin.guests && (
-                                                                <div className="text-[9px] text-slate-400 font-normal">
-                                                                    Guests: {(() => {
-                                                                        try {
-                                                                            const parsed = JSON.parse(pin.guests);
-                                                                            return Array.isArray(parsed) ? parsed.join(', ') : pin.guests;
-                                                                        } catch (e) {
-                                                                            return pin.guests;
-                                                                        }
-                                                                    })()}
-                                                                </div>
-                                                            )}
-                                                            {pin.vehicleRegistration && (
-                                                                <div className="text-[9px] text-indigo-405 text-indigo-400 font-bold mt-0.5">
-                                                                    Vehicle: {pin.vehicleRegistration}
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td className="py-2 px-3 text-slate-400 max-w-[120px] truncate">{event?.title || 'Unknown Event'}</td>
-                                                        <td className="py-2 px-3 font-mono font-black text-indigo-400 text-center">{pin.pin}</td>
-                                                        <td className="py-2 px-3 text-right">
-                                                            <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
-                                                                pin.status === 'used' ? 'bg-slate-500/10 text-slate-400 border border-slate-500/20' :
-                                                                pin.status === 'accepted' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                                                pin.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
-                                                                'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                                            }`}>
-                                                                {pin.status === 'used' ? 'Verified / Expired' : 
-                                                                 pin.status === 'accepted' ? 'Confirmed' : 
-                                                                 pin.status === 'rejected' ? 'Declined' : 
-                                                                 'Pending RSVP'}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                                    {eventPins.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).map(pin => {
+                                        const person = users.find(u => u.id === pin.userId);
+                                        const evt    = events.find(e => e.id === pin.eventId);
+
+                                        const statusConfig: Record<string, { label: string; cls: string }> = {
+                                            used:     { label: 'Verified',     cls: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' },
+                                            accepted: { label: 'Confirmed',    cls: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20' },
+                                            rejected: { label: 'Declined',     cls: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-500/20' },
+                                            pending:  { label: 'Pending RSVP', cls: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-100 dark:border-amber-500/20' },
+                                        };
+                                        const sc = statusConfig[pin.status] || statusConfig.pending;
+
+                                        return (
+                                            <div
+                                                key={pin.id}
+                                                className="flex items-center gap-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-950/60 transition-colors"
+                                            >
+                                                {/* Avatar */}
+                                                <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm shrink-0 uppercase">
+                                                    {(person?.name || '?').charAt(0)}
+                                                </div>
+
+                                                {/* Name + event */}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-black text-slate-800 dark:text-white truncate">{person?.name || 'Unknown'}</p>
+                                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold truncate mt-0.5">{evt?.title || 'Unknown Event'}</p>
+                                                    {pin.guests && (
+                                                        <p className="text-[9px] text-slate-400 mt-0.5 truncate">
+                                                            Guests: {(() => { try { const p = JSON.parse(pin.guests); return Array.isArray(p) ? p.join(', ') : pin.guests; } catch { return pin.guests; } })()}
+                                                        </p>
+                                                    )}
+                                                    {pin.vehicleRegistration && (
+                                                        <p className="text-[9px] text-indigo-500 font-bold mt-0.5">Vehicle: {pin.vehicleRegistration}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* PIN code */}
+                                                <div className="shrink-0 text-center">
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">PIN</p>
+                                                    <p className="font-mono font-black text-base text-indigo-600 dark:text-indigo-400 tracking-widest">{pin.pin}</p>
+                                                </div>
+
+                                                {/* Status badge */}
+                                                <span className={`shrink-0 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${sc.cls}`}>
+                                                    {sc.label}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
