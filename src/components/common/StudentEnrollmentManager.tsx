@@ -1626,117 +1626,147 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <p className="text-xs text-slate-500 mt-1">Enroll a new student to get started or adjust your filters.</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto bg-white/5 border border-white/5 rounded-3xl p-2">
-                            <table className="w-full text-left text-sm text-slate-350">
-                                <thead>
-                                    <tr className="border-b border-white/10 text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                                        <th className="py-4 px-6">Student Info</th>
-                                        <th className="py-4 px-6">Admission #</th>
-                                        <th className="py-4 px-6">Details</th>
-                                        <th className="py-4 px-6">Biometrics</th>
-                                        <th className="py-4 px-6">Status</th>
-                                        <th className="py-4 px-6 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {filteredEnrollments.map(enr => {
+                        <div className="space-y-3">
+                                    {filteredEnrollments.map((enr, i) => {
                                         const user = users.find(u => u.id === enr.userId);
                                         const hasBiometrics = !!user?.metadata?.webauthnCredentials;
-                                        
+
+                                        const avatarColors = [
+                                            'bg-indigo-100 text-indigo-700',
+                                            'bg-violet-100 text-violet-700',
+                                            'bg-emerald-100 text-emerald-700',
+                                            'bg-rose-100 text-rose-700',
+                                            'bg-amber-100 text-amber-700',
+                                            'bg-cyan-100 text-cyan-700',
+                                        ];
+                                        const avatarCls = avatarColors[i % avatarColors.length];
+
+                                        const statusCfg: Record<string, string> = {
+                                            Active:    'bg-indigo-50 border-indigo-200 text-indigo-700',
+                                            Enrolled:  'bg-indigo-50 border-indigo-200 text-indigo-700',
+                                            Graduated: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+                                            Suspended: 'bg-amber-50 border-amber-200 text-amber-700',
+                                            Dropped:   'bg-red-50 border-red-200 text-red-700',
+                                        };
+                                        const statusCls = statusCfg[enr.status] || 'bg-slate-50 border-slate-200 text-slate-600';
+
                                         return (
-                                            <tr key={enr.id} className="hover:bg-white/5 transition-colors group">
-                                                <td className="py-4 px-6">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 font-black text-sm uppercase">
-                                                            {(user?.name || 'U').charAt(0)}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-black text-white">{user?.name || 'Unknown Student'}</p>
-                                                            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-3">
-                                                                <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> {user?.email || 'No Email'}</span>
-                                                                <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {user?.phoneNumber || 'No Phone'}</span>
-                                                            </p>
-                                                        </div>
+                                            <div
+                                                key={enr.id}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 flex flex-wrap md:flex-nowrap items-center gap-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 transition-all group"
+                                            >
+                                                {/* ── Avatar ── */}
+                                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-base uppercase shrink-0 ${avatarCls}`}>
+                                                    {(user?.name || 'U').charAt(0)}
+                                                </div>
+
+                                                {/* ── Student Info ── */}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight">
+                                                        {user?.name || 'Unknown Student'}
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                                        {user?.email && (
+                                                            <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                                                <Mail className="w-3 h-3" /> {user.email}
+                                                            </span>
+                                                        )}
+                                                        {user?.phoneNumber && (
+                                                            <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                                                <Phone className="w-3 h-3" /> {user.phoneNumber}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                </td>
-                                                <td className="py-4 px-6">
-                                                    <span className="text-xs font-mono font-bold text-white bg-white/5 border border-white/10 px-2.5 py-1 rounded-lg">
-                                                        {enr.admissionNumber}
+                                                </div>
+
+                                                {/* ── Admission # ── */}
+                                                <div className="shrink-0 flex flex-col items-center gap-0.5">
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Admission No.</span>
+                                                    <span className="font-mono font-black text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-3 py-1 rounded-lg tracking-wider whitespace-nowrap">
+                                                        {enr.admissionNumber || '—'}
                                                     </span>
-                                                </td>
-                                                <td className="py-4 px-6">
+                                                </div>
+
+                                                {/* ── Details (Grade/Stream or Licence) ── */}
+                                                <div className="shrink-0">
                                                     {context === 'driving_school' ? (
-                                                        <div className="text-xs">
-                                                            <p className="font-bold text-slate-300">Category: <span className="text-indigo-400">{enr.metadata?.licenseCategory || 'N/A'}</span></p>
-                                                            <p className="text-[10px] text-slate-500 mt-0.5">Sessions Attended: {enr.metadata?.priorAttendedDays || 0}</p>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-[10px] font-black uppercase tracking-widest bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-400 px-2.5 py-1 rounded-full">
+                                                                {enr.metadata?.licenseCategory || 'N/A'}
+                                                            </span>
+                                                            <span className="text-[9px] text-slate-500 font-semibold text-center">
+                                                                {enr.metadata?.priorAttendedDays || 0} sessions
+                                                            </span>
                                                         </div>
                                                     ) : (
-                                                        <div className="text-xs">
-                                                            <p className="font-bold text-slate-300">Grade: <span className="text-indigo-400">{enr.metadata?.gradeLevel || 'N/A'}</span></p>
-                                                            <p className="text-[10px] text-slate-500 mt-0.5">Stream: {enr.metadata?.stream || 'N/A'}</p>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 px-2.5 py-1 rounded-full whitespace-nowrap">
+                                                                {enr.metadata?.gradeLevel || 'No Grade'}
+                                                            </span>
+                                                            {enr.metadata?.stream && (
+                                                                <span className="text-[9px] font-black uppercase tracking-widest bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-400 px-2.5 py-0.5 rounded-full text-center whitespace-nowrap">
+                                                                    {enr.metadata.stream}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     )}
-                                                </td>
-                                                <td className="py-4 px-6">
+                                                </div>
+
+                                                {/* ── Biometrics ── */}
+                                                <div className="shrink-0">
                                                     {hasBiometrics ? (
-                                                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-400 uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-                                                            <ShieldCheck className="w-3.5 h-3.5" /> Verified
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-1 rounded-full">
+                                                            <ShieldCheck className="w-3.5 h-3.5" /> Biometric
                                                         </span>
                                                     ) : (
                                                         <button
                                                             onClick={() => handleRegisterBiometrics(enr.userId, user?.name || 'Student')}
-                                                            className="inline-flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-xl transition-all"
+                                                            className="inline-flex items-center gap-1.5 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest hover:text-indigo-700 dark:hover:text-white bg-slate-50 dark:bg-white/5 hover:bg-indigo-50 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 hover:border-indigo-300 dark:hover:border-white/20 px-3 py-1.5 rounded-xl transition-all"
                                                         >
-                                                            <Fingerprint className="w-3.5 h-3.5 text-indigo-400" /> Enroll Key
+                                                            <Fingerprint className="w-3.5 h-3.5 text-indigo-500" /> Enroll Key
                                                         </button>
                                                     )}
-                                                </td>
-                                                <td className="py-4 px-6">
-                                                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider border ${
-                                                        enr.status === 'Active' || enr.status === 'Enrolled' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' :
-                                                        enr.status === 'Graduated' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                                        enr.status === 'Suspended' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                                                        'bg-red-500/10 border-red-500/20 text-red-400'
-                                                    }`}>
+                                                </div>
+
+                                                {/* ── Status ── */}
+                                                <div className="shrink-0">
+                                                    <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider border ${statusCls}`}>
                                                         {enr.status}
                                                     </span>
-                                                </td>
-                                                <td className="py-4 px-6 text-right">
-                                                    <div className="flex items-center justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                                                        {/* Send Parent Invite */}
-                                                        <button
-                                                            onClick={() => {
-                                                                setInviteModalEnrollment(enr);
-                                                                setInviteSelectedParentIdx(0);
-                                                                setInviteSelectedEventId(events[0]?.id || '');
-                                                                setInviteMsg({ type: 'idle', message: '' });
-                                                            }}
-                                                            className="p-2 hover:bg-indigo-500/20 rounded-lg text-slate-400 hover:text-indigo-400 transition-all"
-                                                            title="Send Event Invitation to Parent"
-                                                        >
-                                                            <Mail className="w-4 h-4" />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleEdit(enr)}
-                                                            className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-all"
-                                                            title="Edit Enrollment"
-                                                        >
-                                                            <Edit3 className="w-4 h-4" />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleDelete(enr.id)}
-                                                            className="p-2 hover:bg-red-500/20 rounded-lg text-slate-400 hover:text-red-400 transition-all"
-                                                            title="Remove Record"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                                </div>
+
+                                                {/* ── Actions ── */}
+                                                <div className="shrink-0 flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => {
+                                                            setInviteModalEnrollment(enr);
+                                                            setInviteSelectedParentIdx(0);
+                                                            setInviteSelectedEventId(events[0]?.id || '');
+                                                            setInviteMsg({ type: 'idle', message: '' });
+                                                        }}
+                                                        className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"
+                                                        title="Send Event Invitation to Parent"
+                                                    >
+                                                        <Mail className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleEdit(enr)}
+                                                        className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
+                                                        title="Edit Enrollment"
+                                                    >
+                                                        <Edit3 className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(enr.id)}
+                                                        className="p-2 rounded-xl text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
+                                                        title="Remove Record"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
                                         );
                                     })}
-                                </tbody>
-                            </table>
                         </div>
                     )}
                 </>
