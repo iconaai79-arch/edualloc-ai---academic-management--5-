@@ -209,7 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             q = q.range(offset, offset + finalLimit - 1);
 
             const { data, error } = await q;
-            if (error) return res.status(200).json({ success: false, error: error.message });
+            if (error) return res.status(200).json({ success: false, error: error.message, code: error.code });
             return res.status(200).json(data || []);
         }
 
@@ -243,7 +243,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         code: error.code
                     });
                 }
-                return res.status(500).json({ success: false, error: error.message });
+                return res.status(500).json({ 
+                    success: false, 
+                    error: error.message,
+                    code: error.code,
+                    details: error.details || (error as any).detail,
+                    hint: error.hint
+                });
             }
             
             // Return entire array for bulk, first element for single
@@ -334,7 +340,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             const { error } = await q;
-            if (error) return res.status(200).json({ success: false, error: error.message });
+            if (error) return res.status(200).json({ success: false, error: error.message, code: error.code });
             return res.status(200).json({ success: true, id: idVal, module: moduleName });
         }
 
