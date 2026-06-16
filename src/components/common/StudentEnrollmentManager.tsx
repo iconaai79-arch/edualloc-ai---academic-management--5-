@@ -29,7 +29,7 @@ import {
     Key
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor } from '../../types';
+import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel } from '../../types';
 import { apiService } from '../../services/apiService';
 import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
@@ -50,6 +50,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [instructors, setInstructors] = useState<User[]>([]);
     const [courseLevels, setCourseLevels] = useState<CourseLevel[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [academicLevels, setAcademicLevels] = useState<AcademicLevel[]>([]);
+    const [importGradeLevel, setImportGradeLevel] = useState('');
+    const [importStream, setImportStream] = useState('');
     const isPrimaryOrSecondary = useMemo(() => {
         const type = (currentInstitution?.institutionType || '').toLowerCase();
         const cat = (currentInstitution?.category || '').toLowerCase();
@@ -68,6 +71,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<'All' | 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped'>('All');
+    const [gradeFilter, setGradeFilter] = useState('');
+    const [streamFilter, setStreamFilter] = useState('');
     
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -208,7 +213,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 broadcastsData,
                 eventsData,
                 pinsData,
-                visitorsData
+                visitorsData,
+                academicLevelsData
             ] = await Promise.all([
                 apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', currentInstitution.id),
                 apiService.fetchModuleRecords<User>('users', currentInstitution.id),
@@ -217,7 +223,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('institution_events', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('event_pins', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<Visitor>('visitors', currentInstitution.id).catch(() => [])
+                apiService.fetchModuleRecords<Visitor>('visitors', currentInstitution.id).catch(() => []),
+                apiService.fetchAcademicLevels(currentInstitution.id).catch(() => [])
             ]);
             
             setEnrollments(enrollmentsData.filter(e => e.enrollmentType === context));
@@ -229,6 +236,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setEvents(eventsData || []);
             setEventPins(pinsData || []);
             setVisitors(visitorsData || []);
+            setAcademicLevels(academicLevelsData || []);
         } catch (err) {
             console.error("Error loading enrollment data:", err);
         } finally {
@@ -715,8 +723,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             ...(existingEnrollment?.metadata || {}),
                             gender: item.gender || existingEnrollment?.metadata?.gender || '',
                             licenseCategory: item.licenseCategory || existingEnrollment?.metadata?.licenseCategory || '',
-                            gradeLevel: item.gradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
-                            stream: item.stream || existingEnrollment?.metadata?.stream || '',
+                            gradeLevel: item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
+                            stream: item.stream || importStream || existingEnrollment?.metadata?.stream || '',
                             parentName: parentNameVal,
                             parentPhone: parentPhoneVal,
                             parentEmail: parentEmailVal,
@@ -763,6 +771,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setStatusMsg({ type: 'error', message: `Import failed: ${err.message}` });
         } finally {
             setIsLoading(false);
+            setImportGradeLevel('');
+            setImportStream('');
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 5000);
         }
     };
@@ -1246,10 +1256,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 (associatedUser?.phoneNumber || '').includes(searchTerm);
             
             const matchesStatus = statusFilter === 'All' || enr.status === statusFilter;
+            const matchesGrade = !gradeFilter || (enr.metadata?.gradeLevel || '') === gradeFilter;
+            const matchesStream = !streamFilter || (enr.metadata?.stream || '') === streamFilter;
             
-            return matchesSearch && matchesStatus;
+            return matchesSearch && matchesStatus && matchesGrade && matchesStream;
         });
-    }, [enrollments, users, searchTerm, statusFilter]);
+    }, [enrollments, users, searchTerm, statusFilter, gradeFilter, streamFilter]);
 
     // Available Cohorts
     const cohortsList = useMemo(() => {
@@ -1261,12 +1273,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 'Class C (Heavy Commercial)'
             ];
         } else {
+            if (academicLevels && academicLevels.length > 0) {
+                return academicLevels.map(al => al.name);
+            }
             return [
                 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
                 'Grade 7', 'Grade 8', 'Form 1', 'Form 2', 'Form 3', 'Form 4'
             ];
         }
-    }, [context]);
+    }, [context, academicLevels]);
+
+    // Available Streams
+    const streamsList = useMemo(() => {
+        if (currentInstitution?.streamDefinitions && currentInstitution.streamDefinitions.length > 0) {
+            return currentInstitution.streamDefinitions;
+        }
+        return ['North', 'South', 'East', 'West', 'Main Stream'];
+    }, [currentInstitution?.streamDefinitions]);
 
     return (
         <div className="space-y-6">
@@ -1274,8 +1297,49 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 <ExcelSmartImporter 
                     fields={enrollmentFields} 
                     onComplete={handleBulkComplete} 
-                    onClose={() => setIsUploading(false)} 
-                />
+                    onClose={() => {
+                        setIsUploading(false);
+                        setImportGradeLevel('');
+                        setImportStream('');
+                    }} 
+                >
+                    {context === 'academic' && (
+                        <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 mt-6 space-y-4">
+                            <h5 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Default Placement Settings</h5>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+                                Optionally select default values for records that do not contain a mapped Grade Level or Class Stream column in the Excel file.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-455 uppercase tracking-widest ml-1">Default Grade Level</label>
+                                    <select
+                                        value={importGradeLevel}
+                                        onChange={e => setImportGradeLevel(e.target.value)}
+                                        className="form-select mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    >
+                                        <option value="">-- No Default Grade --</option>
+                                        {cohortsList.map(grade => (
+                                            <option key={grade} value={grade}>{grade}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-455 uppercase tracking-widest ml-1">Default Stream</label>
+                                    <select
+                                        value={importStream}
+                                        onChange={e => setImportStream(e.target.value)}
+                                        className="form-select mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    >
+                                        <option value="">-- No Default Stream --</option>
+                                        {streamsList.map(stream => (
+                                            <option key={stream} value={stream}>{stream}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </ExcelSmartImporter>
             )}
             {/* Header section */}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white/5 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
@@ -1333,24 +1397,28 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             {activeTab === 'students' && (
                 <>
                     {/* Filters Bar */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-white/5 border border-white/5 rounded-2xl">
-                        <div className="w-full sm:w-72 relative">
+                    <div className="flex flex-col gap-3 p-4 bg-white/5 border border-white/5 rounded-2xl">
+                        {/* Row 1: Search */}
+                        <div className="w-full relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input 
                                 type="text" 
-                                placeholder="Search by name, ID or admission..." 
+                                placeholder="Search by name, phone or admission number..." 
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                                 className="w-full pl-11 pr-4 py-3 bg-slate-900/30 border border-white/10 rounded-xl font-bold text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
                             />
                         </div>
 
-                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                        {/* Row 2: Dropdowns */}
+                        <div className="flex flex-wrap items-center gap-3">
                             <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+
+                            {/* Status filter */}
                             <select
                                 value={statusFilter}
                                 onChange={e => setStatusFilter(e.target.value as any)}
-                                className="w-full sm:w-44 py-3 px-4 bg-slate-900/30 border border-white/10 rounded-xl font-bold text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                                className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-900/30 border border-white/10 rounded-xl font-bold text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
                             >
                                 <option value="All">All Statuses</option>
                                 <option value="Enrolled">Enrolled</option>
@@ -1359,7 +1427,71 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 <option value="Suspended">Suspended</option>
                                 <option value="Dropped">Dropped</option>
                             </select>
+
+                            {/* Grade Level filter — academic context only */}
+                            {context === 'academic' && (
+                                <select
+                                    value={gradeFilter}
+                                    onChange={e => setGradeFilter(e.target.value)}
+                                    className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-900/30 border border-white/10 rounded-xl font-bold text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                                >
+                                    <option value="">All Grades</option>
+                                    {cohortsList.map(grade => (
+                                        <option key={grade} value={grade}>{grade}</option>
+                                    ))}
+                                </select>
+                            )}
+
+                            {/* Stream filter — academic context only */}
+                            {context === 'academic' && (
+                                <select
+                                    value={streamFilter}
+                                    onChange={e => setStreamFilter(e.target.value)}
+                                    className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-900/30 border border-white/10 rounded-xl font-bold text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                                >
+                                    <option value="">All Streams</option>
+                                    {streamsList.map(stream => (
+                                        <option key={stream} value={stream}>{stream}</option>
+                                    ))}
+                                </select>
+                            )}
+
+                            {/* Clear filters button — only visible when a filter is active */}
+                            {(gradeFilter || streamFilter || statusFilter !== 'All' || searchTerm) && (
+                                <button
+                                    onClick={() => {
+                                        setGradeFilter('');
+                                        setStreamFilter('');
+                                        setStatusFilter('All');
+                                        setSearchTerm('');
+                                    }}
+                                    className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-rose-400 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 rounded-xl transition-all whitespace-nowrap"
+                                >
+                                    Clear Filters
+                                </button>
+                            )}
                         </div>
+
+                        {/* Active filter summary chips */}
+                        {(gradeFilter || streamFilter) && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                                {gradeFilter && (
+                                    <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-3 py-1 rounded-full">
+                                        Grade: {gradeFilter}
+                                        <button onClick={() => setGradeFilter('')} className="text-indigo-300 hover:text-white transition-colors ml-0.5">×</button>
+                                    </span>
+                                )}
+                                {streamFilter && (
+                                    <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider bg-purple-500/10 border border-purple-500/20 text-purple-400 px-3 py-1 rounded-full">
+                                        Stream: {streamFilter}
+                                        <button onClick={() => setStreamFilter('')} className="text-purple-300 hover:text-white transition-colors ml-0.5">×</button>
+                                    </span>
+                                )}
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider self-center">
+                                    — {filteredEnrollments.length} student{filteredEnrollments.length !== 1 ? 's' : ''} shown
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Students List */}
@@ -2416,18 +2548,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
                                                 <option value="" disabled>Select Grade</option>
-                                                <option value="Grade 1">Grade 1</option>
-                                                <option value="Grade 2">Grade 2</option>
-                                                <option value="Grade 3">Grade 3</option>
-                                                <option value="Grade 4">Grade 4</option>
-                                                <option value="Grade 5">Grade 5</option>
-                                                <option value="Grade 6">Grade 6</option>
-                                                <option value="Grade 7">Grade 7</option>
-                                                <option value="Grade 8">Grade 8</option>
-                                                <option value="Form 1">Form 1 (Secondary)</option>
-                                                <option value="Form 2">Form 2 (Secondary)</option>
-                                                <option value="Form 3">Form 3 (Secondary)</option>
-                                                <option value="Form 4">Form 4 (Secondary)</option>
+                                                {cohortsList.map(grade => (
+                                                    <option key={grade} value={grade}>{grade}</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div>
@@ -2441,11 +2564,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
                                                 <option value="">Select Stream</option>
-                                                <option value="North">North</option>
-                                                <option value="South">South</option>
-                                                <option value="East">East</option>
-                                                <option value="West">West</option>
-                                                <option value="Main">Main Stream</option>
+                                                {streamsList.map(stream => (
+                                                    <option key={stream} value={stream}>{stream}</option>
+                                                ))}
                                             </select>
                                         </div>
                                     </div>

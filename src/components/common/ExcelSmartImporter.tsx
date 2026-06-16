@@ -24,9 +24,10 @@ interface ExcelSmartImporterProps {
     fields: MappingField[];
     onComplete: (data: any[]) => void;
     onClose: () => void;
+    children?: React.ReactNode;
 }
 
-export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, onComplete, onClose }) => {
+export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, onComplete, onClose, children }) => {
     const [step, setStep] = useState(1);
     const [headerMapping, setHeaderMapping] = useState<Record<string, string>>({});
     const [rawHeaders, setRawHeaders] = useState<string[]>([]);
@@ -156,6 +157,12 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                                     <input type="file" className="hidden" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} />
                                 </div>
                             </label>
+                            
+                            {children && (
+                                <div className="w-full max-w-lg mt-6">
+                                    {children}
+                                </div>
+                            )}
                             
                             <div className="mt-12 flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
                                 <div className="flex items-center gap-2 text-emerald-600">
