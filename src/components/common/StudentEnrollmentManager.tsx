@@ -28,6 +28,7 @@ import {
     MapPin,
     AlertCircle,
     CheckCircle,
+    Check,
     Key,
     UserRound
 } from 'lucide-react';
@@ -204,6 +205,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [eventTime, setEventTime] = useState('09:00');
     const [eventVenue, setEventVenue] = useState('');
     const [eventTarget, setEventTarget] = useState('All');
+    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [studentSearchQuery, setStudentSearchQuery] = useState('');
 
     // PIN verification state
     const [verifyIdentifier, setVerifyIdentifier] = useState('');
@@ -1034,6 +1037,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             return;
         }
 
+        let targetValue = eventTarget;
+        if (eventTarget === 'Specific') {
+            if (selectedStudentIds.length === 0) {
+                setStatusMsg({ type: 'error', message: 'Please select at least one student for specific targeting.' });
+                return;
+            }
+            targetValue = `students:${selectedStudentIds.join(',')}`;
+        }
+
         setStatusMsg({ type: 'info', message: 'Scheduling event...' });
         setIsLoading(true);
 
@@ -1047,7 +1059,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 eventDate: eventDate,
                 eventTime: eventTime,
                 venue: eventVenue,
-                target: eventTarget,
+                target: targetValue,
                 createdAt: new Date().toISOString()
             };
 
@@ -1057,6 +1069,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setEventTitle('');
             setEventDescription('');
             setEventVenue('');
+            setEventTarget('All');
+            setSelectedStudentIds([]);
+            setStudentSearchQuery('');
             loadAllData();
         } catch (err: any) {
             console.error("Failed to create event:", err);
@@ -1075,6 +1090,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         try {
             const targetEnrollments = enrollments.filter(enr => {
                 if (event.target === 'All') return true;
+                if (event.target.startsWith('students:')) {
+                    const studentIds = event.target.replace('students:', '').split(',');
+                    return studentIds.includes(enr.userId);
+                }
                 if (context === 'driving_school') {
                     return enr.metadata?.licenseCategory === event.target;
                 } else {
@@ -1411,6 +1430,29 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
         return ['North', 'South', 'East', 'West', 'Main Stream'];
     }, [currentInstitution?.streamDefinitions]);
+
+    // Memoized students list for specific selection
+    const students = useMemo(() => {
+        return enrollments.map(enr => {
+            const user = users.find(u => u.id === enr.userId);
+            return {
+                id: enr.userId,
+                name: user?.name || 'Unknown Student',
+                admissionNumber: enr.admissionNumber || '',
+                gradeLevel: enr.metadata?.gradeLevel || ''
+            };
+        }).filter(s => !!s.id);
+    }, [enrollments, users]);
+
+    // Filtered students for matching search queries in selection panel
+    const filteredStudentsForSelection = useMemo(() => {
+        const query = studentSearchQuery.trim().toLowerCase();
+        if (!query) return students.slice(0, 5); // default show 5
+        return students.filter(s => 
+            s.name.toLowerCase().includes(query) ||
+            s.admissionNumber.toLowerCase().includes(query)
+        ).slice(0, 10);
+    }, [students, studentSearchQuery]);
 
     return (
         <div className="space-y-6">
@@ -1988,11 +2030,81 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
                                     >
                                         <option value="All">All Cohorts</option>
+                                        <option value="Specific">Specific Students</option>
                                         {cohortsList.map(cohort => (
                                             <option key={cohort} value={cohort}>{cohort}</option>
                                         ))}
                                     </select>
                                 </div>
+                                {eventTarget === 'Specific' && (
+                                    <div className="space-y-3 pt-1">
+                                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block ml-1">Select Specific Students</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Search student by name or admission..."
+                                            value={studentSearchQuery}
+                                            onChange={e => setStudentSearchQuery(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-all"
+                                        />
+                                        <div className="max-h-40 overflow-y-auto border border-slate-250 dark:border-slate-800 rounded-xl p-2 bg-slate-50/50 dark:bg-slate-950/20 divide-y divide-slate-100 dark:divide-slate-800">
+                                            {filteredStudentsForSelection.map(student => {
+                                                const isSelected = selectedStudentIds.includes(student.id);
+                                                return (
+                                                    <div 
+                                                        key={student.id} 
+                                                        onClick={() => {
+                                                            setSelectedStudentIds(prev => 
+                                                                prev.includes(student.id)
+                                                                    ? prev.filter(id => id !== student.id)
+                                                                    : [...prev, student.id]
+                                                            );
+                                                        }}
+                                                        className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer transition-colors ${
+                                                            isSelected 
+                                                                ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 font-bold' 
+                                                                : 'text-slate-700 dark:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                                                        }`}
+                                                    >
+                                                        <div>
+                                                            <p className="font-bold">{student.name}</p>
+                                                            <p className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">
+                                                                {student.admissionNumber ? `Ad. ${student.admissionNumber}` : ''} {student.gradeLevel ? `• ${student.gradeLevel}` : ''}
+                                                            </p>
+                                                        </div>
+                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                                                            isSelected ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-slate-300 dark:border-slate-700'
+                                                        }`}>
+                                                            {isSelected && <Check className="w-3 h-3" />}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {filteredStudentsForSelection.length === 0 && (
+                                                <p className="text-center py-4 text-[10px] text-slate-400 uppercase tracking-widest font-bold">No students match</p>
+                                            )}
+                                        </div>
+                                        {selectedStudentIds.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {selectedStudentIds.map(id => {
+                                                    const s = students.find(x => x.id === id);
+                                                    if (!s) return null;
+                                                    return (
+                                                        <span key={id} className="inline-flex items-center gap-1 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold px-2 py-0.5 rounded-lg">
+                                                            {s.name}
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => setSelectedStudentIds(prev => prev.filter(x => x !== id))}
+                                                                className="text-indigo-400 hover:text-rose-500 transition-colors font-bold ml-0.5"
+                                                            >
+                                                                ×
+                                                            </button>
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <button
                                     type="submit"
                                     disabled={isLoading}
@@ -2096,7 +2208,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     {/* Top row */}
                                                     <div className="flex items-start justify-between gap-2">
                                                         <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 px-2.5 py-0.5 rounded-full">
-                                                            {event.target}
+                                                            {event.target.startsWith('students:') ? (
+                                                                `${event.target.replace('students:', '').split(',').length} Student(s)`
+                                                            ) : (
+                                                                event.target
+                                                            )}
                                                         </span>
                                                         <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1 shrink-0">
                                                             <Clock className="w-3 h-3" />
