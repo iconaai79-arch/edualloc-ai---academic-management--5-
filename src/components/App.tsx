@@ -5328,6 +5328,7 @@ export const App: React.FC = () => {
                                         courses={courses}
                                         subjects={subjects}
                                         rooms={rooms}
+                                        onExitPerspective={originalSuperAdminSession ? onRestoreSuperAdminSession : (impersonatedRole ? () => setImpersonatedRole(null) : undefined)}
                                         enrollmentRequests={enrollmentRequests}
                                         generatedTimetable={generatedTimetable}
                                         examTimetable={examTimetable}

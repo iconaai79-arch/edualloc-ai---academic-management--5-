@@ -14,6 +14,7 @@ import { PrinterIcon } from './icons/PrinterIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
 
 import { StudentDashboard } from './StudentDashboard';
 import { StudentAssignmentManager } from './StudentAssignmentManager';
@@ -201,6 +202,7 @@ interface StudentViewProps {
     onAccessAlumnaPortal?: (school: any) => void;
     schoolRegistry?: any[];
     books: Book[];
+    onExitPerspective?: () => void;
 }
 
 const EnrollmentStatusBadge: React.FC<{ status: EnrollmentRequest['status'] }> = ({ status }) => {
@@ -226,7 +228,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         user, users, courses, subjects, rooms, departments, enrollmentRequests, onSubmitEnrollmentRequest,
         generatedTimetable, examTimetable, getSubjectById, getRoomById, getLecturerById,
         timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, assignments, submissions, onAddSubmission, lessonRatings, onAddLessonRating, onRateLesson, onAddFeedback, feedbackSubmissions, studentAbsenceRequests, onSubmitStudentAbsenceRequest, buildings, finalTimetableUrl, activeSemester, taAssignments, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances, books,
-        onAccessAlumnaPortal, schoolRegistry } = props;
+        onAccessAlumnaPortal, schoolRegistry, onExitPerspective } = props;
     const [activeTab, setActiveTab] = useState('dashboard');
     const [subTab, setSubTab] = useState<'weekly' | 'exams' | 'enrollment' | 'requests'>('weekly');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -367,7 +369,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
 
     return (
         <div className="space-y-6">
-            <div className="border-b border-slate-200 dark:border-slate-700 no-print">
+            <div className="border-b border-slate-200 dark:border-slate-700 no-print flex justify-between items-center flex-wrap gap-4">
                 <nav className="-mb-px flex space-x-8 overflow-x-auto" aria-label="Tabs">
                     {tabs.map(tab => (
                         <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'my_timetable') setSubTab('weekly'); }} className={`${activeTab === tab ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}>
@@ -375,6 +377,15 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                         </button>
                     ))}
                 </nav>
+                {onExitPerspective && (
+                    <button
+                        onClick={onExitPerspective}
+                        className="mb-2 sm:mb-0 flex items-center gap-2 px-4 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-red-100 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-950 transition-all shadow-sm active:scale-95 animate-pulse"
+                    >
+                        <ArrowRightOnRectangleIcon className="w-3.5 h-3.5" />
+                        Exit Perspective
+                    </button>
+                )}
             </div>
 
             {activeTab === 'dashboard' && (

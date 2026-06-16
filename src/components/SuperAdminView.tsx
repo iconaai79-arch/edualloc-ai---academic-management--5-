@@ -1626,6 +1626,7 @@ Please change it after login.`;
                     courses={courses} 
                     subjects={subjects} 
                     rooms={rooms} 
+                    onExitPerspective={props.onSwitchPerspective ? () => props.onSwitchPerspective!(null as any) : undefined} 
                     enrollmentRequests={enrollmentRequests} 
                     generatedTimetable={generatedTimetable} 
                     examTimetable={examTimetable} 
