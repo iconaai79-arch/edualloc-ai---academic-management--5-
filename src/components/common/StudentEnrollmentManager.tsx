@@ -26,7 +26,8 @@ import {
     MapPin,
     AlertCircle,
     CheckCircle,
-    Key
+    Key,
+    UserRound
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel } from '../../types';
@@ -73,6 +74,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [statusFilter, setStatusFilter] = useState<'All' | 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped'>('All');
     const [gradeFilter, setGradeFilter] = useState('');
     const [streamFilter, setStreamFilter] = useState('');
+
+    // Parent Invite Modal State
+    const [inviteModalEnrollment, setInviteModalEnrollment] = useState<StudentEnrollment | null>(null);
+    const [inviteSelectedParentIdx, setInviteSelectedParentIdx] = useState(0);
+    const [inviteSelectedEventId, setInviteSelectedEventId] = useState('');
+    const [inviteLoading, setInviteLoading] = useState(false);
+    const [inviteMsg, setInviteMsg] = useState<{ type: 'success' | 'error' | 'info' | 'idle'; message: string }>({ type: 'idle', message: '' });
     
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -617,6 +625,117 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setStatusMsg({ type: 'error', message: 'Failed to remove enrollment.' });
         }
         setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+    };
+
+    // Send event invitation to a specific parent
+    const handleSendParentInvite = async () => {
+        if (!inviteModalEnrollment || !inviteSelectedEventId) {
+            setInviteMsg({ type: 'error', message: 'Please select both a parent and an event.' });
+            return;
+        }
+
+        const parents: { name: string; phone: string; email: string; relation: string }[] =
+            inviteModalEnrollment.metadata?.parents || [];
+        // Fallback to legacy single-parent fields
+        const fallbackParent = {
+            name: inviteModalEnrollment.metadata?.parentName || '',
+            phone: inviteModalEnrollment.metadata?.parentPhone || '',
+            email: inviteModalEnrollment.metadata?.parentEmail || '',
+            relation: inviteModalEnrollment.metadata?.parentRelation || 'Guardian'
+        };
+        const resolvedParents = parents.length > 0 ? parents : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+        const parent = resolvedParents[inviteSelectedParentIdx];
+
+        if (!parent || (!parent.phone && !parent.email)) {
+            setInviteMsg({ type: 'error', message: 'Selected parent has no phone or email on record.' });
+            return;
+        }
+
+        const selectedEvent = events.find(ev => ev.id === inviteSelectedEventId);
+        if (!selectedEvent) {
+            setInviteMsg({ type: 'error', message: 'Selected event not found.' });
+            return;
+        }
+
+        setInviteLoading(true);
+        setInviteMsg({ type: 'info', message: 'Generating PIN and dispatching invitation...' });
+
+        try {
+            // Check if a PIN already exists for this parent-user + event
+            const parentUser = users.find(u =>
+                (parent.email && u.email && u.email.toLowerCase() === parent.email.toLowerCase()) ||
+                (parent.phone && u.phoneNumber && u.phoneNumber === parent.phone)
+            );
+
+            let parentUserId = parentUser?.id || '';
+
+            if (!parentUserId) {
+                // Create a temporary guest user profile for the parent
+                const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const newParentUser = {
+                    id: newId,
+                    institutionId: currentInstitution.id,
+                    name: parent.name || 'Parent / Guardian',
+                    email: parent.email || null,
+                    phoneNumber: parent.phone || null,
+                    role: 'parent',
+                    metadata: {},
+                    createdAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('users', newParentUser);
+                parentUserId = newId;
+            }
+
+            // Reuse existing PIN if one already exists
+            const existingPin = eventPins.find(p => p.eventId === inviteSelectedEventId && p.userId === parentUserId);
+            const pinCode = existingPin ? existingPin.pin : Math.floor(100000 + Math.random() * 900000).toString();
+            const pinId = existingPin ? existingPin.id : `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+            if (!existingPin) {
+                await apiService.saveModuleRecord('event_pins', {
+                    id: pinId,
+                    institutionId: currentInstitution.id,
+                    eventId: inviteSelectedEventId,
+                    userId: parentUserId,
+                    pin: pinCode,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                });
+            }
+
+            const rawLink = `${window.location.origin}/?view=event-confirm&pinId=${pinId}`;
+            const confirmationLink = await apiService.shortenUrl(rawLink);
+            const studentName = users.find(u => u.id === inviteModalEnrollment.userId)?.name || 'your child';
+            const message = `Dear ${parent.name || 'Guardian'}, you are invited to "${selectedEvent.title}" on ${selectedEvent.eventDate} at ${selectedEvent.eventTime}, ${selectedEvent.venue} — regarding ${studentName}. Confirm attendance: ${confirmationLink}`;
+
+            let dispatched = false;
+            if (parent.phone) {
+                try {
+                    await apiService.sendSms(parent.phone, message, currentInstitution.smsConfig, 1, currentInstitution.id);
+                    dispatched = true;
+                } catch (e) { console.error('SMS invite failed:', e); }
+            }
+            if (parent.email) {
+                try {
+                    await apiService.sendEmail(parent.email, `Event Invitation — ${selectedEvent.title}`, message, currentInstitution.emailConfig);
+                    dispatched = true;
+                } catch (e) { console.error('Email invite failed:', e); }
+            }
+
+            setInviteMsg({
+                type: 'success',
+                message: dispatched
+                    ? `Invitation sent to ${parent.name || 'parent'} (PIN: ${pinCode}).`
+                    : `PIN generated (${pinCode}) but no SMS/email config found — share the link manually: ${confirmationLink}`
+            });
+            loadAllData();
+        } catch (err: any) {
+            console.error('Parent invite failed:', err);
+            setInviteMsg({ type: 'error', message: `Failed to send invitation: ${err.message}` });
+        } finally {
+            setInviteLoading(false);
+            setTimeout(() => setInviteMsg({ type: 'idle', message: '' }), 6000);
+        }
     };
 
     const handleBulkComplete = async (data: any[]) => {
@@ -1584,6 +1703,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 </td>
                                                 <td className="py-4 px-6 text-right">
                                                     <div className="flex items-center justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                                                        {/* Send Parent Invite */}
+                                                        <button
+                                                            onClick={() => {
+                                                                setInviteModalEnrollment(enr);
+                                                                setInviteSelectedParentIdx(0);
+                                                                setInviteSelectedEventId(events[0]?.id || '');
+                                                                setInviteMsg({ type: 'idle', message: '' });
+                                                            }}
+                                                            className="p-2 hover:bg-indigo-500/20 rounded-lg text-slate-400 hover:text-indigo-400 transition-all"
+                                                            title="Send Event Invitation to Parent"
+                                                        >
+                                                            <Mail className="w-4 h-4" />
+                                                        </button>
                                                         <button 
                                                             onClick={() => handleEdit(enr)}
                                                             className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-all"
@@ -2592,6 +2724,166 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     </div>
                 </div>
             )}
+
+            {/* ── Parent Invite Modal ── */}
+            {inviteModalEnrollment && (() => {
+                const student = users.find(u => u.id === inviteModalEnrollment.userId);
+                const rawParents: { name: string; phone: string; email: string; relation: string }[] =
+                    inviteModalEnrollment.metadata?.parents || [];
+                const fallbackParent = {
+                    name: inviteModalEnrollment.metadata?.parentName || '',
+                    phone: inviteModalEnrollment.metadata?.parentPhone || '',
+                    email: inviteModalEnrollment.metadata?.parentEmail || '',
+                    relation: inviteModalEnrollment.metadata?.parentRelation || 'Guardian'
+                };
+                const parentsList = rawParents.length > 0
+                    ? rawParents
+                    : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+
+                return (
+                    <div
+                        className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4"
+                        onClick={() => setInviteModalEnrollment(null)}
+                    >
+                        <div
+                            className="bg-slate-900 border border-white/10 shadow-2xl rounded-3xl p-6 w-full max-w-md"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                        <Mail className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-black text-white uppercase tracking-tight">Send Event Invite</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{student?.name || 'Student'}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setInviteModalEnrollment(null)}
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                >
+                                    <XCircle className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Status message */}
+                            {inviteMsg.type !== 'idle' && (
+                                <div className={`mb-4 p-3 rounded-xl text-xs font-bold uppercase tracking-wider border ${
+                                    inviteMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                    inviteMsg.type === 'error'   ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                                    'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                                }`}>
+                                    {inviteMsg.message}
+                                </div>
+                            )}
+
+                            <div className="space-y-5">
+                                {/* Parent selection */}
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">
+                                        Select Parent / Guardian
+                                    </label>
+                                    {parentsList.length === 0 ? (
+                                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold">
+                                            No parent contacts on record for this student. Please edit the enrollment to add parent details first.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {parentsList.map((parent, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => setInviteSelectedParentIdx(idx)}
+                                                    className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border text-left transition-all ${
+                                                        inviteSelectedParentIdx === idx
+                                                            ? 'bg-indigo-500/15 border-indigo-500/40 text-white'
+                                                            : 'bg-white/5 border-white/10 text-slate-300 hover:border-white/20'
+                                                    }`}
+                                                >
+                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                                        inviteSelectedParentIdx === idx ? 'bg-indigo-500/20 text-indigo-400' : 'bg-white/5 text-slate-500'
+                                                    }`}>
+                                                        <UserRound className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-black truncate">{parent.name || 'Unnamed Guardian'}</p>
+                                                        <p className="text-[10px] text-slate-500 font-bold mt-0.5 truncate">
+                                                            {parent.relation && <span className="text-indigo-400 mr-2">{parent.relation}</span>}
+                                                            {parent.phone || parent.email || 'No contact info'}
+                                                        </p>
+                                                    </div>
+                                                    {inviteSelectedParentIdx === idx && (
+                                                        <CheckCircle className="w-4 h-4 text-indigo-400 shrink-0" />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Event selection */}
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">
+                                        Select Event
+                                    </label>
+                                    {events.length === 0 ? (
+                                        <div className="p-4 rounded-2xl bg-slate-800/60 border border-white/10 text-slate-400 text-xs font-bold">
+                                            No events scheduled yet. Go to the Calendar tab to create one first.
+                                        </div>
+                                    ) : (
+                                        <select
+                                            value={inviteSelectedEventId}
+                                            onChange={e => setInviteSelectedEventId(e.target.value)}
+                                            className="w-full py-3 px-4 bg-slate-950/50 border border-white/10 rounded-xl font-bold text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                                        >
+                                            <option value="">-- Choose an event --</option>
+                                            {events.map(ev => (
+                                                <option key={ev.id} value={ev.id}>
+                                                    {ev.title} — {ev.eventDate} {ev.eventTime}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+
+                                    {/* Selected event preview */}
+                                    {inviteSelectedEventId && (() => {
+                                        const ev = events.find(e => e.id === inviteSelectedEventId);
+                                        return ev ? (
+                                            <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/5 text-xs space-y-1">
+                                                <p className="font-black text-white">{ev.title}</p>
+                                                <p className="text-slate-400 flex items-center gap-1"><Calendar className="w-3 h-3" /> {ev.eventDate} at {ev.eventTime}</p>
+                                                <p className="text-slate-400 flex items-center gap-1"><MapPin className="w-3 h-3" /> {ev.venue}</p>
+                                            </div>
+                                        ) : null;
+                                    })()}
+                                </div>
+
+                                {/* Action buttons */}
+                                <div className="flex gap-3 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setInviteModalEnrollment(null)}
+                                        className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={inviteLoading || parentsList.length === 0 || !inviteSelectedEventId}
+                                        onClick={handleSendParentInvite}
+                                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/15"
+                                    >
+                                        <Send className="w-3.5 h-3.5" />
+                                        {inviteLoading ? 'Sending...' : 'Send Invitation'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 };
