@@ -421,10 +421,11 @@ export const PublicEventConfirmation: React.FC = () => {
                 const eventTitle = eventRecord ? eventRecord.title : 'the event';
                 const message = `Your attendance to "${eventTitle}" is confirmed. Show this PIN: ${pinRecord.pin} or check-in pass: ${shortenedPassUrl} at the gate for scan.`;
 
-                if (userRecord?.phoneNumber) {
+                const targetSmsPhone = userRecord?.phoneNumber || userRecord?.phone_number || verificationPhone;
+                if (targetSmsPhone) {
                     try {
                         const smsConfig = institution?.smsConfig || institution?.sms_config;
-                        await apiService.sendSms(userRecord.phoneNumber, message, smsConfig, 1, pinRecord.institutionId);
+                        await apiService.sendSms(targetSmsPhone, message, smsConfig, 1, pinRecord.institutionId);
                     } catch (e) {
                         console.error("Stage 2 SMS dispatch failed:", e);
                     }
