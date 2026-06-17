@@ -12,7 +12,8 @@ import {
     Ticket, 
     AlertCircle,
     ArrowLeft,
-    ShieldCheck
+    ShieldCheck,
+    Download
 } from 'lucide-react';
 
 export const PublicEventConfirmation: React.FC = () => {
@@ -458,6 +459,21 @@ export const PublicEventConfirmation: React.FC = () => {
         window.print();
     };
 
+    const handleSaveAsImage = () => {
+        const canvas = document.getElementById('pass-qr') as HTMLCanvasElement;
+        if (canvas) {
+            try {
+                const url = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = `pass-qr-${pinRecord?.pin || 'code'}.png`;
+                link.href = url;
+                link.click();
+            } catch (err) {
+                console.error("Failed to save pass QR as image:", err);
+            }
+        }
+    };
+
     if (isLoading && !pinRecord) {
         return (
             <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
@@ -809,20 +825,27 @@ export const PublicEventConfirmation: React.FC = () => {
                             </div>
 
                             {/* Pass Actions */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 print:hidden">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 print:hidden">
                                 <button
                                     onClick={handlePrint}
                                     className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01]"
                                 >
                                     <Ticket className="w-4 h-4" />
-                                    Print Pass
+                                    Print / PDF
+                                </button>
+                                <button
+                                    onClick={handleSaveAsImage}
+                                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01]"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Save Image
                                 </button>
                                 <button
                                     onClick={() => handleRsvpSubmit('rejected')}
                                     className="w-full py-4 bg-slate-850 hover:bg-slate-800 text-slate-350 rounded-2xl font-black uppercase text-xs tracking-widest border border-slate-800 transition-all flex items-center justify-center gap-2"
                                 >
                                     <XCircle className="w-4 h-4 text-rose-400" />
-                                    Decline Invitation
+                                    Decline Pass
                                 </button>
                             </div>
                             <div className="pt-2 print:hidden">
