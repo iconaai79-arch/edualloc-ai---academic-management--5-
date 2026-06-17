@@ -1229,6 +1229,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             email: primaryParent.email || null,
                             phoneNumber: primaryParent.phone || null,
                             role: 'parent',
+                            studentIds: [associatedUser.id],
                             metadata: {},
                             createdAt: new Date().toISOString()
                         } as any;
@@ -1237,6 +1238,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         // Update local copy and main list so subsequent loops don't recreate them
                         currentUsersList.push(parentUser!);
                         setUsers(prev => [...prev, parentUser!]);
+                    } else {
+                        // Ensure student ID is linked
+                        const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
+                        if (!currentStudentIds.includes(associatedUser.id)) {
+                            parentUser.studentIds = [...currentStudentIds, associatedUser.id];
+                            await apiService.updateModuleRecord('users', parentUser.id, parentUser);
+                        }
+                    }
+
+                    // Update student's parentIds as well
+                    const currentParentIds = Array.isArray(associatedUser.parentIds) ? associatedUser.parentIds : [];
+                    if (!currentParentIds.includes(parentUser.id)) {
+                        associatedUser.parentIds = [...currentParentIds, parentUser.id];
+                        await apiService.updateModuleRecord('users', associatedUser.id, associatedUser);
                     }
 
                     targetUserId = parentUser.id;

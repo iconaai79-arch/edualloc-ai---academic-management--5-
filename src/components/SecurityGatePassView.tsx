@@ -7,6 +7,7 @@ import { ClockIcon } from './icons/ClockIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { UserIcon } from './icons/UserIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
 
 import type { TransportVehicle, VehicleLog, User, Institution, Visitor } from '../types';
 import { apiService } from '../services/apiService';
@@ -222,24 +223,26 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 setSelectedPin(pin);
                 
                 // Fetch associated parent user
-                const parentMatch = users.find(u => u.id === pin.userId);
-                if (parentMatch) {
-                    setSelectedParent(parentMatch);
-                } else {
+                let parentMatch = users.find(u => u.id === pin.userId);
+                if (!parentMatch) {
                     const parentUsers = await apiService.fetchModuleRecords('users', currentInstitution.id, undefined, {
                         filter: { id: pin.userId }
                     });
                     if (parentUsers && parentUsers.length > 0) {
-                        setSelectedParent(parentUsers[0]);
-                    } else {
-                        setSelectedParent({
-                            id: pin.userId,
-                            name: 'Invited Guest',
-                            phoneNumber: pin.phone_number || '',
-                            role: 'parent',
-                            institutionId: currentInstitution.id
-                        } as any);
+                        parentMatch = parentUsers[0];
                     }
+                }
+
+                if (parentMatch) {
+                    setSelectedParent(parentMatch);
+                } else {
+                    setSelectedParent({
+                        id: pin.userId,
+                        name: 'Invited Guest',
+                        phoneNumber: '',
+                        role: 'parent',
+                        institutionId: currentInstitution.id
+                    } as any);
                 }
 
                 // Fetch event details
@@ -250,7 +253,13 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     setAssociatedEvent(events[0]);
                 }
                 
-                const childMatch = users.find(u => u.role === 'student' && (u.parentIds?.includes(pin.userId) || (u as any).parentPhone === (parentMatch?.phoneNumber || pin.phone_number)));
+                const childMatch = users.find(u => 
+                    u.role === 'student' && (
+                        u.parentIds?.includes(pin.userId) || 
+                        parentMatch?.studentIds?.includes(u.id) || 
+                        (u as any).parentPhone === (parentMatch?.phoneNumber || '')
+                    )
+                );
                 if (childMatch) {
                     setSelectedStudent(childMatch);
                 } else {
@@ -271,30 +280,52 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         if (studentMatch) {
             setSelectedStudent(studentMatch);
             // Find parent
+            let parentMatch = null;
             if (studentMatch.parentIds && studentMatch.parentIds.length > 0) {
-                const parentMatch = users.find(u => u.id === studentMatch.parentIds![0]);
-                if (parentMatch) {
-                    setSelectedParent(parentMatch);
-                    return;
-                }
+                parentMatch = users.find(u => u.id === studentMatch.parentIds![0]);
             } else if ((studentMatch as any).parentPhone) {
-                 // Try finding parent by phone if IDs are not there
-                 const parentMatch = users.find(u => u.role === 'parent' && u.phoneNumber === (studentMatch as any).parentPhone);
-                 if (parentMatch) {
-                     setSelectedParent(parentMatch);
-                     return;
-                 }
+                 parentMatch = users.find(u => u.role === 'parent' && u.phoneNumber === (studentMatch as any).parentPhone);
+            }
+            
+            if (parentMatch) {
+                setSelectedParent(parentMatch);
+            } else if ((studentMatch as any).parentPhone) {
                  // If no user object, create a mock for display
-                 setSelectedParent({
+                 parentMatch = {
                     id: 'temp',
                     name: (studentMatch as any).parentName || 'Unknown Parent',
                     phoneNumber: (studentMatch as any).parentPhone,
                     role: 'parent',
                     email: (studentMatch as any).parentEmail || '',
                     institutionId: currentInstitution.id
-                 } as any);
-                 return;
+                 } as any;
+                 setSelectedParent(parentMatch);
             }
+
+            // Look up associated active/used PIN
+            try {
+                const pinRecords = await apiService.fetchModuleRecords('event_pins', currentInstitution.id);
+                const activePins = pinRecords.filter(p => 
+                    (p.userId === studentMatch.id || (parentMatch && p.userId === parentMatch.id))
+                );
+                if (activePins.length > 0) {
+                    const sortedPins = [...activePins].sort((a, b) => {
+                        const score = (status: string) => status === 'pending' || status === 'accepted' ? 2 : 1;
+                        return score(b.status) - score(a.status);
+                    });
+                    const pin = sortedPins[0];
+                    setSelectedPin(pin);
+                    const events = await apiService.fetchModuleRecords('institution_events', currentInstitution.id, undefined, {
+                        filter: { id: pin.eventId }
+                    });
+                    if (events && events.length > 0) {
+                        setAssociatedEvent(events[0]);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to query PIN for student match:", e);
+            }
+            return;
         }
 
         // 2. Search by Parent Phone Number or Name directly
@@ -306,11 +337,41 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         if (parentDirectMatch) {
             setSelectedParent(parentDirectMatch);
             // Find associated student
-            const childMatch = users.find(u => u.role === 'student' && (u.parentIds?.includes(parentDirectMatch.id) || (u as any).parentPhone === parentDirectMatch.phoneNumber));
+            const childMatch = users.find(u => 
+                u.role === 'student' && (
+                    u.parentIds?.includes(parentDirectMatch.id) || 
+                    parentDirectMatch.studentIds?.includes(u.id) || 
+                    (u as any).parentPhone === parentDirectMatch.phoneNumber
+                )
+            );
             if (childMatch) {
                 setSelectedStudent(childMatch);
             } else {
                 setSelectedStudent(null);
+            }
+
+            // Look up associated active/used PIN
+            try {
+                const pinRecords = await apiService.fetchModuleRecords('event_pins', currentInstitution.id);
+                const activePins = pinRecords.filter(p => 
+                    (p.userId === parentDirectMatch.id || (childMatch && p.userId === childMatch.id))
+                );
+                if (activePins.length > 0) {
+                    const sortedPins = [...activePins].sort((a, b) => {
+                        const score = (status: string) => status === 'pending' || status === 'accepted' ? 2 : 1;
+                        return score(b.status) - score(a.status);
+                    });
+                    const pin = sortedPins[0];
+                    setSelectedPin(pin);
+                    const events = await apiService.fetchModuleRecords('institution_events', currentInstitution.id, undefined, {
+                        filter: { id: pin.eventId }
+                    });
+                    if (events && events.length > 0) {
+                        setAssociatedEvent(events[0]);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to query PIN for parent match:", e);
             }
             return;
         }
@@ -336,21 +397,59 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const handleVerifyParent = async () => {
         if (!selectedParent || !onAddVisitor) return;
         try {
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeInStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const plate = selectedPin?.vehicleRegistration || selectedPin?.vehicle_registration || '';
+
+            // Add the parent first
             await onAddVisitor({
                 name: selectedParent.name,
                 phoneNumber: selectedParent.phoneNumber || selectedParent.phone_number || '',
                 purpose: `Event Check-In: Parent of ${selectedStudent?.name || 'Student'}`,
-                visitDate: new Date().toISOString().split('T')[0],
-                timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                visitDate: dateStr,
+                timeIn: timeInStr,
                 institutionId: currentInstitution.id,
-                hostId: selectedStudent?.id || currentUser.id
+                hostId: selectedStudent?.id || currentUser.id,
+                vehiclePlate: plate,
+                idNumber: selectedPin ? `PIN: ${selectedPin.pin}` : ''
             });
-            
+
+            // Also add any accompanying guests
+            if (selectedPin && selectedPin.guests) {
+                try {
+                    const parsedGuests = JSON.parse(selectedPin.guests || '[]');
+                    if (Array.isArray(parsedGuests)) {
+                        for (const guestName of parsedGuests) {
+                            if (guestName && typeof guestName === 'string' && guestName.trim()) {
+                                await onAddVisitor({
+                                    name: guestName.trim(),
+                                    phoneNumber: selectedParent.phoneNumber || selectedParent.phone_number || '',
+                                    purpose: `Accompanying Guest (Invited by ${selectedParent.name})`,
+                                    visitDate: dateStr,
+                                    timeIn: timeInStr,
+                                    institutionId: currentInstitution.id,
+                                    hostId: selectedStudent?.id || currentUser.id,
+                                    vehiclePlate: plate,
+                                    idNumber: `PIN: ${selectedPin.pin}`
+                                });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to parse/add accompanying guests:", e);
+                }
+            }
+
             if (selectedPin) {
                 printEposGatePass(selectedPin, selectedParent, associatedEvent, currentInstitution);
+                const updatedPin = {
+                    ...selectedPin,
+                    status: 'used'
+                };
+                await apiService.updateModuleRecord('event_pins', selectedPin.id, updatedPin);
             }
             
-            alert('Parent verified and logged successfully for entry.');
+            alert('Parent and guests verified and logged successfully for entry.');
             
             setSelectedParent(null);
             setSelectedStudent(null);
@@ -491,8 +590,20 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{selectedParent.phoneNumber || 'No Phone Number'}</p>
                                             </div>
                                         </div>
-                                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[10px] font-black uppercase flex items-center gap-1">
-                                            <CheckCircleIcon className="w-3 h-3" /> MATCH
+                                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 ${
+                                            selectedPin && selectedPin.status === 'used'
+                                                ? 'bg-red-100 text-red-700'
+                                                : 'bg-green-100 text-green-700'
+                                        }`}>
+                                            {selectedPin && selectedPin.status === 'used' ? (
+                                                <>
+                                                    <XCircleIcon className="w-3 h-3" /> ALREADY USED
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CheckCircleIcon className="w-3 h-3" /> MATCH
+                                                </>
+                                            )}
                                         </span>
                                     </div>
                                     
@@ -602,7 +713,9 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                 >
                                     <CheckCircleIcon className="w-6 h-6" />
                                     <span className="font-black uppercase text-base tracking-wide">
-                                        {selectedPin ? 'Verify & Print EPOS Gatepass' : 'Verify & Grant Entry'}
+                                        {selectedPin 
+                                            ? (selectedPin.status === 'used' ? 'PIN Already Used - Grant Entry & Print' : 'Verify & Print EPOS Gatepass') 
+                                            : 'Verify & Grant Entry'}
                                     </span>
                                 </button>
                                 {!onAddVisitor && (
