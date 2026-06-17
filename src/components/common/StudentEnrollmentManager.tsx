@@ -338,7 +338,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         { key: 'name', label: 'Staff Full Name', required: true },
         { key: 'email', label: 'Email Address' },
         { key: 'phoneNumber', label: 'Phone Number' },
-        { key: 'role', label: 'Staff Role (e.g. managing_director, librarian, security, store, driver)' },
+        { key: 'role', label: 'Staff Role (e.g. managing_director, hoi, librarian, security, store, driver)' },
         { key: 'gender', label: 'Gender (Male/Female)' }
     ], []);
     const [formData, setFormData] = useState({

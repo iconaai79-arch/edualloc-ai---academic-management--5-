@@ -70,12 +70,12 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Academic / Schools
     if (isSchoolInstitution(institution)) {
-        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director'];
+        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi'];
     }
 
     // Tertiary / Higher Ed
     if (isHigherEdInstitution(institution)) {
-        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director'];
+        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi'];
     }
 
     // HIS / Health Information System
@@ -245,6 +245,7 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'teacher': case 'lecturer': return 'Teacher';
             case 'boarding_master': return 'Boarding Manager';
             case 'managing_director': return 'Managing Director';
+            case 'hoi': return 'HOI';
         }
     }
 
@@ -278,6 +279,7 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
     if (role === 'mechanic_admin') return 'Garage Manager';
     if (role === 'carwash_admin') return 'Car Wash Manager';
     if (role === 'managing_director') return 'Managing Director';
+    if (role === 'hoi') return 'HOI';
 
     return String(role)
         .replace(/_/g, ' ')
