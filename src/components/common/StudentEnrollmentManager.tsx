@@ -931,8 +931,37 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
                 ? 'https://portal.eduai.co.ke'
                 : window.location.origin;
-            const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
-            // Use full URL directly — shortening can cause collisions/failures
+
+            const fallbackPayload = {
+                pin: {
+                    id: pinId,
+                    pin: pinCode,
+                    status: 'pending',
+                    eventId: inviteSelectedEventId,
+                    userId: parentUserId,
+                    institutionId: currentInstitution.id
+                },
+                event: {
+                    id: selectedEvent.id,
+                    title: selectedEvent.title,
+                    description: selectedEvent.description || '',
+                    eventDate: selectedEvent.eventDate,
+                    eventTime: selectedEvent.eventTime,
+                    venue: selectedEvent.venue
+                },
+                parent: {
+                    id: parentUserId,
+                    name: parent.name || 'Parent / Guardian',
+                    phoneNumber: parent.phone || '',
+                    email: parent.email || ''
+                },
+                institution: {
+                    id: currentInstitution.id,
+                    name: currentInstitution.name || ''
+                }
+            };
+            const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
+            const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
             const confirmationLink = rawLink;
             const studentName = users.find(u => u.id === inviteModalEnrollment.userId)?.name || 'your child';
             const message = `Dear ${parent.name || 'Guardian'}, you are invited to "${selectedEvent.title}" on ${selectedEvent.eventDate} at ${selectedEvent.eventTime}, ${selectedEvent.venue} — regarding ${studentName}. Confirm attendance: ${confirmationLink}`;
@@ -1686,7 +1715,37 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
                     ? 'https://portal.eduai.co.ke'
                     : window.location.origin;
-                const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
+
+                const fallbackPayload = {
+                    pin: {
+                        id: pinId,
+                        pin: pinCode,
+                        status: 'pending',
+                        eventId: event.id,
+                        userId: targetUserId,
+                        institutionId: currentInstitution.id
+                    },
+                    event: {
+                        id: event.id,
+                        title: event.title,
+                        description: event.description || '',
+                        eventDate: event.eventDate,
+                        eventTime: event.eventTime,
+                        venue: event.venue
+                    },
+                    parent: {
+                        id: targetUserId,
+                        name: targetName || 'Parent / Guardian',
+                        phoneNumber: targetPhone || '',
+                        email: targetEmail || ''
+                    },
+                    institution: {
+                        id: currentInstitution.id,
+                        name: currentInstitution.name || ''
+                    }
+                };
+                const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
+                const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
                 const confirmationLink = rawLink;
 
                 // Send notification with RSVP details

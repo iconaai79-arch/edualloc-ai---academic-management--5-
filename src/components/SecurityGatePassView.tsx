@@ -28,9 +28,10 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
 
     const guests = (() => {
         try {
-            return JSON.parse(pin.guests || '[]');
+            const parsed = JSON.parse(pin.guests || '[]');
+            return Array.isArray(parsed) ? parsed.filter((g: any) => typeof g === 'string' && g.trim()) : [];
         } catch (e) {
-            return pin.guests ? [pin.guests] : [];
+            return pin.guests && typeof pin.guests === 'string' && pin.guests.trim() ? [pin.guests.trim()] : [];
         }
     })();
 
@@ -202,6 +203,29 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const [selectedParent, setSelectedParent] = useState<User | null>(null);
     const [selectedPin, setSelectedPin] = useState<any | null>(null);
     const [associatedEvent, setAssociatedEvent] = useState<any | null>(null);
+    const [parentScanning, setParentScanning] = useState(false);
+    const [scannablePins, setScannablePins] = useState<any[]>([]);
+    const [loadingPins, setLoadingPins] = useState(false);
+    const [scanFilter, setScanFilter] = useState('');
+
+    useEffect(() => {
+        if (parentScanning) {
+            const loadPins = async () => {
+                setLoadingPins(true);
+                try {
+                    const pins = await apiService.fetchModuleRecords('event_pins', currentInstitution.id);
+                    // Filter pins that are pending/accepted (not used yet)
+                    const pendingPins = pins.filter((p: any) => p.status !== 'used');
+                    setScannablePins(pendingPins);
+                } catch (e) {
+                    console.error("Failed to load pins for scanning:", e);
+                } finally {
+                    setLoadingPins(false);
+                }
+            };
+            loadPins();
+        }
+    }, [parentScanning, currentInstitution.id]);
 
     const filteredVehicles = vehicles.filter(v =>
         v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -209,13 +233,14 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     );
 
     // Parent Search Logic
-    const handleSearchParent = async () => {
+    const handleSearchParent = async (overrideTerm?: string) => {
         setSelectedPin(null);
         setAssociatedEvent(null);
         
-        if (parentSearchTerm.length < 3) return;
+        const activeTerm = overrideTerm !== undefined ? overrideTerm : parentSearchTerm;
+        if (activeTerm.length < 3) return;
         
-        const term = parentSearchTerm.toLowerCase();
+        const term = activeTerm.toLowerCase();
 
         // Fetch fresh users from the database to ensure we have the absolute latest records
         let searchUsers = activeUsers;
@@ -600,17 +625,40 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     onKeyUp={e => {
                                         if (e.key === 'Enter') handleSearchParent();
                                     }}
-                                    className="w-full pl-12 pr-24 py-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-purple-500 outline-none text-lg font-bold"
+                                    className="w-full pl-12 pr-36 py-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-purple-500 outline-none text-lg font-bold"
                                     placeholder="Adm No, Phone, or Name..."
                                 />
-                                <button 
-                                    onClick={handleSearchParent}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-purple-100 text-purple-600 rounded-xl font-black text-xs uppercase"
-                                >
-                                    Search
-                                </button>
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setParentScanning(true)}
+                                        className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition-all"
+                                        title="Scan QR Pass"
+                                    >
+                                        <QrCodeIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                                    </button>
+                                    <button 
+                                        onClick={() => handleSearchParent()}
+                                        className="px-4 py-2 bg-purple-100 text-purple-600 rounded-xl font-black text-xs uppercase"
+                                    >
+                                        Search
+                                    </button>
+                                </div>
                             </div>
                             <p className="text-xs text-slate-400 mb-6 px-2">Enter student admission number or parent's phone number to verify event access.</p>
+                            
+                            {parentSearchTerm.length === 0 && !selectedParent && (
+                                <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                                    <QrCodeIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                    <p className="text-sm text-slate-500 px-8 font-medium">Scan visitor/parent QR code or enter details above.</p>
+                                    <button
+                                        onClick={() => setParentScanning(true)}
+                                        className="mt-6 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold uppercase text-xs tracking-widest transition-all shadow-lg shadow-purple-200 dark:shadow-none"
+                                    >
+                                        Scan QR Pass
+                                    </button>
+                                </div>
+                            )}
                             
                             {selectedParent && (
                                 <div className="p-5 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-2xl animate-in fade-in slide-in-from-bottom-4">
@@ -840,6 +888,100 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                             100% { transform: translateY(0); }
                         }
                     `}</style>
+                </div>
+            )}
+
+            {parentScanning && (
+                <div className="fixed inset-0 bg-black/90 z-[200] flex flex-col items-center justify-center p-4">
+                    <div className="w-full max-w-lg text-center flex flex-col items-center">
+                        <div className="relative aspect-square w-full max-w-[320px] bg-slate-800 rounded-3xl border-4 border-purple-500 overflow-hidden mb-6 shadow-[0_0_50px_rgba(168,85,247,0.5)]">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+                                <QrCodeIcon className="w-24 h-24 text-purple-400/20 mb-4 animate-pulse" />
+                                <p className="text-purple-400 font-bold uppercase text-[10px] tracking-widest mb-4">Accessing Camera...</p>
+                                <button
+                                    onClick={() => setParentScanning(false)}
+                                    className="px-6 py-2.5 bg-red-650/40 hover:bg-red-650/60 text-red-300 rounded-xl border border-red-500/20 text-xs font-black uppercase tracking-wider transition-all"
+                                >
+                                    Cancel Scan
+                                </button>
+                            </div>
+                            <div className="absolute top-0 left-0 w-full h-1 bg-purple-500 shadow-[0_0_20px_#a855f7] animate-[scan_3s_infinite]"></div>
+                        </div>
+                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Align Visitor QR Code</h3>
+                        <p className="text-slate-400 font-medium text-xs mb-8">Position the guest's digital/printed pass within the frame</p>
+                        
+                        {/* Mock Scan Targets Interface */}
+                        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 text-left space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Mock Scan Targets (Active Passes)</h4>
+                                {loadingPins && <span className="text-[10px] font-black text-purple-400 animate-pulse uppercase">Syncing...</span>}
+                            </div>
+                            
+                            <input 
+                                type="text"
+                                value={scanFilter}
+                                onChange={e => setScanFilter(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:ring-1 focus:ring-purple-500 outline-none text-xs text-white"
+                                placeholder="Search by name, PIN..."
+                            />
+
+                            <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                                {(() => {
+                                    const filteredScannablePins = scannablePins.filter(p => {
+                                        const parent = activeUsers.find(u => u.id === p.userId);
+                                        const parentName = parent?.name || 'Invited Guest';
+                                        const searchStr = `${parentName} ${p.pin} ${p.guests || ''}`.toLowerCase();
+                                        return searchStr.includes(scanFilter.toLowerCase());
+                                    });
+
+                                    return filteredScannablePins.map((p: any) => {
+                                        const parent = activeUsers.find(u => u.id === p.userId);
+                                        const parentName = parent?.name || 'Invited Guest';
+                                        const parentPhone = parent?.phoneNumber || parent?.phone_number || '';
+                                        return (
+                                            <button
+                                                key={p.id}
+                                                onClick={() => {
+                                                    setParentSearchTerm(p.pin);
+                                                    handleSearchParent(p.pin);
+                                                    setParentScanning(false);
+                                                    setScanFilter('');
+                                                }}
+                                                className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-950 hover:bg-purple-950/20 border border-slate-800/80 hover:border-purple-500/30 transition-all text-left group"
+                                            >
+                                                <div>
+                                                    <p className="text-xs font-black text-white group-hover:text-purple-400 transition-colors">{parentName}</p>
+                                                    {parentPhone && <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">{parentPhone}</p>}
+                                                    {p.guests && (
+                                                        <p className="text-[9px] text-purple-400 font-bold uppercase tracking-wider mt-0.5">
+                                                            +{(() => {
+                                                                try { return JSON.parse(p.guests).length; } catch { return 1; }
+                                                            })()} Guests
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-[10px] font-black font-mono bg-purple-500/10 text-purple-400 px-2.5 py-1 rounded-md border border-purple-500/20">
+                                                        PIN: {p.pin}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        );
+                                    });
+                                })()}
+                                {scannablePins.filter(p => {
+                                    const parent = activeUsers.find(u => u.id === p.userId);
+                                    const parentName = parent?.name || 'Invited Guest';
+                                    const searchStr = `${parentName} ${p.pin} ${p.guests || ''}`.toLowerCase();
+                                    return searchStr.includes(scanFilter.toLowerCase());
+                                }).length === 0 && (
+                                    <div className="text-center py-6 text-slate-600 text-xs font-bold uppercase">
+                                        No pending passes
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

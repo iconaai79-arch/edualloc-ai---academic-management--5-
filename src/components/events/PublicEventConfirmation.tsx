@@ -60,18 +60,41 @@ export const PublicEventConfirmation: React.FC = () => {
             setIsLoading(true);
             setErrorMsg('');
             try {
-                // Fetch the event pin details
-                const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, {
-                    filter: { id: pinId }
-                });
+                const params = new URLSearchParams(window.location.search);
+                const dataParam = params.get('data');
+                let urlPayload: any = null;
+                if (dataParam) {
+                    try {
+                        urlPayload = JSON.parse(decodeURIComponent(escape(atob(dataParam))));
+                    } catch (e) {
+                        console.error("Failed to parse fallback URL data payload:", e);
+                    }
+                }
 
-                if (pins.length === 0) {
+                // Fetch the event pin details
+                let pin = null;
+                try {
+                    const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, {
+                        filter: { id: pinId }
+                    });
+                    if (pins && pins.length > 0) {
+                        pin = pins[0];
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch pin from DB, trying payload fallback:", e);
+                }
+
+                // Fallback to URL payload if not found in database
+                if (!pin && urlPayload?.pin) {
+                    pin = urlPayload.pin;
+                }
+
+                if (!pin) {
                     setErrorMsg('Invitation not found or invalid.');
                     setIsLoading(false);
                     return;
                 }
 
-                const pin = pins[0];
                 setPinRecord(pin);
                 setRsvpStatus(pin.status);
 
@@ -94,29 +117,63 @@ export const PublicEventConfirmation: React.FC = () => {
                 }
 
                 // Fetch event details
-                const events = await apiService.fetchModuleRecords('institution_events', undefined, undefined, {
-                    filter: { id: pin.eventId }
-                });
+                let event = null;
+                try {
+                    const events = await apiService.fetchModuleRecords('institution_events', undefined, undefined, {
+                        filter: { id: pin.eventId }
+                    });
+                    if (events && events.length > 0) {
+                        event = events[0];
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch event from DB:", e);
+                }
 
-                if (events.length > 0) {
-                    setEventRecord(events[0]);
+                if (!event && urlPayload?.event) {
+                    event = urlPayload.event;
+                }
+                if (event) {
+                    setEventRecord(event);
                 }
 
                 // Fetch user details
-                const usersList = await apiService.fetchModuleRecords('users', undefined, undefined, {
-                    filter: { id: pin.userId }
-                });
+                let userRec = null;
+                try {
+                    const usersList = await apiService.fetchModuleRecords('users', undefined, undefined, {
+                        filter: { id: pin.userId }
+                    });
+                    if (usersList && usersList.length > 0) {
+                        userRec = usersList[0];
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch user from DB:", e);
+                }
 
-                if (usersList.length > 0) {
-                    setUserRecord(usersList[0]);
+                if (!userRec && urlPayload?.parent) {
+                    userRec = urlPayload.parent;
+                }
+                if (userRec) {
+                    setUserRecord(userRec);
                 }
 
                 // Fetch institution details
+                let inst = null;
                 if (pin.institutionId) {
-                    const insts = await apiService.fetchModuleRecords('institutions', pin.institutionId);
-                    if (insts.length > 0) {
-                        setInstitution(insts[0]);
+                    try {
+                        const insts = await apiService.fetchModuleRecords('institutions', pin.institutionId);
+                        if (insts && insts.length > 0) {
+                            inst = insts[0];
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch institution from DB:", e);
                     }
+                }
+
+                if (!inst && urlPayload?.institution) {
+                    inst = urlPayload.institution;
+                }
+                if (inst) {
+                    setInstitution(inst);
                 }
 
             } catch (err: any) {
@@ -299,8 +356,15 @@ export const PublicEventConfirmation: React.FC = () => {
                 const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
                     ? 'https://portal.eduai.co.ke'
                     : window.location.origin;
-                const passUrl = `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
-                // Use full URL directly — shortening can cause collisions/failures
+                
+                const updatedPayload = {
+                    pin: updatedRecord,
+                    event: eventRecord,
+                    parent: userRecord,
+                    institution: institution
+                };
+                const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(updatedPayload))));
+                const passUrl = `${origin}/?view=event-confirm&pinId=${pinRecord.id}&data=${base64Data}`;
                 const shortenedPassUrl = passUrl;
                 
                 const eventTitle = eventRecord ? eventRecord.title : 'the event';
