@@ -23,6 +23,7 @@ import {
     Trash2,
     Edit3,
     Send,
+    MessageSquare,
     Bell,
     Clock,
     MapPin,
@@ -234,6 +235,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [inviteSelectedEventId, setInviteSelectedEventId] = useState('');
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteMsg, setInviteMsg] = useState<{ type: 'success' | 'error' | 'info' | 'idle'; message: string }>({ type: 'idle', message: '' });
+    
+    // Bulk invitation configuration state
+    const [bulkInviteModalEvent, setBulkInviteModalEvent] = useState<any | null>(null);
+    const [bulkInviteAddMsg, setBulkInviteAddMsg] = useState<string>('');
     
     // SMS Delivery Report State
     const [smsDeliveryReport, setSmsDeliveryReport] = useState<{
@@ -1578,7 +1583,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     };
 
     // Send Attendance Pin
-    const handleSendAttendancePin = async (event: any) => {
+    const handleSendAttendancePin = async (event: any, additionalMessage: string = '') => {
         setStatusMsg({ type: 'info', message: 'Generating and dispatching attendance PINs...' });
         setIsLoading(true);
 
@@ -1606,6 +1611,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             let pinCount = 0;
             let currentUsersList = [...users];
+
+            const usersToUpsert = new Map<string, any>();
+            const eventPinsToCreate: any[] = [];
+            const notificationsToDispatch: {
+                targetPhone: string;
+                targetEmail: string;
+                smsMessage: string;
+                emailMessage: string;
+                targetName: string;
+            }[] = [];
 
             for (const enr of targetEnrollments) {
                 const associatedUser = currentUsersList.find(u => u.id === enr.userId);
@@ -1636,8 +1651,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
 
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
-                    // Try to find if this parent user already exists in the local copy or system database
-                    let parentUser = currentUsersList.find(u =>
+                    // Try to find if this parent user already exists in the local copy, usersToUpsert, or system database
+                    let parentUser = Array.from(usersToUpsert.values()).find((u: any) =>
+                        (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                    ) || currentUsersList.find(u =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
                         (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
                     );
@@ -1656,25 +1674,35 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             metadata: {},
                             createdAt: new Date().toISOString()
                         } as any;
-                        await apiService.saveModuleRecord('users', parentUser);
+                        usersToUpsert.set(newId, parentUser);
                         
                         // Update local copy and main list so subsequent loops don't recreate them
-                        currentUsersList.push(parentUser!);
-                        setUsers(prev => [...prev, parentUser!]);
+                        currentUsersList.push(parentUser);
                     } else {
                         // Ensure student ID is linked
                         const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
                         if (!currentStudentIds.includes(associatedUser.id)) {
-                            parentUser.studentIds = [...currentStudentIds, associatedUser.id];
-                            await apiService.updateModuleRecord('users', parentUser.id, parentUser);
+                            parentUser = {
+                                ...parentUser,
+                                studentIds: [...currentStudentIds, associatedUser.id]
+                            };
+                            usersToUpsert.set(parentUser.id, parentUser);
                         }
                     }
 
                     // Update student's parentIds as well
                     const currentParentIds = Array.isArray(associatedUser.parentIds) ? associatedUser.parentIds : [];
                     if (!currentParentIds.includes(parentUser.id)) {
-                        associatedUser.parentIds = [...currentParentIds, parentUser.id];
-                        await apiService.updateModuleRecord('users', associatedUser.id, associatedUser);
+                        const updatedStudent = {
+                            ...associatedUser,
+                            parentIds: [...currentParentIds, parentUser.id]
+                        };
+                        usersToUpsert.set(associatedUser.id, updatedStudent);
+                        
+                        const idx = currentUsersList.findIndex(u => u.id === associatedUser.id);
+                        if (idx !== -1) {
+                            currentUsersList[idx] = updatedStudent;
+                        }
                     }
 
                     targetUserId = parentUser.id;
@@ -1684,7 +1712,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
 
                 // Check if a PIN already exists
-                const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === targetUserId);
+                const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === targetUserId) ||
+                                    eventPinsToCreate.find(p => p.eventId === event.id && p.userId === targetUserId);
                 const pinCode = existingPin ? existingPin.pin : Math.floor(100000 + Math.random() * 900000).toString();
                 const pinId = existingPin ? existingPin.id : `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
@@ -1698,7 +1727,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         status: 'pending',
                         createdAt: new Date().toISOString()
                     };
-                    await apiService.saveModuleRecord('event_pins', newPinRecord);
+                    eventPinsToCreate.push(newPinRecord);
                 }
 
                 // Construct Confirmation Link — use full URL (shortening causes collisions)
@@ -1725,54 +1754,99 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const confirmationLink = rawLink;
                 const shortLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
 
+                const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
+
                 // Send notification with RSVP details
                 const studentName = associatedUser.name || 'your child';
                 const smsMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}. Confirm attendance: ${shortLink}`
-                    : `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${shortLink}`;
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
+                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
                 
                 const emailMessage = primaryParent
-                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}. Confirm attendance: ${confirmationLink}`
-                    : `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${confirmationLink}`
+                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${confirmationLink}`;
                 
-                if (targetPhone) {
-                    try {
-                        const res = await apiService.sendSms(targetPhone, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id);
-                        const isSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
-                        results.push({
-                            recipientName: targetName,
-                            phone: targetPhone,
-                            success: isSuccess,
-                            errorMsg: isSuccess ? undefined : (res?.message || 'Rejected by SMS gateway')
-                        });
-                    } catch (e: any) {
-                        console.error("SMS PIN send failed", e);
-                        results.push({
-                            recipientName: targetName,
-                            phone: targetPhone,
-                            success: false,
-                            errorMsg: e.message || 'Connection failed'
-                        });
-                    }
-                } else {
-                    results.push({
-                        recipientName: targetName,
-                        phone: 'No phone number',
-                        success: false,
-                        errorMsg: isPrimaryOrSecondary 
-                            ? 'No parent phone number configured for student' 
-                            : 'No phone number configured'
-                    });
-                }
+                notificationsToDispatch.push({
+                    targetPhone,
+                    targetEmail,
+                    smsMessage,
+                    emailMessage,
+                    targetName
+                });
 
-                if (targetEmail) {
-                    try {
-                        await apiService.sendEmail(targetEmail, `Event Attendance Invitation - ${event.title}`, emailMessage, currentInstitution.emailConfig);
-                    } catch (e) {
-                        console.error("Email PIN send failed", e);
-                    }
-                }
                 pinCount++;
+            }
+
+            // Save users and pins in bulk
+            if (usersToUpsert.size > 0) {
+                await apiService.saveModuleRecords('users', Array.from(usersToUpsert.values()));
+            }
+            if (eventPinsToCreate.length > 0) {
+                await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
+            }
+
+            // Chunk and dispatch notifications
+            const chunkArray = (array: any[], size: number): any[][] => {
+                const chunks: any[][] = [];
+                for (let i = 0; i < array.length; i += size) {
+                    chunks.push(array.slice(i, i + size));
+                }
+                return chunks;
+            };
+
+            const notificationChunks = chunkArray(notificationsToDispatch, 15);
+
+            for (const chunk of notificationChunks) {
+                await Promise.all(chunk.map(async (notif) => {
+                    if (notif.targetPhone) {
+                        try {
+                            const res = await apiService.sendSms(
+                                notif.targetPhone,
+                                notif.smsMessage,
+                                currentInstitution.smsConfig,
+                                1,
+                                currentInstitution.id
+                            );
+                            const isSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
+                            results.push({
+                                recipientName: notif.targetName,
+                                phone: notif.targetPhone,
+                                success: isSuccess,
+                                errorMsg: isSuccess ? undefined : (res?.message || 'Rejected by SMS gateway')
+                            });
+                        } catch (e: any) {
+                            console.error("SMS PIN send failed", e);
+                            results.push({
+                                recipientName: notif.targetName,
+                                phone: notif.targetPhone,
+                                success: false,
+                                errorMsg: e.message || 'Connection failed'
+                            });
+                        }
+                    } else {
+                        results.push({
+                            recipientName: notif.targetName,
+                            phone: 'No phone number',
+                            success: false,
+                            errorMsg: isPrimaryOrSecondary 
+                                ? 'No parent phone number configured for student' 
+                                : 'No phone number configured'
+                        });
+                    }
+
+                    if (notif.targetEmail) {
+                        try {
+                            await apiService.sendEmail(
+                                notif.targetEmail,
+                                `Event Attendance Invitation - ${event.title}`,
+                                notif.emailMessage,
+                                currentInstitution.emailConfig
+                            );
+                        } catch (e) {
+                            console.error("Email PIN send failed", e);
+                        }
+                    }
+                }));
             }
 
             setStatusMsg({ type: 'success', message: `Successfully generated and sent ${pinCount} PINs.` });
@@ -3634,7 +3708,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
                                                     <div className="flex gap-2">
                                                         <button
-                                                            onClick={() => handleSendAttendancePin(event)}
+                                                            onClick={() => {
+                                                                setBulkInviteModalEvent(event);
+                                                                setBulkInviteAddMsg('');
+                                                            }}
                                                             className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-indigo-500/20 flex items-center justify-center gap-1.5"
                                                         >
                                                             <Send className="w-3 h-3" /> Send PINs
@@ -5251,6 +5328,206 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
                                 >
                                     Dismiss Dashboard
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })(),
+            document.body
+        )}
+
+        {/* ── Bulk PIN Invite Configuration & Preview Modal ── */}
+        {bulkInviteModalEvent && createPortal(
+            (() => {
+                const event = bulkInviteModalEvent;
+                const targetEnrollments = enrollments.filter(enr => {
+                    if (event.target === 'All') return true;
+                    if (event.target.startsWith('students:')) {
+                        const studentIds = event.target.replace('students:', '').split(',');
+                        return studentIds.includes(enr.userId);
+                    }
+                    if (context === 'driving_school') {
+                        return enr.metadata?.licenseCategory === event.target;
+                    } else {
+                        return enr.metadata?.gradeLevel === event.target;
+                    }
+                });
+
+                const previewEnrollments = targetEnrollments.slice(0, 3);
+                const recipientCount = targetEnrollments.length;
+
+                return (
+                    <div
+                        className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4 overflow-y-auto"
+                        onClick={() => setBulkInviteModalEvent(null)}
+                    >
+                        <div
+                            className="bg-slate-900 border border-white/10 shadow-2xl rounded-3xl p-6 w-full max-w-2xl my-8 animate-in fade-in zoom-in-95 duration-200"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-5 border-b border-white/5 pb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                        <Send className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-black text-white uppercase tracking-tight">Bulk Invitation Setup</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                            Event: {event.title} • Cohort: {event.target} ({recipientCount} {recipientCount === 1 ? 'recipient' : 'recipients'})
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setBulkInviteModalEvent(null)}
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                >
+                                    <XCircle className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Additional Message Input */}
+                            <div className="space-y-2 mb-6">
+                                <label className="block text-[10px] font-black text-slate-350 uppercase tracking-widest">
+                                    Additional Custom Message (Optional)
+                                </label>
+                                <textarea
+                                    value={bulkInviteAddMsg}
+                                    onChange={e => setBulkInviteAddMsg(e.target.value)}
+                                    placeholder="e.g. Please carry your national identity card and arrive 15 minutes early."
+                                    rows={3}
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500/50 focus:bg-white/[0.07] transition-all resize-none font-sans"
+                                />
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                                    This message will be injected directly into both the SMS and Email invitation templates.
+                                </p>
+                            </div>
+
+                            {/* Preview Section */}
+                            <div className="space-y-4 mb-6">
+                                <div className="border-t border-white/5 pt-4">
+                                    <h4 className="text-[10px] font-black text-slate-350 uppercase tracking-widest mb-1">
+                                        Recipient Message Previews ({previewEnrollments.length} shown)
+                                    </h4>
+                                    <p className="text-[9px] text-slate-500 font-medium">
+                                        See exactly how notifications will look on your users' devices before sending.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4 max-h-[280px] overflow-y-auto pr-1 no-scrollbar">
+                                    {previewEnrollments.map((enr, index) => {
+                                        const associatedUser = users.find(u => u.id === enr.userId);
+                                        const parentsList = enr.metadata?.parents || [];
+                                        const fallbackParent = {
+                                            name: enr.metadata?.parentName || '',
+                                            phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                                            email: enr.metadata?.parentEmail || '',
+                                            relation: enr.metadata?.parentRelation || 'Guardian'
+                                        };
+                                        const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+                                        const primaryParent = resolvedParents[0];
+
+                                        const targetName = primaryParent ? (primaryParent.name || 'Parent / Guardian') : (associatedUser?.name || 'Student');
+                                        const studentName = associatedUser?.name || 'Student';
+                                        
+                                        const targetPhone = isPrimaryOrSecondary ? '' : (associatedUser?.phoneNumber || '');
+                                        const targetEmail = isPrimaryOrSecondary ? '' : (associatedUser?.email || '');
+                                        
+                                        const displayPhone = primaryParent ? primaryParent.phone : targetPhone;
+                                        const displayEmail = primaryParent ? primaryParent.email : targetEmail;
+
+                                        // Preview Links
+                                        const shortLink = `https://portal.eduai.co.ke/?view=event-confirm&pinId=pin_preview_${index}`;
+                                        const confirmationLink = `https://portal.eduai.co.ke/?view=event-confirm&pinId=pin_preview_${index}&data=eyJwaW5Db2RlIjoiMTIzNDU2IiwiZXZlbnRUZXh0IjoiLi4uIn0=`;
+
+                                        const suffix = bulkInviteAddMsg.trim() ? ` ${bulkInviteAddMsg.trim()}` : '';
+
+                                        const smsPreview = primaryParent
+                                            ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
+                                            : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
+
+                                        const emailPreview = primaryParent
+                                            ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${confirmationLink}`
+                                            : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${confirmationLink}`;
+
+                                        return (
+                                            <div key={enr.id} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-3">
+                                                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                                    <div>
+                                                        <span className="text-[10px] font-black text-white">{targetName}</span>
+                                                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider ml-2 bg-white/5 px-2 py-0.5 rounded">
+                                                            {primaryParent ? `${primaryParent.relation || 'Parent'} of ${studentName}` : 'Student'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[9px] text-slate-500 font-semibold">
+                                                        {displayPhone && `Phone: ${displayPhone}`}
+                                                        {displayPhone && displayEmail && ' | '}
+                                                        {displayEmail && `Email: ${displayEmail}`}
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {/* SMS Preview Bubble */}
+                                                    {displayPhone ? (
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider text-slate-400">
+                                                                <MessageSquare className="w-2.5 h-2.5 text-indigo-400" /> SMS Message Preview
+                                                            </div>
+                                                            <div className="bg-slate-900 border border-white/5 rounded-2xl p-3 relative text-[10px] text-slate-350 leading-relaxed font-sans select-none">
+                                                                {smsPreview}
+                                                                <div className="absolute right-3 bottom-1 text-[7px] font-bold text-slate-500 uppercase tracking-widest">
+                                                                    ~{Math.ceil(smsPreview.length / 160)} SMS
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[10px] text-slate-600 font-semibold italic flex items-center justify-center border border-dashed border-white/5 rounded-2xl p-4 bg-white/[0.01]">
+                                                            No Phone Registered (SMS will be skipped)
+                                                        </div>
+                                                    )}
+
+                                                    {/* Email Preview Card */}
+                                                    {displayEmail ? (
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider text-slate-400">
+                                                                <Mail className="w-2.5 h-2.5 text-emerald-400" /> Email Preview
+                                                            </div>
+                                                            <div className="bg-slate-900 border border-white/5 rounded-2xl p-3 text-[10px] text-slate-350 space-y-1 leading-relaxed font-sans select-none">
+                                                                <p className="font-bold border-b border-white/5 pb-1 text-slate-400">Subject: Event Attendance Invitation - {event.title}</p>
+                                                                <p className="pt-1">{emailPreview}</p>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[10px] text-slate-600 font-semibold italic flex items-center justify-center border border-dashed border-white/5 rounded-2xl p-4 bg-white/[0.01]">
+                                                            No Email Registered (Email will be skipped)
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Footer Buttons */}
+                            <div className="flex gap-3 pt-4 border-t border-white/5">
+                                <button
+                                    type="button"
+                                    onClick={() => setBulkInviteModalEvent(null)}
+                                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        handleSendAttendancePin(event, bulkInviteAddMsg);
+                                        setBulkInviteModalEvent(null);
+                                    }}
+                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/15 flex items-center justify-center gap-2"
+                                >
+                                    <Send className="w-4 h-4" /> Confirm &amp; Send
                                 </button>
                             </div>
                         </div>

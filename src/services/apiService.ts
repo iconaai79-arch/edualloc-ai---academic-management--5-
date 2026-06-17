@@ -687,7 +687,9 @@ export const apiService = {
                 // For now, only simple equality filters are sent to proxy as query params
                 // We could enhance the proxy to handle more complex filters
                 Object.entries(options.filter).forEach(([k, v]) => {
-                    url.searchParams.append(k, v as string);
+                    // Convert camelCase filter keys to snake_case for Supabase/PostgreSQL compatibility
+                    const dbKey = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                    url.searchParams.append(dbKey, v as string);
                 });
             }
 

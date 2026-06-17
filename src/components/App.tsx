@@ -6134,24 +6134,63 @@ export const App: React.FC = () => {
                             initialView={loginInitialView}
                             prefillModuleId={registrationModuleId || undefined}
                             onLogin={async (e, p) => {
+                                const normalizePhoneForCheck = (phone: string | null | undefined): string => {
+                                    if (!phone) return '';
+                                    let cleaned = phone.replace(/\D/g, '');
+                                    if (cleaned.startsWith('07') || cleaned.startsWith('01')) {
+                                        cleaned = '254' + cleaned.substring(1);
+                                    }
+                                    if (cleaned.length === 9 && (cleaned.startsWith('7') || cleaned.startsWith('1'))) {
+                                        cleaned = '254' + cleaned;
+                                    }
+                                    return cleaned;
+                                };
+
+                                const normE = normalizePhoneForCheck(e);
+
                                 // Discovery Phase: Search for user directly in DB if not in local cache
-                                let matchedUsers = (users || []).filter(u => u && (u.email?.toLowerCase() === e.toLowerCase() || u.phoneNumber === e) && (u.password === p || (!u.password && p === 'password123')));
+                                let matchedUsers = (users || []).filter(u => {
+                                    if (!u) return false;
+                                    const emailMatch = u.email?.toLowerCase() === e.toLowerCase();
+                                    const phoneMatch = u.phoneNumber && normE && normalizePhoneForCheck(u.phoneNumber) === normE;
+                                    const passMatch = u.password === p || (!u.password && p === 'password123');
+                                    return (emailMatch || phoneMatch) && passMatch;
+                                });
                                 
                                 if (matchedUsers.length === 0) {
                                     console.log(`[Login Discovery] No local match for "${e}". Attempting API discovery...`);
-                                    const filter = e.includes('@') ? { email: e.toLowerCase() } : { phoneNumber: e };
-                                    try {
-                                        const discovered = await apiService.fetchModuleRecords('users', undefined, undefined, { filter });
-                                        if (discovered && Array.isArray(discovered)) {
-                                            matchedUsers = discovered.filter(u => u.password === p || (!u.password && p === 'password123'));
-                                            if (matchedUsers.length > 0) {
-                                                console.log(`[Login Discovery] Found ${matchedUsers.length} matches via API.`);
-                                                // Sync discovered users to state to prevent future discovery hits
-                                                setUsers(prev => [...(prev || []), ...matchedUsers]);
+                                    let discovered: any[] = [];
+                                    
+                                    if (e.includes('@')) {
+                                        try {
+                                            const res = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { email: e.toLowerCase() } });
+                                            if (Array.isArray(res)) discovered = res;
+                                        } catch (err) {
+                                            console.error("[Login Discovery] Email search failed:", err);
+                                        }
+                                    } else if (normE) {
+                                        // Try common formats for lookup sequentially: input raw string, 254-based, +254-based, 0-based
+                                        const phoneCandidates = [e, normE, `+${normE}`, '0' + normE.substring(3)];
+                                        for (const candidate of phoneCandidates) {
+                                            try {
+                                                const res = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { phoneNumber: candidate } });
+                                                if (Array.isArray(res) && res.length > 0) {
+                                                    discovered = res;
+                                                    break;
+                                                }
+                                            } catch (err) {
+                                                console.error(`[Login Discovery] Candidate "${candidate}" search failed:`, err);
                                             }
                                         }
-                                    } catch (err) {
-                                        console.error("[Login Discovery] Search failed:", err);
+                                    }
+                                    
+                                    if (discovered.length > 0) {
+                                        matchedUsers = discovered.filter(u => u.password === p || (!u.password && p === 'password123'));
+                                        if (matchedUsers.length > 0) {
+                                            console.log(`[Login Discovery] Found ${matchedUsers.length} matches via API.`);
+                                            // Sync discovered users to state to prevent future discovery hits
+                                            setUsers(prev => [...(prev || []), ...matchedUsers]);
+                                        }
                                     }
                                 }
 
@@ -6240,7 +6279,13 @@ export const App: React.FC = () => {
                                 }
 
                                 // Debugging Login Failures
-                                const accountExists = (users || []).some(user => user && (user.email?.toLowerCase() === e.toLowerCase() || user.phoneNumber === e));
+                                const debugNormE = normalizePhoneForCheck(e);
+                                const accountExists = (users || []).some(user => 
+                                    user && (
+                                        user.email?.toLowerCase() === e.toLowerCase() || 
+                                        (user.phoneNumber && debugNormE && normalizePhoneForCheck(user.phoneNumber) === debugNormE)
+                                    )
+                                );
                                 if (accountExists) {
                                     console.warn(`[Login] Account found for "${e}", but password mismatch occurred.`);
                                 } else {
