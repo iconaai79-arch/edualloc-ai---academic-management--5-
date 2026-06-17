@@ -48,9 +48,8 @@ import { VALID_STAFF_ROLES } from '../../constants';
 const teacherRoles = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher'];
 const nonSupportRoles = [
     'student', 'parent', 'customer', 'lead', 'member',
-    'admin', 'super_admin', 'main_admin', 'administrator', 'head_teacher',
-    'church_admin', 'property_admin', 'his_admin', 'campaign_admin', 'cooperative_manager',
-    'reseller', 'director'
+    'super_admin', 'main_admin',
+    'reseller'
 ];
 
 const globalShortUrlCache: Record<string, string> = {};
