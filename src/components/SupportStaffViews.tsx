@@ -215,6 +215,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [eventPins, setEventPins] = useState<any[]>([]);
     const [institutionEvents, setInstitutionEvents] = useState<any[]>([]);
     const [loadingData, setLoadingData] = useState(false);
+    const [exitingVisitorIds, setExitingVisitorIds] = useState<string[]>([]);
 
     const fetchData = async () => {
         if (!user?.institutionId) return;
@@ -465,7 +466,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                         </div>
                         <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar pr-2">
                             {activeVisitors.slice(0, 10).map(v => (
-                                <div key={v.id} className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center group transition-all hover:border-indigo-100 hover:shadow-md">
+                                <div key={v.id} className={`p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center group transition-all hover:border-indigo-100 hover:shadow-md ${exitingVisitorIds.includes(v.id) ? 'visitor-checkout-exit' : ''}`}>
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 mb-1">
                                             <p className="font-black text-slate-800 dark:text-white uppercase text-sm truncate">{v.name}</p>
@@ -480,8 +481,12 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     </div>
                                     <button
                                         onClick={async () => {
-                                            onCheckoutVisitor?.(v.id);
-                                            await onLogAction?.(`Checked out visitor: ${v.name}`);
+                                            setExitingVisitorIds(prev => [...prev, v.id]);
+                                            setTimeout(async () => {
+                                                onCheckoutVisitor?.(v.id);
+                                                await onLogAction?.(`Checked out visitor: ${v.name}`);
+                                                setExitingVisitorIds(prev => prev.filter(id => id !== v.id));
+                                            }, 400);
                                         }}
                                         className="p-3 bg-red-50 text-red-600 rounded-xl shadow-sm border border-red-50 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100 shrink-0"
                                         title="Secure Checkout"
@@ -658,7 +663,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     {activeVisitors.map(v => {
                                         const host = users.find(u => u.id === v.hostId);
                                         return (
-                                            <tr key={v.id} className="group hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20 transition-colors">
+                                            <tr key={v.id} className={`group hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20 transition-colors ${exitingVisitorIds.includes(v.id) ? 'visitor-checkout-exit' : ''}`}>
                                                 <td className="px-4 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-9 h-9 rounded-2xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 font-black text-xs shadow-inner">
@@ -694,8 +699,12 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                                 <td className="px-4 py-4 text-right">
                                                     <button
                                                         onClick={async () => {
-                                                            onCheckoutVisitor?.(v.id);
-                                                            await onLogAction?.(`Checked out visitor: ${v.name}`);
+                                                            setExitingVisitorIds(prev => [...prev, v.id]);
+                                                            setTimeout(async () => {
+                                                                onCheckoutVisitor?.(v.id);
+                                                                await onLogAction?.(`Checked out visitor: ${v.name}`);
+                                                                setExitingVisitorIds(prev => prev.filter(id => id !== v.id));
+                                                            }, 400);
                                                         }}
                                                         className="px-4 py-2 bg-red-50 dark:bg-red-950/30 text-red-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all active:scale-95 border border-red-100 dark:border-red-900/50"
                                                     >
@@ -854,6 +863,21 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             <style>{`
                 .form-input, .form-select { display: block; width: 100%; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; }
                 .dark .form-input { border-color: #334155; background-color: #0f172a; color: #fff; }
+                @keyframes visitorExit {
+                    0% {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                    100% {
+                        opacity: 0;
+                        transform: translateX(-30px);
+                        background-color: rgba(239, 68, 68, 0.08);
+                    }
+                }
+                .visitor-checkout-exit {
+                    animation: visitorExit 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+                    pointer-events: none;
+                }
             `}</style>
         </BaseDashboard>
     );
