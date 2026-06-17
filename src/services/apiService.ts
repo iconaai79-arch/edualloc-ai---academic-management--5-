@@ -249,14 +249,53 @@ export const apiService = {
         return publicUrl;
     },
     async shortenUrl(longUrl: string): Promise<string> {
-        // Cache key to avoid shortening the same URL repeatedly in a session
-        const cacheKey = `eduai_short_${btoa(longUrl).substring(0, 32)}`;
+        // Cache key — per unique long URL
+        const cacheKey = `eduai_short_${btoa(longUrl).substring(0, 40)}`;
+
+        // Validate cached entry: discard if it doesn't look like a legit short URL
+        // or if the cache might be stale from a previous wrong session
         try {
             const cached = sessionStorage.getItem(cacheKey);
-            if (cached) return cached;
+            if (cached && cached.startsWith('http') && !cached.includes('localhost')) {
+                return cached;
+            } else if (cached) {
+                sessionStorage.removeItem(cacheKey); // clear bad cache
+            }
         } catch (_) {}
 
-        // 1. Try server-side proxy (avoids CORS issues with TinyURL)
+        // Helper: attempt a shortener service and return the result or null
+        const tryShorten = async (shortenerUrl: string, extractFn: (text: string) => string | null): Promise<string | null> => {
+            try {
+                const res = await fetch(shortenerUrl, { method: 'GET', signal: AbortSignal.timeout(7000) });
+                if (res.ok) {
+                    const text = (await res.text()).trim();
+                    return extractFn(text);
+                }
+            } catch (_) {}
+            return null;
+        };
+
+        // 1. is.gd — generates unique slugs, no collision risk
+        const isgdShort = await tryShorten(
+            `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`,
+            (text) => (text.startsWith('https://is.gd/') ? text : null)
+        );
+        if (isgdShort) {
+            try { sessionStorage.setItem(cacheKey, isgdShort); } catch (_) {}
+            return isgdShort;
+        }
+
+        // 2. TinyURL — fallback (may have slug collisions for popular URLs)
+        const tinyShort = await tryShorten(
+            `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
+            (text) => (text.startsWith('https://tinyurl.com/') ? text : null)
+        );
+        if (tinyShort) {
+            try { sessionStorage.setItem(cacheKey, tinyShort); } catch (_) {}
+            return tinyShort;
+        }
+
+        // 3. Server-side proxy via integrations API (avoids CORS in some environments)
         try {
             if (_supabase) {
                 const res = await fetch('/api/integrations', {
@@ -266,30 +305,16 @@ export const apiService = {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    if (data.success && data.shortUrl && data.shortUrl.startsWith('https://tinyurl.com/')) {
-                        try { sessionStorage.setItem(cacheKey, data.shortUrl); } catch (_) {}
-                        return data.shortUrl;
+                    const short = data?.shortUrl;
+                    if (short && short.startsWith('http') && !short.includes('localhost')) {
+                        try { sessionStorage.setItem(cacheKey, short); } catch (_) {}
+                        return short;
                     }
                 }
             }
         } catch (_) {}
 
-        // 2. Fallback: Try TinyURL directly from browser (may work in production)
-        try {
-            const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
-            const res = await fetch(apiUrl, { method: 'GET' });
-            if (res.ok) {
-                const shortUrl = (await res.text()).trim();
-                if (shortUrl && shortUrl.startsWith('https://tinyurl.com/')) {
-                    try { sessionStorage.setItem(cacheKey, shortUrl); } catch (_) {}
-                    return shortUrl;
-                }
-            }
-        } catch (e) {
-            console.warn('[shortenUrl] TinyURL API failed:', e);
-        }
-
-        // 3. Final fallback: return original URL as-is
+        // 4. Final fallback: return the original full URL unchanged
         return longUrl;
     },
     async incrementCount(table: string, id: string, field: 'view_count' | 'inquiry_count'): Promise<void> {

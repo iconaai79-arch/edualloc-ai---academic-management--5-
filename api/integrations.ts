@@ -385,11 +385,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!longUrl) {
                 return res.status(400).json({ success: false, message: 'Missing url parameter.' });
             }
+            // Try is.gd first (generates unique slugs — no collision risk)
+            try {
+                const isgdRes = await fetchWithTimeout(
+                    `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`,
+                    { method: 'GET', headers: { 'Accept': 'text/plain' } },
+                    7000
+                );
+                if (isgdRes.ok) {
+                    const shortUrl = (await isgdRes.text()).trim();
+                    if (shortUrl && shortUrl.startsWith('https://is.gd/')) {
+                        return res.status(200).json({ success: true, shortUrl });
+                    }
+                }
+            } catch (e: any) {
+                console.warn('[shortenUrl] is.gd call failed:', e.message);
+            }
+            // Fallback: TinyURL
             try {
                 const tinyRes = await fetchWithTimeout(
                     `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
                     { method: 'GET', headers: { 'Accept': 'text/plain' } },
-                    8000
+                    7000
                 );
                 if (tinyRes.ok) {
                     const shortUrl = (await tinyRes.text()).trim();
@@ -397,12 +414,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         return res.status(200).json({ success: true, shortUrl });
                     }
                 }
-                // Fallback: return original URL if TinyURL fails
-                return res.status(200).json({ success: true, shortUrl: longUrl });
             } catch (e: any) {
                 console.warn('[shortenUrl] TinyURL call failed:', e.message);
-                return res.status(200).json({ success: true, shortUrl: longUrl });
             }
+            // Final fallback: return original URL
+            return res.status(200).json({ success: true, shortUrl: longUrl });
         }
 
         if (action === 'sendEmail') {
