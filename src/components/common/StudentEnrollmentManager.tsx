@@ -52,6 +52,133 @@ const nonSupportRoles = [
     'reseller', 'director'
 ];
 
+const globalShortUrlCache: Record<string, string> = {};
+
+const ShortenedUrlField: React.FC<{
+    longUrl: string;
+    theme: 'indigo' | 'violet';
+    setStatusMsg: (msg: { type: 'success' | 'error' | 'info' | 'idle', message: string }) => void;
+}> = ({ longUrl, theme, setStatusMsg }) => {
+    const [shortUrl, setShortUrl] = useState<string>(globalShortUrlCache[longUrl] || '');
+    const [loading, setLoading] = useState<boolean>(!globalShortUrlCache[longUrl]);
+    const [error, setError] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (globalShortUrlCache[longUrl]) {
+            setShortUrl(globalShortUrlCache[longUrl]);
+            setLoading(false);
+            return;
+        }
+
+        let isMounted = true;
+        const fetchShortUrl = async () => {
+            try {
+                setLoading(true);
+                setError(false);
+                const shortened = await apiService.shortenUrl(longUrl);
+                if (isMounted) {
+                    if (shortened && shortened.startsWith('http')) {
+                        globalShortUrlCache[longUrl] = shortened;
+                        setShortUrl(shortened);
+                    } else {
+                        throw new Error('Invalid URL returned');
+                    }
+                    setLoading(false);
+                }
+            } catch (err) {
+                if (isMounted) {
+                    setError(true);
+                    setLoading(false);
+                }
+            }
+        };
+
+        fetchShortUrl();
+        return () => {
+            isMounted = false;
+        };
+    }, [longUrl]);
+
+    const themeClasses = {
+        indigo: {
+            wrapper: 'bg-indigo-50 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/10',
+            text: 'text-indigo-750 dark:text-indigo-300',
+            button: 'hover:bg-indigo-200/60 dark:hover:bg-indigo-500/20',
+            icon: 'text-indigo-600 dark:text-indigo-400'
+        },
+        violet: {
+            wrapper: 'bg-violet-50 dark:bg-violet-500/5 border border-violet-100 dark:border-violet-500/10',
+            text: 'text-violet-750 dark:text-violet-300',
+            button: 'hover:bg-violet-200/60 dark:hover:bg-violet-500/20',
+            icon: 'text-violet-600 dark:text-violet-400'
+        }
+    }[theme];
+
+    if (loading) {
+        return (
+            <div className={`flex items-center gap-1 ${themeClasses.wrapper} rounded-xl px-2 py-1 h-[26px]`}>
+                <span className="text-[9px] font-medium text-slate-400 dark:text-slate-500 italic animate-pulse">Shortening link...</span>
+            </div>
+        );
+    }
+
+    if (error || !shortUrl) {
+        return (
+            <div className={`flex items-center justify-between gap-1 ${themeClasses.wrapper} rounded-xl px-2 py-0.5 h-[26px]`}>
+                <span className="text-[9px] font-medium text-rose-505 dark:text-rose-400 truncate">Failed to shorten</span>
+                <button
+                    type="button"
+                    onClick={async () => {
+                        let isMounted = true;
+                        try {
+                            setLoading(true);
+                            setError(false);
+                            const shortened = await apiService.shortenUrl(longUrl);
+                            if (isMounted) {
+                                globalShortUrlCache[longUrl] = shortened;
+                                setShortUrl(shortened);
+                                setLoading(false);
+                            }
+                        } catch (err) {
+                            if (isMounted) {
+                                setError(true);
+                                setLoading(false);
+                            }
+                        }
+                    }}
+                    className="text-[8px] font-black uppercase text-indigo-650 hover:text-indigo-850 px-1 py-0.5"
+                >
+                    Retry
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`flex items-center gap-1 ${themeClasses.wrapper} rounded-xl px-2 py-1`}>
+            <input
+                type="text"
+                readOnly
+                value={shortUrl}
+                onClick={e => (e.target as HTMLInputElement).select()}
+                className={`flex-1 bg-transparent text-[9px] font-mono ${themeClasses.text} outline-none min-w-0 cursor-text`}
+            />
+            <button
+                type="button"
+                onClick={async () => {
+                    try { await navigator.clipboard.writeText(shortUrl); } catch { alert(shortUrl); }
+                    setStatusMsg({ type: 'success', message: 'Shortened link copied!' });
+                    setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2500);
+                }}
+                className={`shrink-0 p-0.5 ${themeClasses.button} rounded transition-all`}
+                title="Copy Short URL"
+            >
+                <Link className={`w-2.5 h-2.5 ${themeClasses.icon}`} />
+            </button>
+        </div>
+    );
+};
+
 interface StudentEnrollmentManagerProps {
     context: 'academic' | 'driving_school';
     currentInstitution: Institution;
@@ -269,6 +396,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [editEventVenue, setEditEventVenue] = useState('');
     const [editEventTarget, setEditEventTarget] = useState('All');
     const [editEventLoading, setEditEventLoading] = useState(false);
+
+    // Short URL cache: pinId -> shortened URL (generated lazily for UI display)
+    const [shortUrlCache, setShortUrlCache] = useState<Record<string, string>>({});
 
     // PIN verification state
     const [verifyIdentifier, setVerifyIdentifier] = useState('');
@@ -774,7 +904,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 ? 'https://portal.eduai.co.ke'
                 : window.location.origin;
             const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
-            const confirmationLink = await apiService.shortenUrl(rawLink);
+            // Use full URL directly — shortening can cause collisions/failures
+            const confirmationLink = rawLink;
             const studentName = users.find(u => u.id === inviteModalEnrollment.userId)?.name || 'your child';
             const message = `Dear ${parent.name || 'Guardian'}, you are invited to "${selectedEvent.title}" on ${selectedEvent.eventDate} at ${selectedEvent.eventTime}, ${selectedEvent.venue} — regarding ${studentName}. Confirm attendance: ${confirmationLink}`;
 
@@ -1523,12 +1654,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     await apiService.saveModuleRecord('event_pins', newPinRecord);
                 }
 
-                // Construct Confirmation Link & Shorten it
+                // Construct Confirmation Link — use full URL (shortening causes collisions)
                 const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
                     ? 'https://portal.eduai.co.ke'
                     : window.location.origin;
                 const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
-                const confirmationLink = await apiService.shortenUrl(rawLink);
+                const confirmationLink = rawLink;
 
                 // Send notification with RSVP details
                 const studentName = associatedUser.name || 'your child';
@@ -1683,12 +1814,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         };
                         await apiService.saveModuleRecord('event_pins', newPinRecord);
 
-                        // 3. Construct RSVP Link & Shorten
+                        // 3. Construct RSVP Link — use full URL directly (shortening unreliable)
                         const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
                             ? 'https://portal.eduai.co.ke'
                             : window.location.origin;
                         const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
-                        const confirmationLink = await apiService.shortenUrl(rawLink);
+                        const confirmationLink = rawLink;
                         
                         const message = `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
 
@@ -3211,30 +3342,45 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                             : window.location.origin;
                                                         const regUrl = `${origin}/?view=event-registration&eventId=${event.id}`;
                                                         return (
-                                                            <div className="pt-1">
-                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                                                                    <Link className="w-2.5 h-2.5" /> Public Registration Link
+                                                            <div className="pt-1 space-y-1">
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                                                    <Link className="w-2.5 h-2.5" /> Public Registration Links
                                                                 </p>
-                                                                <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl px-2.5 py-1.5">
-                                                                    <input
-                                                                        type="text"
-                                                                        readOnly
-                                                                        value={regUrl}
-                                                                        onClick={e => (e.target as HTMLInputElement).select()}
-                                                                        className="flex-1 bg-transparent text-[9px] font-mono text-indigo-700 dark:text-indigo-300 outline-none min-w-0 cursor-text"
-                                                                    />
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={async () => {
-                                                                            try { await navigator.clipboard.writeText(regUrl); } catch { alert(regUrl); }
-                                                                            setStatusMsg({ type: 'success', message: 'Registration link copied!' });
-                                                                            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2500);
-                                                                        }}
-                                                                        className="shrink-0 p-1 hover:bg-indigo-200/60 dark:hover:bg-indigo-500/20 rounded-lg transition-all"
-                                                                        title="Copy"
-                                                                    >
-                                                                        <Link className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                                                                    </button>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                                    {/* Full Link */}
+                                                                    <div className="flex flex-col gap-0.5">
+                                                                        <span className="text-[8px] font-bold text-indigo-500/80 dark:text-indigo-400/80 uppercase tracking-wider">Full URL</span>
+                                                                        <div className="flex items-center gap-1 bg-indigo-50 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/10 rounded-xl px-2.5 py-1">
+                                                                            <input
+                                                                                type="text"
+                                                                                readOnly
+                                                                                value={regUrl}
+                                                                                onClick={e => (e.target as HTMLInputElement).select()}
+                                                                                className="flex-1 bg-transparent text-[9px] font-mono text-indigo-750 dark:text-indigo-300 outline-none min-w-0 cursor-text"
+                                                                            />
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={async () => {
+                                                                                    try { await navigator.clipboard.writeText(regUrl); } catch { alert(regUrl); }
+                                                                                    setStatusMsg({ type: 'success', message: 'Full registration link copied!' });
+                                                                                    setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2500);
+                                                                                }}
+                                                                                className="shrink-0 p-0.5 hover:bg-indigo-200/60 dark:hover:bg-indigo-500/20 rounded transition-all"
+                                                                                title="Copy Full Link"
+                                                                            >
+                                                                                <Link className="w-2.5 h-2.5 text-indigo-600 dark:text-indigo-400" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                    {/* Short Link */}
+                                                                    <div className="flex flex-col gap-0.5">
+                                                                        <span className="text-[8px] font-bold text-indigo-500/80 dark:text-indigo-400/80 uppercase tracking-wider">Short URL</span>
+                                                                        <ShortenedUrlField
+                                                                            longUrl={regUrl}
+                                                                            theme="indigo"
+                                                                            setStatusMsg={setStatusMsg}
+                                                                        />
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         );
@@ -3431,26 +3577,43 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                         : window.location.origin;
                                                     const rsvpUrl = `${origin}/?view=event-confirm&pinId=${pin.id}`;
                                                     return (
-                                                        <div className="flex items-center gap-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-100 dark:border-violet-500/20 rounded-xl px-2.5 py-1.5">
-                                                            <Link className="w-3 h-3 text-violet-500 dark:text-violet-400 shrink-0" />
-                                                            <input
-                                                                type="text"
-                                                                readOnly
-                                                                value={rsvpUrl}
-                                                                onClick={e => (e.target as HTMLInputElement).select()}
-                                                                className="flex-1 bg-transparent text-[9px] font-mono text-violet-700 dark:text-violet-300 outline-none min-w-0 cursor-text"
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={async () => {
-                                                                    try { await navigator.clipboard.writeText(rsvpUrl); } catch { alert(rsvpUrl); }
-                                                                    setStatusMsg({ type: 'success', message: 'RSVP link copied!' });
-                                                                    setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2500);
-                                                                }}
-                                                                className="shrink-0 text-[9px] font-black text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-500/20 hover:bg-violet-200 dark:hover:bg-violet-500/30 px-2 py-0.5 rounded-lg transition-all uppercase tracking-wider"
-                                                            >
-                                                                Copy
-                                                            </button>
+                                                        <div className="w-full pt-0.5 space-y-1">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                                {/* Full Link */}
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    <span className="text-[8px] font-bold text-violet-500/80 dark:text-violet-400/80 uppercase tracking-wider">Full RSVP URL</span>
+                                                                    <div className="flex items-center gap-1 bg-violet-50 dark:bg-violet-500/5 border border-violet-100 dark:border-violet-500/10 rounded-xl px-2.5 py-1">
+                                                                        <input
+                                                                            type="text"
+                                                                            readOnly
+                                                                            value={rsvpUrl}
+                                                                            onClick={e => (e.target as HTMLInputElement).select()}
+                                                                            className="flex-1 bg-transparent text-[9px] font-mono text-violet-750 dark:text-violet-300 outline-none min-w-0 cursor-text"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={async () => {
+                                                                                try { await navigator.clipboard.writeText(rsvpUrl); } catch { alert(rsvpUrl); }
+                                                                                setStatusMsg({ type: 'success', message: 'Full RSVP link copied!' });
+                                                                                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2500);
+                                                                            }}
+                                                                            className="shrink-0 p-0.5 hover:bg-violet-200/60 dark:hover:bg-violet-500/20 rounded transition-all"
+                                                                            title="Copy Full RSVP Link"
+                                                                        >
+                                                                            <Link className="w-2.5 h-2.5 text-violet-600 dark:text-violet-400" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                                {/* Shortened Link */}
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    <span className="text-[8px] font-bold text-violet-500/80 dark:text-violet-400/80 uppercase tracking-wider">Short RSVP URL</span>
+                                                                    <ShortenedUrlField
+                                                                        longUrl={rsvpUrl}
+                                                                        theme="violet"
+                                                                        setStatusMsg={setStatusMsg}
+                                                                    />
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     );
                                                 })()}

@@ -300,7 +300,8 @@ export const PublicEventConfirmation: React.FC = () => {
                     ? 'https://portal.eduai.co.ke'
                     : window.location.origin;
                 const passUrl = `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
-                const shortenedPassUrl = await apiService.shortenUrl(passUrl);
+                // Use full URL directly — shortening can cause collisions/failures
+                const shortenedPassUrl = passUrl;
                 
                 const eventTitle = eventRecord ? eventRecord.title : 'the event';
                 const message = `Your attendance to "${eventTitle}" is confirmed. Show this PIN: ${pinRecord.pin} or check-in pass: ${shortenedPassUrl} at the gate for scan.`;
