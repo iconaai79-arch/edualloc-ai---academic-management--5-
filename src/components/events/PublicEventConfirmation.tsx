@@ -239,7 +239,8 @@ export const PublicEventConfirmation: React.FC = () => {
         
         try {
             const enteredDigits = verificationPhone.replace(/[^\d]/g, '');
-            const dbPhone = (userRecord?.phoneNumber || userRecord?.phone_number || '').replace(/[^\d]/g, '');
+            const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
+            const dbPhone = rawDbPhone.replace(/[^\d]/g, '');
             
             if (!enteredDigits) {
                 setVerificationError('Please enter your phone number.');
@@ -252,9 +253,25 @@ export const PublicEventConfirmation: React.FC = () => {
                 return;
             }
             
-            const match = enteredDigits.length >= 9 && dbPhone.length >= 9 
-                ? enteredDigits.slice(-9) === dbPhone.slice(-9)
-                : enteredDigits === dbPhone;
+            const cleanPhone = (p: string) => {
+                const digits = p.replace(/[^\d]/g, '');
+                if (digits.startsWith('254') && digits.length > 9) {
+                    return digits.substring(3);
+                }
+                if (digits.startsWith('0') && digits.length > 8) {
+                    return digits.substring(1);
+                }
+                return digits;
+            };
+
+            const cleanEntered = cleanPhone(verificationPhone);
+            const cleanDb = cleanPhone(rawDbPhone);
+
+            const match = cleanEntered && cleanDb && (
+                cleanEntered === cleanDb || 
+                (cleanEntered.length >= 7 && cleanDb.endsWith(cleanEntered)) || 
+                (cleanDb.length >= 7 && cleanEntered.endsWith(cleanDb))
+            );
 
             if (match) {
                 setIsVerified(true);
@@ -532,6 +549,11 @@ export const PublicEventConfirmation: React.FC = () => {
                                                 }}
                                                 className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
                                             />
+                                            {(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (userRecord?.phoneNumber || userRecord?.phone_number) && (
+                                                <p className="text-[10px] text-indigo-400 font-bold mt-1">
+                                                    [Development Mode] Expected: {userRecord.phoneNumber || userRecord.phone_number}
+                                                </p>
+                                            )}
                                         </div>
 
                                         {verificationError && (
