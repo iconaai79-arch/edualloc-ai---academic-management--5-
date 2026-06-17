@@ -255,7 +255,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [isScanning, setIsScanning] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'none'>('idle');
-    const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
+    const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
     const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
     const todaysAppointments = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -297,7 +297,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         if (matches.length > 0) {
             const returning = [...matches].sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''))[0];
             if (returning) {
-                setWalkInForm({ ...walkInForm, name: returning.name || '', vehiclePlate: returning.vehiclePlate || '', vehicleModel: returning.vehicleModel || '' });
+                setWalkInForm({ ...walkInForm, name: returning.name || '', idNumber: returning.idNumber || '', vehiclePlate: returning.vehiclePlate || '', vehicleModel: returning.vehicleModel || '' });
                 setLookupStatus('found');
             }
         } else {
@@ -315,14 +315,15 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 hostId: walkInForm.hostId,
                 vehiclePlate: walkInForm.vehiclePlate.toUpperCase(),
                 vehicleModel: walkInForm.vehicleModel,
+                idNumber: walkInForm.idNumber,
                 visitDate: new Date().toISOString().split('T')[0],
                 timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 institutionId: user?.institutionId || ''
             });
-            await props.onLogAction?.(`Registered visitor: ${walkInForm.name} for ${walkInForm.purpose}`);
+            await props.onLogAction?.(`Registered visitor: ${walkInForm.name} (ID: ${walkInForm.idNumber}) for ${walkInForm.purpose}`);
             setIsRegistering(false);
             setLookupStatus('idle');
-            setWalkInForm({ name: '', phone: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
+            setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
             alert("Visitor Registered & Signed In");
         }
     };
@@ -476,6 +477,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[9px] font-black uppercase bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md">{v.purpose}</span>
+                                            {v.idNumber && <span className="text-[9px] font-black text-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md">ID: {v.idNumber}</span>}
                                             <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {v.timeIn}</span>
                                         </div>
                                     </div>
@@ -671,7 +673,12 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                                         </div>
                                                         <div>
                                                             <div className="font-black text-slate-800 dark:text-white uppercase text-sm">{v.name || 'Unknown'}</div>
-                                                            <div className="text-[10px] text-slate-500 font-bold">{v.phoneNumber}</div>
+                                                            <div className="flex flex-col gap-0.5 mt-0.5">
+                                                                <div className="text-[10px] text-slate-500 font-bold">{v.phoneNumber}</div>
+                                                                {v.idNumber && (
+                                                                    <div className="text-[9px] text-slate-400 font-black uppercase tracking-wider">ID: {v.idNumber}</div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -791,22 +798,35 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                             <button onClick={() => setIsRegistering(false)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-6 h-6" /></button>
                         </div>
                         <form onSubmit={handleRegisterWalkIn} className="p-8 space-y-5">
-                            <div className="relative">
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Phone Number (Lookup)</label>
-                                <div className="flex gap-2">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="relative">
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Phone Number (Lookup)</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="tel"
+                                            className="form-input"
+                                            value={walkInForm.phone}
+                                            onChange={(e) => setWalkInForm({ ...walkInForm, phone: e.target.value })}
+                                            placeholder="07..."
+                                            required
+                                        />
+                                        <button type="button" onClick={handleVisitorLookup} className="px-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors shrink-0">
+                                            {lookupStatus === 'searching' ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <MagnifyingGlassIcon className="w-5 h-5" />}
+                                        </button>
+                                    </div>
+                                    {lookupStatus === 'found' && <p className="text-[10px] font-bold text-emerald-600 mt-2 uppercase">Returning Visitor Identified</p>}
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">National ID / Passport</label>
                                     <input
-                                        type="tel"
+                                        type="text"
                                         className="form-input"
-                                        value={walkInForm.phone}
-                                        onChange={(e) => setWalkInForm({ ...walkInForm, phone: e.target.value })}
-                                        placeholder="07..."
+                                        value={walkInForm.idNumber}
+                                        onChange={(e) => setWalkInForm({ ...walkInForm, idNumber: e.target.value })}
+                                        placeholder="e.g. 12345678"
                                         required
                                     />
-                                    <button type="button" onClick={handleVisitorLookup} className="px-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors">
-                                        {lookupStatus === 'searching' ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <MagnifyingGlassIcon className="w-5 h-5" />}
-                                    </button>
                                 </div>
-                                {lookupStatus === 'found' && <p className="text-[10px] font-bold text-emerald-600 mt-2 uppercase">Returning Visitor Identified</p>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
