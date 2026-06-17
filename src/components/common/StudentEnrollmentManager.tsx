@@ -31,7 +31,10 @@ import {
     Check,
     Key,
     Link,
-    UserRound
+    UserRound,
+    Edit2,
+    RotateCcw,
+    X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course } from '../../types';
@@ -256,6 +259,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [eventTarget, setEventTarget] = useState('All');
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
     const [studentSearchQuery, setStudentSearchQuery] = useState('');
+
+    // Event edit state
+    const [editingEvent, setEditingEvent] = useState<any | null>(null);
+    const [editEventTitle, setEditEventTitle] = useState('');
+    const [editEventDescription, setEditEventDescription] = useState('');
+    const [editEventDate, setEditEventDate] = useState('');
+    const [editEventTime, setEditEventTime] = useState('');
+    const [editEventVenue, setEditEventVenue] = useState('');
+    const [editEventTarget, setEditEventTarget] = useState('All');
+    const [editEventLoading, setEditEventLoading] = useState(false);
 
     // PIN verification state
     const [verifyIdentifier, setVerifyIdentifier] = useState('');
@@ -1234,6 +1247,101 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setIsLoading(false);
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
         }
+    };
+
+    // Open event edit modal
+    const handleOpenEditEvent = (event: any) => {
+        setEditingEvent(event);
+        setEditEventTitle(event.title || '');
+        setEditEventDescription(event.description || '');
+        setEditEventDate(event.eventDate || '');
+        setEditEventTime(event.eventTime || '');
+        setEditEventVenue(event.venue || '');
+        setEditEventTarget(event.target || 'All');
+    };
+
+    // Save edited event
+    const handleSaveEditEvent = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingEvent) return;
+        if (!editEventTitle.trim() || !editEventVenue.trim()) {
+            setStatusMsg({ type: 'error', message: 'Event Title and Venue are required.' });
+            return;
+        }
+        setEditEventLoading(true);
+        try {
+            const updated = {
+                ...editingEvent,
+                title: editEventTitle.trim(),
+                description: editEventDescription.trim(),
+                eventDate: editEventDate,
+                eventTime: editEventTime,
+                venue: editEventVenue.trim(),
+                target: editEventTarget,
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.updateModuleRecord('institution_events', editingEvent.id, updated);
+            setStatusMsg({ type: 'success', message: 'Event updated successfully.' });
+            setEditingEvent(null);
+            loadAllData();
+        } catch (err: any) {
+            setStatusMsg({ type: 'error', message: `Update failed: ${err.message}` });
+        } finally {
+            setEditEventLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
+    // Delete event (and all its pins)
+    const handleDeleteEvent = async (event: any) => {
+        if (!window.confirm(`Delete event "${event.title}" and all ${eventPins.filter(p => p.eventId === event.id).length} associated PIN(s)? This cannot be undone.`)) return;
+        setIsLoading(true);
+        try {
+            // Delete all pins for this event first
+            const pinsToDelete = eventPins.filter(p => p.eventId === event.id);
+            for (const pin of pinsToDelete) {
+                await apiService.deleteModuleRecord('event_pins', pin.id);
+            }
+            await apiService.deleteModuleRecord('institution_events', event.id);
+            setStatusMsg({ type: 'success', message: `Event "${event.title}" and all its PINs deleted.` });
+            loadAllData();
+        } catch (err: any) {
+            setStatusMsg({ type: 'error', message: `Delete failed: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
+    // Delete a single PIN
+    const handleDeletePin = async (pin: any) => {
+        const person = users.find(u => u.id === pin.userId);
+        if (!window.confirm(`Delete PIN ${pin.pin} for ${person?.name || 'this recipient'}? This cannot be undone.`)) return;
+        try {
+            await apiService.deleteModuleRecord('event_pins', pin.id);
+            setStatusMsg({ type: 'success', message: 'PIN deleted successfully.' });
+            loadAllData();
+        } catch (err: any) {
+            setStatusMsg({ type: 'error', message: `Delete failed: ${err.message}` });
+        }
+        setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+    };
+
+    // Reset a PIN back to pending
+    const handleResetPin = async (pin: any) => {
+        if (pin.status === 'pending') {
+            setStatusMsg({ type: 'info', message: 'PIN is already pending.' });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2000);
+            return;
+        }
+        try {
+            await apiService.updateModuleRecord('event_pins', pin.id, { ...pin, status: 'pending', updatedAt: new Date().toISOString() });
+            setStatusMsg({ type: 'success', message: `PIN ${pin.pin} reset to Pending.` });
+            loadAllData();
+        } catch (err: any) {
+            setStatusMsg({ type: 'error', message: `Reset failed: ${err.message}` });
+        }
+        setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
     };
 
     // Export Attendance List as CSV
@@ -3149,6 +3257,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                             />
                                                         </label>
                                                     </div>
+                                                    {/* Edit & Delete event row */}
+                                                    <div className="flex gap-2 pt-1">
+                                                        <button
+                                                            onClick={() => handleOpenEditEvent(event)}
+                                                            className="flex-1 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                                                        >
+                                                            <Edit2 className="w-3 h-3" /> Edit Event
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteEvent(event)}
+                                                            className="flex-1 px-3 py-2 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5"
+                                                        >
+                                                            <Trash2 className="w-3 h-3" /> Delete
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -3244,6 +3367,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     >
                                                         <Link className="w-3.5 h-3.5" />
                                                     </button>
+                                                    {pin.status !== 'pending' && (
+                                                        <button
+                                                            onClick={() => handleResetPin(pin)}
+                                                            className="p-2 bg-slate-100 hover:bg-amber-50 dark:bg-white/5 dark:hover:bg-amber-500/10 text-slate-500 hover:text-amber-600 dark:text-slate-450 dark:hover:text-amber-400 rounded-xl transition-all"
+                                                            title="Reset PIN to Pending"
+                                                        >
+                                                            <RotateCcw className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleDeletePin(pin)}
+                                                        className="p-2 bg-slate-100 hover:bg-rose-50 dark:bg-white/5 dark:hover:bg-rose-500/10 text-slate-500 hover:text-rose-600 dark:text-slate-450 dark:hover:text-rose-400 rounded-xl transition-all"
+                                                        title="Delete PIN"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
                                                 </div>
                                             </div>
                                         );
@@ -3253,6 +3392,123 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Edit Event Modal */}
+            {editingEvent && createPortal(
+                <div className="fixed inset-0 z-[999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-2xl w-full max-w-lg">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+                                    <Edit2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">Edit Event</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update event details</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setEditingEvent(null)}
+                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-all"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <form onSubmit={handleSaveEditEvent} className="p-6 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Event Title *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={editEventTitle}
+                                    onChange={e => setEditEventTitle(e.target.value)}
+                                    placeholder="e.g. Annual Sports Day"
+                                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Description</label>
+                                <textarea
+                                    rows={2}
+                                    value={editEventDescription}
+                                    onChange={e => setEditEventDescription(e.target.value)}
+                                    placeholder="Optional details..."
+                                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all resize-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Date *</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={editEventDate}
+                                        onChange={e => setEditEventDate(e.target.value)}
+                                        className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Time *</label>
+                                    <input
+                                        type="time"
+                                        required
+                                        value={editEventTime}
+                                        onChange={e => setEditEventTime(e.target.value)}
+                                        className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Venue *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={editEventVenue}
+                                    onChange={e => setEditEventVenue(e.target.value)}
+                                    placeholder="e.g. Main Hall"
+                                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Target Cohort</label>
+                                <select
+                                    value={editEventTarget}
+                                    onChange={e => setEditEventTarget(e.target.value)}
+                                    className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all"
+                                >
+                                    <option value="All">All Cohorts</option>
+                                    {cohortsList.map(cohort => (
+                                        <option key={cohort} value={cohort}>{cohort}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingEvent(null)}
+                                    className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={editEventLoading}
+                                    className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+                                >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    {editEventLoading ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>,
+                document.body
             )}
 
             {/* Tab: Cleared Guests */}
