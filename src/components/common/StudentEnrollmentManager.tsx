@@ -376,6 +376,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [broadcastSubject, setBroadcastSubject] = useState('');
     const [broadcastBody, setBroadcastBody] = useState('');
     const [broadcastChannels, setBroadcastChannels] = useState({ sms: true, email: false });
+    const [broadcasterLogSubTab, setBroadcasterLogSubTab] = useState<'announcements' | 'event_pins'>('announcements');
 
     // Event creation state
     const [eventTitle, setEventTitle] = useState('');
@@ -3048,50 +3049,147 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                     {/* Broadcast Logs */}
                     <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
-                        <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider mb-2">
-                            <Bell className="w-4 h-4" />
-                            Broadcast Logs & History
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-2 flex-wrap gap-2">
+                            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
+                                <Bell className="w-4 h-4" />
+                                Broadcaster History
+                            </div>
+                            <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setBroadcasterLogSubTab('announcements')}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        broadcasterLogSubTab === 'announcements'
+                                            ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/10'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                                >
+                                    Announcements
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setBroadcasterLogSubTab('event_pins')}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        broadcasterLogSubTab === 'event_pins'
+                                            ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/10'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                                >
+                                    Event PIN Deliveries
+                                </button>
+                            </div>
                         </div>
 
-                        {broadcasterMessages.length === 0 ? (
-                            <div className="text-center py-20 text-slate-500">
-                                <Mail className="w-12 h-12 mx-auto text-slate-600 mb-2" />
-                                <p className="text-xs font-bold">No announcements have been broadcasted yet.</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-                                    <thead>
-                                        <tr className="border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-400 tracking-widest">
-                                            <th className="pb-3 pr-4">Broadcast Time</th>
-                                            <th className="pb-3 pr-4">Target Cohort</th>
-                                            <th className="pb-3 pr-4">Subject & Preview</th>
-                                            <th className="pb-3 pr-4">Channels</th>
-                                            <th className="pb-3 text-right">Delivered</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {broadcasterMessages.slice().sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || '')).map((msg) => (
-                                            <tr key={msg.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20">
-                                                <td className="py-3 pr-4 font-mono font-bold text-slate-500 whitespace-nowrap">
-                                                    {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : 'N/A'}
-                                                </td>
-                                                <td className="py-3 pr-4">
-                                                    <span className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold px-2 py-1 rounded text-[10px] border border-indigo-100 dark:border-indigo-500/20">
-                                                        {msg.target}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3 pr-4 max-w-xs truncate">
-                                                    <p className="font-bold text-slate-850 dark:text-white">{msg.subject || 'Announcement'}</p>
-                                                    <p className="text-slate-500 text-[10px] mt-0.5 truncate">{msg.body}</p>
-                                                </td>
-                                                <td className="py-3 pr-4 font-bold text-slate-500">{msg.channel}</td>
-                                                <td className="py-3 text-right font-black text-slate-850 dark:text-white">{msg.recipientsCount || 0}</td>
+                        {broadcasterLogSubTab === 'announcements' ? (
+                            broadcasterMessages.length === 0 ? (
+                                <div className="text-center py-20 text-slate-500">
+                                    <Mail className="w-12 h-12 mx-auto text-slate-600 mb-2" />
+                                    <p className="text-xs font-bold">No announcements have been broadcasted yet.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs text-slate-700 dark:text-slate-350">
+                                        <thead>
+                                            <tr className="border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                                                <th className="pb-3 pr-4">Broadcast Time</th>
+                                                <th className="pb-3 pr-4">Target Cohort</th>
+                                                <th className="pb-3 pr-4">Subject & Preview</th>
+                                                <th className="pb-3 pr-4">Channels</th>
+                                                <th className="pb-3 text-right">Delivered</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {broadcasterMessages.slice().sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || '')).map((msg) => (
+                                                <tr key={msg.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20">
+                                                    <td className="py-3 pr-4 font-mono font-bold text-slate-500 whitespace-nowrap">
+                                                        {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : 'N/A'}
+                                                    </td>
+                                                    <td className="py-3 pr-4">
+                                                        <span className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold px-2 py-1 rounded text-[10px] border border-indigo-100 dark:border-indigo-500/20">
+                                                            {msg.target}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 pr-4 max-w-xs truncate">
+                                                        <p className="font-bold text-slate-850 dark:text-white">{msg.subject || 'Announcement'}</p>
+                                                        <p className="text-slate-500 text-[10px] mt-0.5 truncate">{msg.body}</p>
+                                                    </td>
+                                                    <td className="py-3 pr-4 font-bold text-slate-500">{msg.channel}</td>
+                                                    <td className="py-3 text-right font-black text-slate-850 dark:text-white">{msg.recipientsCount || 0}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )
+                        ) : (
+                            eventPins.length === 0 ? (
+                                <div className="text-center py-20 text-slate-500">
+                                    <Key className="w-12 h-12 mx-auto text-slate-600 mb-2" />
+                                    <p className="text-xs font-bold">No event PINs have been generated or dispatched yet.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs text-slate-700 dark:text-slate-350">
+                                        <thead>
+                                            <tr className="border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                                                <th className="pb-3 pr-4">Sent Time</th>
+                                                <th className="pb-3 pr-4">Recipient</th>
+                                                <th className="pb-3 pr-4">Event Details</th>
+                                                <th className="pb-3 pr-4">PIN Code & Status</th>
+                                                <th className="pb-3 text-right">Channels</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {eventPins.slice().sort((a,b) => (b.createdAt || b.created_at || '').localeCompare(a.createdAt || a.created_at || '')).map((pin) => {
+                                                const pinUser = users.find(u => u.id === pin.userId);
+                                                const pinEvent = events.find(e => e.id === pin.eventId);
+                                                const hasPhone = !!(pinUser?.phoneNumber || pinUser?.phone_number);
+                                                const hasEmail = !!pinUser?.email;
+                                                
+                                                return (
+                                                    <tr key={pin.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/20">
+                                                        <td className="py-3 pr-4 font-mono font-bold text-slate-500 whitespace-nowrap">
+                                                            {pin.createdAt || pin.created_at ? new Date(pin.createdAt || pin.created_at).toLocaleString() : 'N/A'}
+                                                        </td>
+                                                        <td className="py-3 pr-4">
+                                                            <p className="font-bold text-slate-850 dark:text-white">{pinUser?.name || 'External Parent/Guest'}</p>
+                                                            <p className="text-slate-500 text-[10px] mt-0.5">{pinUser?.phoneNumber || pinUser?.phone_number || 'No Phone'}</p>
+                                                        </td>
+                                                        <td className="py-3 pr-4 max-w-xs truncate">
+                                                            <p className="font-bold text-slate-800 dark:text-slate-200">{pinEvent?.title || 'Unknown Event'}</p>
+                                                            <p className="text-slate-500 text-[10px] mt-0.5">{pinEvent?.eventDate || 'N/A'} @ {pinEvent?.eventTime || 'N/A'}</p>
+                                                        </td>
+                                                        <td className="py-3 pr-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-150 dark:border-indigo-500/20 text-xs">
+                                                                    {pin.pin}
+                                                                </span>
+                                                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                                                                    pin.status === 'accepted'
+                                                                        ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400'
+                                                                        : pin.status === 'rejected'
+                                                                        ? 'bg-rose-500/10 border-rose-500/25 text-rose-600 dark:text-rose-400'
+                                                                        : 'bg-amber-500/10 border-amber-500/25 text-amber-600 dark:text-amber-400'
+                                                                }`}>
+                                                                    {pin.status || 'pending'}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3 text-right">
+                                                            <span className="text-[10px] font-bold text-slate-500">
+                                                                {hasPhone ? 'SMS' : ''}
+                                                                {hasPhone && hasEmail ? ' / ' : ''}
+                                                                {hasEmail ? 'Email' : ''}
+                                                                {!hasPhone && !hasEmail ? 'None' : ''}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )
                         )}
                     </div>
                 </div>
