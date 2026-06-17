@@ -1209,8 +1209,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 let targetUserId = associatedUser.id;
                 let targetName = associatedUser.name;
-                let targetPhone = associatedUser.phoneNumber;
-                let targetEmail = associatedUser.email;
+                let targetPhone = isPrimaryOrSecondary ? '' : (associatedUser.phoneNumber || '');
+                let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
 
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
                     // Try to find if this parent user already exists in the local copy or system database
@@ -1300,7 +1300,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         recipientName: targetName,
                         phone: 'No phone number',
                         success: false,
-                        errorMsg: 'No phone number configured'
+                        errorMsg: isPrimaryOrSecondary 
+                            ? 'No parent phone number configured for student' 
+                            : 'No phone number configured'
                     });
                 }
 
