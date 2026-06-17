@@ -3203,6 +3203,42 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                             <Clock className="w-3 h-3" /> {pendingPins.length} pending
                                                         </span>
                                                     </div>
+
+                                                    {/* Registration Link — visible, selectable */}
+                                                    {(() => {
+                                                        const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                                                            ? 'https://portal.eduai.co.ke'
+                                                            : window.location.origin;
+                                                        const regUrl = `${origin}/?view=event-registration&eventId=${event.id}`;
+                                                        return (
+                                                            <div className="pt-1">
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                                                                    <Link className="w-2.5 h-2.5" /> Public Registration Link
+                                                                </p>
+                                                                <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl px-2.5 py-1.5">
+                                                                    <input
+                                                                        type="text"
+                                                                        readOnly
+                                                                        value={regUrl}
+                                                                        onClick={e => (e.target as HTMLInputElement).select()}
+                                                                        className="flex-1 bg-transparent text-[9px] font-mono text-indigo-700 dark:text-indigo-300 outline-none min-w-0 cursor-text"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={async () => {
+                                                                            try { await navigator.clipboard.writeText(regUrl); } catch { alert(regUrl); }
+                                                                            setStatusMsg({ type: 'success', message: 'Registration link copied!' });
+                                                                            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2500);
+                                                                        }}
+                                                                        className="shrink-0 p-1 hover:bg-indigo-200/60 dark:hover:bg-indigo-500/20 rounded-lg transition-all"
+                                                                        title="Copy"
+                                                                    >
+                                                                        <Link className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
 
                                                 {/* Action buttons */}
@@ -3314,76 +3350,110 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         return (
                                             <div
                                                 key={pin.id}
-                                                className="flex items-center gap-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-950/60 transition-colors"
+                                                className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-950/60 transition-colors space-y-2.5"
                                             >
-                                                {/* Avatar */}
-                                                <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm shrink-0 uppercase">
-                                                    {(person?.name || '?').charAt(0)}
-                                                </div>
+                                                {/* Top row: avatar + name/event + pin + status + actions */}
+                                                <div className="flex items-center gap-3">
+                                                    {/* Avatar */}
+                                                    <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm shrink-0 uppercase">
+                                                        {(person?.name || '?').charAt(0)}
+                                                    </div>
 
-                                                {/* Name + event */}
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-black text-slate-800 dark:text-white truncate">{person?.name || 'Unknown'}</p>
-                                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold truncate mt-0.5">{evt?.title || 'Unknown Event'}</p>
-                                                    {pin.guests && (
-                                                        <p className="text-[9px] text-slate-400 mt-0.5 truncate">
-                                                            Guests: {(() => { try { const p = JSON.parse(pin.guests); return Array.isArray(p) ? p.join(', ') : pin.guests; } catch { return pin.guests; } })()}
-                                                        </p>
-                                                    )}
-                                                    {pin.vehicleRegistration && (
-                                                        <p className="text-[9px] text-indigo-500 font-bold mt-0.5">Vehicle: {pin.vehicleRegistration}</p>
-                                                    )}
-                                                </div>
+                                                    {/* Name + event */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs font-black text-slate-800 dark:text-white truncate">{person?.name || 'Unknown'}</p>
+                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold truncate mt-0.5">{evt?.title || 'Unknown Event'}</p>
+                                                        {pin.guests && (
+                                                            <p className="text-[9px] text-slate-400 mt-0.5 truncate">
+                                                                Guests: {(() => { try { const p = JSON.parse(pin.guests); return Array.isArray(p) ? p.join(', ') : pin.guests; } catch { return pin.guests; } })()}
+                                                            </p>
+                                                        )}
+                                                        {pin.vehicleRegistration && (
+                                                            <p className="text-[9px] text-indigo-500 font-bold mt-0.5">Vehicle: {pin.vehicleRegistration}</p>
+                                                        )}
+                                                    </div>
 
-                                                {/* PIN code */}
-                                                <div className="shrink-0 text-center">
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">PIN</p>
-                                                    <p className="font-mono font-black text-base text-indigo-600 dark:text-indigo-400 tracking-widest">{pin.pin}</p>
-                                                </div>
+                                                    {/* PIN code */}
+                                                    <div className="shrink-0 text-center">
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">PIN</p>
+                                                        <p className="font-mono font-black text-base text-indigo-600 dark:text-indigo-400 tracking-widest">{pin.pin}</p>
+                                                    </div>
 
-                                                {/* Status badge */}
-                                                <span className={`shrink-0 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${sc.cls}`}>
-                                                    {sc.label}
-                                                </span>
+                                                    {/* Status badge */}
+                                                    <span className={`shrink-0 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${sc.cls}`}>
+                                                        {sc.label}
+                                                    </span>
 
-                                                {/* Actions */}
-                                                <div className="shrink-0 flex items-center gap-1">
-                                                    <button
-                                                        onClick={async () => {
-                                                            const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
-                                                                ? 'https://portal.eduai.co.ke'
-                                                                : window.location.origin;
-                                                            const rawLink = `${origin}/?view=event-confirm&pinId=${pin.id}`;
-                                                            try {
-                                                                await navigator.clipboard.writeText(rawLink);
-                                                                setStatusMsg({ type: 'success', message: 'RSVP invitation link copied to clipboard!' });
-                                                                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
-                                                            } catch (err) {
-                                                                alert(`RSVP Link: ${rawLink}`);
-                                                            }
-                                                        }}
-                                                        className="p-2 bg-slate-100 hover:bg-indigo-50 dark:bg-white/5 dark:hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-600 dark:text-slate-450 dark:hover:text-indigo-400 rounded-xl transition-all"
-                                                        title="Copy RSVP Invitation Link"
-                                                    >
-                                                        <Link className="w-3.5 h-3.5" />
-                                                    </button>
-                                                    {pin.status !== 'pending' && (
+                                                    {/* Actions */}
+                                                    <div className="shrink-0 flex items-center gap-1">
                                                         <button
-                                                            onClick={() => handleResetPin(pin)}
-                                                            className="p-2 bg-slate-100 hover:bg-amber-50 dark:bg-white/5 dark:hover:bg-amber-500/10 text-slate-500 hover:text-amber-600 dark:text-slate-450 dark:hover:text-amber-400 rounded-xl transition-all"
-                                                            title="Reset PIN to Pending"
+                                                            onClick={async () => {
+                                                                const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                                                                    ? 'https://portal.eduai.co.ke'
+                                                                    : window.location.origin;
+                                                                const rawLink = `${origin}/?view=event-confirm&pinId=${pin.id}`;
+                                                                try {
+                                                                    await navigator.clipboard.writeText(rawLink);
+                                                                    setStatusMsg({ type: 'success', message: 'RSVP invitation link copied to clipboard!' });
+                                                                    setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+                                                                } catch (err) {
+                                                                    alert(`RSVP Link: ${rawLink}`);
+                                                                }
+                                                            }}
+                                                            className="p-2 bg-slate-100 hover:bg-indigo-50 dark:bg-white/5 dark:hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-600 dark:text-slate-450 dark:hover:text-indigo-400 rounded-xl transition-all"
+                                                            title="Copy RSVP Invitation Link"
                                                         >
-                                                            <RotateCcw className="w-3.5 h-3.5" />
+                                                            <Link className="w-3.5 h-3.5" />
                                                         </button>
-                                                    )}
-                                                    <button
-                                                        onClick={() => handleDeletePin(pin)}
-                                                        className="p-2 bg-slate-100 hover:bg-rose-50 dark:bg-white/5 dark:hover:bg-rose-500/10 text-slate-500 hover:text-rose-600 dark:text-slate-450 dark:hover:text-rose-400 rounded-xl transition-all"
-                                                        title="Delete PIN"
-                                                    >
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
+                                                        {pin.status !== 'pending' && (
+                                                            <button
+                                                                onClick={() => handleResetPin(pin)}
+                                                                className="p-2 bg-slate-100 hover:bg-amber-50 dark:bg-white/5 dark:hover:bg-amber-500/10 text-slate-500 hover:text-amber-600 dark:text-slate-450 dark:hover:text-amber-400 rounded-xl transition-all"
+                                                                title="Reset PIN to Pending"
+                                                            >
+                                                                <RotateCcw className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleDeletePin(pin)}
+                                                            className="p-2 bg-slate-100 hover:bg-rose-50 dark:bg-white/5 dark:hover:bg-rose-500/10 text-slate-500 hover:text-rose-600 dark:text-slate-450 dark:hover:text-rose-400 rounded-xl transition-all"
+                                                            title="Delete PIN"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
                                                 </div>
+
+                                                {/* RSVP Link — visible, selectable */}
+                                                {(() => {
+                                                    const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                                                        ? 'https://portal.eduai.co.ke'
+                                                        : window.location.origin;
+                                                    const rsvpUrl = `${origin}/?view=event-confirm&pinId=${pin.id}`;
+                                                    return (
+                                                        <div className="flex items-center gap-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-100 dark:border-violet-500/20 rounded-xl px-2.5 py-1.5">
+                                                            <Link className="w-3 h-3 text-violet-500 dark:text-violet-400 shrink-0" />
+                                                            <input
+                                                                type="text"
+                                                                readOnly
+                                                                value={rsvpUrl}
+                                                                onClick={e => (e.target as HTMLInputElement).select()}
+                                                                className="flex-1 bg-transparent text-[9px] font-mono text-violet-700 dark:text-violet-300 outline-none min-w-0 cursor-text"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={async () => {
+                                                                    try { await navigator.clipboard.writeText(rsvpUrl); } catch { alert(rsvpUrl); }
+                                                                    setStatusMsg({ type: 'success', message: 'RSVP link copied!' });
+                                                                    setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2500);
+                                                                }}
+                                                                className="shrink-0 text-[9px] font-black text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-500/20 hover:bg-violet-200 dark:hover:bg-violet-500/30 px-2 py-0.5 rounded-lg transition-all uppercase tracking-wider"
+                                                            >
+                                                                Copy
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         );
                                     })}
