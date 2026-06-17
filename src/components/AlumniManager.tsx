@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { apiService } from '../services/apiService';
 import {
     GraduationCap, Users, Briefcase, Calendar, Star, Heart,
     Search, Plus, CheckCircle, XCircle, ChevronRight,
@@ -87,11 +88,34 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
     const [selectedSchool, setSelectedSchool] = useState('all');
     const [showAddJobModal, setShowAddJobModal] = useState(false);
     const [showAddEventModal, setShowAddEventModal] = useState(false);
-    const [alumni, setAlumni] = useState<AlumniMember[]>(SAMPLE_ALUMNI);
-    const [jobs] = useState<AlumniJob[]>(SAMPLE_JOBS);
-    const [events] = useState<AlumniEvent[]>(SAMPLE_EVENTS);
+    const [alumni, setAlumni] = useState<AlumniMember[]>([]);
+    const [jobs, setJobs] = useState<AlumniJob[]>([]);
+    const [events, setEvents] = useState<AlumniEvent[]>([]);
     const [donationAmount, setDonationAmount] = useState('');
     const [donationFund, setDonationFund] = useState('General Scholarship Fund');
+
+    useEffect(() => {
+        const loadAlumniData = async () => {
+            try {
+                const [dbAlumni, dbJobs, dbEvents] = await Promise.all([
+                    apiService.fetchModuleRecords<AlumniMember>('alumni_members', currentInstitution.id).catch(() => []),
+                    apiService.fetchModuleRecords<AlumniJob>('alumni_jobs', currentInstitution.id).catch(() => []),
+                    apiService.fetchModuleRecords<AlumniEvent>('alumni_events', currentInstitution.id).catch(() => [])
+                ]);
+                // Filter by institution as a secondary guard
+                const filteredAlumni = (dbAlumni || []).filter(a => !a.schoolId || a.schoolId === currentInstitution.id || allInstitutions.some(i => i.id === a.schoolId));
+                setAlumni(filteredAlumni.length > 0 ? filteredAlumni : SAMPLE_ALUMNI.map(a => ({ ...a, schoolId: currentInstitution.id, schoolName: currentInstitution.name })));
+                setJobs((dbJobs || []).length > 0 ? dbJobs : SAMPLE_JOBS);
+                setEvents((dbEvents || []).length > 0 ? dbEvents : SAMPLE_EVENTS);
+            } catch (e) {
+                console.error('Failed to load alumni data:', e);
+                setAlumni(SAMPLE_ALUMNI.map(a => ({ ...a, schoolId: currentInstitution.id, schoolName: currentInstitution.name })));
+                setJobs(SAMPLE_JOBS);
+                setEvents(SAMPLE_EVENTS);
+            }
+        };
+        loadAlumniData();
+    }, [currentInstitution.id]);
 
     const handleStatusChange = async (memberId: string, newStatus: AlumniMember['status']) => {
         try {
@@ -100,8 +124,8 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
 
             const updatedMember = { ...member, status: newStatus };
             
-            // In a real app, we'd save to the module record
-            // await apiService.saveModuleRecord('alumnae_members', updatedMember);
+            // Persist status change to the database
+            await apiService.saveModuleRecord('alumni_members', updatedMember).catch(e => console.warn('Could not persist alumni status:', e));
             
             setAlumni(prev => prev.map(a => a.id === memberId ? updatedMember : a));
         } catch (e) {

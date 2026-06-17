@@ -58,16 +58,20 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     const loadEventData = async () => {
         setIsLoading(true);
         try {
-            // Load from mock API or local storage fallback
-            let evs = await apiService.fetchModuleRecords<SportEvent>('events').catch(() => []);
-            let cats = await apiService.fetchModuleRecords<EventCategory>('event_categories').catch(() => []);
-            let parts = await apiService.fetchModuleRecords<EventParticipant>('event_participants').catch(() => []);
-            let spls = await apiService.fetchModuleRecords<EventSplit>('event_splits').catch(() => []);
-            let med = await apiService.fetchModuleRecords<EventMedicalLog>('event_medical_logs').catch(() => []);
-            let plg = await apiService.fetchModuleRecords<EventPledge>('event_pledges').catch(() => []);
+            // Load from mock API or local storage fallback — all filtered by institution
+            let evs = await apiService.fetchModuleRecords<SportEvent>('events', currentInstitution.id).catch(() => []);
+            let cats = await apiService.fetchModuleRecords<EventCategory>('event_categories', currentInstitution.id).catch(() => []);
+            let parts = await apiService.fetchModuleRecords<EventParticipant>('event_participants', currentInstitution.id).catch(() => []);
+            let spls = await apiService.fetchModuleRecords<EventSplit>('event_splits', currentInstitution.id).catch(() => []);
+            let med = await apiService.fetchModuleRecords<EventMedicalLog>('event_medical_logs', currentInstitution.id).catch(() => []);
+            let plg = await apiService.fetchModuleRecords<EventPledge>('event_pledges', currentInstitution.id).catch(() => []);
             let txs = await apiService.fetchModuleRecords<any>('mpesa_transactions', currentInstitution.id).catch(() => []);
             let bankTxs = await apiService.fetchModuleRecords<any>('bank_transactions', currentInstitution.id).catch(() => []);
             let usrs = await apiService.fetchModuleRecords<User>('users', currentInstitution.id).catch(() => []);
+
+            // Secondary filter: ensure only events belonging to this institution are shown
+            // (guards against tables that don't have a server-side institutionId filter)
+            evs = (Array.isArray(evs) ? evs : []).filter(e => !e.institutionId || e.institutionId === currentInstitution.id);
 
             // Check if we need to seed demo data
             if (evs.length === 0) {
@@ -138,8 +142,16 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             const safeUsrs = Array.isArray(usrs) ? usrs : [];
 
             const uniqueEvs = Array.from(new Map(safeEvs.map(e => [e?.id, e])).values()).filter(Boolean);
-            const uniqueCats = Array.from(new Map(safeCats.map(c => [c?.id, c])).values()).filter(Boolean);
-            const uniqueParts = Array.from(new Map(safeParts.map(p => [p?.id, p])).values()).filter(Boolean);
+            // Cross-filter child records by the event IDs that belong to this institution
+            const institutionEventIds = new Set(uniqueEvs.map(e => e.id));
+            const uniqueCats = Array.from(new Map(safeCats.map(c => [c?.id, c])).values()).filter(Boolean)
+                .filter(c => institutionEventIds.has(c.eventId));
+            const uniqueParts = Array.from(new Map(safeParts.map(p => [p?.id, p])).values()).filter(Boolean)
+                .filter(p => uniqueCats.some(c => c.id === p.categoryId));
+            const uniquePartIds = new Set(uniqueParts.map(p => p.id));
+            const uniqueSpls = safeSpls.filter(s => uniquePartIds.has(s.participantId));
+            const uniqueMed = safeMed.filter(m => institutionEventIds.has(m.eventId));
+            const uniquePlg = safePlg.filter(pl => uniquePartIds.has(pl.participantId));
             
             const combinedTxs = [...safeTxs, ...normalizedBankTxs];
             const uniqueTxs = Array.from(new Map(combinedTxs.map(t => [t?.id, t])).values()).filter(Boolean);
@@ -148,9 +160,9 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             setCategories(uniqueCats);
             setParticipants(uniqueParts);
             setTransactions(uniqueTxs);
-            setSplits(uniqueEvs.length > 0 ? safeSpls : []);
-            setMedicalLogs(uniqueEvs.length > 0 ? safeMed : []);
-            setPledges(uniqueEvs.length > 0 ? safePlg : []);
+            setSplits(uniqueEvs.length > 0 ? uniqueSpls : []);
+            setMedicalLogs(uniqueEvs.length > 0 ? uniqueMed : []);
+            setPledges(uniqueEvs.length > 0 ? uniquePlg : []);
             setEventManagers(safeUsrs.filter(u => u && u.role === 'event_manager'));
 
             if (uniqueEvs.length > 0) {
