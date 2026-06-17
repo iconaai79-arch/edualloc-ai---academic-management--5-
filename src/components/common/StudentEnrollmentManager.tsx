@@ -950,19 +950,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
             const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
             const confirmationLink = rawLink;
+            const shortLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
             const studentName = users.find(u => u.id === inviteModalEnrollment.userId)?.name || 'your child';
-            const message = `Dear ${parent.name || 'Guardian'}, you are invited to "${selectedEvent.title}" on ${selectedEvent.eventDate} at ${selectedEvent.eventTime}, ${selectedEvent.venue} — regarding ${studentName}. Confirm attendance: ${confirmationLink}`;
+            const baseMessage = `Dear ${parent.name || 'Guardian'}, you are invited to "${selectedEvent.title}" on ${selectedEvent.eventDate} at ${selectedEvent.eventTime}, ${selectedEvent.venue} — regarding ${studentName}.`;
+            const smsMessage = `${baseMessage} Confirm attendance: ${shortLink}`;
+            const emailMessage = `${baseMessage} Confirm attendance: ${confirmationLink}`;
 
             let dispatched = false;
             if (parent.phone) {
                 try {
-                    await apiService.sendSms(parent.phone, message, currentInstitution.smsConfig, 1, currentInstitution.id);
+                    await apiService.sendSms(parent.phone, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id);
                     dispatched = true;
                 } catch (e) { console.error('SMS invite failed:', e); }
             }
             if (parent.email) {
                 try {
-                    await apiService.sendEmail(parent.email, `Event Invitation — ${selectedEvent.title}`, message, currentInstitution.emailConfig);
+                    await apiService.sendEmail(parent.email, `Event Invitation — ${selectedEvent.title}`, emailMessage, currentInstitution.emailConfig);
                     dispatched = true;
                 } catch (e) { console.error('Email invite failed:', e); }
             }
@@ -1720,16 +1723,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
                 const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
                 const confirmationLink = rawLink;
+                const shortLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
 
                 // Send notification with RSVP details
                 const studentName = associatedUser.name || 'your child';
-                const message = primaryParent
+                const smsMessage = primaryParent
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}. Confirm attendance: ${shortLink}`
+                    : `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${shortLink}`;
+                
+                const emailMessage = primaryParent
                     ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}. Confirm attendance: ${confirmationLink}`
                     : `You are invited to "${event.title}" on ${event.eventDate}. Please confirm your attendance here: ${confirmationLink}`;
                 
                 if (targetPhone) {
                     try {
-                        const res = await apiService.sendSms(targetPhone, message, currentInstitution.smsConfig, 1, currentInstitution.id);
+                        const res = await apiService.sendSms(targetPhone, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id);
                         const isSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
                         results.push({
                             recipientName: targetName,
@@ -1759,7 +1767,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 if (targetEmail) {
                     try {
-                        await apiService.sendEmail(targetEmail, `Event Attendance Invitation - ${event.title}`, message, currentInstitution.emailConfig);
+                        await apiService.sendEmail(targetEmail, `Event Attendance Invitation - ${event.title}`, emailMessage, currentInstitution.emailConfig);
                     } catch (e) {
                         console.error("Email PIN send failed", e);
                     }

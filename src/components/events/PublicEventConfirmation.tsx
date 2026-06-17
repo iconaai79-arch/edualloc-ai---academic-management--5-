@@ -418,15 +418,17 @@ export const PublicEventConfirmation: React.FC = () => {
                 const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(updatedPayload))));
                 const passUrl = `${origin}/?view=event-confirm&pinId=${pinRecord.id}&data=${base64Data}`;
                 const shortenedPassUrl = passUrl;
+                const shortPassUrl = `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
                 
                 const eventTitle = eventRecord ? eventRecord.title : 'the event';
-                const message = `Your attendance to "${eventTitle}" is confirmed. Show this PIN: ${pinRecord.pin} or check-in pass: ${shortenedPassUrl} at the gate for scan.`;
+                const smsMessage = `Your attendance to "${eventTitle}" is confirmed. Show this PIN: ${pinRecord.pin} or check-in pass: ${shortPassUrl} at the gate for scan.`;
+                const emailMessage = `Your attendance to "${eventTitle}" is confirmed. Show this PIN: ${pinRecord.pin} or check-in pass: ${passUrl} at the gate for scan.`;
 
                 const targetSmsPhone = userRecord?.phoneNumber || userRecord?.phone_number || verificationPhone;
                 if (targetSmsPhone) {
                     try {
                         const smsConfig = institution?.smsConfig || institution?.sms_config;
-                        await apiService.sendSms(targetSmsPhone, message, smsConfig, 1, pinRecord.institutionId);
+                        await apiService.sendSms(targetSmsPhone, smsMessage, smsConfig, 1, pinRecord.institutionId);
                     } catch (e) {
                         console.error("Stage 2 SMS dispatch failed:", e);
                     }
@@ -434,7 +436,7 @@ export const PublicEventConfirmation: React.FC = () => {
                 if (userRecord?.email) {
                     try {
                         const emailConfig = institution?.emailConfig || institution?.email_config;
-                        await apiService.sendEmail(userRecord.email, `RSVP Confirmed - ${eventTitle}`, message, emailConfig);
+                        await apiService.sendEmail(userRecord.email, `RSVP Confirmed - ${eventTitle}`, emailMessage, emailConfig);
                     } catch (e) {
                         console.error("Stage 2 Email dispatch failed:", e);
                     }
