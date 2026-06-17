@@ -84,9 +84,18 @@ export const PublicEventConfirmation: React.FC = () => {
                     console.error("Failed to fetch pin from DB, trying payload fallback:", e);
                 }
 
-                // Fallback to URL payload if not found in database
-                if (!pin && urlPayload?.pin) {
-                    pin = urlPayload.pin;
+                // Fallback to URL payload if not found in database (array-based payload)
+                if (!pin && urlPayload && Array.isArray(urlPayload)) {
+                    pin = {
+                        id: pinId,
+                        pin: urlPayload[0],
+                        status: urlPayload[12] || 'pending',
+                        eventId: urlPayload[11],
+                        userId: urlPayload[10],
+                        institutionId: urlPayload[8],
+                        guests: urlPayload[13] ? JSON.stringify(urlPayload[13]) : null,
+                        vehicleRegistration: urlPayload[14] || null
+                    };
                 }
 
                 if (!pin) {
@@ -129,8 +138,15 @@ export const PublicEventConfirmation: React.FC = () => {
                     console.error("Failed to fetch event from DB:", e);
                 }
 
-                if (!event && urlPayload?.event) {
-                    event = urlPayload.event;
+                if (!event && urlPayload && Array.isArray(urlPayload)) {
+                    event = {
+                        id: urlPayload[11],
+                        title: urlPayload[1],
+                        description: urlPayload[9],
+                        eventDate: urlPayload[2],
+                        eventTime: urlPayload[3],
+                        venue: urlPayload[4]
+                    };
                 }
                 if (event) {
                     setEventRecord(event);
@@ -149,8 +165,12 @@ export const PublicEventConfirmation: React.FC = () => {
                     console.error("Failed to fetch user from DB:", e);
                 }
 
-                if (!userRec && urlPayload?.parent) {
-                    userRec = urlPayload.parent;
+                if (!userRec && urlPayload && Array.isArray(urlPayload)) {
+                    userRec = {
+                        id: urlPayload[10],
+                        name: urlPayload[5],
+                        phoneNumber: urlPayload[6]
+                    };
                 }
                 if (userRec) {
                     setUserRecord(userRec);
@@ -169,8 +189,11 @@ export const PublicEventConfirmation: React.FC = () => {
                     }
                 }
 
-                if (!inst && urlPayload?.institution) {
-                    inst = urlPayload.institution;
+                if (!inst && urlPayload && Array.isArray(urlPayload)) {
+                    inst = {
+                        id: urlPayload[8],
+                        name: urlPayload[7]
+                    };
                 }
                 if (inst) {
                     setInstitution(inst);
@@ -374,12 +397,23 @@ export const PublicEventConfirmation: React.FC = () => {
                     ? 'https://portal.eduai.co.ke'
                     : window.location.origin;
                 
-                const updatedPayload = {
-                    pin: updatedRecord,
-                    event: eventRecord,
-                    parent: userRecord,
-                    institution: institution
-                };
+                const updatedPayload = [
+                    pinRecord.pin,                                        // 0
+                    eventRecord.title,                                    // 1
+                    eventRecord.eventDate,                                // 2
+                    eventRecord.eventTime,                                // 3
+                    eventRecord.venue,                                    // 4
+                    userRecord.name,                                      // 5
+                    userRecord.phoneNumber || userRecord.phone_number || '', // 6
+                    institution.name,                                     // 7
+                    institution.id,                                       // 8
+                    eventRecord.description || '',                        // 9
+                    pinRecord.userId,                                     // 10
+                    pinRecord.eventId,                                    // 11
+                    status,                                               // 12 (status)
+                    guests,                                               // 13 (guests array)
+                    updatedRecord.vehicleRegistration                     // 14 (vehicle registration)
+                ];
                 const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(updatedPayload))));
                 const passUrl = `${origin}/?view=event-confirm&pinId=${pinRecord.id}&data=${base64Data}`;
                 const shortenedPassUrl = passUrl;

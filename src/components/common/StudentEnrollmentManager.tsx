@@ -932,34 +932,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 ? 'https://portal.eduai.co.ke'
                 : window.location.origin;
 
-            const fallbackPayload = {
-                pin: {
-                    id: pinId,
-                    pin: pinCode,
-                    status: 'pending',
-                    eventId: inviteSelectedEventId,
-                    userId: parentUserId,
-                    institutionId: currentInstitution.id
-                },
-                event: {
-                    id: selectedEvent.id,
-                    title: selectedEvent.title,
-                    description: selectedEvent.description || '',
-                    eventDate: selectedEvent.eventDate,
-                    eventTime: selectedEvent.eventTime,
-                    venue: selectedEvent.venue
-                },
-                parent: {
-                    id: parentUserId,
-                    name: parent.name || 'Parent / Guardian',
-                    phoneNumber: parent.phone || '',
-                    email: parent.email || ''
-                },
-                institution: {
-                    id: currentInstitution.id,
-                    name: currentInstitution.name || ''
-                }
-            };
+            const fallbackPayload = [
+                pinCode,                                              // 0
+                selectedEvent.title,                                  // 1
+                selectedEvent.eventDate,                              // 2
+                selectedEvent.eventTime,                              // 3
+                selectedEvent.venue,                                  // 4
+                parent.name || 'Parent / Guardian',                   // 5
+                parent.phone || '',                                   // 6
+                currentInstitution.name || '',                        // 7
+                currentInstitution.id,                                // 8
+                selectedEvent.description || '',                      // 9
+                parentUserId,                                         // 10
+                selectedEvent.id                                      // 11
+            ];
             const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
             const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
             const confirmationLink = rawLink;
@@ -1716,34 +1702,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     ? 'https://portal.eduai.co.ke'
                     : window.location.origin;
 
-                const fallbackPayload = {
-                    pin: {
-                        id: pinId,
-                        pin: pinCode,
-                        status: 'pending',
-                        eventId: event.id,
-                        userId: targetUserId,
-                        institutionId: currentInstitution.id
-                    },
-                    event: {
-                        id: event.id,
-                        title: event.title,
-                        description: event.description || '',
-                        eventDate: event.eventDate,
-                        eventTime: event.eventTime,
-                        venue: event.venue
-                    },
-                    parent: {
-                        id: targetUserId,
-                        name: targetName || 'Parent / Guardian',
-                        phoneNumber: targetPhone || '',
-                        email: targetEmail || ''
-                    },
-                    institution: {
-                        id: currentInstitution.id,
-                        name: currentInstitution.name || ''
-                    }
-                };
+                const fallbackPayload = [
+                    pinCode,                                              // 0
+                    event.title,                                          // 1
+                    event.eventDate,                                      // 2
+                    event.eventTime,                                      // 3
+                    event.venue,                                          // 4
+                    targetName || 'Parent / Guardian',                    // 5
+                    targetPhone || '',                                    // 6
+                    currentInstitution.name || '',                        // 7
+                    currentInstitution.id,                                // 8
+                    event.description || '',                              // 9
+                    targetUserId,                                         // 10
+                    event.id                                              // 11
+                ];
                 const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
                 const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
                 const confirmationLink = rawLink;
