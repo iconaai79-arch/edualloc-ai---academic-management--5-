@@ -249,8 +249,14 @@ export const apiService = {
         return publicUrl;
     },
     async shortenUrl(longUrl: string): Promise<string> {
-        // Cache key — per unique long URL
-        const cacheKey = `eduai_short_${btoa(longUrl).substring(0, 40)}`;
+        // Normalize localhost/127.0.0.1 URLs to production portal domain to ensure shortened links work globally
+        let normalizedUrl = longUrl;
+        if (normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1')) {
+            normalizedUrl = normalizedUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
+        }
+
+        // Cache key — per unique normalized URL
+        const cacheKey = `eduai_short_${btoa(normalizedUrl).substring(0, 40)}`;
 
         // Validate cached entry: discard if it doesn't look like a legit short URL
         // or if the cache might be stale from a previous wrong session
@@ -277,7 +283,7 @@ export const apiService = {
 
         // 1. is.gd — generates unique slugs, no collision risk
         const isgdShort = await tryShorten(
-            `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`,
+            `https://is.gd/create.php?format=simple&url=${encodeURIComponent(normalizedUrl)}`,
             (text) => (text.startsWith('https://is.gd/') ? text : null)
         );
         if (isgdShort) {
@@ -287,7 +293,7 @@ export const apiService = {
 
         // 2. TinyURL — fallback (may have slug collisions for popular URLs)
         const tinyShort = await tryShorten(
-            `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
+            `https://tinyurl.com/api-create.php?url=${encodeURIComponent(normalizedUrl)}`,
             (text) => (text.startsWith('https://tinyurl.com/') ? text : null)
         );
         if (tinyShort) {
@@ -301,7 +307,7 @@ export const apiService = {
                 const res = await fetch('/api/integrations', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'shortenUrl', url: longUrl })
+                    body: JSON.stringify({ action: 'shortenUrl', url: normalizedUrl })
                 });
                 if (res.ok) {
                     const data = await res.json();
@@ -314,8 +320,8 @@ export const apiService = {
             }
         } catch (_) {}
 
-        // 4. Final fallback: return the original full URL unchanged
-        return longUrl;
+        // 4. Final fallback: return the original normalized URL unchanged
+        return normalizedUrl;
     },
     async incrementCount(table: string, id: string, field: 'view_count' | 'inquiry_count'): Promise<void> {
         if (!_supabase) {

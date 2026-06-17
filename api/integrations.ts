@@ -381,9 +381,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
 
         if (action === 'shortenUrl') {
-            const longUrl = getParam('url') || getParam('longUrl');
+            let longUrl = getParam('url') || getParam('longUrl');
             if (!longUrl) {
                 return res.status(400).json({ success: false, message: 'Missing url parameter.' });
+            }
+            // Normalize localhost/127.0.0.1 URLs to production portal domain to ensure shortened links work globally
+            if (longUrl.includes('localhost') || longUrl.includes('127.0.0.1')) {
+                longUrl = longUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
             }
             // Try is.gd first (generates unique slugs — no collision risk)
             try {
