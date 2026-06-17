@@ -257,6 +257,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [isScanning, setIsScanning] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'none'>('idle');
+    const [customHostName, setCustomHostName] = useState('');
     const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
     const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
     const todaysAppointments = useMemo(() => {
@@ -307,14 +308,23 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             setTimeout(() => setLookupStatus('idle'), 2000);
         }
     };
-    const handleRegisterWalkIn = async (e: React.FormEvent) => {
+     const handleRegisterWalkIn = async (e: React.FormEvent) => {
         e.preventDefault();
         if (onAddVisitor && walkInForm.name && walkInForm.purpose) {
+            let finalHostId = walkInForm.hostId;
+            let finalHostName = '';
+            if (walkInForm.hostId === 'other_custom') {
+                const receptionist = users.find(u => u.role === 'info_desk' || u.role === 'reception');
+                finalHostId = receptionist ? receptionist.id : (user?.id || '');
+                finalHostName = customHostName.trim();
+            }
+
             await onAddVisitor({
                 name: walkInForm.name,
                 phoneNumber: walkInForm.phone,
                 purpose: walkInForm.purpose,
-                hostId: walkInForm.hostId,
+                hostId: finalHostId,
+                hostName: finalHostName || undefined,
                 vehiclePlate: walkInForm.vehiclePlate.toUpperCase(),
                 vehicleModel: walkInForm.vehicleModel,
                 idNumber: walkInForm.idNumber,
@@ -325,6 +335,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             await props.onLogAction?.(`Registered visitor: ${walkInForm.name} (ID: ${walkInForm.idNumber}) for ${walkInForm.purpose}`);
             setIsRegistering(false);
             setLookupStatus('idle');
+            setCustomHostName('');
             setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
             alert("Visitor Registered & Signed In");
         }
@@ -701,7 +712,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                                     <div className="text-[9px] font-black text-slate-400 uppercase tracking-tight mt-1">{v.visitDate}</div>
                                                 </td>
                                                 <td className="px-4 py-4">
-                                                    <div className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase truncate max-w-[150px]">{host?.name || 'N/A'}</div>
+                                                    <div className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase truncate max-w-[150px]">{v.hostName ? `${v.hostName} (via Reception)` : (host?.name || 'N/A')}</div>
                                                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{v.purpose}</div>
                                                 </td>
                                                 <td className="px-4 py-4">
@@ -860,8 +871,22 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 <select className="form-select" value={walkInForm.hostId} onChange={(e) => setWalkInForm({ ...walkInForm, hostId: e.target.value })} required>
                                     <option value="">Select Host</option>
                                     {users.filter(u => !isSchool || u.role !== 'student').map(u => <option key={u.id} value={u.id}>{u.name} ({formatRoleDisplayName(u.role, props.currentInstitution)})</option>)}
+                                    <option value="other_custom">-- Other (Not on list - Direct to Receptionist) --</option>
                                 </select>
                             </div>
+                            {walkInForm.hostId === 'other_custom' && (
+                                <div className="animate-fade-in-up">
+                                    <label className="block text-[10px] font-black uppercase text-slate-450 mb-2 ml-1">Custom Host Name</label>
+                                    <input 
+                                        type="text" 
+                                        value={customHostName} 
+                                        onChange={(e) => setCustomHostName(e.target.value)} 
+                                        className="form-input" 
+                                        placeholder="Type name of the person to see..." 
+                                        required={walkInForm.hostId === 'other_custom'} 
+                                    />
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Vehicle Plate (Optional)</label>
@@ -2428,7 +2453,7 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
                                                         <ClockIcon className="w-3.5 h-3.5 text-indigo-500" /> Entered at {v.timeIn}
                                                     </div>
                                                     <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                                                        <UserIcon className="w-3.5 h-3.5 text-slate-400" /> Current Host: {users.find(u => u.id === v.hostId)?.name || 'N/A'}
+                                                        <UserIcon className="w-3.5 h-3.5 text-slate-400" /> Current Host: {v.hostName ? `${v.hostName} (via Reception)` : (users.find(u => u.id === v.hostId)?.name || 'N/A')}
                                                     </div>
                                                 </div>
                                                 <button
@@ -2762,7 +2787,7 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
                                 </div>
                                 <div className="min-w-0">
                                     <p className="font-black text-slate-900 dark:text-white uppercase truncate">{redirectingVisitor.name || 'Unknown'}</p>
-                                    <p className="text-[10px] text-indigo-600 font-bold uppercase">Current Host: {users.find(u => u.id === redirectingVisitor.hostId)?.name || 'N/A'}</p>
+                                    <p className="text-[10px] text-indigo-600 font-bold uppercase">Current Host: {redirectingVisitor.hostName ? `${redirectingVisitor.hostName} (via Reception)` : (users.find(u => u.id === redirectingVisitor.hostId)?.name || 'N/A')}</p>
                                 </div>
                             </div>
 

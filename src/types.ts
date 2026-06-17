@@ -1286,6 +1286,7 @@ export interface Visitor {
     timeOut?: string;
     institutionId?: string;
     hostId?: string;
+    hostName?: string;
     vehiclePlate?: string;
     vehicleModel?: string;
     idNumber?: string;
