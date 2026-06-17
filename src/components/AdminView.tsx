@@ -471,12 +471,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds'>('console_hub');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
-    const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'broadcaster' | 'calendar' | 'guests'>('students');
+    const [enrollmentSubTab, setEnrollmentSubTab] = useState<'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests'>('students');
     const [timetablePreselectedViewMode, setTimetablePreselectedViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test' | null>(null);
     const [timetablePreselectedLecturerId, setTimetablePreselectedLecturerId] = useState<string>('');
     const [timetablePreselectedCourseId, setTimetablePreselectedCourseId] = useState<string>('all');
@@ -773,6 +773,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'showcase', label: 'Digital Presence', icon: <GlobeAltIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'enrollment_students', label: 'Students Registry', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
+            { id: 'enrollment_teachers', label: 'Teachers Registry', icon: <UserIcon className="w-5 h-5 mr-2" /> },
+            { id: 'enrollment_support_staff', label: 'Support Staff Registry', icon: <BriefcaseIcon className="w-5 h-5 mr-2" /> },
             { id: 'enrollment_broadcaster', label: 'Broadcaster Service', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'enrollment_calendar', label: 'Events & PINs', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
             { id: 'enrollment_guests', label: 'Cleared Guests', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
@@ -849,7 +851,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         let filteredTabs = baseTabs.filter(tab => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
-            if (['enrollment_students', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(tab.id)) {
+            if (['enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(tab.id)) {
                 return isEdu && activeScope === 'academics';
             }
 
@@ -866,7 +868,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     const academicsTabs = ['settings', 'reports'];
                     if (isModuleActive('timetable')) academicsTabs.push('timetable');
                     if (isModuleActive('academics')) academicsTabs.push('courses');
-                    academicsTabs.push('enrollment_students', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests');
+                    academicsTabs.push('enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests');
                     return academicsTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
@@ -972,6 +974,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         if (isEdu && activeScope === 'academics') {
             const order = [
                 'enrollment_students',
+                'enrollment_teachers',
+                'enrollment_support_staff',
                 'enrollment_broadcaster',
                 'enrollment_calendar',
                 'enrollment_guests',
@@ -2245,6 +2249,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     <div className="space-y-6">
                         <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full">
                             <button onClick={() => setEnrollmentSubTab('students')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'students' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Students Registry</button>
+                            <button onClick={() => setEnrollmentSubTab('teachers')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'teachers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Teachers Registry</button>
+                            <button onClick={() => setEnrollmentSubTab('support_staff')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'support_staff' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Support Staff Registry</button>
                             <button onClick={() => setEnrollmentSubTab('broadcaster')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'broadcaster' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Broadcaster Service</button>
                             <button onClick={() => setEnrollmentSubTab('calendar')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'calendar' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Events & PINs</button>
                             <button onClick={() => setEnrollmentSubTab('guests')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${enrollmentSubTab === 'guests' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Cleared Guests</button>
@@ -2259,13 +2265,15 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 )}
 
-                {['enrollment_students', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(activeTab) && (
+                {['enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(activeTab) && (
                     <div className="animate-fade-in-up">
                         <StudentEnrollmentManager
                             context={isDS ? 'driving_school' : 'academic'}
                             currentInstitution={props.currentInstitution!}
                             activeTab={
                                 activeTab === 'enrollment_students' ? 'students' :
+                                activeTab === 'enrollment_teachers' ? 'teachers' :
+                                activeTab === 'enrollment_support_staff' ? 'support_staff' :
                                 activeTab === 'enrollment_broadcaster' ? 'broadcaster' :
                                 activeTab === 'enrollment_calendar' ? 'calendar' :
                                 'guests'

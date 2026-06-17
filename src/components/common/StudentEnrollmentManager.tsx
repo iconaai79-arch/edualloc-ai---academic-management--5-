@@ -34,15 +34,24 @@ import {
     UserRound
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel } from '../../types';
+import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role } from '../../types';
 import { apiService } from '../../services/apiService';
 import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
+import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
+
+const teacherRoles = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher'];
+const nonSupportRoles = [
+    'student', 'parent', 'customer', 'lead', 'member',
+    'admin', 'super_admin', 'main_admin', 'administrator', 'head_teacher',
+    'church_admin', 'property_admin', 'his_admin', 'campaign_admin', 'cooperative_manager',
+    'reseller', 'director'
+];
 
 interface StudentEnrollmentManagerProps {
     context: 'academic' | 'driving_school';
     currentInstitution: Institution;
-    activeTab?: 'students' | 'broadcaster' | 'calendar' | 'guests';
+    activeTab?: 'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests';
 }
 
 export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> = ({ 
@@ -51,6 +60,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     activeTab: passedActiveTab
 }) => {
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
+    const [isStaffFormOpen, setIsStaffFormOpen] = useState(false);
+    const [editingStaff, setEditingStaff] = useState<User | null>(null);
+    const [staffFormData, setStaffFormData] = useState({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        role: '',
+        gender: '' as 'Male' | 'Female' | 'Other' | ''
+    });
     const [users, setUsers] = useState<User[]>([]);
     const [instructors, setInstructors] = useState<User[]>([]);
     const [courseLevels, setCourseLevels] = useState<CourseLevel[]>([]);
@@ -1584,6 +1602,136 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         });
     }, [enrollments, users, searchTerm, statusFilter, gradeFilter, streamFilter]);
 
+    // Filtered Teachers
+    const filteredTeachers = useMemo(() => {
+        return users.filter(u => {
+            const isTeacher = teacherRoles.includes(u.role);
+            const matchesSearch = 
+                (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (u.phoneNumber || '').includes(searchTerm);
+            return isTeacher && matchesSearch;
+        });
+    }, [users, searchTerm]);
+
+    // Filtered Support Staff
+    const filteredSupportStaff = useMemo(() => {
+        return users.filter(u => {
+            const isSupport = !teacherRoles.includes(u.role) && !nonSupportRoles.includes(u.role);
+            const matchesSearch = 
+                (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (u.phoneNumber || '').includes(searchTerm);
+            return isSupport && matchesSearch;
+        });
+    }, [users, searchTerm]);
+
+    // Handle Staff Form Submit (Add/Edit)
+    const handleSubmitStaff = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!staffFormData.name || !staffFormData.name.trim()) {
+            setStatusMsg({ type: 'error', message: 'Full Name is required.' });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+            return;
+        }
+        if (!staffFormData.role) {
+            setStatusMsg({ type: 'error', message: 'Role selection is required.' });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+            return;
+        }
+
+        setStatusMsg({ type: 'info', message: 'Saving staff profile...' });
+        setIsLoading(true);
+
+        try {
+            // Check for duplicate email globally if email is set
+            let existingUser = null;
+            if (staffFormData.email && staffFormData.email.trim()) {
+                const lowerEmail = staffFormData.email.trim().toLowerCase();
+                existingUser = users.find(u => u.id !== editingStaff?.id && u.email && u.email.toLowerCase() === lowerEmail);
+                if (!existingUser) {
+                    const globalRecords = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                        filter: { email: lowerEmail }
+                    });
+                    if (globalRecords && globalRecords.length > 0 && globalRecords[0].id !== editingStaff?.id) {
+                        existingUser = globalRecords[0];
+                    }
+                }
+            }
+
+            if (existingUser) {
+                setStatusMsg({ type: 'error', message: 'A user with this email address already exists.' });
+                setIsLoading(false);
+                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+                return;
+            }
+
+            if (editingStaff) {
+                // Update existing staff member
+                const updatedUser: User = {
+                    ...editingStaff,
+                    name: staffFormData.name.trim(),
+                    email: staffFormData.email && staffFormData.email.trim() ? staffFormData.email.trim() : `staff_${editingStaff.id}@eduai.local`,
+                    phoneNumber: staffFormData.phoneNumber ? staffFormData.phoneNumber.trim() : '',
+                    role: staffFormData.role as any,
+                    gender: staffFormData.gender || undefined,
+                    updatedAt: new Date().toISOString()
+                } as any;
+                await apiService.updateModuleRecord('users', editingStaff.id, updatedUser);
+                setStatusMsg({ type: 'success', message: 'Staff profile updated successfully.' });
+            } else {
+                // Onboard new staff member
+                const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const staffEmail = staffFormData.email && staffFormData.email.trim()
+                    ? staffFormData.email.trim()
+                    : `staff_${newUserId}@eduai.local`;
+
+                const newUser: User = {
+                    id: newUserId,
+                    name: staffFormData.name.trim(),
+                    email: staffEmail,
+                    phoneNumber: staffFormData.phoneNumber ? staffFormData.phoneNumber.trim() : '',
+                    role: staffFormData.role as any,
+                    institutionId: currentInstitution.id,
+                    gender: staffFormData.gender || undefined,
+                    createdAt: new Date().toISOString(),
+                    metadata: {}
+                };
+                await apiService.saveModuleRecord('users', newUser);
+                setStatusMsg({ type: 'success', message: 'New staff member onboarded successfully.' });
+            }
+
+            setIsStaffFormOpen(false);
+            setEditingStaff(null);
+            loadAllData();
+        } catch (err: any) {
+            console.error("Save staff failed:", err);
+            setStatusMsg({ type: 'error', message: `Failed to save staff member: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
+    // Handle Staff Delete
+    const handleDeleteStaff = async (userId: string, name: string) => {
+        if (!window.confirm(`Are you sure you want to delete staff member "${name}"?`)) {
+            return;
+        }
+        try {
+            setStatusMsg({ type: 'info', message: 'Deleting staff member...' });
+            await apiService.deleteModuleRecord('users', userId);
+            setStatusMsg({ type: 'success', message: `Staff member "${name}" deleted successfully.` });
+            loadAllData();
+        } catch (err: any) {
+            console.error("Delete staff failed:", err);
+            setStatusMsg({ type: 'error', message: `Failed to delete staff member: ${err.message}` });
+        }
+        setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+    };
+
+
     // Available Cohorts
     const cohortsList = useMemo(() => {
         if (context === 'driving_school') {
@@ -1694,10 +1842,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     </div>
                     <div>
                         <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
-                            Student <span className="text-indigo-500">Enrollment Portal</span>
+                            {activeTab === 'teachers' ? 'Teachers' : activeTab === 'support_staff' ? 'Support Staff' : 'Student'} <span className="text-indigo-500">Enrollment Portal</span>
                         </h2>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                            {context === 'driving_school' ? 'Driving School Cohort Registry' : 'Academic Class Placements & Registry'}
+                            {activeTab === 'teachers' ? 'Teachers Registry' : activeTab === 'support_staff' ? 'Support Staff Registry' : (context === 'driving_school' ? 'Driving School Cohort Registry' : 'Academic Class Placements & Registry')}
                         </p>
                     </div>
                 </div>
@@ -1723,7 +1871,55 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         </button>
                     </div>
                 )}
+
+                {activeTab === 'teachers' && (
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => {
+                                setEditingStaff(null);
+                                setStaffFormData({
+                                    name: '',
+                                    email: '',
+                                    phoneNumber: '',
+                                    role: 'teacher',
+                                    gender: ''
+                                });
+                                setIsStaffFormOpen(true);
+                            }}
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-indigo-500/10"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                            Onboard Teacher
+                        </button>
+                    </div>
+                )}
+
+                {activeTab === 'support_staff' && (
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => {
+                                const supportRoles = getRolesForInstitution(currentInstitution).filter(
+                                    role => !teacherRoles.includes(role) && !nonSupportRoles.includes(role)
+                                );
+                                setEditingStaff(null);
+                                setStaffFormData({
+                                    name: '',
+                                    email: '',
+                                    phoneNumber: '',
+                                    role: supportRoles[0] || 'staff',
+                                    gender: ''
+                                });
+                                setIsStaffFormOpen(true);
+                            }}
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-indigo-500/10"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                            Onboard Staff
+                        </button>
+                    </div>
+                )}
             </div>
+
 
 
 
@@ -1993,6 +2189,294 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             </div>
                                         );
                                     })}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* Tab: Teachers */}
+            {activeTab === 'teachers' && (
+                <>
+                    {/* Filters Bar */}
+                    <div className="flex flex-col gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+                        <div className="w-full relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input 
+                                type="text" 
+                                placeholder="Search by name, email or phone number..." 
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors"
+                            />
+                        </div>
+                        {searchTerm && (
+                            <div className="flex items-center justify-between pt-1">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    {filteredTeachers.length} teacher{filteredTeachers.length !== 1 ? 's' : ''} found
+                                </span>
+                                <button
+                                    onClick={() => setSearchTerm('')}
+                                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-rose-400 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 rounded-xl transition-all"
+                                >
+                                    Clear Filters
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Teachers List */}
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                            <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
+                            <p className="text-xs font-black uppercase tracking-widest">Retrieving teachers...</p>
+                        </div>
+                    ) : filteredTeachers.length === 0 ? (
+                        <div className="text-center py-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl border-dashed">
+                            <Users className="w-12 h-12 mx-auto text-slate-400 mb-4" />
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No teachers found.</p>
+                            <p className="text-xs text-slate-500 mt-1">Onboard a new teacher to get started or adjust your filters.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {filteredTeachers.map((teacher, i) => {
+                                const hasBiometrics = !!teacher?.metadata?.webauthnCredentials;
+
+                                const avatarColors = [
+                                    'bg-indigo-100 text-indigo-700',
+                                    'bg-violet-100 text-violet-700',
+                                    'bg-emerald-100 text-emerald-700',
+                                    'bg-rose-100 text-rose-700',
+                                    'bg-amber-100 text-amber-700',
+                                    'bg-cyan-100 text-cyan-700',
+                                ];
+                                const avatarCls = avatarColors[i % avatarColors.length];
+
+                                return (
+                                    <div
+                                        key={teacher.id}
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 flex flex-wrap md:flex-nowrap items-center gap-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 transition-all group"
+                                    >
+                                        {/* Avatar */}
+                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-base uppercase shrink-0 ${avatarCls}`}>
+                                            {(teacher.name || 'T').charAt(0)}
+                                        </div>
+
+                                        {/* Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight">
+                                                {teacher.name}
+                                            </p>
+                                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                                {teacher.email && !teacher.email.endsWith('@eduai.local') && (
+                                                    <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                                        <Mail className="w-3 h-3" /> {teacher.email}
+                                                    </span>
+                                                )}
+                                                {teacher.phoneNumber && (
+                                                    <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                                        <Phone className="w-3 h-3" /> {teacher.phoneNumber}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Role */}
+                                        <div className="shrink-0">
+                                            <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 px-2.5 py-1 rounded-full">
+                                                {formatRoleDisplayName(teacher.role, currentInstitution)}
+                                            </span>
+                                        </div>
+
+                                        {/* Biometrics */}
+                                        <div className="shrink-0">
+                                            {hasBiometrics ? (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-1 rounded-full">
+                                                    <ShieldCheck className="w-3.5 h-3.5" /> Biometric
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleRegisterBiometrics(teacher.id, teacher.name || 'Teacher')}
+                                                    className="inline-flex items-center gap-1.5 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest hover:text-indigo-700 dark:hover:text-white bg-slate-50 dark:bg-white/5 hover:bg-indigo-50 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 hover:border-indigo-300 dark:hover:border-white/20 px-3 py-1.5 rounded-xl transition-all"
+                                                >
+                                                    <Fingerprint className="w-3.5 h-3.5 text-indigo-500" /> Enroll Key
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="shrink-0 flex items-center gap-1">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingStaff(teacher);
+                                                    setStaffFormData({
+                                                        name: teacher.name || '',
+                                                        email: teacher.email && !teacher.email.endsWith('@eduai.local') ? teacher.email : '',
+                                                        phoneNumber: teacher.phoneNumber || '',
+                                                        role: teacher.role || 'teacher',
+                                                        gender: (teacher.gender || '') as any
+                                                    });
+                                                    setIsStaffFormOpen(true);
+                                                }}
+                                                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
+                                                title="Edit Profile"
+                                            >
+                                                <Edit3 className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteStaff(teacher.id, teacher.name)}
+                                                className="p-2 rounded-xl text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
+                                                title="Delete Profile"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* Tab: Support Staff */}
+            {activeTab === 'support_staff' && (
+                <>
+                    {/* Filters Bar */}
+                    <div className="flex flex-col gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+                        <div className="w-full relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input 
+                                type="text" 
+                                placeholder="Search by name, email or phone number..." 
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors"
+                            />
+                        </div>
+                        {searchTerm && (
+                            <div className="flex items-center justify-between pt-1">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    {filteredSupportStaff.length} staff member{filteredSupportStaff.length !== 1 ? 's' : ''} found
+                                </span>
+                                <button
+                                    onClick={() => setSearchTerm('')}
+                                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-rose-400 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 rounded-xl transition-all"
+                                >
+                                    Clear Filters
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Support Staff List */}
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                            <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
+                            <p className="text-xs font-black uppercase tracking-widest">Retrieving staff...</p>
+                        </div>
+                    ) : filteredSupportStaff.length === 0 ? (
+                        <div className="text-center py-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl border-dashed">
+                            <Users className="w-12 h-12 mx-auto text-slate-400 mb-4" />
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No staff members found.</p>
+                            <p className="text-xs text-slate-500 mt-1">Onboard a new staff member to get started or adjust your filters.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {filteredSupportStaff.map((staff, i) => {
+                                const hasBiometrics = !!staff?.metadata?.webauthnCredentials;
+
+                                const avatarColors = [
+                                    'bg-indigo-100 text-indigo-700',
+                                    'bg-violet-100 text-violet-700',
+                                    'bg-emerald-100 text-emerald-700',
+                                    'bg-rose-100 text-rose-700',
+                                    'bg-amber-100 text-amber-700',
+                                    'bg-cyan-100 text-cyan-700',
+                                ];
+                                const avatarCls = avatarColors[i % avatarColors.length];
+
+                                return (
+                                    <div
+                                        key={staff.id}
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 flex flex-wrap md:flex-nowrap items-center gap-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 transition-all group"
+                                    >
+                                        {/* Avatar */}
+                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-base uppercase shrink-0 ${avatarCls}`}>
+                                            {(staff.name || 'S').charAt(0)}
+                                        </div>
+
+                                        {/* Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight">
+                                                {staff.name}
+                                            </p>
+                                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                                {staff.email && !staff.email.endsWith('@eduai.local') && (
+                                                    <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                                        <Mail className="w-3 h-3" /> {staff.email}
+                                                    </span>
+                                                )}
+                                                {staff.phoneNumber && (
+                                                    <span className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                                                        <Phone className="w-3 h-3" /> {staff.phoneNumber}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Role */}
+                                        <div className="shrink-0">
+                                            <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 px-2.5 py-1 rounded-full">
+                                                {formatRoleDisplayName(staff.role, currentInstitution)}
+                                            </span>
+                                        </div>
+
+                                        {/* Biometrics */}
+                                        <div className="shrink-0">
+                                            {hasBiometrics ? (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 dark:text-emerald-455 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-1 rounded-full">
+                                                    <ShieldCheck className="w-3.5 h-3.5" /> Biometric
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleRegisterBiometrics(staff.id, staff.name || 'Staff')}
+                                                    className="inline-flex items-center gap-1.5 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest hover:text-indigo-700 dark:hover:text-white bg-slate-50 dark:bg-white/5 hover:bg-indigo-50 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 hover:border-indigo-300 dark:hover:border-white/20 px-3 py-1.5 rounded-xl transition-all"
+                                                >
+                                                    <Fingerprint className="w-3.5 h-3.5 text-indigo-500" /> Enroll Key
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="shrink-0 flex items-center gap-1">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingStaff(staff);
+                                                    setStaffFormData({
+                                                        name: staff.name || '',
+                                                        email: staff.email && !staff.email.endsWith('@eduai.local') ? staff.email : '',
+                                                        phoneNumber: staff.phoneNumber || '',
+                                                        role: staff.role || 'staff',
+                                                        gender: (staff.gender || '') as any
+                                                    });
+                                                    setIsStaffFormOpen(true);
+                                                }}
+                                                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
+                                                title="Edit Profile"
+                                            >
+                                                <Edit3 className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteStaff(staff.id, staff.name)}
+                                                className="p-2 rounded-xl text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
+                                                title="Delete Profile"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </>
@@ -3155,6 +3639,130 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0"
                                 >
                                     {editingEnrollment ? 'Save Changes' : 'Confirm Enrollment'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Staff Form Modal */}
+            {isStaffFormOpen && createPortal(
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 sm:p-6" onClick={() => setIsStaffFormOpen(false)}>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] rounded-3xl p-6 sm:p-8 w-full max-w-xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
+                            <div>
+                                <h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-2">
+                                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 animate-pulse" />
+                                    {editingStaff ? 'Modify Staff Profile' : `Onboard New ${activeTab === 'teachers' ? 'Teacher' : 'Staff'}`}
+                                </h3>
+                                <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-widest mt-1">Configure user identity and institutional role</p>
+                            </div>
+                            <button 
+                                onClick={() => setIsStaffFormOpen(false)}
+                                className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-50 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800 rounded-xl sm:rounded-2xl flex items-center justify-center text-slate-450 hover:text-slate-800 dark:hover:text-white transition-all shadow-sm"
+                            >
+                                <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
+                            </button>
+                        </div>
+ 
+                        <form onSubmit={handleSubmitStaff} className="space-y-6">
+                            {statusMsg.type !== 'idle' && (
+                                <div className={`p-4 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all ${
+                                    statusMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                    statusMsg.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                                    'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                                }`}>
+                                    {statusMsg.message}
+                                </div>
+                            )}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="sm:col-span-2">
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Full Name</label>
+                                    <input 
+                                        type="text" 
+                                        required 
+                                        placeholder="First & Last Name"
+                                        value={staffFormData.name}
+                                        onChange={e => setStaffFormData({ ...staffFormData, name: e.target.value })}
+                                        className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-455 uppercase tracking-widest ml-1">Phone Number</label>
+                                    <input 
+                                        type="tel" 
+                                        placeholder="+254..."
+                                        value={staffFormData.phoneNumber}
+                                        onChange={e => setStaffFormData({ ...staffFormData, phoneNumber: e.target.value })}
+                                        className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-455 uppercase tracking-widest ml-1">Email Address</label>
+                                    <input 
+                                        type="email" 
+                                        placeholder="name@example.com"
+                                        value={staffFormData.email}
+                                        onChange={e => setStaffFormData({ ...staffFormData, email: e.target.value })}
+                                        className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Institutional Role</label>
+                                    <select
+                                        value={staffFormData.role}
+                                        onChange={e => setStaffFormData({ ...staffFormData, role: e.target.value })}
+                                        className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                    >
+                                        {activeTab === 'teachers' ? (
+                                            teacherRoles.map(role => (
+                                                <option key={role} value={role}>
+                                                    {formatRoleDisplayName(role as any, currentInstitution)}
+                                                </option>
+                                            ))
+                                        ) : (
+                                            getRolesForInstitution(currentInstitution)
+                                                .filter(role => !teacherRoles.includes(role) && !nonSupportRoles.includes(role))
+                                                .map(role => (
+                                                    <option key={role} value={role}>
+                                                        {formatRoleDisplayName(role as any, currentInstitution)}
+                                                    </option>
+                                                ))
+                                        )}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Gender Identity</label>
+                                    <select
+                                        value={staffFormData.gender}
+                                        onChange={e => setStaffFormData({ ...staffFormData, gender: e.target.value as any })}
+                                        className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                    >
+                                        <option value="">Select Gender (Optional)</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+ 
+                            <div className="flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsStaffFormOpen(false)}
+                                    className="px-6 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 hover:bg-slate-100 dark:hover:bg-slate-900"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0"
+                                >
+                                    {editingStaff ? 'Save Changes' : 'Confirm Onboarding'}
                                 </button>
                             </div>
                         </form>
