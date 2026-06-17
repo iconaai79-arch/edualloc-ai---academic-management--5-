@@ -179,10 +179,11 @@ interface SecurityGatePassViewProps {
     currentInstitution: Institution;
     onLogGateAction: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
     onAddVisitor?: (visitor: Omit<Visitor, 'id'>) => Promise<void> | void;
+    courses?: Course[];
 }
 
 export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
-    vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor
+    vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor, courses = []
 }) => {
     const [activeTab, setActiveTab] = useState<'vehicle' | 'parent'>('vehicle');
     const [activeUsers, setActiveUsers] = useState<User[]>(users);
@@ -455,6 +456,19 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             const timeInStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const plate = pin?.vehicleRegistration || pin?.vehicle_registration || '';
 
+            const isSchool = ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(currentInstitution?.institutionType || '') ||
+                             ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(currentInstitution?.category || '');
+
+            let resolvedHostId = student?.id || currentUser.id;
+            if (isSchool && student) {
+                const classLevel = courses.flatMap(c => c.levels || []).find(lvl => lvl.id === student.courseLevelId);
+                if (classLevel && classLevel.classTeacherId) {
+                    resolvedHostId = classLevel.classTeacherId;
+                } else {
+                    resolvedHostId = currentUser.id;
+                }
+            }
+
             // Add the parent first
             await onAddVisitor({
                 name: parent.name,
@@ -463,7 +477,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 visitDate: dateStr,
                 timeIn: timeInStr,
                 institutionId: currentInstitution.id,
-                hostId: student?.id || currentUser.id,
+                hostId: resolvedHostId,
                 vehiclePlate: plate,
                 idNumber: pin ? `PIN: ${pin.pin}` : ''
             });
@@ -482,7 +496,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     visitDate: dateStr,
                                     timeIn: timeInStr,
                                     institutionId: currentInstitution.id,
-                                    hostId: student?.id || currentUser.id,
+                                    hostId: resolvedHostId,
                                     vehiclePlate: plate,
                                     idNumber: `PIN: ${pin.pin}`
                                 });

@@ -194,6 +194,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [isStaffFormOpen, setIsStaffFormOpen] = useState(false);
     const [editingStaff, setEditingStaff] = useState<User | null>(null);
+    const [isClassSupervisor, setIsClassSupervisor] = useState(false);
+    const [supervisesStreamId, setSupervisesStreamId] = useState('');
     const [staffFormData, setStaffFormData] = useState({
         name: '',
         email: '',
@@ -2167,6 +2169,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 return;
             }
 
+            const newUserId = editingStaff ? editingStaff.id : `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const userId = newUserId;
+            const courseToUpdate = supervisesStreamId ? courses.find(c => (c.levels || []).some(l => l.id === supervisesStreamId)) : null;
+
             if (editingStaff) {
                 // Update existing staff member
                 const updatedUser: User = {
@@ -2176,13 +2182,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     phoneNumber: staffFormData.phoneNumber ? staffFormData.phoneNumber.trim() : '',
                     role: staffFormData.role as any,
                     gender: staffFormData.gender || undefined,
+                    courseLevelId: supervisesStreamId || undefined,
+                    courseId: courseToUpdate?.id || undefined,
                     updatedAt: new Date().toISOString()
                 } as any;
                 await apiService.updateModuleRecord('users', editingStaff.id, updatedUser);
                 setStatusMsg({ type: 'success', message: 'Staff profile updated successfully.' });
             } else {
                 // Onboard new staff member
-                const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                 const staffEmail = staffFormData.email && staffFormData.email.trim()
                     ? staffFormData.email.trim()
                     : `staff_${newUserId}@eduai.local`;
@@ -2195,11 +2202,33 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     role: staffFormData.role as any,
                     institutionId: currentInstitution.id,
                     gender: staffFormData.gender || undefined,
+                    courseLevelId: supervisesStreamId || undefined,
+                    courseId: courseToUpdate?.id || undefined,
                     createdAt: new Date().toISOString(),
                     metadata: {}
                 };
                 await apiService.saveModuleRecord('users', newUser);
                 setStatusMsg({ type: 'success', message: 'New staff member onboarded successfully.' });
+            }
+
+            // Update Course levels/streams supervisor mappings
+            for (const course of courses) {
+                let courseChanged = false;
+                const updatedLevels = (course.levels || []).map(lvl => {
+                    if (lvl.id === supervisesStreamId) {
+                        if (lvl.classTeacherId !== userId) {
+                            courseChanged = true;
+                            return { ...lvl, classTeacherId: userId };
+                        }
+                    } else if (lvl.classTeacherId === userId) {
+                        courseChanged = true;
+                        return { ...lvl, classTeacherId: null as any };
+                    }
+                    return lvl;
+                });
+                if (courseChanged) {
+                    await apiService.updateModuleRecord('courses', course.id, { ...course, levels: updatedLevels });
+                }
             }
 
             setIsStaffFormOpen(false);
@@ -2434,6 +2463,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         <button
                             onClick={() => {
                                 setEditingStaff(null);
+                                setIsClassSupervisor(false);
+                                setSupervisesStreamId('');
                                 setStaffFormData({
                                     name: '',
                                     email: '',
@@ -2442,7 +2473,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     gender: ''
                                 });
                                 setIsStaffFormOpen(true);
-                            }}
+                             }}
                             className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-indigo-500/10"
                         >
                             <UserPlus className="w-4 h-4" />
@@ -2466,6 +2497,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     role => !teacherRoles.includes(role) && !nonSupportRoles.includes(role)
                                 );
                                 setEditingStaff(null);
+                                setIsClassSupervisor(false);
+                                setSupervisesStreamId('');
                                 setStaffFormData({
                                     name: '',
                                     email: '',
@@ -2845,10 +2878,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         </div>
 
                                         {/* Role */}
-                                        <div className="shrink-0">
+                                        <div className="shrink-0 flex items-center gap-2">
                                             <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 px-2.5 py-1 rounded-full">
                                                 {formatRoleDisplayName(teacher.role, currentInstitution)}
                                             </span>
+                                            {(() => {
+                                                const supervisedLevel = courses.flatMap(c => c.levels || []).find(lvl => lvl.classTeacherId === teacher.id);
+                                                return supervisedLevel ? (
+                                                    <span className="text-[10px] font-black uppercase tracking-widest bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 text-purple-700 dark:text-purple-400 px-2.5 py-1 rounded-full">
+                                                        Supervisor: {supervisedLevel.name}
+                                                    </span>
+                                                ) : null;
+                                            })()}
                                         </div>
 
                                         {/* Biometrics */}
@@ -2872,6 +2913,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             <button
                                                 onClick={() => {
                                                     setEditingStaff(teacher);
+                                                    const supervisedLevel = courses.flatMap(c => c.levels || []).find(lvl => lvl.classTeacherId === teacher.id);
+                                                    setIsClassSupervisor(!!supervisedLevel);
+                                                    setSupervisesStreamId(supervisedLevel ? supervisedLevel.id : '');
                                                     setStaffFormData({
                                                         name: teacher.name || '',
                                                         email: teacher.email && !teacher.email.endsWith('@eduai.local') ? teacher.email : '',
@@ -3016,6 +3060,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             <button
                                                 onClick={() => {
                                                     setEditingStaff(staff);
+                                                    setIsClassSupervisor(false);
+                                                    setSupervisesStreamId('');
                                                     setStaffFormData({
                                                         name: staff.name || '',
                                                         email: staff.email && !staff.email.endsWith('@eduai.local') ? staff.email : '',
@@ -4726,6 +4772,46 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         )}
                                     </select>
                                 </div>
+
+                                {activeTab === 'teachers' && (
+                                    <div className="sm:col-span-2 space-y-4 p-4 bg-slate-50 dark:bg-slate-950/30 rounded-2xl border border-slate-200/50 dark:border-slate-800/60 mt-2">
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={isClassSupervisor} 
+                                                onChange={(e) => {
+                                                    setIsClassSupervisor(e.target.checked);
+                                                    if (!e.target.checked) setSupervisesStreamId('');
+                                                }}
+                                                className="w-5 h-5 rounded-lg border-slate-305 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500/20"
+                                            />
+                                            <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Assign as Class Supervisor / Class Teacher</span>
+                                        </label>
+                                        
+                                        {isClassSupervisor && (
+                                            <div className="animate-fade-in-up">
+                                                <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Select Stream to Supervise</label>
+                                                <select
+                                                    value={supervisesStreamId}
+                                                    onChange={e => setSupervisesStreamId(e.target.value)}
+                                                    required={isClassSupervisor}
+                                                    className="form-select mt-1 w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                                >
+                                                    <option value="">-- Select Stream --</option>
+                                                    {courses.map(course => (
+                                                        <optgroup key={course.id} label={course.name}>
+                                                            {(course.levels || []).map(lvl => (
+                                                                <option key={lvl.id} value={lvl.id}>
+                                                                    {course.name} - {lvl.name} {lvl.classTeacherId && lvl.classTeacherId !== editingStaff?.id ? `(Assigned to ${users.find(u => u.id === lvl.classTeacherId)?.name || 'another teacher'})` : ''}
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div>
                                     <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Gender Identity</label>

@@ -206,9 +206,11 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         user = { name: 'User', institutionId: '' } as any,
         securityAlerts = [], visitors = [], appointments = [], users = [],
         onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus,
-        onLogAction
+        onLogAction, courses = []
     } = props;
     const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts' | 'gatepass'>('checkpoint');
+    const isSchool = ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.institutionType || '') ||
+                     ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.category || '');
 
     // Local states for dynamically fetched data to ensure real-time updates without page reload
     const [localUsers, setLocalUsers] = useState<User[]>(users || []);
@@ -352,6 +354,16 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 const timeInStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const plate = pin?.vehicleRegistration || pin?.vehicle_registration || '';
 
+                let resolvedHostId = student?.id || user.id;
+                if (isSchool && student) {
+                    const classLevel = courses.flatMap(c => c.levels || []).find(lvl => lvl.id === student.courseLevelId);
+                    if (classLevel && classLevel.classTeacherId) {
+                        resolvedHostId = classLevel.classTeacherId;
+                    } else {
+                        resolvedHostId = user.id;
+                    }
+                }
+
                 // Add the parent first
                 await onAddVisitor({
                     name: parent.name,
@@ -360,7 +372,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     visitDate: dateStr,
                     timeIn: timeInStr,
                     institutionId: user.institutionId,
-                    hostId: student?.id || user.id,
+                    hostId: resolvedHostId,
                     vehiclePlate: plate,
                     idNumber: pin ? `PIN: ${pin.pin}` : ''
                 });
@@ -379,7 +391,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                         visitDate: dateStr,
                                         timeIn: timeInStr,
                                         institutionId: user.institutionId,
-                                        hostId: student?.id || user.id,
+                                        hostId: resolvedHostId,
                                         vehiclePlate: plate,
                                         idNumber: `PIN: ${pin.pin}`
                                     });
@@ -411,8 +423,6 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         }
     };
 
-    const isSchool = ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.institutionType || '') ||
-                     ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.category || '');
     const dashboardTitle = isSchool ? "School Security Hub" : "Campus Security Hub";
 
     return (
@@ -633,6 +643,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     currentInstitution={props.currentInstitution!}
                     onLogGateAction={props.onLogGateAction!}
                     onAddVisitor={props.onAddVisitor}
+                    courses={courses}
                 />
             )}
 
@@ -848,7 +859,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Host / Personnel To See</label>
                                 <select className="form-select" value={walkInForm.hostId} onChange={(e) => setWalkInForm({ ...walkInForm, hostId: e.target.value })} required>
                                     <option value="">Select Host</option>
-                                    {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
+                                    {users.filter(u => !isSchool || u.role !== 'student').map(u => <option key={u.id} value={u.id}>{u.name} ({formatRoleDisplayName(u.role, props.currentInstitution)})</option>)}
                                 </select>
                             </div>
                             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
