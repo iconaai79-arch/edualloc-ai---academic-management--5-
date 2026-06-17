@@ -55,7 +55,8 @@ import { StoreItemForm } from './StoreItemForm';
 import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';
 import { TransactionForm } from './TransactionForm';
 import { ItemQrCodeModal } from './ItemQrCodeModal';
-import { SecurityGatePassView } from './SecurityGatePassView';
+import { SecurityGatePassView, printEposGatePass } from './SecurityGatePassView';
+import { apiService } from '../services/apiService';
 import { TransportOnboardingView } from './TransportOnboardingView';
 import { SupplierForm } from './retail/SupplierForm';
 import { downloadInvoicePdf, downloadReceiptPdf, generateInventoryRegistryPdfDataUri, generateIssuanceReportPdfDataUri, generateInventoryStatementPdfDataUri, generateInventoryAnalyticsPdfDataUri, generateInventorySummaryPdfDataUri } from '../services/pdfService';
@@ -209,6 +210,47 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     } = props;
     const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts' | 'gatepass'>('checkpoint');
 
+    // Local states for dynamically fetched data to ensure real-time updates without page reload
+    const [localUsers, setLocalUsers] = useState<User[]>(users || []);
+    const [eventPins, setEventPins] = useState<any[]>([]);
+    const [institutionEvents, setInstitutionEvents] = useState<any[]>([]);
+    const [loadingData, setLoadingData] = useState(false);
+
+    const fetchData = async () => {
+        if (!user?.institutionId) return;
+        setLoadingData(true);
+        try {
+            const [fetchedUsers, pins, events] = await Promise.all([
+                apiService.fetchModuleRecords<User>('users', user.institutionId),
+                apiService.fetchModuleRecords<any>('event_pins', user.institutionId),
+                apiService.fetchModuleRecords<any>('institution_events', user.institutionId)
+            ]);
+
+            if (fetchedUsers && fetchedUsers.length > 0) {
+                setLocalUsers(fetchedUsers);
+            }
+            setEventPins(pins || []);
+            setInstitutionEvents(events || []);
+        } catch (e) {
+            console.error("Failed to fetch security module data:", e);
+        } finally {
+            setLoadingData(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+        const interval = setInterval(fetchData, 10000); // periodically refresh every 10 seconds
+        return () => clearInterval(interval);
+    }, [user?.institutionId]);
+
+    // Sync localUsers with props.users if props change
+    useEffect(() => {
+        if (users && users.length > 0) {
+            setLocalUsers(users);
+        }
+    }, [users]);
+
     const [isScanning, setIsScanning] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'none'>('idle');
@@ -218,6 +260,35 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         const today = new Date().toISOString().split('T')[0];
         return (appointments || []).filter(a => a.date === today && a.status === 'pending');
     }, [appointments]);
+
+    const todaysEventPins = useMemo(() => {
+        const today = new Date().toISOString().split('T')[0];
+        return eventPins
+            .filter(pin => {
+                const isAccepted = pin.status === 'accepted';
+                const event = institutionEvents.find(e => e.id === pin.eventId);
+                const isToday = event && (event.eventDate || event.event_date || '').split('T')[0] === today;
+                return isAccepted && isToday;
+            })
+            .map(pin => {
+                const parent = localUsers.find(u => u.id === pin.userId) || ({
+                    id: pin.userId,
+                    name: 'Invited Guest',
+                    phoneNumber: pin.guests ? '' : 'N/A',
+                    role: 'parent',
+                    institutionId: user.institutionId
+                } as User);
+                const event = institutionEvents.find(e => e.id === pin.eventId);
+                const student = localUsers.find(u => 
+                    u.role === 'student' && (
+                        u.parentIds?.includes(pin.userId) || 
+                        parent.studentIds?.includes(u.id) || 
+                        (u as any).parentPhone === (parent.phoneNumber || '')
+                    )
+                ) || null;
+                return { pin, parent, event, student };
+            });
+    }, [eventPins, institutionEvents, localUsers, user.institutionId]);
     const handleVisitorLookup = () => {
         if (!walkInForm.phone) return;
         setLookupStatus('searching');
@@ -271,7 +342,75 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             alert(`Check-in complete for ${apt.guestName}`);
         }
     };
-    const isSchool = ['Primary', 'Secondary', 'ECD', 'International'].includes(props.currentInstitution?.institutionType || '');
+
+    const handleCheckInEventPin = async (pin: any, parent: User, event: any, student: User | null) => {
+        if (onAddVisitor) {
+            try {
+                const dateStr = new Date().toISOString().split('T')[0];
+                const timeInStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const plate = pin?.vehicleRegistration || pin?.vehicle_registration || '';
+
+                // Add the parent first
+                await onAddVisitor({
+                    name: parent.name,
+                    phoneNumber: parent.phoneNumber || parent.phone_number || '',
+                    purpose: `Event Check-In: Parent of ${student?.name || 'Student'}`,
+                    visitDate: dateStr,
+                    timeIn: timeInStr,
+                    institutionId: user.institutionId,
+                    hostId: student?.id || user.id,
+                    vehiclePlate: plate,
+                    idNumber: pin ? `PIN: ${pin.pin}` : ''
+                });
+
+                // Also add any accompanying guests
+                if (pin && pin.guests) {
+                    try {
+                        const parsedGuests = JSON.parse(pin.guests || '[]');
+                        if (Array.isArray(parsedGuests)) {
+                            for (const guestName of parsedGuests) {
+                                if (guestName && typeof guestName === 'string' && guestName.trim()) {
+                                    await onAddVisitor({
+                                        name: guestName.trim(),
+                                        phoneNumber: parent.phoneNumber || parent.phone_number || '',
+                                        purpose: `Accompanying Guest (Invited by ${parent.name})`,
+                                        visitDate: dateStr,
+                                        timeIn: timeInStr,
+                                        institutionId: user.institutionId,
+                                        hostId: student?.id || user.id,
+                                        vehiclePlate: plate,
+                                        idNumber: `PIN: ${pin.pin}`
+                                    });
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse/add accompanying guests:", e);
+                    }
+                }
+
+                if (pin) {
+                    printEposGatePass(pin, parent, event, props.currentInstitution);
+                    const updatedPin = {
+                        ...pin,
+                        status: 'used'
+                    };
+                    await apiService.updateModuleRecord('event_pins', pin.id, updatedPin);
+                }
+
+                await props.onLogAction?.(`Checked in event guest: ${parent.name} (PIN: ${pin.pin})`);
+                alert('Parent and guests verified and logged successfully for entry. Gatepass sent to printer.');
+                
+                // Refresh data to update expected guests list immediately
+                await fetchData();
+            } catch (err: any) {
+                alert(err.message || 'Error logging parent entry');
+            }
+        }
+    };
+
+    const isSchool = ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.institutionType || '') ||
+                     ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.category || '');
     const dashboardTitle = isSchool ? "School Security Hub" : "Campus Security Hub";
 
     return (
@@ -280,7 +419,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar pb-1">
                     {[
                         { id: 'checkpoint', label: 'Gate Checkpoint', icon: <CameraIcon className="w-4 h-4" /> },
-                        { id: 'expected', label: 'Expected Guests', icon: <CalendarDaysIcon className="w-4 h-4" />, count: todaysAppointments.length },
+                        { id: 'expected', label: 'Expected Guests', icon: <CalendarDaysIcon className="w-4 h-4" />, count: todaysAppointments.length + todaysEventPins.length },
                         { id: 'leaveout', label: 'Student Leave Out', icon: <ArrowUpTrayIcon className="w-4 h-4" /> },
                         { id: 'logs', label: 'Security Logs', icon: <ClipboardListIcon className="w-4 h-4" />, count: activeVisitors.length },
                         { id: 'gatepass', label: 'Gate Passes', icon: <MapPinIcon className="w-4 h-4" /> },
@@ -374,13 +513,14 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     <div className="flex justify-between items-center mb-8">
                         <div>
                             <h3 className="text-xl font-black uppercase tracking-tight">Expected Guests</h3>
-                            <p className="text-xs text-slate-400 mt-1 uppercase font-bold">Planned appointments for today</p>
+                            <p className="text-xs text-slate-400 mt-1 uppercase font-bold">Planned appointments and event RSVPs for today</p>
                         </div>
                         <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl">
                             <CalendarDaysIcon className="w-6 h-6" />
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {/* Appointments */}
                         {todaysAppointments.map(apt => (
                             <div key={apt.id} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-4 relative overflow-hidden group hover:border-indigo-200 transition-all">
                                 <div className="flex justify-between items-start">
@@ -391,14 +531,14 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 </div>
                                 <div>
                                     <h4 className="font-black text-slate-800 dark:text-white uppercase text-base truncate">{apt.guestName}</h4>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{apt.purpose}</p>
+                                    <p className="text-[10px] text-slate-450 font-bold uppercase tracking-widest">{apt.purpose}</p>
                                 </div>
                                 <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
                                     <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
                                         <ClockIcon className="w-3.5 h-3.5 text-indigo-500" /> {apt.startTime} - {apt.endTime}
                                     </div>
                                     <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                                        <UserIcon className="w-3.5 h-3.5 text-slate-400" /> Host: {users.find(u => u.id === apt.hostId)?.name || 'N/A'}
+                                        <UserIcon className="w-3.5 h-3.5 text-slate-400" /> Host: {localUsers.find(u => u.id === apt.hostId)?.name || 'N/A'}
                                     </div>
                                 </div>
                                 <button
@@ -409,12 +549,50 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 </button>
                             </div>
                         ))}
-                        {todaysAppointments.length === 0 && (
+
+                        {/* Confirmed Event RSVPs */}
+                        {todaysEventPins.map(({ pin, parent, event, student }) => (
+                            <div key={pin.id} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-4 relative overflow-hidden group hover:border-purple-200 transition-all">
+                                <div className="flex justify-between items-start">
+                                    <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-purple-650 font-black shadow-sm">
+                                        {parent.name.charAt(0)}
+                                    </div>
+                                    <span className="px-2.5 py-1 bg-purple-50 text-purple-650 text-[9px] font-black uppercase rounded-lg border border-purple-100">Event RSVP</span>
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-slate-800 dark:text-white uppercase text-base truncate">{parent.name}</h4>
+                                    <p className="text-[10px] text-purple-550 font-bold uppercase tracking-widest">PIN: {pin.pin}</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate mt-1">Event: {event?.title || 'School Event'}</p>
+                                </div>
+                                <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+                                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                        <ClockIcon className="w-3.5 h-3.5 text-purple-500" /> {event?.eventTime || 'Time TBD'}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                        <UserIcon className="w-3.5 h-3.5 text-slate-400" /> Student: {student?.name || 'N/A'}
+                                    </div>
+                                    {pin.vehicleRegistration && (
+                                        <div className="text-[10.5px] font-bold text-slate-500 uppercase flex items-center gap-1.5 mt-0.5">
+                                            <span className="shrink-0 text-slate-400">VEHICLE:</span>
+                                            <span className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-850 rounded font-mono text-slate-800 dark:text-slate-350 font-black">{pin.vehicleRegistration}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => handleCheckInEventPin(pin, parent, event, student)}
+                                    className="w-full py-3.5 bg-purple-650 hover:bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-purple-100 dark:shadow-none"
+                                >
+                                    Verify & Sign-In
+                                </button>
+                            </div>
+                        ))}
+
+                        {todaysAppointments.length === 0 && todaysEventPins.length === 0 && (
                             <div className="col-span-full py-20 text-center flex flex-col items-center gap-4">
                                 <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full opacity-50">
                                     <CalendarDaysIcon className="w-10 h-10 text-slate-300" />
                                 </div>
-                                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No pending appointments scheduled for today</p>
+                                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No pending appointments or event RSVPs scheduled for today</p>
                             </div>
                         )}
                     </div>
@@ -442,7 +620,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 <SecurityGatePassView
                     vehicles={props.vehicles || []}
                     vehicleLogs={props.vehicleLogs || []}
-                    users={props.users || []}
+                    users={localUsers}
                     visitors={props.visitors || []}
                     currentUser={user}
                     currentInstitution={props.currentInstitution!}

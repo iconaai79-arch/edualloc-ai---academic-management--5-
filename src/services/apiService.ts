@@ -249,18 +249,6 @@ export const apiService = {
         return publicUrl;
     },
     async shortenUrl(longUrl: string): Promise<string> {
-        if (!longUrl || longUrl.startsWith('local-blob://') || longUrl.startsWith('data:')) {
-            return longUrl;
-        }
-        try {
-            const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
-            if (response.ok) {
-                const text = await response.text();
-                if (text && text.startsWith('http')) return text;
-            }
-        } catch (err) {
-            console.warn("[apiService] Failed to shorten URL:", err);
-        }
         return longUrl;
     },
     async incrementCount(table: string, id: string, field: 'view_count' | 'inquiry_count'): Promise<void> {

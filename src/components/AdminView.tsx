@@ -1450,7 +1450,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                             <div>
                                                 <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">Security & Gate</h3>
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
-                                                    Log school visitors, check staff/student gate check-in activity registries, and coordinate campus guard rotations.
+                                                    Log school visitors, check staff/student gate check-in activity registries, and coordinate {isSchool ? 'school' : 'campus'} guard rotations.
                                                 </p>
                                                 {!isActive && (
                                                     <button

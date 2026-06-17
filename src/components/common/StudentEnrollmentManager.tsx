@@ -34,11 +34,12 @@ import {
     UserRound
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role } from '../../types';
+import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course } from '../../types';
 import { apiService } from '../../services/apiService';
 import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
 import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
+import { VALID_STAFF_ROLES } from '../../constants';
 
 const teacherRoles = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher'];
 const nonSupportRoles = [
@@ -71,7 +72,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     });
     const [users, setUsers] = useState<User[]>([]);
     const [instructors, setInstructors] = useState<User[]>([]);
-    const [courseLevels, setCourseLevels] = useState<CourseLevel[]>([]);
+    const [courses, setCourses] = useState<Course[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [academicLevels, setAcademicLevels] = useState<AcademicLevel[]>([]);
     const [importGradeLevel, setImportGradeLevel] = useState('');
@@ -194,6 +195,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         { key: 'parentPhone', label: 'Parent Phone Number' },
         { key: 'parentEmail', label: 'Parent Email Address' }
     ], [context]);
+
+    const teacherFields = useMemo(() => [
+        { key: 'name', label: 'Teacher Full Name', required: true },
+        { key: 'email', label: 'Email Address' },
+        { key: 'phoneNumber', label: 'Phone Number' },
+        { key: 'role', label: 'Teacher Role (e.g. teacher, lecturer, practice_teacher, county_teacher)' },
+        { key: 'gender', label: 'Gender (Male/Female)' }
+    ], []);
+
+    const supportStaffFields = useMemo(() => [
+        { key: 'name', label: 'Staff Full Name', required: true },
+        { key: 'email', label: 'Email Address' },
+        { key: 'phoneNumber', label: 'Phone Number' },
+        { key: 'role', label: 'Staff Role (e.g. librarian, security, store, driver)' },
+        { key: 'gender', label: 'Gender (Male/Female)' }
+    ], []);
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -253,7 +270,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const [
                 enrollmentsData, 
                 usersData, 
-                courseLevelsData, 
+                coursesData, 
                 subjectsData,
                 broadcastsData,
                 eventsData,
@@ -263,7 +280,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             ] = await Promise.all([
                 apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', currentInstitution.id),
                 apiService.fetchModuleRecords<User>('users', currentInstitution.id),
-                apiService.fetchModuleRecords<CourseLevel>('course_levels', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<Course>('courses', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<Subject>('subjects', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('institution_events', currentInstitution.id).catch(() => []),
@@ -275,7 +292,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setEnrollments(enrollmentsData.filter(e => e.enrollmentType === context));
             setUsers(usersData);
             setInstructors(usersData.filter(u => u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer'));
-            setCourseLevels(courseLevelsData);
+            setCourses(coursesData);
             setSubjects(subjectsData);
             setBroadcasterMessages(broadcastsData || []);
             setEvents(eventsData || []);
@@ -932,6 +949,108 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setIsLoading(false);
             setImportGradeLevel('');
             setImportStream('');
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 5000);
+        }
+    };
+
+    const handleBulkCompleteStaff = async (data: any[]) => {
+        setIsUploading(false);
+        setStatusMsg({ type: 'info', message: `Ingesting ${data.length} staff records from spreadsheet...` });
+        setIsLoading(true);
+
+        try {
+            let currentUsersList = [...users];
+            let successCount = 0;
+
+            const batchSize = 10;
+            for (let i = 0; i < data.length; i += batchSize) {
+                const batch = data.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (item) => {
+                    try {
+                        if (!item.name || !String(item.name).trim()) return;
+
+                        // Resolve role
+                        let resolvedRole = '';
+                        if (activeTab === 'teachers') {
+                            const inputRole = item.role ? String(item.role).trim().toLowerCase() : '';
+                            resolvedRole = teacherRoles.includes(inputRole) ? inputRole : 'teacher';
+                        } else {
+                            const inputRole = item.role ? String(item.role).trim().toLowerCase() : '';
+                            const supportRoles = getRolesForInstitution(currentInstitution).filter(
+                                role => !teacherRoles.includes(role) && !nonSupportRoles.includes(role)
+                            );
+                            resolvedRole = (supportRoles.includes(inputRole) || VALID_STAFF_ROLES.includes(inputRole as any)) 
+                                ? inputRole 
+                                : (supportRoles[0] || 'staff');
+                        }
+
+                        // 1. Check if user already exists locally
+                        let existingUser = currentUsersList.find(u => 
+                            (item.email && u.email && u.email.toLowerCase() === String(item.email).trim().toLowerCase()) || 
+                            (item.phoneNumber && u.phoneNumber && String(u.phoneNumber).replace(/\D/g, '') === String(item.phoneNumber).replace(/\D/g, ''))
+                        );
+
+                        // Query globally to avoid unique email constraint violation (Error 23505)
+                        if (!existingUser && item.email) {
+                            const globalRecords = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                filter: { email: String(item.email).trim().toLowerCase() }
+                            });
+                            if (globalRecords && globalRecords.length > 0) {
+                                existingUser = globalRecords[0];
+                            }
+                        }
+
+                        if (existingUser) {
+                            // Update existing staff profile
+                            const updatedUser = {
+                                ...existingUser,
+                                name: String(item.name).trim(),
+                                role: resolvedRole as any,
+                            };
+                            if (item.gender) {
+                                updatedUser.gender = String(item.gender).trim() as any;
+                            }
+                            if (updatedUser.institutionId !== currentInstitution.id) {
+                                updatedUser.institutionId = currentInstitution.id;
+                            }
+                            await apiService.updateModuleRecord('users', existingUser.id, updatedUser);
+                        } else {
+                            // Create new staff profile
+                            const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                            const staffEmail = item.email && String(item.email).trim()
+                                ? String(item.email).trim()
+                                : `staff_${newUserId}@eduai.local`;
+
+                            const newUser: User = {
+                                id: newUserId,
+                                name: String(item.name).trim(),
+                                email: staffEmail,
+                                phoneNumber: item.phoneNumber ? String(item.phoneNumber).trim() : '',
+                                role: resolvedRole as any,
+                                institutionId: currentInstitution.id,
+                                createdAt: new Date().toISOString(),
+                                metadata: {}
+                            };
+                            if (item.gender) {
+                                newUser.gender = String(item.gender).trim() as any;
+                            }
+                            await apiService.saveModuleRecord('users', newUser);
+                            currentUsersList.push(newUser);
+                        }
+                        successCount++;
+                    } catch (err: any) {
+                        console.error(`Failed to ingest staff row ${item.name}:`, err);
+                    }
+                }));
+            }
+
+            setStatusMsg({ type: 'success', message: `Successfully imported ${successCount} staff record(s).` });
+            loadAllData();
+        } catch (err: any) {
+            console.error("Bulk staff ingestion failed:", err);
+            setStatusMsg({ type: 'error', message: `Staff import failed: ${err.message}` });
+        } finally {
+            setIsLoading(false);
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 5000);
         }
     };
@@ -1731,8 +1850,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
     };
 
-
-    // Available Cohorts
+    // Available Cohorts / Grade Levels
     const cohortsList = useMemo(() => {
         if (context === 'driving_school') {
             return [
@@ -1742,6 +1860,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 'Class C (Heavy Commercial)'
             ];
         } else {
+            if (courses && courses.length > 0) {
+                return courses.map(c => c.name);
+            }
             if (academicLevels && academicLevels.length > 0) {
                 return academicLevels.map(al => al.name);
             }
@@ -1750,15 +1871,63 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 'Grade 7', 'Grade 8', 'Form 1', 'Form 2', 'Form 3', 'Form 4'
             ];
         }
-    }, [context, academicLevels]);
+    }, [context, courses, academicLevels]);
 
-    // Available Streams
+    // Available Streams fallback
     const streamsList = useMemo(() => {
         if (currentInstitution?.streamDefinitions && currentInstitution.streamDefinitions.length > 0) {
             return currentInstitution.streamDefinitions;
         }
         return ['North', 'South', 'East', 'West', 'Main Stream'];
     }, [currentInstitution?.streamDefinitions]);
+
+    // Available Streams for the Enrollment Form
+    const formStreamsList = useMemo(() => {
+        if (formData.metadata.gradeLevel) {
+            const selectedCourse = courses.find(c => c.name === formData.metadata.gradeLevel);
+            if (selectedCourse?.levels && selectedCourse.levels.length > 0) {
+                return selectedCourse.levels.map(lvl => lvl.name);
+            }
+        }
+        return streamsList;
+    }, [formData.metadata.gradeLevel, courses, streamsList]);
+
+    // Available Streams for the registry filter
+    const filterStreamsList = useMemo(() => {
+        if (gradeFilter) {
+            const selectedCourse = courses.find(c => c.name === gradeFilter);
+            if (selectedCourse?.levels && selectedCourse.levels.length > 0) {
+                return selectedCourse.levels.map(lvl => lvl.name);
+            }
+        }
+        const allCourseStreams = courses.flatMap(c => (c.levels || []).map(lvl => lvl.name));
+        if (allCourseStreams.length > 0) {
+            return Array.from(new Set(allCourseStreams));
+        }
+        return streamsList;
+    }, [gradeFilter, courses, streamsList]);
+
+    // Available Streams for the Import default settings
+    const importStreamsList = useMemo(() => {
+        if (importGradeLevel) {
+            const selectedCourse = courses.find(c => c.name === importGradeLevel);
+            if (selectedCourse?.levels && selectedCourse.levels.length > 0) {
+                return selectedCourse.levels.map(lvl => lvl.name);
+            }
+        }
+        return streamsList;
+    }, [importGradeLevel, courses, streamsList]);
+
+    const activeImportFields = useMemo(() => {
+        if (activeTab === 'teachers') return teacherFields;
+        if (activeTab === 'support_staff') return supportStaffFields;
+        return enrollmentFields;
+    }, [activeTab, teacherFields, supportStaffFields, enrollmentFields]);
+
+    const activeOnComplete = useMemo(() => {
+        if (activeTab === 'teachers' || activeTab === 'support_staff') return handleBulkCompleteStaff;
+        return handleBulkComplete;
+    }, [activeTab, handleBulkCompleteStaff, handleBulkComplete]);
 
     // Memoized students list for specific selection
     const students = useMemo(() => {
@@ -1787,15 +1956,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         <div className="space-y-6">
             {isUploading && createPortal(
                 <ExcelSmartImporter 
-                    fields={enrollmentFields} 
-                    onComplete={handleBulkComplete} 
+                    fields={activeImportFields} 
+                    onComplete={activeOnComplete} 
                     onClose={() => {
                         setIsUploading(false);
                         setImportGradeLevel('');
                         setImportStream('');
                     }} 
                 >
-                    {context === 'academic' && (
+                    {activeTab === 'students' && context === 'academic' && (
                         <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 mt-6 space-y-4">
                             <h5 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Default Placement Settings</h5>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
@@ -1823,7 +1992,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         className="form-select mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500"
                                     >
                                         <option value="">-- No Default Stream --</option>
-                                        {streamsList.map(stream => (
+                                        {importStreamsList.map(stream => (
                                             <option key={stream} value={stream}>{stream}</option>
                                         ))}
                                     </select>
@@ -1874,6 +2043,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 {activeTab === 'teachers' && (
                     <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setIsUploading(true)}
+                            className="px-6 py-3 bg-slate-900 dark:bg-slate-850 border border-slate-800 dark:border-slate-755 hover:bg-slate-850 dark:hover:bg-slate-800 hover:border-slate-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg"
+                        >
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                            Import Excel
+                        </button>
                         <button
                             onClick={() => {
                                 setEditingStaff(null);
@@ -1896,6 +2072,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 {activeTab === 'support_staff' && (
                     <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setIsUploading(true)}
+                            className="px-6 py-3 bg-slate-900 dark:bg-slate-850 border border-slate-800 dark:border-slate-755 hover:bg-slate-850 dark:hover:bg-slate-800 hover:border-slate-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg"
+                        >
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                            Import Excel
+                        </button>
                         <button
                             onClick={() => {
                                 const supportRoles = getRolesForInstitution(currentInstitution).filter(
@@ -1991,7 +2174,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
                                 >
                                     <option value="">All Streams</option>
-                                    {streamsList.map(stream => (
+                                    {filterStreamsList.map(stream => (
                                         <option key={stream} value={stream}>{stream}</option>
                                     ))}
                                 </select>
@@ -3078,7 +3261,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div>
                             <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Cleared Guests Pipeline</h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Real-time pipeline of visitors vetted and cleared by gate campus security guards.</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Real-time pipeline of visitors vetted and cleared by gate {isPrimaryOrSecondary ? 'school' : 'campus'} security guards.</p>
                         </div>
                     </div>
 
@@ -3617,7 +3800,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
                                                 <option value="">Select Stream</option>
-                                                {streamsList.map(stream => (
+                                                {formStreamsList.map(stream => (
                                                     <option key={stream} value={stream}>{stream}</option>
                                                 ))}
                                             </select>

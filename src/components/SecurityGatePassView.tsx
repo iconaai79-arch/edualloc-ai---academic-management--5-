@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { TruckIcon } from './icons/TruckIcon';
@@ -12,7 +12,7 @@ import { XCircleIcon } from './icons/XCircleIcon';
 import type { TransportVehicle, VehicleLog, User, Institution, Visitor } from '../types';
 import { apiService } from '../services/apiService';
 
-const printEposGatePass = (pin: any, parent: any, event: any, institution: any) => {
+export const printEposGatePass = (pin: any, parent: any, event: any, institution: any) => {
     let iframe = document.getElementById('epos-print-iframe') as HTMLIFrameElement;
     if (!iframe) {
         iframe = document.createElement('iframe');
@@ -184,6 +184,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor
 }) => {
     const [activeTab, setActiveTab] = useState<'vehicle' | 'parent'>('vehicle');
+    const [activeUsers, setActiveUsers] = useState<User[]>(users);
+
+    useEffect(() => {
+        setActiveUsers(users);
+    }, [users]);
 
     // Vehicle State
     const [searchTerm, setSearchTerm] = useState('');
@@ -211,6 +216,18 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         if (parentSearchTerm.length < 3) return;
         
         const term = parentSearchTerm.toLowerCase();
+
+        // Fetch fresh users from the database to ensure we have the absolute latest records
+        let searchUsers = activeUsers;
+        try {
+            const fetched = await apiService.fetchModuleRecords<User>('users', currentInstitution.id);
+            if (fetched && fetched.length > 0) {
+                searchUsers = fetched;
+                setActiveUsers(fetched);
+            }
+        } catch (e) {
+            console.error("Failed to query fresh users for search:", e);
+        }
         
         // 0. Search by Event PIN first
         try {
@@ -220,10 +237,9 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 
             if (pinRecords && pinRecords.length > 0) {
                 const pin = pinRecords[0];
-                setSelectedPin(pin);
                 
                 // Fetch associated parent user
-                let parentMatch = users.find(u => u.id === pin.userId);
+                let parentMatch = searchUsers.find(u => u.id === pin.userId);
                 if (!parentMatch) {
                     const parentUsers = await apiService.fetchModuleRecords('users', currentInstitution.id, undefined, {
                         filter: { id: pin.userId }
@@ -233,38 +249,46 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     }
                 }
 
-                if (parentMatch) {
-                    setSelectedParent(parentMatch);
-                } else {
-                    setSelectedParent({
-                        id: pin.userId,
-                        name: 'Invited Guest',
-                        phoneNumber: '',
-                        role: 'parent',
-                        institutionId: currentInstitution.id
-                    } as any);
-                }
+                const finalParent = parentMatch || ({
+                    id: pin.userId,
+                    name: 'Invited Guest',
+                    phoneNumber: '',
+                    role: 'parent',
+                    institutionId: currentInstitution.id
+                } as any);
 
                 // Fetch event details
+                let finalEvent = null;
                 const events = await apiService.fetchModuleRecords('institution_events', currentInstitution.id, undefined, {
                     filter: { id: pin.eventId }
                 });
                 if (events && events.length > 0) {
-                    setAssociatedEvent(events[0]);
+                    finalEvent = events[0];
                 }
                 
-                const childMatch = users.find(u => 
+                const childMatch = searchUsers.find(u => 
                     u.role === 'student' && (
                         u.parentIds?.includes(pin.userId) || 
                         parentMatch?.studentIds?.includes(u.id) || 
                         (u as any).parentPhone === (parentMatch?.phoneNumber || '')
                     )
                 );
-                if (childMatch) {
-                    setSelectedStudent(childMatch);
-                } else {
-                    setSelectedStudent(null);
+                const finalStudent = childMatch || null;
+
+                // Set states so that the UI updates in case we need it (or for warning confirmation)
+                setSelectedPin(pin);
+                setSelectedParent(finalParent);
+                setAssociatedEvent(finalEvent);
+                setSelectedStudent(finalStudent);
+
+                if (pin.status === 'used') {
+                    if (!window.confirm("Warning: This PIN has already been checked in. Do you still want to grant entry and print a duplicate gatepass?")) {
+                        return;
+                    }
                 }
+
+                // Trigger verify and print immediately!
+                await performVerificationAndPrint(pin, finalParent, finalEvent, finalStudent);
                 return;
             }
         } catch (e) {
@@ -272,7 +296,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         }
         
         // 1. Search by Student Admission Number or Name
-        const studentMatch = users.find(u => 
+        const studentMatch = searchUsers.find(u => 
             u.role === 'student' && 
             (u.admissionNumber?.toLowerCase() === term || u.admission_number?.toLowerCase() === term || u.name.toLowerCase().includes(term))
         );
@@ -282,9 +306,9 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             // Find parent
             let parentMatch = null;
             if (studentMatch.parentIds && studentMatch.parentIds.length > 0) {
-                parentMatch = users.find(u => u.id === studentMatch.parentIds![0]);
+                parentMatch = searchUsers.find(u => u.id === studentMatch.parentIds![0]);
             } else if ((studentMatch as any).parentPhone) {
-                 parentMatch = users.find(u => u.role === 'parent' && u.phoneNumber === (studentMatch as any).parentPhone);
+                 parentMatch = searchUsers.find(u => u.role === 'parent' && u.phoneNumber === (studentMatch as any).parentPhone);
             }
             
             if (parentMatch) {
@@ -329,7 +353,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         }
 
         // 2. Search by Parent Phone Number or Name directly
-        const parentDirectMatch = users.find(u => 
+        const parentDirectMatch = searchUsers.find(u => 
             u.role === 'parent' && 
             (u.phoneNumber?.includes(term) || u.name.toLowerCase().includes(term))
         );
@@ -337,7 +361,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         if (parentDirectMatch) {
             setSelectedParent(parentDirectMatch);
             // Find associated student
-            const childMatch = users.find(u => 
+            const childMatch = searchUsers.find(u => 
                 u.role === 'student' && (
                     u.parentIds?.includes(parentDirectMatch.id) || 
                     parentDirectMatch.studentIds?.includes(u.id) || 
@@ -394,43 +418,48 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         }
     };
 
-    const handleVerifyParent = async () => {
-        if (!selectedParent || !onAddVisitor) return;
+    const performVerificationAndPrint = async (
+        pin: any,
+        parent: User,
+        event: any,
+        student: User | null
+    ) => {
+        if (!parent || !onAddVisitor) return;
         try {
             const dateStr = new Date().toISOString().split('T')[0];
             const timeInStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const plate = selectedPin?.vehicleRegistration || selectedPin?.vehicle_registration || '';
+            const plate = pin?.vehicleRegistration || pin?.vehicle_registration || '';
 
             // Add the parent first
             await onAddVisitor({
-                name: selectedParent.name,
-                phoneNumber: selectedParent.phoneNumber || selectedParent.phone_number || '',
-                purpose: `Event Check-In: Parent of ${selectedStudent?.name || 'Student'}`,
+                name: parent.name,
+                phoneNumber: parent.phoneNumber || parent.phone_number || '',
+                purpose: `Event Check-In: Parent of ${student?.name || 'Student'}`,
                 visitDate: dateStr,
                 timeIn: timeInStr,
                 institutionId: currentInstitution.id,
-                hostId: selectedStudent?.id || currentUser.id,
+                hostId: student?.id || currentUser.id,
                 vehiclePlate: plate,
-                idNumber: selectedPin ? `PIN: ${selectedPin.pin}` : ''
+                idNumber: pin ? `PIN: ${pin.pin}` : ''
             });
 
             // Also add any accompanying guests
-            if (selectedPin && selectedPin.guests) {
+            if (pin && pin.guests) {
                 try {
-                    const parsedGuests = JSON.parse(selectedPin.guests || '[]');
+                    const parsedGuests = JSON.parse(pin.guests || '[]');
                     if (Array.isArray(parsedGuests)) {
                         for (const guestName of parsedGuests) {
                             if (guestName && typeof guestName === 'string' && guestName.trim()) {
                                 await onAddVisitor({
                                     name: guestName.trim(),
-                                    phoneNumber: selectedParent.phoneNumber || selectedParent.phone_number || '',
-                                    purpose: `Accompanying Guest (Invited by ${selectedParent.name})`,
+                                    phoneNumber: parent.phoneNumber || parent.phone_number || '',
+                                    purpose: `Accompanying Guest (Invited by ${parent.name})`,
                                     visitDate: dateStr,
                                     timeIn: timeInStr,
                                     institutionId: currentInstitution.id,
-                                    hostId: selectedStudent?.id || currentUser.id,
+                                    hostId: student?.id || currentUser.id,
                                     vehiclePlate: plate,
-                                    idNumber: `PIN: ${selectedPin.pin}`
+                                    idNumber: `PIN: ${pin.pin}`
                                 });
                             }
                         }
@@ -440,16 +469,16 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 }
             }
 
-            if (selectedPin) {
-                printEposGatePass(selectedPin, selectedParent, associatedEvent, currentInstitution);
+            if (pin) {
+                printEposGatePass(pin, parent, event, currentInstitution);
                 const updatedPin = {
-                    ...selectedPin,
+                    ...pin,
                     status: 'used'
                 };
-                await apiService.updateModuleRecord('event_pins', selectedPin.id, updatedPin);
+                await apiService.updateModuleRecord('event_pins', pin.id, updatedPin);
             }
             
-            alert('Parent and guests verified and logged successfully for entry.');
+            alert('Parent and guests verified and logged successfully for entry. Gatepass sent to printer.');
             
             setSelectedParent(null);
             setSelectedStudent(null);
@@ -459,6 +488,11 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         } catch (err: any) {
             alert(err.message || 'Error logging parent entry');
         }
+    };
+
+    const handleVerifyParent = async () => {
+        if (!selectedParent) return;
+        await performVerificationAndPrint(selectedPin, selectedParent, associatedEvent, selectedStudent);
     };
 
     const recentLogs = (vehicleLogs || [])
@@ -732,7 +766,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     <div className="space-y-4">
                         {recentLogs.map(log => {
                             const vehicle = vehicles.find(v => v.id === log.vehicleId);
-                            const security = users.find(u => u.id === log.securityId);
+                            const security = activeUsers.find(u => u.id === log.securityId);
                             return (
                                 <div key={log.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
                                     <div className={`p-3 rounded-full h-fit ${log.eventType === 'entry' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
