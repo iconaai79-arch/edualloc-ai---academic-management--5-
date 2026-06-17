@@ -249,6 +249,47 @@ export const apiService = {
         return publicUrl;
     },
     async shortenUrl(longUrl: string): Promise<string> {
+        // Cache key to avoid shortening the same URL repeatedly in a session
+        const cacheKey = `eduai_short_${btoa(longUrl).substring(0, 32)}`;
+        try {
+            const cached = sessionStorage.getItem(cacheKey);
+            if (cached) return cached;
+        } catch (_) {}
+
+        // 1. Try server-side proxy (avoids CORS issues with TinyURL)
+        try {
+            if (_supabase) {
+                const res = await fetch('/api/integrations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'shortenUrl', url: longUrl })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.shortUrl && data.shortUrl.startsWith('https://tinyurl.com/')) {
+                        try { sessionStorage.setItem(cacheKey, data.shortUrl); } catch (_) {}
+                        return data.shortUrl;
+                    }
+                }
+            }
+        } catch (_) {}
+
+        // 2. Fallback: Try TinyURL directly from browser (may work in production)
+        try {
+            const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+            const res = await fetch(apiUrl, { method: 'GET' });
+            if (res.ok) {
+                const shortUrl = (await res.text()).trim();
+                if (shortUrl && shortUrl.startsWith('https://tinyurl.com/')) {
+                    try { sessionStorage.setItem(cacheKey, shortUrl); } catch (_) {}
+                    return shortUrl;
+                }
+            }
+        } catch (e) {
+            console.warn('[shortenUrl] TinyURL API failed:', e);
+        }
+
+        // 3. Final fallback: return original URL as-is
         return longUrl;
     },
     async incrementCount(table: string, id: string, field: 'view_count' | 'inquiry_count'): Promise<void> {

@@ -172,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
-    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome';
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || action === 'shortenUrl';
     
     // Logic restored.
 
@@ -380,7 +380,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `;
         };
 
+        if (action === 'shortenUrl') {
+            const longUrl = getParam('url') || getParam('longUrl');
+            if (!longUrl) {
+                return res.status(400).json({ success: false, message: 'Missing url parameter.' });
+            }
+            try {
+                const tinyRes = await fetchWithTimeout(
+                    `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
+                    { method: 'GET', headers: { 'Accept': 'text/plain' } },
+                    8000
+                );
+                if (tinyRes.ok) {
+                    const shortUrl = (await tinyRes.text()).trim();
+                    if (shortUrl && shortUrl.startsWith('https://tinyurl.com/')) {
+                        return res.status(200).json({ success: true, shortUrl });
+                    }
+                }
+                // Fallback: return original URL if TinyURL fails
+                return res.status(200).json({ success: true, shortUrl: longUrl });
+            } catch (e: any) {
+                console.warn('[shortenUrl] TinyURL call failed:', e.message);
+                return res.status(200).json({ success: true, shortUrl: longUrl });
+            }
+        }
+
         if (action === 'sendEmail') {
+
             const adminRoles = [
                 'admin', 'super_admin', 'reseller', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'county_director', 'county_co', 
                 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'academics_officer',
