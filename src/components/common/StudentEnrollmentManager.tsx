@@ -404,6 +404,34 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [verifyIdentifier, setVerifyIdentifier] = useState('');
     const [verifyPin, setVerifyPin] = useState('');
 
+    // Custom Short URL Generator states
+    const [customLongUrl, setCustomLongUrl] = useState('');
+    const [customShortUrl, setCustomShortUrl] = useState('');
+    const [customShortenLoading, setCustomShortenLoading] = useState(false);
+    const [customShortenError, setCustomShortenError] = useState('');
+
+    const handleCustomShorten = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!customLongUrl.trim()) return;
+        setCustomShortenLoading(true);
+        setCustomShortenError('');
+        setCustomShortUrl('');
+        try {
+            const result = await apiService.shortenUrl(customLongUrl.trim());
+            if (result && result.startsWith('http')) {
+                setCustomShortUrl(result);
+                setStatusMsg({ type: 'success', message: 'Shortened URL generated successfully!' });
+                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2500);
+            } else {
+                setCustomShortenError('Invalid short URL returned from service.');
+            }
+        } catch (err: any) {
+            setCustomShortenError('Failed to shorten. Check internet/network connectivity.');
+        } finally {
+            setCustomShortenLoading(false);
+        }
+    };
+
     const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info' | 'idle', message: string }>({ type: 'idle', message: '' });
 
     // Load Data
@@ -3247,6 +3275,84 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     Verify &amp; Check In
                                 </button>
                             </form>
+                        </div>
+
+                        {/* Custom Short URL Generator */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                            <div className="flex items-center gap-2.5 mb-4">
+                                <div className="w-8 h-8 rounded-xl bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center">
+                                    <Link className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">Short URL Generator</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Shorten any web link</p>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed mb-4">
+                                Paste any registration, system or external link to generate a clean, shareable short URL instantly.
+                            </p>
+                            <form onSubmit={handleCustomShorten} className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Long Web Address</label>
+                                    <input
+                                        type="url"
+                                        required
+                                        placeholder="https://example.com/some/long/path..."
+                                        value={customLongUrl}
+                                        onChange={e => setCustomLongUrl(e.target.value)}
+                                        className="w-full mt-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 transition-all"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={customShortenLoading}
+                                    className="w-full py-3 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+                                >
+                                    {customShortenLoading ? (
+                                        <>
+                                            <span className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Link className="w-3.5 h-3.5" />
+                                            Generate Short Link
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+
+                            {customShortenError && (
+                                <p className="mt-3 text-[10px] font-bold text-rose-505 dark:text-rose-400 uppercase tracking-wide text-center">
+                                    {customShortenError}
+                                </p>
+                            )}
+
+                            {customShortUrl && (
+                                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Shortened Link</label>
+                                    <div className="flex items-center gap-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-100 dark:border-violet-500/20 rounded-xl px-2.5 py-1.5">
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            value={customShortUrl}
+                                            onClick={e => (e.target as HTMLInputElement).select()}
+                                            className="flex-1 bg-transparent text-[9px] font-mono text-violet-750 dark:text-violet-300 outline-none min-w-0 cursor-text"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                try { await navigator.clipboard.writeText(customShortUrl); } catch { alert(customShortUrl); }
+                                                setStatusMsg({ type: 'success', message: 'Custom short URL copied!' });
+                                                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 2500);
+                                            }}
+                                            className="shrink-0 text-[9px] font-black text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-500/20 hover:bg-violet-200 dark:hover:bg-violet-500/30 px-2 py-0.5 rounded-lg transition-all uppercase tracking-wider"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
