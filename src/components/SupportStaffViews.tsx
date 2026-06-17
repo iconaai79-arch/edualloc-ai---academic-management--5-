@@ -64,6 +64,7 @@ import { TimetableGrid } from './TimetableGrid';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { timeToMinutes } from '../utils/timeUtils';
+import { formatRoleDisplayName } from '../utils/roleUtils';
 import { StoreIssuanceManager } from './StoreIssuanceManager';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { checkStoreHours } from '../utils/storeHours';
