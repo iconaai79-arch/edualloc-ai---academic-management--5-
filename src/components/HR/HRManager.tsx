@@ -60,14 +60,14 @@ export const HRManager: React.FC<HRManagerProps> = ({
             </div>
 
             {/* Dynamic View Engine */}
-            <div className="min-h-[600px]">
+            <div>
                 {activeTab === 'roster' && (
                     <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
                         <div className="p-8 border-b border-slate-50 flex justify-between items-center">
                             <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase tracking-widest text-sm">Personnel Directory</h3>
                             <button className="px-6 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Onboard Staff</button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-8 overflow-y-auto" style={{ maxHeight: '560px' }}>
                             {staff.map((member, i) => (
                                 <div key={i} className="group p-6 bg-slate-50/50 rounded-[2.5rem] border border-slate-100 hover:bg-white hover:shadow-2xl hover:shadow-slate-100 transition-all duration-500 relative overflow-hidden">
                                     <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-600 opacity-0 group-hover:opacity-10 rounded-full -mr-10 -mt-10 transition-all duration-700 group-hover:scale-150" />
@@ -107,7 +107,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                         <div className="lg:col-span-2 space-y-8">
                             <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-6">
                                 <h3 className="text-xl font-black text-slate-900 tracking-tight">Active Absence Requests</h3>
-                                <div className="space-y-4">
+                                <div className="space-y-4 overflow-y-auto" style={{ maxHeight: '480px' }}>
                                     {leaveRequests.filter(r => r.status === 'pending').length === 0 ? (
                                         <div className="py-12 text-center space-y-2">
                                             <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto text-slate-300">

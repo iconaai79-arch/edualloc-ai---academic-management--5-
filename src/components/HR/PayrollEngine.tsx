@@ -314,18 +314,18 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
                 {/* Staff Ledger Section */}
-                <div className="lg:col-span-2 bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="lg:col-span-2 bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                     <div className="p-8 border-b border-slate-50 flex justify-between items-center">
                         <h3 className="text-xl font-black text-slate-900 tracking-tight">Staff Ledger ({selectedMonth})</h3>
                         <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full uppercase tracking-wider border border-indigo-100">
                             {useBiometric ? 'Biometrics Integrated' : 'Standard Basic Mode'}
                         </span>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: '520px' }}>
                         <table className="w-full text-left border-collapse">
-                            <thead className="bg-slate-50/50">
+                            <thead className="bg-slate-50/50 sticky top-0 z-10">
                                 <tr>
                                     <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Employee</th>
                                     {useBiometric && (
@@ -460,7 +460,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 </div>
 
                 {/* Right Analytics Sidebar Widget */}
-                <div className="space-y-8">
+                <div className="space-y-8 lg:sticky lg:top-4">
                     <div className="bg-slate-900 p-8 rounded-[3rem] text-white space-y-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full opacity-10 blur-2xl" />
                         <h3 className="text-xl font-black tracking-tight">Statutory Breakdown</h3>
