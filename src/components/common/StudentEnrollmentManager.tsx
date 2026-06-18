@@ -2400,26 +2400,31 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             return;
         }
 
-        setStatusMsg({ type: 'info', message: 'Updating student name...' });
-        setIsLoading(true);
+        const newName = parentName.trim();
+        setStatusMsg({ type: 'info', message: `Updating name to "${newName}"...` });
 
         try {
-            // Partial update: only send the field we actually want to change
-            await apiService.updateModuleRecord('users', associatedUser.id, { name: parentName.trim() });
-            
-            // Instantly update the local users state for immediate UI feedback
-            setUsers(prevUsers => prevUsers.map(u => 
-                u.id === associatedUser.id ? { ...u, name: parentName.trim() } : u
-            ));
-            
-            setStatusMsg({ type: 'success', message: `Successfully updated student name to "${parentName.trim()}".` });
-            loadAllData();
+            // Send full user object with updated name to avoid partial-update stripping issues
+            const updatedUser = { ...associatedUser, name: newName };
+            console.log('[FixName] Sending update for user:', associatedUser.id, '-> name:', newName);
+            await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
+            console.log('[FixName] DB update succeeded for user:', associatedUser.id);
+
+            // Update local state immediately.
+            // Do NOT call loadAllData() here — it would race against this update
+            // and overwrite the local state with the old name from the DB.
+            setUsers(prevUsers =>
+                prevUsers.map(u =>
+                    u.id === associatedUser.id ? { ...u, name: newName } : u
+                )
+            );
+
+            setStatusMsg({ type: 'success', message: `✓ Name updated to "${newName}" successfully.` });
         } catch (err: any) {
-            console.error("Failed to update student name:", err);
+            console.error('[FixName] Failed to update student name:', err);
             setStatusMsg({ type: 'error', message: `Update failed: ${err.message}` });
         } finally {
-            setIsLoading(false);
-            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 5000);
         }
     };
 
@@ -2458,27 +2463,33 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     if (!associatedUser) return;
                     const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
                     if (parentName && parentName.trim()) {
-                        // Partial update: only send the field we actually want to change
-                        await apiService.updateModuleRecord('users', associatedUser.id, { name: parentName.trim() });
-                        updatedUsersMap[associatedUser.id] = parentName.trim();
+                        const newName = parentName.trim();
+                        // Send full user object with updated name to avoid partial-update stripping
+                        const updatedUser = { ...associatedUser, name: newName };
+                        console.log('[BulkFixName] Updating user:', associatedUser.id, '->', newName);
+                        await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
+                        updatedUsersMap[associatedUser.id] = newName;
                         updatedCount++;
                     }
                 }));
             }
-            
-            // Instantly update the local users state for immediate UI feedback
-            setUsers(prevUsers => prevUsers.map(u => 
-                updatedUsersMap[u.id] ? { ...u, name: updatedUsersMap[u.id] } : u
-            ));
-            
-            setStatusMsg({ type: 'success', message: `Successfully updated ${updatedCount} student name(s).` });
-            loadAllData();
+
+            // Update local state immediately.
+            // Do NOT call loadAllData() — it races against this and overwrites changes
+            // with stale data before the DB has fully propagated the updates.
+            setUsers(prevUsers =>
+                prevUsers.map(u =>
+                    updatedUsersMap[u.id] ? { ...u, name: updatedUsersMap[u.id] } : u
+                )
+            );
+
+            setStatusMsg({ type: 'success', message: `✓ Successfully updated ${updatedCount} student name(s).` });
         } catch (err: any) {
-            console.error("Bulk update of student names failed:", err);
+            console.error('Bulk update of student names failed:', err);
             setStatusMsg({ type: 'error', message: `Bulk update failed: ${err.message}` });
         } finally {
             setIsLoading(false);
-            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 5000);
         }
     };
 
