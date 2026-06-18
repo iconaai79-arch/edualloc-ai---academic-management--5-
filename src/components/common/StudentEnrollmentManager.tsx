@@ -2379,6 +2379,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         });
     }, [enrollments, users]);
 
+    const isNameUnknown = (name: string | null | undefined): boolean => {
+        if (!name) return true;
+        const normalized = name.trim().toLowerCase();
+        return normalized === '' || normalized === 'unknown student' || normalized === 'unknown';
+    };
+
     const handleFixSingleUnknownName = async (enrollmentId: string) => {
         const enr = enrollments.find(e => e.id === enrollmentId);
         if (!enr) {
@@ -2408,15 +2414,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             return;
         }
 
-        const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
-        if (!parentName || !parentName.trim()) {
-            setStatusMsg({ type: 'error', message: 'No parent name available to copy.' });
-            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
-            return;
+        const dbNameUnknown = isNameUnknown(associatedUser.name);
+        let newName = associatedUser.name || '';
+
+        if (dbNameUnknown) {
+            const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
+            if (!parentName || !parentName.trim()) {
+                setStatusMsg({ type: 'error', message: 'No parent name available to copy.' });
+                setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+                return;
+            }
+            newName = parentName.trim();
         }
 
-        const newName = parentName.trim();
-        setStatusMsg({ type: 'info', message: `Updating name to "${newName}"...` });
+        const actionText = dbNameUnknown ? `Updating name to "${newName}"...` : `Linking student "${newName}" to current institution...`;
+        setStatusMsg({ type: 'info', message: actionText });
 
         try {
             // Send full user object with updated name and current institution ID to ensure it is linked to the current institution
@@ -2441,7 +2453,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
             });
 
-            setStatusMsg({ type: 'success', message: `✓ Name updated to "${newName}" successfully.` });
+            if (dbNameUnknown) {
+                setStatusMsg({ type: 'success', message: `✓ Name updated to "${newName}" successfully.` });
+            } else {
+                setStatusMsg({ type: 'success', message: `✓ Linked student "${newName}" successfully.` });
+            }
         } catch (err: any) {
             console.error('[FixName] Failed to update student name:', err);
             setStatusMsg({ type: 'error', message: `Update failed: ${err.message}` });
@@ -2461,44 +2477,64 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             return isUnknown && !!parentName.trim();
         });
 
-        if (targets.length === 0) {
+        // Filter unique targets by userId to avoid concurrent updates on the same user record
+        const uniqueTargets: typeof targets = [];
+        const seenUserIds = new Set<string>();
+        for (const enr of targets) {
+            if (!seenUserIds.has(enr.userId)) {
+                seenUserIds.add(enr.userId);
+                uniqueTargets.push(enr);
+            }
+        }
+
+        if (uniqueTargets.length === 0) {
             setStatusMsg({ type: 'info', message: 'No unknown student names found with parent names.' });
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
             return;
         }
 
-        if (!window.confirm(`Are you sure you want to copy the parent's name to replace "Unknown Student" for all ${targets.length} record(s)?`)) {
+        if (!window.confirm(`Are you sure you want to copy the parent's name to replace "Unknown Student" for all ${uniqueTargets.length} record(s)?`)) {
             return;
         }
 
-        setStatusMsg({ type: 'info', message: `Updating ${targets.length} student names...` });
+        setStatusMsg({ type: 'info', message: `Updating ${uniqueTargets.length} student names...` });
         setIsLoading(true);
 
         try {
             let updatedCount = 0;
             const updatedUsersMap: Record<string, { name: string; user: User }> = {};
             const batchSize = 5;
-            for (let i = 0; i < targets.length; i += batchSize) {
-                const batch = targets.slice(i, i + batchSize);
+            for (let i = 0; i < uniqueTargets.length; i += batchSize) {
+                const batch = uniqueTargets.slice(i, i + batchSize);
                 await Promise.all(batch.map(async (enr) => {
-                    let associatedUser = users.find(u => u.id === enr.userId);
-                    if (!associatedUser) {
-                        try {
-                            const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
-                                filter: { id: enr.userId }
-                            });
-                            if (dbUsers && dbUsers.length > 0) {
-                                associatedUser = dbUsers[0];
+                    try {
+                        let associatedUser = users.find(u => u.id === enr.userId);
+                        if (!associatedUser) {
+                            try {
+                                const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                    filter: { id: enr.userId }
+                                });
+                                if (dbUsers && dbUsers.length > 0) {
+                                    associatedUser = dbUsers[0];
+                                }
+                            } catch (err) {
+                                console.error('[BulkFixName] Error searching user:', enr.userId, err);
                             }
-                        } catch (err) {
-                            console.error('[BulkFixName] Error searching user:', enr.userId, err);
                         }
-                    }
-                    if (!associatedUser) return;
+                        if (!associatedUser) return;
 
-                    const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
-                    if (parentName && parentName.trim()) {
-                        const newName = parentName.trim();
+                        const dbNameUnknown = isNameUnknown(associatedUser.name);
+                        let newName = associatedUser.name || '';
+
+                        if (dbNameUnknown) {
+                            const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
+                            if (parentName && parentName.trim()) {
+                                newName = parentName.trim();
+                            } else {
+                                newName = 'Unknown Student';
+                            }
+                        }
+
                         // Send full user object with updated name and ensure correct institutionId
                         const updatedUser = { 
                             ...associatedUser, 
@@ -2509,6 +2545,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
                         updatedUsersMap[associatedUser.id] = { name: newName, user: updatedUser };
                         updatedCount++;
+                    } catch (singleErr: any) {
+                        console.error(`[BulkFixName] Error processing student user ${enr.userId}:`, singleErr);
                     }
                 }));
             }
