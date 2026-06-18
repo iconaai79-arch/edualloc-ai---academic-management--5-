@@ -2106,7 +2106,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     // Filtered Teachers
     const filteredTeachers = useMemo(() => {
         return users.filter(u => {
-            const isTeacher = teacherRoles.includes(u.role);
+            const role = (u.role || '').trim().toLowerCase();
+            const isTeacher = teacherRoles.includes(role as any);
             const matchesSearch = 
                 (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2118,7 +2119,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     // Filtered Support Staff
     const filteredSupportStaff = useMemo(() => {
         return users.filter(u => {
-            const isSupport = !teacherRoles.includes(u.role) && !nonSupportRoles.includes(u.role);
+            // Normalize role: trim whitespace and lowercase to avoid casing/spacing issues
+            const role = (u.role || '').trim().toLowerCase();
+            const isTeacher = teacherRoles.includes(role as any);
+            const isNonSupport = nonSupportRoles.includes(role as any);
+            // Include: not a teacher, not in excluded roles, and either has a role OR belongs to this institution (no role = unclassified staff)
+            const isSupport = !isTeacher && !isNonSupport && (role !== '' || !!u.institutionId);
             const matchesSearch = 
                 (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
