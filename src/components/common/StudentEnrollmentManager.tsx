@@ -253,6 +253,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [selectedAnalysisEvent, setSelectedAnalysisEvent] = useState<any | null>(null);
     const [analysisSearchTerm, setAnalysisSearchTerm] = useState('');
     const [analysisStatusFilter, setAnalysisStatusFilter] = useState<'All' | 'Checked-in' | 'Accepted' | 'Declined' | 'Pending'>('All');
+    const [analysisTab, setAnalysisTab] = useState<'rsvp' | 'audit'>('rsvp');
     
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1855,6 +1856,345 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             loadAllData();
         } catch (err: any) {
             console.error("Failed to generate/send PINs:", err);
+            setStatusMsg({ type: 'error', message: `PIN dispatch failed: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
+    // Resend/Generate PINs to missing recipients (audit check resolver)
+    const handleSendPinsToMissingRecipients = async (event: any, additionalMessage: string = '') => {
+        setStatusMsg({ type: 'info', message: 'Analyzing missing recipients and generating PINs...' });
+        setIsLoading(true);
+
+        const results: { recipientName: string; phone: string; success: boolean; errorMsg?: string }[] = [];
+
+        try {
+            // 1. Identify all target enrollments for this cohort
+            const targetEnrollments = enrollments.filter(enr => {
+                if (event.target === 'All') return true;
+                if (event.target.startsWith('students:')) {
+                    const studentIds = event.target.replace('students:', '').split(',');
+                    return studentIds.includes(enr.userId);
+                }
+                if (context === 'driving_school') {
+                    return enr.metadata?.licenseCategory === event.target;
+                } else {
+                    return enr.metadata?.gradeLevel === event.target;
+                }
+            });
+
+            // 2. Filter to only those that do not have a pin record
+            const missingEnrollments: typeof targetEnrollments = [];
+            const currentUsersList = [...users];
+
+            for (const enr of targetEnrollments) {
+                const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
+                const fallbackParent = {
+                    name: enr.metadata?.parentName || '',
+                    phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                    email: enr.metadata?.parentEmail || '',
+                    relation: enr.metadata?.parentRelation || 'Guardian'
+                };
+                const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+                const primaryParent = resolvedParents[0];
+
+                let targetUserId = enr.userId;
+                if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                    const parentUser = currentUsersList.find(u =>
+                        (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                    );
+                    if (parentUser) {
+                        targetUserId = parentUser.id;
+                    }
+                }
+
+                const hasPin = eventPins.some(p => p.eventId === event.id && p.userId === targetUserId);
+                if (!hasPin) {
+                    missingEnrollments.push(enr);
+                }
+            }
+
+            if (missingEnrollments.length === 0) {
+                setStatusMsg({ type: 'success', message: 'All students in the cohort have already been issued PINs.' });
+                setIsLoading(false);
+                return;
+            }
+
+            setStatusMsg({ type: 'info', message: `Found ${missingEnrollments.length} missing recipients. Fetching user records...` });
+
+            let pinCount = 0;
+            const usersToUpsert = new Map<string, any>();
+            const eventPinsToCreate: any[] = [];
+            const notificationsToDispatch: {
+                targetPhone: string;
+                targetEmail: string;
+                smsMessage: string;
+                emailMessage: string;
+                targetName: string;
+            }[] = [];
+
+            // 3. Process each missing enrollment
+            for (const enr of missingEnrollments) {
+                let associatedUser = currentUsersList.find(u => u.id === enr.userId);
+                if (!associatedUser) {
+                    try {
+                        const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                            filter: { id: enr.userId }
+                        });
+                        if (dbUsers && dbUsers.length > 0) {
+                            associatedUser = dbUsers[0];
+                            if (associatedUser.institutionId !== currentInstitution.id) {
+                                associatedUser.institutionId = currentInstitution.id;
+                                usersToUpsert.set(associatedUser.id, associatedUser);
+                            }
+                            currentUsersList.push(associatedUser);
+                        }
+                    } catch (err) {
+                        console.error('[ResendPins] Error searching student user:', enr.userId, err);
+                    }
+                }
+
+                if (!associatedUser) {
+                    const newUserId = enr.userId || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    associatedUser = {
+                        id: newUserId,
+                        name: enr.metadata?.studentName || 'Student Name',
+                        email: `student_${newUserId}@eduai.local`,
+                        phoneNumber: '',
+                        role: 'student',
+                        institutionId: currentInstitution.id,
+                        createdAt: new Date().toISOString(),
+                        metadata: {}
+                    };
+                    usersToUpsert.set(newUserId, associatedUser);
+                    currentUsersList.push(associatedUser);
+                }
+
+                const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
+                const fallbackParent = {
+                    name: enr.metadata?.parentName || '',
+                    phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                    email: enr.metadata?.parentEmail || '',
+                    relation: enr.metadata?.parentRelation || 'Guardian'
+                };
+                const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+                const primaryParent = resolvedParents[0];
+
+                let targetUserId = associatedUser.id;
+                let targetName = associatedUser.name;
+                let targetPhone = isPrimaryOrSecondary ? '' : (associatedUser.phoneNumber || '');
+                let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
+
+                if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                    let parentUser = Array.from(usersToUpsert.values()).find((u: any) =>
+                        (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                    ) || currentUsersList.find(u =>
+                        (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                    );
+
+                    if (!parentUser) {
+                        try {
+                            const filterVal: any = {};
+                            if (primaryParent.email) filterVal.email = primaryParent.email.toLowerCase();
+                            else if (primaryParent.phone) filterVal.phoneNumber = primaryParent.phone;
+
+                            const dbParents = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                filter: filterVal
+                            });
+                            if (dbParents && dbParents.length > 0) {
+                                parentUser = dbParents[0];
+                                if (parentUser.institutionId !== currentInstitution.id) {
+                                    parentUser.institutionId = currentInstitution.id;
+                                    usersToUpsert.set(parentUser.id, parentUser);
+                                }
+                            }
+                        } catch (err) {
+                            console.error('[ResendPins] Error searching parent user:', err);
+                        }
+                    }
+
+                    if (!parentUser) {
+                        const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        parentUser = {
+                            id: newId,
+                            institutionId: currentInstitution.id,
+                            name: primaryParent.name || 'Parent / Guardian',
+                            email: primaryParent.email || (primaryParent.phone ? `parent_${primaryParent.phone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
+                            phoneNumber: primaryParent.phone || null,
+                            role: 'parent',
+                            studentIds: [associatedUser.id],
+                            metadata: {},
+                            createdAt: new Date().toISOString()
+                        } as any;
+                        usersToUpsert.set(newId, parentUser);
+                        currentUsersList.push(parentUser);
+                    } else {
+                        const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
+                        if (!currentStudentIds.includes(associatedUser.id)) {
+                            parentUser = {
+                                ...parentUser,
+                                studentIds: [...currentStudentIds, associatedUser.id]
+                            };
+                            usersToUpsert.set(parentUser.id, parentUser);
+                        }
+                    }
+
+                    const currentParentIds = Array.isArray(associatedUser.parentIds) ? associatedUser.parentIds : [];
+                    if (!currentParentIds.includes(parentUser.id)) {
+                        const updatedStudent = {
+                            ...associatedUser,
+                            parentIds: [...currentParentIds, parentUser.id]
+                        };
+                        usersToUpsert.set(associatedUser.id, updatedStudent);
+                        
+                        const idx = currentUsersList.findIndex(u => u.id === associatedUser.id);
+                        if (idx !== -1) {
+                            currentUsersList[idx] = updatedStudent;
+                        }
+                    }
+
+                    targetUserId = parentUser.id;
+                    targetName = primaryParent.name || 'Parent / Guardian';
+                    targetPhone = primaryParent.phone;
+                    targetEmail = primaryParent.email;
+                }
+
+                const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+                const pinId = `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+                const newPinRecord = {
+                    id: pinId,
+                    institutionId: currentInstitution.id,
+                    eventId: event.id,
+                    userId: targetUserId,
+                    pin: pinCode,
+                    status: 'pending' as const,
+                    createdAt: new Date().toISOString()
+                };
+                eventPinsToCreate.push(newPinRecord);
+
+                const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                    ? 'https://portal.eduai.co.ke'
+                    : window.location.origin;
+
+                const fallbackPayload = [
+                    pinCode,                                              // 0
+                    event.title,                                          // 1
+                    event.eventDate,                                      // 2
+                    event.eventTime,                                      // 3
+                    event.venue,                                          // 4
+                    targetName || 'Parent / Guardian',                    // 5
+                    targetPhone || '',                                    // 6
+                    currentInstitution.name || '',                        // 7
+                    currentInstitution.id,                                // 8
+                    event.description || '',                              // 9
+                    targetUserId,                                         // 10
+                    event.id                                              // 11
+                ];
+                const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
+                const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
+                const shortLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
+
+                const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
+                const studentName = associatedUser.name || 'your child';
+                
+                const smsMessage = primaryParent
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
+                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
+                
+                const emailMessage = primaryParent
+                    ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`
+                    : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${rawLink}`;
+                
+                notificationsToDispatch.push({
+                    targetPhone,
+                    targetEmail,
+                    smsMessage,
+                    emailMessage,
+                    targetName
+                });
+
+                pinCount++;
+            }
+
+            if (usersToUpsert.size > 0) {
+                await apiService.saveModuleRecords('users', Array.from(usersToUpsert.values()));
+            }
+            if (eventPinsToCreate.length > 0) {
+                await apiService.saveModuleRecords('event_pins', eventPinsToCreate);
+            }
+
+            const chunkArray = (array: any[], size: number): any[][] => {
+                const chunks: any[][] = [];
+                for (let i = 0; i < array.length; i += size) {
+                    chunks.push(array.slice(i, i + size));
+                }
+                return chunks;
+            };
+
+            const notificationChunks = chunkArray(notificationsToDispatch, 15);
+
+            for (const chunk of notificationChunks) {
+                await Promise.all(chunk.map(async (notif) => {
+                    if (notif.targetPhone) {
+                        try {
+                            const res = await apiService.sendSms(
+                                notif.targetPhone,
+                                notif.smsMessage,
+                                currentInstitution.smsConfig,
+                                1,
+                                currentInstitution.id
+                            );
+                            const isSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
+                            results.push({
+                                recipientName: notif.targetName,
+                                phone: notif.targetPhone,
+                                success: isSuccess,
+                                errorMsg: isSuccess ? undefined : (res?.message || 'Rejected by SMS gateway')
+                            });
+                        } catch (e: any) {
+                            console.error("SMS PIN send failed", e);
+                            results.push({
+                                recipientName: notif.targetName,
+                                phone: notif.targetPhone,
+                                success: false,
+                                errorMsg: e.message || 'Connection failed'
+                            });
+                        }
+                    } else {
+                        results.push({
+                            recipientName: notif.targetName,
+                            phone: 'No phone number',
+                            success: false,
+                            errorMsg: isPrimaryOrSecondary ? 'No parent phone configured' : 'No phone number configured'
+                        });
+                    }
+
+                    if (notif.targetEmail) {
+                        try {
+                            await apiService.sendEmail(
+                                notif.targetEmail,
+                                `Event Attendance Invitation - ${event.title}`,
+                                notif.emailMessage,
+                                currentInstitution.emailConfig
+                            );
+                        } catch (e) {
+                            console.error("Email PIN send failed", e);
+                        }
+                    }
+                }));
+            }
+
+            setStatusMsg({ type: 'success', message: `Successfully generated and sent ${pinCount} PINs to missing recipients.` });
+            setSmsDeliveryReport(results);
+            loadAllData();
+        } catch (err: any) {
+            console.error("Failed to resend PINs:", err);
             setStatusMsg({ type: 'error', message: `PIN dispatch failed: ${err.message}` });
         } finally {
             setIsLoading(false);
@@ -4064,6 +4404,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                 setSelectedAnalysisEvent(event);
                                                                 setAnalysisSearchTerm('');
                                                                 setAnalysisStatusFilter('All');
+                                                                setAnalysisTab('rsvp');
                                                             }}
                                                             className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-1.5"
                                                         >
@@ -5455,6 +5796,58 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     return true;
                 });
 
+                // ── PIN Coverage Audit Calculations ──
+                const auditTargetEnrollments = (enrollments as any[]).filter(enr => {
+                    if (event.target === 'All') return true;
+                    if (event.target.startsWith('students:')) {
+                        const sIds = event.target.replace('students:', '').split(',');
+                        return sIds.includes(enr.userId);
+                    }
+                    if (context === 'driving_school') return enr.metadata?.licenseCategory === event.target;
+                    return enr.metadata?.gradeLevel === event.target;
+                });
+                const auditMissingList: { enr: any; studentName: string; targetName: string; targetPhone: string; targetEmail: string; cohort: string }[] = [];
+                const auditIssuedList: { enr: any; targetName: string; pin: any }[] = [];
+                for (const enr of auditTargetEnrollments) {
+                    const studentUser = (users as any[]).find(u => u.id === enr.userId);
+                    const studentName: string = studentUser?.name || enr.metadata?.studentName || `Enrollment #${(enr.id || '').slice(-6)}`;
+                    const cohort: string = enr.metadata?.gradeLevel || enr.metadata?.licenseCategory || 'N/A';
+                    const parentsList: { name: string; phone: string; email: string }[] = enr.metadata?.parents || [];
+                    const fbPar = { name: enr.metadata?.parentName || '', phone: enr.metadata?.parentPhone || enr.parentPhone || '', email: enr.metadata?.parentEmail || '' };
+                    const resolvedParents = parentsList.length > 0 ? parentsList : (fbPar.name || fbPar.phone ? [fbPar] : []);
+                    const primaryParent = resolvedParents[0];
+                    let targetUserId: string = enr.userId;
+                    let targetName: string = studentName;
+                    let targetPhone: string = isPrimaryOrSecondary ? '' : (studentUser?.phoneNumber || '');
+                    let targetEmail: string = isPrimaryOrSecondary ? '' : (studentUser?.email || '');
+                    if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                        const parentUser = (users as any[]).find(u =>
+                            (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                            (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                        );
+                        if (parentUser) {
+                            targetUserId = parentUser.id;
+                            targetName = parentUser.name || primaryParent.name || 'Parent / Guardian';
+                            targetPhone = parentUser.phoneNumber || primaryParent.phone || '';
+                            targetEmail = parentUser.email || primaryParent.email || '';
+                        } else {
+                            targetName = primaryParent.name || 'Parent / Guardian';
+                            targetPhone = primaryParent.phone || '';
+                            targetEmail = primaryParent.email || '';
+                        }
+                    }
+                    const existingPin = eventMatchingPins.find(p => p.userId === targetUserId);
+                    if (!existingPin) {
+                        auditMissingList.push({ enr, studentName, targetName, targetPhone, targetEmail, cohort });
+                    } else {
+                        auditIssuedList.push({ enr, targetName, pin: existingPin });
+                    }
+                }
+                const auditTotal = auditTargetEnrollments.length;
+                const auditIssued = auditIssuedList.length;
+                const auditMissing = auditMissingList.length;
+                const auditCoverage = auditTotal > 0 ? Math.round((auditIssued / auditTotal) * 100) : 0;
+
                 return (
                     <div
                         className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4"
@@ -5551,147 +5944,253 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 </div>
                             </div>
 
-                            {/* Search & Filter Bar */}
-                            <div className="flex flex-col sm:flex-row gap-3 mb-5">
-                                <div className="relative flex-1">
-                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                                        <Search className="w-4 h-4" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        placeholder="Search invitees by name, phone or email..."
-                                        value={analysisSearchTerm}
-                                        onChange={e => setAnalysisSearchTerm(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2.5 bg-slate-950/40 border border-white/10 rounded-xl font-bold text-xs text-white placeholder-slate-655 focus:outline-none focus:border-indigo-500 transition-colors"
-                                    />
-                                </div>
-                                <div className="flex gap-1 bg-slate-950/40 border border-white/10 rounded-xl p-1 overflow-x-auto no-scrollbar shrink-0">
-                                    {(['All', 'Checked-in', 'Accepted', 'Declined', 'Pending'] as const).map(tab => (
-                                        <button
-                                            key={tab}
-                                            onClick={() => setAnalysisStatusFilter(tab)}
-                                            className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all whitespace-nowrap ${
-                                                analysisStatusFilter === tab
-                                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                                    : 'text-slate-400 hover:text-slate-200'
-                                            }`}
-                                        >
-                                            {tab}
-                                        </button>
-                                    ))}
-                                </div>
+                            {/* ── Tab Switcher: RSVP | PIN Audit ── */}
+                            <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 mb-5">
+                                <button
+                                    onClick={() => setAnalysisTab('rsvp')}
+                                    className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                                        analysisTab === 'rsvp'
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-200'
+                                    }`}
+                                >
+                                    <UserCheck className="w-3 h-3" /> RSVP Responses
+                                </button>
+                                <button
+                                    onClick={() => setAnalysisTab('audit')}
+                                    className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                                        analysisTab === 'audit'
+                                            ? 'bg-rose-600 text-white shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-200'
+                                    }`}
+                                >
+                                    <AlertCircle className="w-3 h-3" /> PIN Coverage Audit
+                                    {auditMissing > 0 && (
+                                        <span className="ml-1 bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none">{auditMissing}</span>
+                                    )}
+                                </button>
                             </div>
 
-                            {/* Details List/Table */}
-                            <div className="border border-white/10 rounded-2xl overflow-hidden bg-slate-950/20 mb-6 max-h-[350px] overflow-y-auto no-scrollbar pr-1">
-                                {filteredPins.length === 0 ? (
-                                    <div className="text-center py-12 text-slate-500 font-bold text-xs">
-                                        No invitation records match the active search/filters.
+                            {analysisTab === 'rsvp' ? (
+                                <>
+                                    {/* Search & Filter Bar */}
+                                    <div className="flex flex-col sm:flex-row gap-3 mb-5">
+                                        <div className="relative flex-1">
+                                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                                                <Search className="w-4 h-4" />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                placeholder="Search invitees by name, phone or email..."
+                                                value={analysisSearchTerm}
+                                                onChange={e => setAnalysisSearchTerm(e.target.value)}
+                                                className="w-full pl-10 pr-4 py-2.5 bg-slate-950/40 border border-white/10 rounded-xl font-bold text-xs text-white placeholder-slate-655 focus:outline-none focus:border-indigo-500 transition-colors"
+                                            />
+                                        </div>
+                                        <div className="flex gap-1 bg-slate-950/40 border border-white/10 rounded-xl p-1 overflow-x-auto no-scrollbar shrink-0">
+                                            {(['All', 'Checked-in', 'Accepted', 'Declined', 'Pending'] as const).map(tab => (
+                                                <button
+                                                    key={tab}
+                                                    onClick={() => setAnalysisStatusFilter(tab)}
+                                                    className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all whitespace-nowrap ${
+                                                        analysisStatusFilter === tab
+                                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                                            : 'text-slate-400 hover:text-slate-200'
+                                                    }`}
+                                                >
+                                                    {tab}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                ) : (
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-white/5 border-b border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                <th className="py-3 px-4">Recipient Name</th>
-                                                <th className="py-3 px-4">Contact Info</th>
-                                                <th className="py-3 px-4">RSVP Status</th>
-                                                <th className="py-3 px-4">Guests</th>
-                                                <th className="py-3 px-4">Vehicle</th>
-                                                <th className="py-3 px-4">Check-In</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/5 font-bold">
-                                            {filteredPins.map(p => {
-                                                const user = users.find(u => u.id === p.userId);
-                                                const userName = user?.name || 'Unknown Recipient';
-                                                const userRole = user?.role || 'Guest';
-                                                
-                                                let rsvpStatusLabel = 'Pending';
-                                                let rsvpCls = 'bg-slate-500/10 text-slate-400 border-slate-500/20';
-                                                if (p.status === 'used' || p.status === 'accepted') {
-                                                    rsvpStatusLabel = 'Accepted';
-                                                    rsvpCls = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-                                                } else if (p.status === 'rejected') {
-                                                    rsvpStatusLabel = 'Declined';
-                                                    rsvpCls = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
-                                                }
 
-                                                let checkInLabel = 'Pending';
-                                                let checkInCls = 'bg-slate-500/10 text-slate-450';
-                                                if (p.status === 'used') {
-                                                    checkInLabel = 'Checked-In';
-                                                    checkInCls = 'bg-emerald-500/10 text-emerald-400';
-                                                }
-
-                                                let parsedGuests: string[] = [];
-                                                if (p.guests) {
-                                                    try {
-                                                        const parsed = JSON.parse(p.guests);
-                                                        parsedGuests = Array.isArray(parsed) ? parsed : [p.guests];
-                                                    } catch (e) {
-                                                        if (p.guests.trim()) parsedGuests = [p.guests];
-                                                    }
-                                                }
-
-                                                return (
-                                                    <tr key={p.id} className="text-xs hover:bg-white/5 transition-colors">
-                                                        <td className="py-3 px-4 min-w-[150px]">
-                                                            <p className="font-black text-slate-100">{userName}</p>
-                                                            <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-wider mt-0.5">{userRole}</p>
-                                                        </td>
-                                                        <td className="py-3 px-4">
-                                                            <p className="font-semibold text-slate-350">{user?.phoneNumber || 'No phone'}</p>
-                                                            {user?.email && <p className="text-[10px] text-slate-500 mt-0.5">{user.email}</p>}
-                                                        </td>
-                                                        <td className="py-3 px-4">
-                                                            <span className={`inline-flex items-center text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${rsvpCls}`}>
-                                                                {rsvpStatusLabel}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-3 px-4 min-w-[180px]">
-                                                            {parsedGuests.length > 0 ? (
-                                                                <div className="space-y-1 max-w-[200px]">
-                                                                    {parsedGuests.map((g, idx) => (
-                                                                        <p key={idx} className="text-[10px] font-bold text-slate-300 truncate bg-white/5 px-2 py-0.5 rounded border border-white/5">{g}</p>
-                                                                    ))}
-                                                                </div>
-                                                             ) : (
-                                                                <span className="text-[10px] text-slate-600 font-semibold italic">None</span>
-                                                             )}
-                                                        </td>
-                                                        <td className="py-3 px-4 font-mono font-bold text-slate-300">
-                                                            {p.vehicleRegistration || p.vehicle_registration || <span className="text-slate-600 italic font-sans font-semibold">N/A</span>}
-                                                        </td>
-                                                        <td className="py-3 px-4">
-                                                            <span className={`inline-flex items-center text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${checkInCls}`}>
-                                                                {checkInLabel}
-                                                            </span>
-                                                        </td>
+                                    {/* Details List/Table */}
+                                    <div className="border border-white/10 rounded-2xl overflow-hidden bg-slate-950/20 mb-5 max-h-[320px] overflow-y-auto no-scrollbar pr-1">
+                                        {filteredPins.length === 0 ? (
+                                            <div className="text-center py-12 text-slate-500 font-bold text-xs">
+                                                No invitation records match the active search/filters.
+                                            </div>
+                                        ) : (
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-white/5 border-b border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                        <th className="py-3 px-4">Recipient Name</th>
+                                                        <th className="py-3 px-4">Contact Info</th>
+                                                        <th className="py-3 px-4">RSVP Status</th>
+                                                        <th className="py-3 px-4">Guests</th>
+                                                        <th className="py-3 px-4">Vehicle</th>
+                                                        <th className="py-3 px-4">Check-In</th>
                                                     </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
+                                                </thead>
+                                                <tbody className="divide-y divide-white/5 font-bold">
+                                                    {filteredPins.map(p => {
+                                                        const user = users.find(u => u.id === p.userId);
+                                                        const userName = user?.name || 'Unknown Recipient';
+                                                        const userRole = user?.role || 'Guest';
+                                                        let rsvpStatusLabel = 'Pending';
+                                                        let rsvpCls = 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+                                                        if (p.status === 'used' || p.status === 'accepted') { rsvpStatusLabel = 'Accepted'; rsvpCls = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'; }
+                                                        else if (p.status === 'rejected') { rsvpStatusLabel = 'Declined'; rsvpCls = 'bg-rose-500/10 text-rose-400 border-rose-500/20'; }
+                                                        let checkInLabel = 'Pending';
+                                                        let checkInCls = 'bg-slate-500/10 text-slate-450';
+                                                        if (p.status === 'used') { checkInLabel = 'Checked-In'; checkInCls = 'bg-emerald-500/10 text-emerald-400'; }
+                                                        let parsedGuests: string[] = [];
+                                                        if (p.guests) { try { const parsed = JSON.parse(p.guests); parsedGuests = Array.isArray(parsed) ? parsed : [p.guests]; } catch (e) { if (p.guests.trim()) parsedGuests = [p.guests]; } }
+                                                        return (
+                                                            <tr key={p.id} className="text-xs hover:bg-white/5 transition-colors">
+                                                                <td className="py-3 px-4 min-w-[150px]">
+                                                                    <p className="font-black text-slate-100">{userName}</p>
+                                                                    <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-wider mt-0.5">{userRole}</p>
+                                                                </td>
+                                                                <td className="py-3 px-4">
+                                                                    <p className="font-semibold text-slate-350">{user?.phoneNumber || 'No phone'}</p>
+                                                                    {user?.email && <p className="text-[10px] text-slate-500 mt-0.5">{user.email}</p>}
+                                                                </td>
+                                                                <td className="py-3 px-4">
+                                                                    <span className={`inline-flex items-center text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${rsvpCls}`}>{rsvpStatusLabel}</span>
+                                                                </td>
+                                                                <td className="py-3 px-4 min-w-[140px]">
+                                                                    {parsedGuests.length > 0 ? (
+                                                                        <div className="space-y-1 max-w-[160px]">{parsedGuests.map((g, idx) => <p key={idx} className="text-[10px] font-bold text-slate-300 truncate bg-white/5 px-2 py-0.5 rounded border border-white/5">{g}</p>)}</div>
+                                                                    ) : <span className="text-[10px] text-slate-600 font-semibold italic">None</span>}
+                                                                </td>
+                                                                <td className="py-3 px-4 font-mono font-bold text-slate-300">
+                                                                    {p.vehicleRegistration || p.vehicle_registration || <span className="text-slate-600 italic font-sans font-semibold">N/A</span>}
+                                                                </td>
+                                                                <td className="py-3 px-4">
+                                                                    <span className={`inline-flex items-center text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${checkInCls}`}>{checkInLabel}</span>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        )}
+                                    </div>
+                                    {/* RSVP Footer */}
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <button type="button" onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15">
+                                            <FileSpreadsheet className="w-4 h-4" /> Export CSV List
+                                        </button>
+                                        <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* ── PIN COVERAGE AUDIT TAB ── */}
+                                    {/* Summary Cards */}
+                                    <div className="grid grid-cols-3 gap-4 mb-5">
+                                        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-center">
+                                            <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Expected (Cohort)</p>
+                                            <p className="text-2xl font-black text-white mt-1 font-mono">{auditTotal}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">Enrollments in target</p>
+                                        </div>
+                                        <div className={`border rounded-2xl p-4 text-center ${auditIssued === auditTotal ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-indigo-500/5 border-indigo-500/10'}`}>
+                                            <p className={`text-[9px] font-black uppercase tracking-wider ${auditIssued === auditTotal ? 'text-emerald-500/60' : 'text-indigo-500/60'}`}>PINs Issued</p>
+                                            <p className={`text-2xl font-black mt-1 font-mono ${auditIssued === auditTotal ? 'text-emerald-400' : 'text-indigo-400'}`}>{auditIssued}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{auditCoverage}% coverage</p>
+                                        </div>
+                                        <div className={`border rounded-2xl p-4 text-center ${auditMissing === 0 ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-rose-500/5 border-rose-500/10'}`}>
+                                            <p className={`text-[9px] font-black uppercase tracking-wider ${auditMissing === 0 ? 'text-emerald-500/60' : 'text-rose-500/60'}`}>Not Received</p>
+                                            <p className={`text-2xl font-black mt-1 font-mono ${auditMissing === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{auditMissing}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{auditMissing === 0 ? 'All covered!' : 'Missing PINs'}</p>
+                                        </div>
+                                    </div>
 
-                            {/* Actions footer */}
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)}
-                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15"
-                                >
-                                    <FileSpreadsheet className="w-4 h-4" /> Export CSV List
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedAnalysisEvent(null)}
-                                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
-                                >
-                                    Dismiss Dashboard
-                                </button>
-                            </div>
+                                    {/* Coverage Progress Bar */}
+                                    <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mb-5">
+                                        <div className="flex justify-between items-center mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            <span>PIN Coverage Rate</span>
+                                            <span className={auditCoverage === 100 ? 'text-emerald-400' : auditCoverage >= 75 ? 'text-indigo-400' : 'text-rose-400'}>{auditCoverage}%</span>
+                                        </div>
+                                        <div className="h-3 w-full bg-slate-950/50 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-700 ${auditCoverage === 100 ? 'bg-emerald-500' : auditCoverage >= 75 ? 'bg-indigo-500' : auditCoverage >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                                style={{ width: `${auditCoverage}%` }}
+                                            />
+                                        </div>
+                                        <div className="flex gap-5 mt-3 text-[10px] font-black uppercase tracking-wider">
+                                            <span className="flex items-center gap-1.5 text-indigo-400"><span className="w-2.5 h-2.5 rounded bg-indigo-500" /> Covered ({auditIssued})</span>
+                                            <span className="flex items-center gap-1.5 text-rose-400"><span className="w-2.5 h-2.5 rounded bg-rose-500" /> Missing ({auditMissing})</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Missing Recipients Table */}
+                                    <div className="border border-white/10 rounded-2xl overflow-hidden bg-slate-950/20 mb-5 max-h-[280px] overflow-y-auto no-scrollbar">
+                                        {auditMissing === 0 ? (
+                                            <div className="text-center py-12 space-y-2">
+                                                <CheckCircle className="w-10 h-10 mx-auto text-emerald-500/50" />
+                                                <p className="text-xs font-black text-emerald-400">All {auditTotal} recipients have been issued PINs!</p>
+                                                <p className="text-[10px] text-slate-500 font-semibold">No action required for this event.</p>
+                                            </div>
+                                        ) : (
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-white/5 border-b border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                        <th className="py-3 px-4">Student</th>
+                                                        <th className="py-3 px-4">Recipient / Contact</th>
+                                                        <th className="py-3 px-4">Phone</th>
+                                                        <th className="py-3 px-4">Cohort</th>
+                                                        <th className="py-3 px-4 text-center">PIN Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-white/5 font-bold">
+                                                    {auditMissingList.map((item, idx) => (
+                                                        <tr key={idx} className="text-xs hover:bg-rose-500/5 transition-colors">
+                                                            <td className="py-3 px-4">
+                                                                <p className="font-black text-slate-100 truncate max-w-[150px]">{item.studentName}</p>
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                <p className="font-bold text-rose-300 truncate max-w-[160px]">
+                                                                    {item.targetName !== item.studentName ? item.targetName : <span className="italic text-slate-500 font-sans font-semibold text-[10px]">Same as student</span>}
+                                                                </p>
+                                                                {item.targetEmail && <p className="text-[9px] text-slate-500 mt-0.5 truncate max-w-[160px]">{item.targetEmail}</p>}
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                <p className="font-semibold text-slate-300">
+                                                                    {item.targetPhone || <span className="italic text-slate-600 font-sans font-semibold text-[10px]">No phone</span>}
+                                                                </p>
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                <span className="bg-white/5 text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold">{item.cohort}</span>
+                                                            </td>
+                                                            <td className="py-3 px-4 text-center">
+                                                                <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">Missing</span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        )}
+                                    </div>
+
+                                    {/* Audit Footer Actions */}
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        {auditMissing > 0 && (
+                                            <button
+                                                type="button"
+                                                disabled={isLoading}
+                                                onClick={() => {
+                                                    setSelectedAnalysisEvent(null);
+                                                    handleSendPinsToMissingRecipients(event);
+                                                }}
+                                                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-600/40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-500/15"
+                                            >
+                                                <Send className="w-4 h-4" />
+                                                {isLoading ? 'Sending...' : `Send to ${auditMissing} Missing Recipient${auditMissing !== 1 ? 's' : ''}`}
+                                            </button>
+                                        )}
+                                        <button type="button" onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15">
+                                            <FileSpreadsheet className="w-4 h-4" /> Export CSV
+                                        </button>
+                                        <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 );
