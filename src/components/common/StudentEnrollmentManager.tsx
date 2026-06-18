@@ -2367,6 +2367,107 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         ).slice(0, 10);
     }, [students, studentSearchQuery]);
 
+    const hasUnknownStudents = useMemo(() => {
+        return enrollments.some(enr => {
+            const user = users.find(u => u.id === enr.userId);
+            const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
+            const isUnknown = !user?.name || 
+                user.name.trim() === '' || 
+                user.name.toLowerCase() === 'unknown student' || 
+                user.name.toLowerCase() === 'unknown';
+            return isUnknown && !!parentName.trim();
+        });
+    }, [enrollments, users]);
+
+    const handleFixSingleUnknownName = async (enrollmentId: string) => {
+        const enr = enrollments.find(e => e.id === enrollmentId);
+        if (!enr) return;
+        const associatedUser = users.find(u => u.id === enr.userId);
+        if (!associatedUser) return;
+
+        const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
+        if (!parentName || !parentName.trim()) {
+            setStatusMsg({ type: 'error', message: 'No parent name available to copy.' });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+            return;
+        }
+
+        setStatusMsg({ type: 'info', message: 'Updating student name...' });
+        setIsLoading(true);
+
+        try {
+            const updatedUser = {
+                ...associatedUser,
+                name: parentName.trim(),
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
+            setStatusMsg({ type: 'success', message: `Successfully updated student name to "${parentName.trim()}".` });
+            loadAllData();
+        } catch (err: any) {
+            console.error("Failed to update student name:", err);
+            setStatusMsg({ type: 'error', message: `Update failed: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
+    const handleBulkFixUnknownNames = async () => {
+        const targets = enrollments.filter(enr => {
+            const user = users.find(u => u.id === enr.userId);
+            const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
+            const isUnknown = !user?.name || 
+                user.name.trim() === '' || 
+                user.name.toLowerCase() === 'unknown student' || 
+                user.name.toLowerCase() === 'unknown';
+            return isUnknown && !!parentName.trim();
+        });
+
+        if (targets.length === 0) {
+            setStatusMsg({ type: 'info', message: 'No unknown student names found with parent names.' });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+            return;
+        }
+
+        if (!window.confirm(`Are you sure you want to copy the parent's name to replace "Unknown Student" for all ${targets.length} record(s)?`)) {
+            return;
+        }
+
+        setStatusMsg({ type: 'info', message: `Updating ${targets.length} student names...` });
+        setIsLoading(true);
+
+        try {
+            let updatedCount = 0;
+            const batchSize = 5;
+            for (let i = 0; i < targets.length; i += batchSize) {
+                const batch = targets.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (enr) => {
+                    const associatedUser = users.find(u => u.id === enr.userId);
+                    if (!associatedUser) return;
+                    const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
+                    if (parentName && parentName.trim()) {
+                        const updatedUser = {
+                            ...associatedUser,
+                            name: parentName.trim(),
+                            updatedAt: new Date().toISOString()
+                        };
+                        await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
+                        updatedCount++;
+                    }
+                }));
+            }
+            setStatusMsg({ type: 'success', message: `Successfully updated ${updatedCount} student name(s).` });
+            loadAllData();
+        } catch (err: any) {
+            console.error("Bulk update of student names failed:", err);
+            setStatusMsg({ type: 'error', message: `Bulk update failed: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {isUploading && createPortal(
@@ -2436,6 +2537,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 
                 {activeTab === 'students' && (
                     <div className="flex items-center gap-3">
+                        {hasUnknownStudents && (
+                            <button
+                                onClick={handleBulkFixUnknownNames}
+                                className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-amber-500/10"
+                            >
+                                <RotateCcw className="w-4 h-4" />
+                                Fix Unknown Names
+                            </button>
+                        )}
                         <button 
                             onClick={() => setIsUploading(true)}
                             className="px-6 py-3 bg-slate-900 dark:bg-slate-850 border border-slate-800 dark:border-slate-755 hover:bg-slate-850 dark:hover:bg-slate-800 hover:border-slate-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg"
@@ -2723,8 +2833,25 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                                                 {/* ── Student Info ── */}
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight">
+                                                    <p className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight flex items-center gap-2">
                                                         {user?.name || 'Unknown Student'}
+                                                        {(!user?.name || 
+                                                          user.name.trim() === '' || 
+                                                          user.name.toLowerCase() === 'unknown student' || 
+                                                          user.name.toLowerCase() === 'unknown') && 
+                                                         (enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name) && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleFixSingleUnknownName(enr.id);
+                                                                }}
+                                                                title={`Replace with Parent Name: ${enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name}`}
+                                                                className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-[9px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 whitespace-nowrap flex items-center gap-1 cursor-pointer"
+                                                            >
+                                                                <RotateCcw className="w-2.5 h-2.5" />
+                                                                Use Parent Name
+                                                            </button>
+                                                        )}
                                                     </p>
                                                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                                                         {user?.email && (
