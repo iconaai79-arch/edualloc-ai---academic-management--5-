@@ -2386,7 +2386,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
             return;
         }
-        const associatedUser = users.find(u => u.id === enr.userId);
+
+        let associatedUser = users.find(u => u.id === enr.userId);
+        if (!associatedUser) {
+            setStatusMsg({ type: 'info', message: 'Searching database for student user record...' });
+            try {
+                const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                    filter: { id: enr.userId }
+                });
+                if (dbUsers && dbUsers.length > 0) {
+                    associatedUser = dbUsers[0];
+                }
+            } catch (err) {
+                console.error('[FixName] Error searching user in database:', err);
+            }
+        }
+
         if (!associatedUser) {
             setStatusMsg({ type: 'error', message: `User record not found for student user ID: ${enr.userId}` });
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
@@ -2404,20 +2419,27 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setStatusMsg({ type: 'info', message: `Updating name to "${newName}"...` });
 
         try {
-            // Send full user object with updated name to avoid partial-update stripping issues
-            const updatedUser = { ...associatedUser, name: newName };
+            // Send full user object with updated name and current institution ID to ensure it is linked to the current institution
+            const updatedUser = { 
+                ...associatedUser, 
+                name: newName,
+                institutionId: currentInstitution.id 
+            };
             console.log('[FixName] Sending update for user:', associatedUser.id, '-> name:', newName);
             await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
             console.log('[FixName] DB update succeeded for user:', associatedUser.id);
 
             // Update local state immediately.
-            // Do NOT call loadAllData() here — it would race against this update
-            // and overwrite the local state with the old name from the DB.
-            setUsers(prevUsers =>
-                prevUsers.map(u =>
-                    u.id === associatedUser.id ? { ...u, name: newName } : u
-                )
-            );
+            setUsers(prevUsers => {
+                const exists = prevUsers.some(u => u.id === associatedUser.id);
+                if (exists) {
+                    return prevUsers.map(u =>
+                        u.id === associatedUser.id ? { ...u, name: newName, institutionId: currentInstitution.id } : u
+                    );
+                } else {
+                    return [...prevUsers, { ...associatedUser, name: newName, institutionId: currentInstitution.id }];
+                }
+            });
 
             setStatusMsg({ type: 'success', message: `✓ Name updated to "${newName}" successfully.` });
         } catch (err: any) {
@@ -2454,34 +2476,56 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
         try {
             let updatedCount = 0;
-            const updatedUsersMap: Record<string, string> = {};
+            const updatedUsersMap: Record<string, { name: string; user: User }> = {};
             const batchSize = 5;
             for (let i = 0; i < targets.length; i += batchSize) {
                 const batch = targets.slice(i, i + batchSize);
                 await Promise.all(batch.map(async (enr) => {
-                    const associatedUser = users.find(u => u.id === enr.userId);
+                    let associatedUser = users.find(u => u.id === enr.userId);
+                    if (!associatedUser) {
+                        try {
+                            const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                filter: { id: enr.userId }
+                            });
+                            if (dbUsers && dbUsers.length > 0) {
+                                associatedUser = dbUsers[0];
+                            }
+                        } catch (err) {
+                            console.error('[BulkFixName] Error searching user:', enr.userId, err);
+                        }
+                    }
                     if (!associatedUser) return;
+
                     const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
                     if (parentName && parentName.trim()) {
                         const newName = parentName.trim();
-                        // Send full user object with updated name to avoid partial-update stripping
-                        const updatedUser = { ...associatedUser, name: newName };
+                        // Send full user object with updated name and ensure correct institutionId
+                        const updatedUser = { 
+                            ...associatedUser, 
+                            name: newName,
+                            institutionId: currentInstitution.id 
+                        };
                         console.log('[BulkFixName] Updating user:', associatedUser.id, '->', newName);
                         await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
-                        updatedUsersMap[associatedUser.id] = newName;
+                        updatedUsersMap[associatedUser.id] = { name: newName, user: updatedUser };
                         updatedCount++;
                     }
                 }));
             }
 
             // Update local state immediately.
-            // Do NOT call loadAllData() — it races against this and overwrites changes
-            // with stale data before the DB has fully propagated the updates.
-            setUsers(prevUsers =>
-                prevUsers.map(u =>
-                    updatedUsersMap[u.id] ? { ...u, name: updatedUsersMap[u.id] } : u
-                )
-            );
+            setUsers(prevUsers => {
+                const newUsers = [...prevUsers];
+                Object.entries(updatedUsersMap).forEach(([id, entry]) => {
+                    const idx = newUsers.findIndex(u => u.id === id);
+                    if (idx !== -1) {
+                        newUsers[idx] = { ...newUsers[idx], name: entry.name, institutionId: currentInstitution.id };
+                    } else {
+                        newUsers.push(entry.user);
+                    }
+                });
+                return newUsers;
+            });
 
             setStatusMsg({ type: 'success', message: `✓ Successfully updated ${updatedCount} student name(s).` });
         } catch (err: any) {
