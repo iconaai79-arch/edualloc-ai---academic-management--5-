@@ -34,6 +34,8 @@ import { LibraryReports } from './LibraryReports';
 import { BookSponsorManager } from './BookSponsorManager';
 import { LibraryMemberManager } from './LibraryMemberManager';
 
+const EduFlowManager = React.lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
+
 interface LibraryMasterViewProps {
     currentUser: User;
     currentInstitution: Institution;
@@ -46,7 +48,7 @@ interface LibraryMasterViewProps {
     onLogAction: (action: string) => Promise<void>;
 }
 
-type LibraryTab = 'dashboard' | 'inventory' | 'sponsors' | 'lending' | 'members' | 'reservations' | 'penalties' | 'reports';
+type LibraryTab = 'dashboard' | 'inventory' | 'sponsors' | 'lending' | 'members' | 'reservations' | 'penalties' | 'reports' | 'eduflow';
 
 export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
     currentUser,

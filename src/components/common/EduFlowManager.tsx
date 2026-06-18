@@ -5,7 +5,7 @@ import {
     CheckCircle, XCircle, AlertCircle, MessageSquare, Tag, CheckSquare, 
     Square, Send, BookOpen, AlertTriangle
 } from 'lucide-react';
-import type { User, Subject, Course, Institution, EduFlowTask, EduFlowComment } from '../../types';
+import type { User, Subject, Course, Institution, EduFlowTask, EduFlowComment, Department } from '../../types';
 import { apiService } from '../../services/apiService';
 
 interface EduFlowManagerProps {
@@ -15,6 +15,7 @@ interface EduFlowManagerProps {
     subjects: Subject[];
     users: User[];
     courses: Course[];
+    departments?: Department[];
 }
 
 export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
@@ -23,8 +24,21 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
     currentInstitution,
     subjects = [],
     users = [],
-    courses = []
+    courses = [],
+    departments = []
 }) => {
+    // Helper function to check if a user role is a staff role
+    const isStaff = (role: string): boolean => {
+        const staffRoles = [
+            'admin', 'super_admin', 'deputy', 'hod', 'tto', 'lecturer', 
+            'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 
+            'teacher', 'librarian', 'security', 'info_desk', 'store', 
+            'boarding_master', 'driver', 'transport_assistant', 'reseller', 
+            'finance', 'finance_officer', 'hr_officer', 'nurse', 'hoi', 
+            'director', 'managing_director'
+        ];
+        return staffRoles.includes(role);
+    };
     // State management
     const [tasks, setTasks] = useState<EduFlowTask[]>([]);
     const [comments, setComments] = useState<EduFlowComment[]>([]);
@@ -454,7 +468,16 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
                     <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none">
                         <option value="all">All Assignees</option>
                         <option value="me">Assigned to Me</option>
-                        {users.filter(u => u.id !== currentUser.id).map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
+                        <optgroup label="Staff Members" className="font-bold text-slate-500">
+                            {users.filter(u => u.id !== currentUser.id && isStaff(u.role)).map(u => (
+                                <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Students / Members" className="font-bold text-slate-500">
+                            {users.filter(u => u.id !== currentUser.id && !isStaff(u.role)).map(u => (
+                                <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
+                            ))}
+                        </optgroup>
                     </select>
                 </div>
             </div>
@@ -811,7 +834,16 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
                                         className="w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white outline-none"
                                     >
                                         <option value="">Choose Assignee...</option>
-                                        {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
+                                        <optgroup label="Staff Members" className="font-bold text-slate-500">
+                                            {users.filter(u => isStaff(u.role)).map(u => (
+                                                <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
+                                            ))}
+                                        </optgroup>
+                                        <optgroup label="Students / Members" className="font-bold text-slate-500">
+                                            {users.filter(u => !isStaff(u.role)).map(u => (
+                                                <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
+                                            ))}
+                                        </optgroup>
                                     </select>
                                 </div>
                             )}
@@ -828,8 +860,7 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
             {isDetailModalOpen && selectedTask && (
                 <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-3xl max-h-[85vh] overflow-hidden animate-scale-in flex flex-col">
-                        
-                        {/* Header */}
+                                              {/* Header */}
                         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400`}>
@@ -842,8 +873,12 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
                                 )}
                             </div>
                             <div className="flex items-center gap-1">
-                                <button onClick={() => openEditForm(selectedTask)} className="p-1.5 hover:bg-slate-200 text-slate-500 rounded-lg" title="Edit"><Edit className="w-4 h-4" /></button>
-                                <button onClick={() => handleDeleteTask(selectedTask.id)} className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                                {(currentUser.role === 'admin' || currentUser.role === 'super_admin' || selectedTask.createdBy === currentUser.id) && (
+                                    <>
+                                        <button onClick={() => openEditForm(selectedTask)} className="p-1.5 hover:bg-slate-200 text-slate-500 rounded-lg" title="Edit"><Edit className="w-4 h-4" /></button>
+                                        <button onClick={() => handleDeleteTask(selectedTask.id)} className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                                    </>
+                                )}
                                 <button onClick={() => setIsDetailModalOpen(false)} className="p-1.5 hover:bg-slate-200 text-slate-400 rounded-lg"><XCircle className="w-5 h-5" /></button>
                             </div>
                         </div>

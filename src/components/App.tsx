@@ -101,7 +101,7 @@ const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m
 
 
 import { apiService, initSupabaseClient } from '../services/apiService';
-import { getAdminRoleForInstitution } from '../utils/roleUtils';
+import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
@@ -910,7 +910,15 @@ export const App: React.FC = () => {
                         apiService.storeSession({ ...currentUser, ...refreshedSelf } as User);
                     }
                 } else if (!finalUsers.some((u: User) => u.id === currentUser.id)) {
-                    apiService.saveUser(currentUser).catch(err => console.error("Failed to auto-persist current user:", err));
+                    apiService.saveUser(currentUser).catch(err => {
+                        // Silently ignore registry conflicts — user already exists in DB but wasn't returned by the query
+                        const msg = err?.message || String(err);
+                        if (msg.includes('Registry Conflict') || msg.includes('23505') || msg.includes('already registered')) {
+                            console.info('[auto-persist] User already exists in registry, skipping duplicate write.');
+                        } else {
+                            console.error("Failed to auto-persist current user:", err);
+                        }
+                    });
                 }
             }
 
@@ -5121,6 +5129,8 @@ export const App: React.FC = () => {
                                             userName={currentUser?.name} 
                                             institutionId={activeInstitution?.id || currentUser?.institutionId}
                                             users={users}
+                                            currentUser={currentUser}
+                                            currentInstitution={activeInstitution}
                                         />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'super_admin' ? (

@@ -151,7 +151,7 @@ export const isHigherEdInstitution = (institution: Partial<Institution> | null |
 /**
  * Centralized logic to determine if an institution is an educational entity.
  */
-export const isEduInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
+export function isEduInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
@@ -160,7 +160,7 @@ export const isEduInstitution = (institution: Partial<Institution> | null | unde
     if (category === 'driving school' || type === 'driving school') return false;
     
     return type === 'education' || eduCats.includes(type) || eduCats.includes(category);
-};
+}
 
 /**
  * Centralized logic to determine if an institution is a Driving School.
