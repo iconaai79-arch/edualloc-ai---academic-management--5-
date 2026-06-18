@@ -970,7 +970,7 @@ export const App: React.FC = () => {
                     const hasExistingData = (d && d.length > 0) || (s && s.length > 0) || (c && c.length > 0) || (ay && ay.length > 0) || (sem && sem.length > 0);
                     if (schoolModules.length === 0 && hasExistingData) {
                         console.log(`[Auto-Migration] Seeding active modules for existing institution: ${activeInst.name}`);
-                        const defaultModules = ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll'];
+                        const defaultModules = ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'his'];
                         const seededStates: InstitutionModuleState[] = [];
                         for (const moduleId of defaultModules) {
                             const newState: InstitutionModuleState = {
@@ -5109,12 +5109,20 @@ export const App: React.FC = () => {
                                          />
                                     </div>
                                 ) : (isHealthSystemOpen || activeRole === 'his_admin' || activeRole === 'nurse') ? (
-                                    <HealthCoreView 
-                                        activeRole={activeRole as Role} 
-                                        userName={currentUser?.name} 
-                                        institutionId={activeInstitution?.id || currentUser?.institutionId}
-                                        users={users}
-                                    />
+                                    <ModuleAccessGuard
+                                        moduleId="his"
+                                        moduleName={isEduInstitution(activeInstitution) ? "EduPulse Wellness" : "HealthCore HIS"}
+                                        description={isEduInstitution(activeInstitution) ? "Comprehensive school wellness registry, clinic management, triage logs, and sickbay monitoring." : "Medical intelligence platform unifying clinical care with AI-driven diagnostics, ward monitoring, and patient records."}
+                                        institution={activeInstitution}
+                                        onActivateTrial={handleActivateModuleTrial}
+                                    >
+                                        <HealthCoreView 
+                                            activeRole={activeRole as Role} 
+                                            userName={currentUser?.name} 
+                                            institutionId={activeInstitution?.id || currentUser?.institutionId}
+                                            users={users}
+                                        />
+                                    </ModuleAccessGuard>
                                 ) : activeRole === 'super_admin' ? (
                                     <DrivingSchoolProvider institutionId={activeInstitution?.id}>
                                         <SuperAdminView {...{

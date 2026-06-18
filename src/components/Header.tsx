@@ -3,7 +3,7 @@ import type { User, AppNotification, Institution, Role } from '../types';
 import { NotificationBell } from './NotificationBell';
 import { InstallAppButton } from './InstallAppButton';
 import { getInitials } from '../utils/stringUtils';
-import { formatRoleDisplayName } from '../utils/roleUtils';
+import { formatRoleDisplayName, isEduInstitution } from '../utils/roleUtils';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
 import { PencilIcon } from './icons/PencilIcon';
@@ -189,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
                             </div>
                         )}
 
-                        {currentInstitution?.institutionType === 'HIS' && (() => {
+                        {(currentInstitution?.institutionType === 'HIS' || isEduInstitution(currentInstitution)) && (() => {
                             const isPropertyManagement = activeRole === 'property_admin' || 
                                                         activeRole === 'landlord' || 
                                                         activeRole === 'tenant' || 
