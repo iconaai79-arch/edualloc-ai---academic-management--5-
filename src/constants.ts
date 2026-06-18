@@ -334,9 +334,18 @@ export const INITIAL_USERS: User[] = [
 
 export const RETAIL_SUBTYPES = ['Hardware', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Boutique', 'Salon', 'Barber Shop', 'Electronics', 'Supermarket', 'Wholesale', 'General Retail', 'Restaurant', 'Cafe', 'Eatery', 'Fuel Station'];
 
-export const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'church_admin', 'fuel_admin', 'attendant', 'finance', 'event_manager', 'managing_director', 'hoi'];
+export const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'church_admin', 'fuel_admin', 'attendant', 'finance', 'event_manager', 'managing_director', 'hoi', 'hr_officer'];
  
 export const MODULES = [
+  {
+    id: 'hr_payroll',
+    title: "HR & Payroll Compliance",
+    description: "Manage employee directories, run Kenyan standard compliant payroll calculations, log biometric attendance, and generate reports.",
+    advantages: ["Kenyan Tax (PAYE) Standards", "NHIF/SHIF & NSSF Compliance", "Biometric Attendance Integration"],
+    role: 'hr_officer',
+    category: 'Education',
+    imageUrl: '/marketing/marketing_hr_payroll.png'
+  },
   {
     id: 'property',
     title: "Property Hub",

@@ -970,7 +970,7 @@ export const App: React.FC = () => {
                     const hasExistingData = (d && d.length > 0) || (s && s.length > 0) || (c && c.length > 0) || (ay && ay.length > 0) || (sem && sem.length > 0);
                     if (schoolModules.length === 0 && hasExistingData) {
                         console.log(`[Auto-Migration] Seeding active modules for existing institution: ${activeInst.name}`);
-                        const defaultModules = ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport'];
+                        const defaultModules = ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll'];
                         const seededStates: InstitutionModuleState[] = [];
                         for (const moduleId of defaultModules) {
                             const newState: InstitutionModuleState = {
@@ -5579,18 +5579,26 @@ export const App: React.FC = () => {
                                         />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'hr_officer' ? (
-                                    <HROfficerView 
-                                        {...{
-                                            currentUser,
-                                            currentInstitution: activeInstitution || undefined,
-                                            users,
-                                            payrollRecords: payrollRecords as any,
-                                            onAddUser: async (u: any) => { await apiService.registerUser({ ...u, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
-                                            onUpdateUser: onEditUser,
-                                            onDeleteUser: onDeleteUser,
-                                            onLogAction: handleLogAction
-                                        } as any}
-                                    />
+                                    <ModuleAccessGuard
+                                        moduleId="hr_payroll"
+                                        moduleName="HR & Payroll Compliance"
+                                        description="Manage employees, run Kenyan standard compliant payroll calculations, log biometric attendance, and generate reports."
+                                        institution={activeInstitution}
+                                        onActivateTrial={handleActivateModuleTrial}
+                                    >
+                                        <HROfficerView 
+                                            {...{
+                                                currentUser,
+                                                currentInstitution: activeInstitution || undefined,
+                                                users,
+                                                payrollRecords: payrollRecords as any,
+                                                onAddUser: async (u: any) => { await apiService.registerUser({ ...u, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
+                                                onUpdateUser: onEditUser,
+                                                onDeleteUser: onDeleteUser,
+                                                onLogAction: handleLogAction
+                                            } as any}
+                                        />
+                                    </ModuleAccessGuard>
                                 ) : activeRole === 'boarding_master' ? (
                                     <ModuleAccessGuard
                                         moduleId="boarding"
