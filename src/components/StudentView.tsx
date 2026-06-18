@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 import type { User, Course, CourseLevel, TimetableEntry, Subject, Room, TimetableSettings, EnrollmentRequest, Department, LetterheadConfig, Assignment, Submission, LessonRating, FeedbackSubmission, StudentAbsenceRequest, ExamTimetableEntry, Building, Semester, TaAssignment, UserTask, Institution, Assessment, AssessmentMark, Book } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 import { SubjectCard } from './SubjectCard';
@@ -15,6 +15,10 @@ import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+
+const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 
 import { StudentDashboard } from './StudentDashboard';
 import { StudentAssignmentManager } from './StudentAssignmentManager';
@@ -365,7 +369,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         return null;
     };
 
-    const tabs = ['dashboard', 'my_timetable', 'assignments', 'feedback', 'absences', 'nearby_classes'];
+    const tabs = ['dashboard', 'my_timetable', 'assignments', 'feedback', 'absences', 'nearby_classes', 'eduflow'];
 
     return (
         <div className="space-y-6">
@@ -524,6 +528,21 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                 </div>
             )}
             {activeTab === 'nearby_classes' && <NearbyClassesView timetable={generatedTimetable} getSubjectById={getSubjectById} getLecturerById={getLecturerById} getRoomById={getRoomById} buildings={buildings} />}
+
+            {activeTab === 'eduflow' && (
+                <div className="animate-fade-in-up">
+                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                        <EduFlowManager
+                            context="academic"
+                            currentUser={user}
+                            currentInstitution={currentInstitution}
+                            subjects={subjects}
+                            users={users || []}
+                            courses={courses}
+                        />
+                    </Suspense>
+                </div>
+            )}
 
             {isRequestModalOpen && <EnrollmentRequestModal subjects={selectedSubjectsForRequest} onClose={() => setIsRequestModalOpen(false)} onSubmit={(signatureUrl) => { onSubmitEnrollmentRequest(Array.from(selectedSubjectIds), signatureUrl); setIsRequestModalOpen(false); setSelectedSubjectIds(new Set()); }} />}
             {isAbsenceModalOpen && <StudentAbsenceRequestModal onClose={() => setIsAbsenceModalOpen(false)} onSubmit={(data) => { onSubmitStudentAbsenceRequest(data); setIsAbsenceModalOpen(false); }} />}

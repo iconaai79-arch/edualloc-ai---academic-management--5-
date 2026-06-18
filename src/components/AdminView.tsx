@@ -61,6 +61,7 @@ const BankFeedsManager = lazy(() => import('./automotive/BankFeedsManager').then
 const ShowroomConfigManager = lazy(() => import('./automotive/ShowroomConfigManager').then(m => ({ default: m.ShowroomConfigManager })));
 const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
 const StudentEnrollmentManager = lazy(() => import('./common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager })));
+const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
@@ -779,6 +780,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'enrollment_calendar', label: 'Events & PINs', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
             { id: 'enrollment_guests', label: 'Cleared Guests', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'enrollment', label: 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
+            { id: 'eduflow', label: 'EduFlow Tasks', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         ];
 
 
@@ -868,7 +870,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     const academicsTabs = ['settings', 'reports'];
                     if (isModuleActive('timetable')) academicsTabs.push('timetable');
                     if (isModuleActive('academics')) academicsTabs.push('courses');
-                    academicsTabs.push('enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests');
+                    academicsTabs.push('enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests', 'eduflow');
                     return academicsTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
@@ -2279,6 +2281,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 'guests'
                             }
                         />
+                    </div>
+                )}
+
+                {activeTab === 'eduflow' && (
+                    <div className="animate-fade-in-up">
+                        <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                            <EduFlowManager
+                                context={isDS ? 'driving_school' : 'academic'}
+                                currentUser={props.currentUser!}
+                                currentInstitution={props.currentInstitution!}
+                                subjects={props.subjects || []}
+                                users={props.users || []}
+                                courses={props.courses || []}
+                            />
+                        </Suspense>
                     </div>
                 )}
 

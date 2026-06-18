@@ -5303,3 +5303,29 @@ export interface EventPledge {
     bibNumber?: string;
 }
 
+export interface EduFlowTask {
+    id: string;
+    institutionId: string;
+    title: string;
+    description?: string;
+    assignedTo?: string;
+    createdBy: string;
+    status: 'todo' | 'in_progress' | 'review' | 'completed';
+    priority: 'Low' | 'Normal' | 'High' | 'Urgent';
+    dueDate?: string;
+    cohortId?: string;
+    subjectId?: string;
+    parentTaskId?: string;
+    checklists?: { id: string; text: string; isDone: boolean }[];
+    createdAt: string;
+}
+
+export interface EduFlowComment {
+    id: string;
+    taskId: string;
+    userId: string;
+    body: string;
+    createdAt: string;
+}
+
+

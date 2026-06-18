@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
 import type {
     Subject, User, AllocationRequest, Department, Priority,
     TimetableEntry, AcademicYear, Semester, TimetableSettings,
@@ -26,6 +26,10 @@ import { UserGroupIcon } from './icons/UserGroupIcon';
 import { AssessmentManager } from './AssessmentManager';
 import { AssessmentReports } from './AssessmentReports';
 import { ChartBarIcon } from './icons/ChartBarIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+
+const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 
 
 interface LecturerViewProps {
@@ -180,7 +184,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     };
 
     const menuTabs = useMemo(() => {
-        const base = ['dashboard', 'academic_hub', 'my_timetable'];
+        const base = ['dashboard', 'academic_hub', 'my_timetable', 'eduflow'];
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
@@ -224,6 +228,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             {tab === 'dashboard' && <CalendarPlusIcon className="w-4 h-4" />}
                             {tab === 'academic_hub' && <ChartBarIcon className="w-4 h-4 text-amber-500" />}
                             {tab === 'my_timetable' && <ClockIcon className="w-4 h-4 text-indigo-500" />}
+                            {tab === 'eduflow' && <ClipboardListIcon className="w-4 h-4 text-purple-500" />}
                             {tab === 'my_requests' && <BookOpenIcon className="w-4 h-4 text-emerald-500" />}
                             {tab === 'inventory' && <ArchiveBoxIcon className="w-4 h-4 text-rose-500" />}
                             {tab.replace(/_/g, ' ')}
@@ -530,6 +535,21 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             )}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {activeTab === 'eduflow' && (
+                <div className="animate-fade-in-up">
+                    <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-350" /></div>}>
+                        <EduFlowManager
+                            context="academic"
+                            currentUser={user}
+                            currentInstitution={currentInstitution}
+                            subjects={subjects}
+                            users={props.users || []}
+                            courses={courses}
+                        />
+                    </Suspense>
                 </div>
             )}
 
