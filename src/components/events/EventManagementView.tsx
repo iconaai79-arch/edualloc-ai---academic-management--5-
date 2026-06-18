@@ -23,6 +23,7 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
     onLogAction
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'runners' | 'raceday' | 'medical' | 'fundraising' | 'leaderboard' | 'bankfeeds' | 'staff' | 'reports'>('dashboard');
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     // Module entities states
@@ -1639,6 +1640,24 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
 
             {activeTab === 'reports' && eventInsights && (
                 <div className="space-y-6">
+                    {/* Reports Header with Preview Button */}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white">Event Analysis</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">Live insights for <span className="font-bold text-indigo-600 dark:text-indigo-400">{activeEvent?.name}</span></p>
+                        </div>
+                        <button
+                            onClick={() => setIsPreviewOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 transition-all active:scale-95"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            <span>Live Event Preview</span>
+                        </button>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div className="p-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-sm">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Collected Revenue</span>
@@ -1714,8 +1733,257 @@ export const EventManagementView: React.FC<EventManagementViewProps> = ({
             )}
             
             {activeTab === 'reports' && !eventInsights && (
-                <div className="p-12 text-center text-slate-400 text-sm font-bold">
-                    No participants registered for this event yet to generate insights.
+                <div className="p-12 text-center space-y-4">
+                    <p className="text-slate-400 text-sm font-bold">No participants registered for this event yet to generate insights.</p>
+                    <button
+                        onClick={() => setIsPreviewOpen(true)}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 transition-all active:scale-95"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span>Preview Event Registration Page</span>
+                    </button>
+                </div>
+            )}
+
+            {/* ===== ON-SCREEN EVENT PREVIEW MODAL ===== */}
+            {isPreviewOpen && (
+                <div className="fixed inset-0 z-[200] flex items-start justify-center bg-slate-950/80 backdrop-blur-md overflow-y-auto" onClick={(e) => { if (e.target === e.currentTarget) setIsPreviewOpen(false); }}>
+                    <div className="w-full max-w-2xl mx-4 my-6 rounded-3xl overflow-hidden shadow-2xl border border-white/10 animate-fade-in">
+                        {/* Preview Chrome Bar */}
+                        <div className="flex items-center gap-3 px-4 py-3 bg-slate-900 border-b border-white/10">
+                            <div className="flex items-center gap-1.5">
+                                <button onClick={() => setIsPreviewOpen(false)} className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors" title="Close Preview" />
+                                <div className="w-3 h-3 rounded-full bg-amber-400" />
+                                <div className="w-3 h-3 rounded-full bg-green-500" />
+                            </div>
+                            <div className="flex-1 mx-2 px-3 py-1 bg-slate-800 border border-white/10 rounded-lg text-[11px] font-mono text-slate-400 truncate">
+                                {getEventRegistrationLink(activeEvent!)}
+                            </div>
+                            <button
+                                onClick={() => {
+                                    const link = getEventRegistrationLink(activeEvent!);
+                                    navigator.clipboard.writeText(link);
+                                    alert('Link copied to clipboard!');
+                                }}
+                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all"
+                                title="Copy Link"
+                            >
+                                Copy
+                            </button>
+                        </div>
+
+                        {/* Preview Content — simulates public registration page */}
+                        <div className="bg-gradient-to-br from-slate-50 to-indigo-50/30 dark:from-slate-900 dark:to-indigo-950/20 max-h-[80vh] overflow-y-auto">
+                            
+                            {/* Banner */}
+                            {activeEvent?.bannerUrl ? (
+                                <div className="w-full h-52 overflow-hidden relative">
+                                    <img src={activeEvent.bannerUrl} alt={activeEvent.name} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                                    <div className="absolute bottom-0 left-0 right-0 p-6">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300 bg-indigo-900/60 px-2 py-0.5 rounded-full backdrop-blur-sm">Live Event</span>
+                                        <h1 className="text-2xl font-black text-white mt-2 leading-tight drop-shadow-lg">{activeEvent?.name}</h1>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="w-full h-40 bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-800 flex flex-col items-center justify-center relative overflow-hidden">
+                                    <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Live Event</span>
+                                    <h1 className="text-2xl font-black text-white text-center px-6 drop-shadow-lg">{activeEvent?.name}</h1>
+                                </div>
+                            )}
+
+                            <div className="p-6 space-y-6">
+                                {/* Event Info Strip */}
+                                <div className="flex flex-wrap gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                                        <div className="w-6 h-6 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg flex items-center justify-center">
+                                            <CalendarDaysIcon className="w-3.5 h-3.5 text-indigo-600" />
+                                        </div>
+                                        <div>
+                                            <span className="block text-[9px] font-black uppercase text-slate-400">Date</span>
+                                            <span className="font-bold text-slate-800 dark:text-white">{activeEvent?.date || 'TBD'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                                        <div className="w-6 h-6 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg flex items-center justify-center">
+                                            <MapPinIcon className="w-3.5 h-3.5 text-indigo-600" />
+                                        </div>
+                                        <div>
+                                            <span className="block text-[9px] font-black uppercase text-slate-400">Venue</span>
+                                            <span className="font-bold text-slate-800 dark:text-white">{activeEvent?.location || 'TBD'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                                        <div className="w-6 h-6 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg flex items-center justify-center">
+                                            <UserGroupIcon className="w-3.5 h-3.5 text-indigo-600" />
+                                        </div>
+                                        <div>
+                                            <span className="block text-[9px] font-black uppercase text-slate-400">Registered</span>
+                                            <span className="font-bold text-slate-800 dark:text-white">{activeEventParticipants.length} Runners</span>
+                                        </div>
+                                    </div>
+                                    <div className="ml-auto flex items-center gap-1.5">
+                                        <div className={`w-2 h-2 rounded-full ${ activeEvent?.status === 'active' ? 'bg-green-500 animate-pulse' : activeEvent?.status === 'completed' ? 'bg-slate-400' : 'bg-amber-500' }`} />
+                                        <span className="text-[10px] font-black uppercase text-slate-500">{activeEvent?.status?.replace(/_/g, ' ') || 'Planning'}</span>
+                                    </div>
+                                </div>
+
+                                {/* Description */}
+                                {activeEvent?.description && (
+                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">About This Event</h3>
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{activeEvent.description}</p>
+                                    </div>
+                                )}
+
+                                {/* Race Categories */}
+                                <div>
+                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Race Categories</h3>
+                                    <div className="space-y-3">
+                                        {activeEventCategories.map((cat, idx) => {
+                                            const regCount = activeEventParticipants.filter(p => p.categoryId === cat.id).length;
+                                            const capacityPct = cat.capacity ? Math.min((regCount / cat.capacity) * 100, 100) : 0;
+                                            const spotsLeft = cat.capacity ? cat.capacity - regCount : null;
+                                            return (
+                                                <div key={cat.id} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:border-indigo-200 dark:hover:border-indigo-700 transition-all cursor-pointer group">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="text-sm font-black text-slate-800 dark:text-white">{cat.name}</span>
+                                                                <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 rounded-full text-[10px] font-black">{cat.distanceKm} KM</span>
+                                                                {cat.genderRestriction !== 'any' && (
+                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${ cat.genderRestriction === 'male' ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400' : 'bg-pink-50 dark:bg-pink-950/30 text-pink-700 dark:text-pink-400' }`}>
+                                                                        {cat.genderRestriction === 'male' ? '♂ Male Only' : '♀ Female Only'}
+                                                                    </span>
+                                                                )}
+                                                                {cat.startTime && (
+                                                                    <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                                                        <ClockIcon className="w-3 h-3" /> {cat.startTime}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {cat.capacity && (
+                                                                <div className="mt-2">
+                                                                    <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                                                                        <span>{regCount} / {cat.capacity} registered</span>
+                                                                        <span>{spotsLeft} spots left</span>
+                                                                    </div>
+                                                                    <div className="w-full bg-slate-100 dark:bg-slate-700 h-1 rounded-full overflow-hidden">
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all ${ capacityPct > 80 ? 'bg-red-500' : capacityPct > 50 ? 'bg-amber-500' : 'bg-indigo-500' }`}
+                                                                            style={{ width: `${capacityPct}%` }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <div className="text-lg font-black text-indigo-600 dark:text-indigo-400">KES {Number(cat.registrationFee).toLocaleString()}</div>
+                                                            <div className="text-[10px] text-slate-400">entry fee</div>
+                                                            <div className="mt-2 px-3 py-1.5 bg-indigo-600 group-hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition-all text-center">Register →</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {activeEventCategories.length === 0 && (
+                                            <div className="p-8 text-center text-slate-400 text-xs bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                                                No race categories configured yet
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Mock Registration Form Preview */}
+                                <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Registration Form Preview</h3>
+                                    <div className="space-y-3 pointer-events-none opacity-60">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">First Name *</label>
+                                                <div className="w-full h-8 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Last Name *</label>
+                                                <div className="w-full h-8 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600" />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Email Address *</label>
+                                            <div className="w-full h-8 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Phone Number *</label>
+                                                <div className="w-full h-8 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Race Category *</label>
+                                                <div className="w-full h-8 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600" />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Age</label>
+                                                <div className="w-full h-8 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Gender</label>
+                                                <div className="w-full h-8 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">T-Shirt Size</label>
+                                                <div className="w-full h-8 bg-slate-100 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600" />
+                                            </div>
+                                        </div>
+                                        <div className="w-full h-10 bg-indigo-600 rounded-xl opacity-70" />
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-3 text-center">↑ This is how the public self-registration form appears to participants</p>
+                                </div>
+
+                                {/* Payment Instructions Preview */}
+                                {activeEvent?.paymentInstructions && (
+                                    <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-100 dark:border-amber-900/50">
+                                        <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2">Payment Instructions</h3>
+                                        <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">{activeEvent.paymentInstructions}</p>
+                                    </div>
+                                )}
+
+                                {/* Footer Branding */}
+                                <div className="text-center py-4 border-t border-slate-100 dark:border-slate-700">
+                                    <p className="text-[10px] text-slate-400">Powered by <span className="font-black text-indigo-600 dark:text-indigo-400">{currentInstitution.name}</span> Events Platform</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Preview Footer Actions */}
+                        <div className="flex items-center justify-between px-6 py-4 bg-slate-900 border-t border-white/10">
+                            <span className="text-xs text-slate-400">This is an admin preview — participants see this exact page when they follow the share link.</span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        const link = getEventRegistrationLink(activeEvent!);
+                                        navigator.clipboard.writeText(link);
+                                        alert(`Public registration link copied:\n${link}`);
+                                    }}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+                                >
+                                    <ShareIcon className="w-3.5 h-3.5" />
+                                    Copy Share Link
+                                </button>
+                                <button
+                                    onClick={() => setIsPreviewOpen(false)}
+                                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition-all active:scale-95"
+                                >
+                                    Close Preview
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

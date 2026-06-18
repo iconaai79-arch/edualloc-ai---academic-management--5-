@@ -2539,6 +2539,43 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             {/* Tab: Students */}
             {activeTab === 'students' && (
                 <>
+                    {/* Stats Summary Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total Registered Students</p>
+                                <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">{enrollments.length}</h3>
+                            </div>
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 dark:text-indigo-400 shrink-0">
+                                <Users className="w-6 h-6" />
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active & Enrolled</p>
+                                <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+                                    {enrollments.filter(e => e.status === 'Active' || e.status === 'Enrolled').length}
+                                </h3>
+                            </div>
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 dark:text-emerald-400 shrink-0">
+                                <UserCheck className="w-6 h-6" />
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Graduated</p>
+                                <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+                                    {enrollments.filter(e => e.status === 'Graduated').length}
+                                </h3>
+                            </div>
+                            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500 dark:text-purple-400 shrink-0">
+                                <CheckCircle2 className="w-6 h-6" />
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Filters Bar */}
                     <div className="flex flex-col gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
                         {/* Row 1: Search */}
