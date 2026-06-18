@@ -70,12 +70,12 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Academic / Schools
     if (isSchoolInstitution(institution)) {
-        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi'];
+        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse'];
     }
 
     // Tertiary / Higher Ed
     if (isHigherEdInstitution(institution)) {
-        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi'];
+        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi', 'nurse'];
     }
 
     // HIS / Health Information System
@@ -246,6 +246,7 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'boarding_master': return 'Boarding Manager';
             case 'managing_director': return 'Managing Director';
             case 'hoi': return 'HOI';
+            case 'nurse': return 'School Nurse';
         }
     }
 

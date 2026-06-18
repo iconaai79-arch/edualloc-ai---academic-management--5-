@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Role, HISPatient } from '../../types';
+import { Role, HISPatient, User } from '../../types';
+import { isEduInstitution } from '../../utils/roleUtils';
 import { PlusIcon } from '../icons/PlusIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { ArrowPathIcon } from '../icons/ArrowPathIcon';
@@ -44,9 +45,10 @@ interface HealthCoreProps {
     activeRole?: Role;
     userName?: string;
     institutionId?: string;
+    users?: User[];
 }
 
-export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName, institutionId }) => {
+export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName, institutionId, users = [] }) => {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
     const [searchTerm, setSearchTerm] = useState('');
     const [patients, setPatients] = useState<HISPatient[]>([]);
@@ -145,6 +147,62 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
             p.shaNumber?.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [searchTerm, patients]);
+
+    const isEdu = isEduInstitution(institutionData);
+
+    const filteredDirectoryUsers = React.useMemo(() => {
+        if (!isEdu || !searchTerm.trim()) return [];
+        const existingPatientNames = new Set(patients.map(p => p.fullName.toLowerCase()));
+        return (users || []).filter(u => {
+            const isClinicApplicableRole = ['student', 'teacher', 'boarding_master', 'staff', 'parent', 'librarian'].includes(u.role);
+            if (!isClinicApplicableRole) return false;
+            
+            const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                  (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                  (u.phoneNumber || '').includes(searchTerm);
+                                  
+            const notRegisteredYet = !existingPatientNames.has(u.name.toLowerCase());
+            return matchesSearch && notRegisteredYet;
+        });
+    }, [isEdu, searchTerm, users, patients]);
+
+    const handleImportDirectoryUser = async (userRecord: User) => {
+        if (!institutionId) return;
+        try {
+            const newPatientId = `his_p_${Date.now()}`;
+            const dob = userRecord.metadata?.dob || '';
+            const gender = (userRecord.metadata?.gender || 'Unknown') as any;
+            
+            const record = {
+                id: newPatientId,
+                institutionId,
+                fullName: userRecord.name,
+                gender: gender,
+                dob: dob,
+                contact: userRecord.phoneNumber || userRecord.email || '',
+                shaNumber: '',
+                insuranceProvider: 'School Coverage',
+                bloodGroup: 'Unknown',
+                allergies: '',
+                chronicConditions: '',
+                emergencyContactName: '',
+                emergencyContactPhone: '',
+                status: 'active',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            
+            await apiService.saveModuleRecord('his_patients', record);
+            setPatients(prev => [...prev, record]);
+            setActivePatientId(newPatientId);
+            setSearchTerm('');
+            setActiveModule('general');
+            alert(`Imported ${userRecord.name} successfully into wellness registry!`);
+        } catch (error) {
+            console.error("Failed to import directory user:", error);
+            alert("Import failed.");
+        }
+    };
 
     React.useEffect(() => {
         (window as any).openRegisterModal = () => setIsRegisterModalOpen(true);
@@ -247,8 +305,12 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             <SparklesIcon className="w-7 h-7" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-black uppercase tracking-tighter italic">Quantum <span className="text-indigo-600 dark:text-indigo-400">Medical</span></h1>
-                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em]">H.I.S Master Operating System</p>
+                            <h1 className="text-2xl font-black uppercase tracking-tighter italic">
+                                {isEdu ? <>Edu<span className="text-indigo-600 dark:text-indigo-400">Pulse</span></> : <>Quantum <span className="text-indigo-600 dark:text-indigo-400">Medical</span></>}
+                            </h1>
+                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em]">
+                                {isEdu ? "School Wellness & Care Hub" : "H.I.S Master Operating System"}
+                            </p>
                         </div>
                     </div>
 
@@ -277,9 +339,41 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                                                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{p.gender} • {p.contact || 'No Contact'}</p>
                                                 </div>
                                             </div>
-                                            <ChevronRightIcon className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-all" />
+                                            <ChevronRightIcon className="w-4 h-4 text-slate-350 group-hover:text-indigo-500 transition-all" />
                                         </button>
-                                    )) : (
+                                    )) : null}
+
+                                    {isEdu && filteredDirectoryUsers.length > 0 && (
+                                        <>
+                                            <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 text-[9px] font-black text-indigo-500 uppercase tracking-widest border-t border-b border-slate-50 dark:border-white/5">
+                                                Import from School Directory
+                                            </div>
+                                            {filteredDirectoryUsers.map(u => (
+                                                <button 
+                                                    key={u.id} 
+                                                    onClick={() => handleImportDirectoryUser(u)} 
+                                                    className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-left group border-b border-slate-50 dark:border-white/5 last:border-0 pointer-cursor"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 font-black text-xs">
+                                                            {u.name[0].toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-black uppercase tracking-tight">{u.name}</p>
+                                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                                                                {u.role.toUpperCase()} • {u.metadata?.gradeLevel || u.email || 'No Details'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[8px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900">
+                                                        Import
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </>
+                                    )}
+
+                                    {filteredPatients.length === 0 && filteredDirectoryUsers.length === 0 && (
                                         <div className="p-8 text-center text-[10px] font-black text-slate-500 uppercase tracking-widest italic animate-pulse">Patient Not Found</div>
                                     )}
                                 </div>

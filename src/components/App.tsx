@@ -605,7 +605,7 @@ export const App: React.FC = () => {
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
 
-    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception', 'mechanic_admin', 'finance_officer'].includes(activeRole || '');
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception', 'mechanic_admin', 'finance_officer'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -695,6 +695,7 @@ export const App: React.FC = () => {
                 'agrovet_admin': 'Agrovet Manager',
                 'property_admin': 'Property Manager',
                 'his_admin': 'HIS Portal',
+                'nurse': 'EduPulse Sickbay',
                 'carwash_admin': 'Car Wash Manager',
                 'fuel_admin': 'Fuel Station Manager',
                 'legal_admin': 'Legal Hub',
@@ -706,7 +707,9 @@ export const App: React.FC = () => {
             suffix = roleNames[activeRole] || activeRole.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
 
-        if (isHealthSystemOpen) suffix = "HealthCore HIS";
+        if (isHealthSystemOpen || activeRole === 'his_admin' || activeRole === 'nurse') {
+            suffix = isEduInstitution(activeInstitution) ? "EduPulse Wellness" : "HealthCore HIS";
+        }
         if (isPharmacySystemOpen) suffix = "Pharmacy Hub";
         if (isAlumnaeMode) suffix = "Alumnae Network";
         if (showMarketing) suffix = "Intelligent ERP";
@@ -5105,11 +5108,12 @@ export const App: React.FC = () => {
                                              currentUser={currentUser!}
                                          />
                                     </div>
-                                ) : (isHealthSystemOpen || activeRole === 'his_admin') ? (
+                                ) : (isHealthSystemOpen || activeRole === 'his_admin' || activeRole === 'nurse') ? (
                                     <HealthCoreView 
                                         activeRole={activeRole as Role} 
                                         userName={currentUser?.name} 
                                         institutionId={activeInstitution?.id || currentUser?.institutionId}
+                                        users={users}
                                     />
                                 ) : activeRole === 'super_admin' ? (
                                     <DrivingSchoolProvider institutionId={activeInstitution?.id}>
