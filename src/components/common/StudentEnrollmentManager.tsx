@@ -2381,9 +2381,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     const handleFixSingleUnknownName = async (enrollmentId: string) => {
         const enr = enrollments.find(e => e.id === enrollmentId);
-        if (!enr) return;
+        if (!enr) {
+            setStatusMsg({ type: 'error', message: 'Enrollment record not found.' });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+            return;
+        }
         const associatedUser = users.find(u => u.id === enr.userId);
-        if (!associatedUser) return;
+        if (!associatedUser) {
+            setStatusMsg({ type: 'error', message: `User record not found for student user ID: ${enr.userId}` });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+            return;
+        }
 
         const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
         if (!parentName || !parentName.trim()) {
@@ -2396,12 +2404,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setIsLoading(true);
 
         try {
-            const updatedUser = {
-                ...associatedUser,
-                name: parentName.trim(),
-                updatedAt: new Date().toISOString()
-            };
-            await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
+            // Partial update: only send the field we actually want to change
+            await apiService.updateModuleRecord('users', associatedUser.id, { name: parentName.trim() });
+            
+            // Instantly update the local users state for immediate UI feedback
+            setUsers(prevUsers => prevUsers.map(u => 
+                u.id === associatedUser.id ? { ...u, name: parentName.trim() } : u
+            ));
+            
             setStatusMsg({ type: 'success', message: `Successfully updated student name to "${parentName.trim()}".` });
             loadAllData();
         } catch (err: any) {
@@ -2439,6 +2449,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
         try {
             let updatedCount = 0;
+            const updatedUsersMap: Record<string, string> = {};
             const batchSize = 5;
             for (let i = 0; i < targets.length; i += batchSize) {
                 const batch = targets.slice(i, i + batchSize);
@@ -2447,16 +2458,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     if (!associatedUser) return;
                     const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
                     if (parentName && parentName.trim()) {
-                        const updatedUser = {
-                            ...associatedUser,
-                            name: parentName.trim(),
-                            updatedAt: new Date().toISOString()
-                        };
-                        await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
+                        // Partial update: only send the field we actually want to change
+                        await apiService.updateModuleRecord('users', associatedUser.id, { name: parentName.trim() });
+                        updatedUsersMap[associatedUser.id] = parentName.trim();
                         updatedCount++;
                     }
                 }));
             }
+            
+            // Instantly update the local users state for immediate UI feedback
+            setUsers(prevUsers => prevUsers.map(u => 
+                updatedUsersMap[u.id] ? { ...u, name: updatedUsersMap[u.id] } : u
+            ));
+            
             setStatusMsg({ type: 'success', message: `Successfully updated ${updatedCount} student name(s).` });
             loadAllData();
         } catch (err: any) {
