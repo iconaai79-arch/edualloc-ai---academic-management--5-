@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type {
     User, VoteHead, Supplier, StockTransaction, Room, Subject, TimetableEntry,
     Requisition, InventoryItem, SecurityAlert, Visitor, EmployeeDetails,
@@ -263,6 +263,10 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [walkInSuccess, setWalkInSuccess] = useState(false);
     const [hostSearch, setHostSearch] = useState('');
     const [showHostDropdown, setShowHostDropdown] = useState(false);
+    const [hostSignature, setHostSignature] = useState<string>('');
+    const sigCanvasRef = useRef<HTMLCanvasElement>(null);
+    const isDrawingRef = useRef(false);
+    const lastPointRef = useRef<{ x: number; y: number } | null>(null);
     const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
     const todaysAppointments = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -343,7 +347,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             // Print gate pass immediately (non-blocking)
             try {
                 const hostUser = users.find(u => u.id === finalHostId);
-                printEposWalkInGatePass(visitorPayload, hostUser, props.currentInstitution);
+                printEposWalkInGatePass(visitorPayload, hostUser, props.currentInstitution, hostSignature || undefined);
             } catch (err) {
                 console.error("Failed to automatically print walk-in gatepass:", err);
             }
@@ -357,6 +361,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             setCustomHostName('');
             setHostSearch('');
             setShowHostDropdown(false);
+            setHostSignature('');
             setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
 
             // Show brief inline success toast instead of blocking alert
@@ -996,6 +1001,88 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     <input type="text" className="form-input" value={walkInForm.vehicleModel} onChange={(e) => setWalkInForm({ ...walkInForm, vehicleModel: e.target.value })} placeholder="e.g. Toyota Prado" />
                                 </div>
                             </div>
+
+                            {/* ── Host Signature Pad ── */}
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 ml-1">Host Signature <span className="text-slate-300">(Optional)</span></label>
+                                    {hostSignature && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setHostSignature('');
+                                                const canvas = sigCanvasRef.current;
+                                                if (canvas) {
+                                                    const ctx = canvas.getContext('2d');
+                                                    ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                                                }
+                                            }}
+                                            className="text-[10px] font-black uppercase text-red-500 hover:text-red-700 transition-colors"
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
+                                <div className={`relative rounded-2xl border-2 transition-colors ${hostSignature ? 'border-indigo-300 dark:border-indigo-700' : 'border-dashed border-slate-200 dark:border-slate-700'} bg-white dark:bg-slate-950 overflow-hidden`}>
+                                    <canvas
+                                        ref={sigCanvasRef}
+                                        width={460}
+                                        height={120}
+                                        className="w-full touch-none cursor-crosshair"
+                                        style={{ display: 'block' }}
+                                        onPointerDown={(e) => {
+                                            const canvas = sigCanvasRef.current;
+                                            if (!canvas) return;
+                                            canvas.setPointerCapture(e.pointerId);
+                                            isDrawingRef.current = true;
+                                            const rect = canvas.getBoundingClientRect();
+                                            const scaleX = canvas.width / rect.width;
+                                            const scaleY = canvas.height / rect.height;
+                                            lastPointRef.current = {
+                                                x: (e.clientX - rect.left) * scaleX,
+                                                y: (e.clientY - rect.top) * scaleY
+                                            };
+                                        }}
+                                        onPointerMove={(e) => {
+                                            if (!isDrawingRef.current) return;
+                                            const canvas = sigCanvasRef.current;
+                                            if (!canvas) return;
+                                            const ctx = canvas.getContext('2d');
+                                            if (!ctx || !lastPointRef.current) return;
+                                            const rect = canvas.getBoundingClientRect();
+                                            const scaleX = canvas.width / rect.width;
+                                            const scaleY = canvas.height / rect.height;
+                                            const x = (e.clientX - rect.left) * scaleX;
+                                            const y = (e.clientY - rect.top) * scaleY;
+                                            ctx.beginPath();
+                                            ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+                                            ctx.lineTo(x, y);
+                                            ctx.strokeStyle = '#1e293b';
+                                            ctx.lineWidth = 2.5;
+                                            ctx.lineCap = 'round';
+                                            ctx.lineJoin = 'round';
+                                            ctx.stroke();
+                                            lastPointRef.current = { x, y };
+                                        }}
+                                        onPointerUp={() => {
+                                            isDrawingRef.current = false;
+                                            lastPointRef.current = null;
+                                            const canvas = sigCanvasRef.current;
+                                            if (canvas) setHostSignature(canvas.toDataURL('image/png'));
+                                        }}
+                                        onPointerLeave={() => {
+                                            isDrawingRef.current = false;
+                                            lastPointRef.current = null;
+                                        }}
+                                    />
+                                    {!hostSignature && (
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                            <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">Sign here with finger or stylus</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             <button type="submit" className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95 mt-4">
                                 Authorize Entry
                             </button>

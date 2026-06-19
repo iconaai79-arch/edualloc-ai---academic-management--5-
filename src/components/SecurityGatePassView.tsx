@@ -160,7 +160,7 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
     printWin.document.close();
 };
 
-export const printEposWalkInGatePass = (visitor: any, host: any, institution: any) => {
+export const printEposWalkInGatePass = (visitor: any, host: any, institution: any, hostSignature?: string) => {
     const timestamp = new Date().toLocaleString();
 
     const printWin = window.open('', '_blank', 'width=400,height=600,toolbar=0,menubar=0,scrollbars=0');
@@ -184,41 +184,19 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
                     color: #000;
                     background-color: #fff;
                 }
-                .text-center {
-                    text-align: center;
-                }
-                .bold {
-                    font-weight: bold;
-                }
-                .title {
-                    font-size: 14px;
-                    margin: 4px 0;
-                    text-transform: uppercase;
-                }
-                .subtitle {
-                    font-size: 11px;
-                    margin-bottom: 8px;
-                    text-transform: uppercase;
-                }
-                .separator {
-                    border-top: 1px dashed #000;
-                    margin: 8px 0;
-                }
-                .info-table {
-                    width: 100%;
-                    margin-bottom: 8px;
-                }
-                .info-table td {
-                    padding: 2px 0;
-                    vertical-align: top;
-                }
-                .info-label {
-                    width: 40%;
-                }
-                .footer {
-                    margin-top: 15px;
-                    font-size: 9px;
-                }
+                .text-center { text-align: center; }
+                .bold { font-weight: bold; }
+                .title { font-size: 14px; margin: 4px 0; text-transform: uppercase; }
+                .subtitle { font-size: 11px; margin-bottom: 8px; text-transform: uppercase; }
+                .separator { border-top: 1px dashed #000; margin: 8px 0; }
+                .info-table { width: 100%; margin-bottom: 8px; }
+                .info-table td { padding: 2px 0; vertical-align: top; }
+                .info-label { width: 40%; }
+                .sig-section { margin-top: 10px; }
+                .sig-label { font-size: 9px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px; }
+                .sig-line { border-bottom: 1px solid #000; height: 28px; width: 100%; margin-top: 4px; }
+                .sig-img { width: 100%; max-height: 50px; object-fit: contain; border-bottom: 1px solid #000; display: block; }
+                .footer { margin-top: 15px; font-size: 9px; }
             </style>
         </head>
         <body>
@@ -264,6 +242,17 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
                     <td>${timestamp}</td>
                 </tr>
             </table>
+
+            <div class="separator"></div>
+
+            <div class="sig-section">
+                <div class="sig-label">Host Signature:</div>
+                ${hostSignature
+                    ? `<img src="${hostSignature}" class="sig-img" alt="Host Signature" />`
+                    : `<div class="sig-line"></div>`
+                }
+                <div style="font-size: 8px; margin-top: 3px;">${host?.name || ''}</div>
+            </div>
 
             <div class="separator"></div>
 
