@@ -2620,6 +2620,90 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
+    // Bulk reminder: resend invite to all pending (not yet responded) recipients
+    const handleSendRemindersToPending = async (event: any, additionalMessage: string = '') => {
+        const pendingPins = (eventPins || []).filter(
+            (p: any) => p.eventId === event.id && p.status === 'pending'
+        );
+        if (pendingPins.length === 0) {
+            setStatusMsg({ type: 'info', message: 'No pending recipients to remind.' });
+            return;
+        }
+
+        setStatusMsg({ type: 'info', message: `Sending reminders to ${pendingPins.length} pending recipient(s)...` });
+        setIsLoading(true);
+
+        const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+            ? 'https://portal.eduai.co.ke'
+            : window.location.origin;
+
+        const results: { recipientName: string; phone: string; success: boolean; errorMsg?: string }[] = [];
+        let sent = 0;
+
+        for (const pinRecord of pendingPins) {
+            try {
+                let targetUser = users.find(u => u.id === pinRecord.userId);
+                if (!targetUser) {
+                    try {
+                        const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                            filter: { id: pinRecord.userId }
+                        });
+                        if (dbUsers && dbUsers.length > 0) targetUser = dbUsers[0];
+                    } catch { /* skip */ }
+                }
+                if (!targetUser) {
+                    results.push({ recipientName: 'Unknown', phone: '', success: false, errorMsg: 'User not found' });
+                    continue;
+                }
+
+                const targetPhone = targetUser.phoneNumber || '';
+                const targetEmail = targetUser.email || '';
+                const targetName = targetUser.name || 'Guest';
+                const shortLink = `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
+                const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
+
+                const smsMessage = `REMINDER: You are invited to "${event.title}" on ${event.eventDate}${event.eventTime ? ' at ' + event.eventTime : ''}${event.venue ? ', ' + event.venue : ''}.${suffix} Please confirm your attendance: ${shortLink}`;
+                const emailMessage = smsMessage;
+
+                let smsSuccess = false;
+                let errorMsg: string | undefined;
+
+                if (targetPhone) {
+                    try {
+                        const res = await apiService.sendSms(targetPhone, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id);
+                        smsSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
+                        if (!smsSuccess) errorMsg = res?.message || 'Rejected by gateway';
+                        else sent++;
+                    } catch (e: any) {
+                        errorMsg = e.message || 'Connection failed';
+                    }
+                } else {
+                    errorMsg = 'No phone number';
+                }
+
+                if (targetEmail) {
+                    try {
+                        await apiService.sendEmail(targetEmail, `Reminder: ${event.title}`, emailMessage, currentInstitution.emailConfig);
+                    } catch { /* ignore */ }
+                }
+
+                results.push({ recipientName: targetName, phone: targetPhone, success: smsSuccess, errorMsg });
+            } catch (err: any) {
+                results.push({ recipientName: 'Unknown', phone: '', success: false, errorMsg: err.message });
+            }
+        }
+
+        setSmsDeliveryReport(results);
+        setStatusMsg({
+            type: sent > 0 ? 'success' : 'error',
+            message: sent > 0
+                ? `Reminders sent to ${sent} of ${pendingPins.length} pending recipient(s).`
+                : 'Failed to send reminders — check SMS configuration.'
+        });
+        setIsLoading(false);
+        setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 5000);
+    };
+
     // Invite External Parents via Excel Spreadsheet Upload
     const handleInviteExternalExcel = async (event: any, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -6506,13 +6590,30 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         )}
                                     </div>
                                     {/* RSVP Footer */}
-                                    <div className="flex flex-col sm:flex-row gap-3">
-                                        <button type="button" onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15">
-                                            <FileSpreadsheet className="w-4 h-4" /> Export CSV List
-                                        </button>
-                                        <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                                            Dismiss
-                                        </button>
+                                    <div className="space-y-3">
+                                        {/* Reminder button — only when pending invitees exist */}
+                                        {(() => {
+                                            const pendingCount = eventMatchingPins.filter(p => p.status === 'pending').length;
+                                            return pendingCount > 0 ? (
+                                                <button
+                                                    type="button"
+                                                    disabled={isLoading}
+                                                    onClick={() => handleSendRemindersToPending(event, analysisSearchTerm ? '' : '')}
+                                                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
+                                                >
+                                                    <Bell className="w-4 h-4" />
+                                                    {isLoading ? 'Sending...' : `Send Reminder to ${pendingCount} Pending Recipient${pendingCount !== 1 ? 's' : ''}`}
+                                                </button>
+                                            ) : null;
+                                        })()}
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <button type="button" onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15">
+                                                <FileSpreadsheet className="w-4 h-4" /> Export CSV List
+                                            </button>
+                                            <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                                Dismiss
+                                            </button>
+                                        </div>
                                     </div>
                                 </>
                             ) : (
