@@ -901,9 +901,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
         try {
             // Check if a PIN already exists for this parent-user + event
+            const formattedParentPhone = parent.phone ? formatPhoneNumber(parent.phone) : '';
             const parentUser = users.find(u =>
                 (parent.email && u.email && u.email.toLowerCase() === parent.email.toLowerCase()) ||
-                (parent.phone && u.phoneNumber && u.phoneNumber === parent.phone)
+                (parent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
             );
 
             let parentUserId = parentUser?.id || '';
@@ -1952,9 +1953,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                 let targetUserId = enr.userId;
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                    const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
                     const parentUser = currentUsersList.find(u =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
                     );
                     if (parentUser) {
                         targetUserId = parentUser.id;
@@ -6326,9 +6328,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     let targetPhone: string = isPrimaryOrSecondary ? '' : (studentUser?.phoneNumber || '');
                     let targetEmail: string = isPrimaryOrSecondary ? '' : (studentUser?.email || '');
                     if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                        const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
                         const parentUser = (users as any[]).find(u =>
                             (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                            (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                            (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
                         );
                         if (parentUser) {
                             targetUserId = parentUser.id;
