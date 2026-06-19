@@ -1499,7 +1499,9 @@ export const PublicEventConfirmation: React.FC = () => {
 
                                 {/* ── Security watermark (print only) ──────────────────── */}
                                 <div className="hidden print:flex absolute inset-0 items-center justify-center pointer-events-none opacity-[0.04] rotate-[-35deg]">
-                                    <span className="text-7xl font-black text-indigo-900 tracking-widest uppercase whitespace-nowrap">EduAi OS</span>
+                                    <span className="text-7xl font-black text-indigo-900 tracking-widest uppercase whitespace-nowrap">
+                                        {institution?.name || 'Institution'}
+                                    </span>
                                 </div>
                             </div>
 
