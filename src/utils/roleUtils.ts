@@ -70,12 +70,12 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Academic / Schools
     if (isSchoolInstitution(institution)) {
-        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer'];
+        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
     }
 
     // Tertiary / Higher Ed
     if (isHigherEdInstitution(institution)) {
-        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi', 'nurse', 'hr_officer'];
+        return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
     }
 
     // HIS / Health Information System
@@ -247,6 +247,7 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'managing_director': return 'Managing Director';
             case 'hoi': return 'HOI';
             case 'nurse': return 'School Nurse';
+            case 'cateress': return 'Cateress';
         }
     }
 
@@ -281,6 +282,7 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
     if (role === 'carwash_admin') return 'Car Wash Manager';
     if (role === 'managing_director') return 'Managing Director';
     if (role === 'hoi') return 'HOI';
+    if (role === 'cateress') return 'Cateress';
 
     return String(role)
         .replace(/_/g, ' ')
