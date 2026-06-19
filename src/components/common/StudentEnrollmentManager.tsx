@@ -6698,27 +6698,49 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     </div>
 
                                     {/* Audit Footer Actions */}
-                                    <div className="flex flex-col sm:flex-row gap-3">
-                                        {auditMissing > 0 && (
+                                    <div className="space-y-3">
+                                        {/* Primary bulk actions row */}
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            {/* Bulk Generate & Send ALL — opens full bulk invite modal */}
                                             <button
                                                 type="button"
                                                 disabled={isLoading}
                                                 onClick={() => {
-                                                    setSelectedAnalysisEvent(null);
-                                                    handleSendPinsToMissingRecipients(event, auditCustomMessage);
+                                                    setBulkInviteModalEvent(event);
+                                                    setBulkInviteAddMsg(auditCustomMessage);
                                                 }}
-                                                className="flex-1 py-3 bg-rose-600 hover:bg-rose-750 disabled:bg-rose-600/40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-500/15"
+                                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
                                             >
-                                                <Send className="w-4 h-4" />
-                                                {isLoading ? 'Sending...' : `Send to ${auditMissing} Missing Recipient${auditMissing !== 1 ? 's' : ''}`}
+                                                <Sparkles className="w-4 h-4" />
+                                                Bulk Generate &amp; Send All ({auditTotal})
                                             </button>
-                                        )}
-                                        <button type="button" onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15">
-                                            <FileSpreadsheet className="w-4 h-4" /> Export CSV
-                                        </button>
-                                        <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                                            Dismiss
-                                        </button>
+
+                                            {/* Send ONLY to missing recipients */}
+                                            {auditMissing > 0 && (
+                                                <button
+                                                    type="button"
+                                                    disabled={isLoading}
+                                                    onClick={() => {
+                                                        setSelectedAnalysisEvent(null);
+                                                        handleSendPinsToMissingRecipients(event, auditCustomMessage);
+                                                    }}
+                                                    className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-600/40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-500/15"
+                                                >
+                                                    <Send className="w-4 h-4" />
+                                                    {isLoading ? 'Sending...' : `Send to ${auditMissing} Missing`}
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Secondary actions row */}
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <button type="button" onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                                                <FileSpreadsheet className="w-4 h-4" /> Export CSV
+                                            </button>
+                                            <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                                Dismiss
+                                            </button>
+                                        </div>
                                     </div>
                                 </>
                             )}
