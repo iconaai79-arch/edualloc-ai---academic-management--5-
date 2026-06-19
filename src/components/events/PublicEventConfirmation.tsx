@@ -48,6 +48,14 @@ export const PublicEventConfirmation: React.FC = () => {
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileMsg, setProfileMsg] = useState<{ type: 'idle' | 'success' | 'error'; text: string }>({ type: 'idle', text: '' });
 
+    // Self-service lookup (no pinId in URL)
+    const [showLookup, setShowLookup] = useState(false);
+    const [lookupMode, setLookupMode] = useState<'phone' | 'admNo'>('phone');
+    const [lookupPhone, setLookupPhone] = useState('');
+    const [lookupAdmNo, setLookupAdmNo] = useState('');
+    const [isLookingUp, setIsLookingUp] = useState(false);
+    const [lookupError, setLookupError] = useState('');
+
     useEffect(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -55,7 +63,8 @@ export const PublicEventConfirmation: React.FC = () => {
             if (id) {
                 setPinId(id);
             } else {
-                setErrorMsg('Missing Invitation ID. Please check the RSVP link sent to you.');
+                // No pinId — show self-service lookup instead of an error
+                setShowLookup(true);
                 setIsLoading(false);
             }
         } catch (e) {
@@ -252,6 +261,169 @@ export const PublicEventConfirmation: React.FC = () => {
             }, 100);
         }
     }, [rsvpStatus, pinRecord, guests]);
+
+    // ── Self-service lookup helpers ─────────────────────────────────────────
+    const loadInvitationData = async (pin: any) => {
+        setPinRecord(pin);
+        setRsvpStatus(pin.status);
+
+        if (pin.guests) {
+            try {
+                const parsed = JSON.parse(pin.guests);
+                if (Array.isArray(parsed)) setGuests(parsed);
+            } catch { if (pin.guests.trim()) setGuests([pin.guests]); }
+        }
+        if (pin.vehicleRegistration || pin.vehicle_registration) {
+            setUseVehicle(true);
+            setVehicleRegistration(pin.vehicleRegistration || pin.vehicle_registration);
+        }
+
+        // Fetch event
+        try {
+            const events = await apiService.fetchModuleRecords('institution_events', undefined, undefined, { filter: { id: pin.eventId } });
+            if (events && events.length > 0) setEventRecord(events[0]);
+        } catch (e) { console.error('Failed to fetch event:', e); }
+
+        // Fetch user
+        try {
+            const usersList = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { id: pin.userId } });
+            if (usersList && usersList.length > 0) setUserRecord(usersList[0]);
+        } catch (e) { console.error('Failed to fetch user:', e); }
+
+        // Fetch institution
+        if (pin.institutionId) {
+            try {
+                const insts = await apiService.fetchModuleRecords('institutions', pin.institutionId);
+                if (insts && insts.length > 0) setInstitution(insts[0]);
+            } catch (e) { console.error('Failed to fetch institution:', e); }
+        }
+
+        setShowLookup(false);
+        setIsLoading(false);
+    };
+
+    const handleLookupByPhone = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLookupError('');
+        setIsLookingUp(true);
+        try {
+            const entered = lookupPhone.trim();
+            if (!entered) { setLookupError('Please enter your phone number.'); setIsLookingUp(false); return; }
+
+            const cleanPhone = (p: string) => {
+                const d = p.replace(/[^\d]/g, '');
+                if (d.startsWith('254') && d.length > 9) return d.substring(3);
+                if (d.startsWith('0') && d.length > 8) return d.substring(1);
+                return d;
+            };
+            const cleanEntered = cleanPhone(entered);
+
+            // Find matching user by phone
+            const allUsers = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
+            const matchedUser = allUsers.find((u: any) => {
+                const uPhone = cleanPhone(u.phoneNumber || u.phone_number || '');
+                return uPhone && cleanEntered && (
+                    uPhone === cleanEntered ||
+                    uPhone.endsWith(cleanEntered) ||
+                    cleanEntered.endsWith(uPhone)
+                );
+            });
+
+            if (!matchedUser) {
+                setLookupError('No account found with that phone number. Please contact the school.');
+                setIsLookingUp(false);
+                return;
+            }
+
+            // Find their event pin(s)
+            const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, { filter: { userId: matchedUser.id } });
+            if (!pins || pins.length === 0) {
+                setLookupError('No event invitation found for this phone number.');
+                setIsLookingUp(false);
+                return;
+            }
+
+            // Pick the most recent pending pin, or the latest one
+            const sorted = [...pins].sort((a: any, b: any) => {
+                if (a.status === 'pending' && b.status !== 'pending') return -1;
+                if (b.status === 'pending' && a.status !== 'pending') return 1;
+                return (b.createdAt || b.created_at || '') > (a.createdAt || a.created_at || '') ? 1 : -1;
+            });
+            const pin = sorted[0];
+            setPinId(pin.id);
+            await loadInvitationData(pin);
+        } catch (err: any) {
+            setLookupError('An error occurred. Please try again.');
+            console.error('Lookup error:', err);
+        } finally {
+            setIsLookingUp(false);
+        }
+    };
+
+    const handleLookupByAdmNo = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLookupError('');
+        setIsLookingUp(true);
+        try {
+            const enteredAdm = lookupAdmNo.trim();
+            if (!enteredAdm) { setLookupError('Please enter the admission number.'); setIsLookingUp(false); return; }
+
+            // Find student by admission number
+            const allStudents = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'student' } });
+            const allEnrollments = await apiService.fetchModuleRecords('student_enrollments');
+
+            const matchedStudent = allStudents.find((stu: any) => {
+                const stuAdm = (stu.admissionNumber || stu.admission_number || '').toString().trim().toLowerCase();
+                const enr = allEnrollments.find((e: any) => e.userId === stu.id);
+                const enrAdm = (enr?.admissionNumber || enr?.admission_number || '').toString().trim().toLowerCase();
+                return stuAdm === enteredAdm.toLowerCase() || enrAdm === enteredAdm.toLowerCase();
+            });
+
+            if (!matchedStudent) {
+                setLookupError('Admission number not found. Please check and try again.');
+                setIsLookingUp(false);
+                return;
+            }
+
+            // Find parent IDs from student record
+            const parentIds: string[] = matchedStudent.parentIds || matchedStudent.parent_ids || [];
+            if (!parentIds.length) {
+                setLookupError('No parent linked to this admission number. Please contact the school.');
+                setIsLookingUp(false);
+                return;
+            }
+
+            // Find event pin for any of these parents
+            let pin: any = null;
+            for (const parentId of parentIds) {
+                const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, { filter: { userId: parentId } });
+                if (pins && pins.length > 0) {
+                    const sorted = [...pins].sort((a: any, b: any) => {
+                        if (a.status === 'pending' && b.status !== 'pending') return -1;
+                        if (b.status === 'pending' && a.status !== 'pending') return 1;
+                        return (b.createdAt || b.created_at || '') > (a.createdAt || a.created_at || '') ? 1 : -1;
+                    });
+                    pin = sorted[0];
+                    break;
+                }
+            }
+
+            if (!pin) {
+                setLookupError('No event invitation found linked to this admission number.');
+                setIsLookingUp(false);
+                return;
+            }
+
+            setPinId(pin.id);
+            await loadInvitationData(pin);
+        } catch (err: any) {
+            setLookupError('An error occurred. Please try again.');
+            console.error('ADM lookup error:', err);
+        } finally {
+            setIsLookingUp(false);
+        }
+    };
+    // ── End lookup helpers ────────────────────────────────────────────────────
 
     const handleAddGuest = (e: React.FormEvent) => {
         e.preventDefault();
@@ -542,6 +714,131 @@ export const PublicEventConfirmation: React.FC = () => {
             }
         }
     };
+
+    // ── Self-service lookup screen ────────────────────────────────────────────
+    if (showLookup && !pinRecord) {
+        return (
+            <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col pb-16">
+                {/* Header */}
+                <div className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-900 px-4 sm:px-6 py-4">
+                    <div className="max-w-xl mx-auto flex items-center gap-3">
+                        <div className="w-9 h-9 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-black text-sm">E</div>
+                        <div>
+                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">Academic Portal</span>
+                            <span className="text-xs font-bold text-slate-400">Event RSVP Gate</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex-grow flex items-center justify-center px-4 pt-8 sm:pt-12">
+                    <div className="max-w-xl w-full space-y-6">
+                        {/* Title */}
+                        <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl space-y-8">
+                            <div className="text-center space-y-2">
+                                <div className="w-14 h-14 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-400 mx-auto mb-3">
+                                    <ShieldCheck className="w-7 h-7" />
+                                </div>
+                                <h2 className="text-2xl font-black tracking-tight text-white uppercase">Find Your Invitation</h2>
+                                <p className="text-slate-400 text-xs sm:text-sm leading-relaxed max-w-sm mx-auto">
+                                    Don't have your invitation link? Enter your phone number or your child's admission number to locate your invitation.
+                                </p>
+                            </div>
+
+                            {/* Mode tabs */}
+                            <div className="flex gap-1 p-1 bg-slate-950/60 border border-slate-850 rounded-2xl">
+                                <button
+                                    type="button"
+                                    onClick={() => { setLookupMode('phone'); setLookupError(''); }}
+                                    className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        lookupMode === 'phone'
+                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                            : 'text-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    📞 Phone Number
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setLookupMode('admNo'); setLookupError(''); }}
+                                    className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        lookupMode === 'admNo'
+                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                            : 'text-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    🎓 Admission No.
+                                </button>
+                            </div>
+
+                            {/* Phone lookup form */}
+                            {lookupMode === 'phone' && (
+                                <form onSubmit={handleLookupByPhone} className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">
+                                            Your Registered Phone Number
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            placeholder="e.g. 0712 345 678"
+                                            value={lookupPhone}
+                                            onChange={e => { setLookupPhone(e.target.value); if (lookupError) setLookupError(''); }}
+                                            className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600"
+                                        />
+                                    </div>
+                                    {lookupError && (
+                                        <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[11px] font-bold text-rose-400 flex items-center gap-2">
+                                            <AlertCircle className="w-4 h-4 shrink-0" />
+                                            <span>{lookupError}</span>
+                                        </div>
+                                    )}
+                                    <button
+                                        type="submit"
+                                        disabled={isLookingUp}
+                                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-50"
+                                    >
+                                        {isLookingUp ? 'Searching...' : 'Find My Invitation'}
+                                    </button>
+                                </form>
+                            )}
+
+                            {/* Admission number lookup form */}
+                            {lookupMode === 'admNo' && (
+                                <form onSubmit={handleLookupByAdmNo} className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">
+                                            Child's Admission Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. ADM/2024/001"
+                                            value={lookupAdmNo}
+                                            onChange={e => { setLookupAdmNo(e.target.value); if (lookupError) setLookupError(''); }}
+                                            className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600"
+                                        />
+                                        <p className="text-[10px] text-slate-500">Enter any of your children's admission numbers.</p>
+                                    </div>
+                                    {lookupError && (
+                                        <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[11px] font-bold text-rose-400 flex items-center gap-2">
+                                            <AlertCircle className="w-4 h-4 shrink-0" />
+                                            <span>{lookupError}</span>
+                                        </div>
+                                    )}
+                                    <button
+                                        type="submit"
+                                        disabled={isLookingUp}
+                                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-50"
+                                    >
+                                        {isLookingUp ? 'Searching...' : 'Find My Invitation'}
+                                    </button>
+                                </form>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    // ── End lookup screen ─────────────────────────────────────────────────────
 
     if (isLoading && !pinRecord) {
         return (
