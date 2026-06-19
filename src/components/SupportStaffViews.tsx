@@ -280,6 +280,67 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     }, [institutionEvents]);
 
     const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
+
+    // Search and pagination for Security Logs tab
+    const [activeSearch, setActiveSearch] = useState('');
+    const [activePage, setActivePage] = useState(1);
+    const [historySearch, setHistorySearch] = useState('');
+    const [historyPage, setHistoryPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+
+    const filteredActiveVisitors = useMemo(() => {
+        const query = activeSearch.toLowerCase().trim();
+        if (!query) return activeVisitors;
+        return activeVisitors.filter(v =>
+            v.name?.toLowerCase().includes(query) ||
+            v.phoneNumber?.toLowerCase().includes(query) ||
+            v.idNumber?.toLowerCase().includes(query) ||
+            v.purpose?.toLowerCase().includes(query) ||
+            v.vehiclePlate?.toLowerCase().includes(query) ||
+            v.vehicleModel?.toLowerCase().includes(query) ||
+            (v.hostName && v.hostName.toLowerCase().includes(query))
+        );
+    }, [activeVisitors, activeSearch]);
+
+    const historicalVisitors = useMemo(() => {
+        return (visitors || []).filter(v => !!v.timeOut).sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''));
+    }, [visitors]);
+
+    const filteredHistoryVisitors = useMemo(() => {
+        const query = historySearch.toLowerCase().trim();
+        if (!query) return historicalVisitors;
+        return historicalVisitors.filter(v =>
+            v.name?.toLowerCase().includes(query) ||
+            v.phoneNumber?.toLowerCase().includes(query) ||
+            v.idNumber?.toLowerCase().includes(query) ||
+            v.purpose?.toLowerCase().includes(query) ||
+            v.vehiclePlate?.toLowerCase().includes(query) ||
+            v.vehicleModel?.toLowerCase().includes(query) ||
+            (v.hostName && v.hostName.toLowerCase().includes(query))
+        );
+    }, [historicalVisitors, historySearch]);
+
+    const totalActivePages = useMemo(() => {
+        return Math.ceil(filteredActiveVisitors.length / ITEMS_PER_PAGE) || 1;
+    }, [filteredActiveVisitors]);
+
+    const activePageIndex = Math.min(activePage, totalActivePages);
+
+    const paginatedActiveVisitors = useMemo(() => {
+        const startIndex = (activePageIndex - 1) * ITEMS_PER_PAGE;
+        return filteredActiveVisitors.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredActiveVisitors, activePageIndex]);
+
+    const totalHistoryPages = useMemo(() => {
+        return Math.ceil(filteredHistoryVisitors.length / ITEMS_PER_PAGE) || 1;
+    }, [filteredHistoryVisitors]);
+
+    const historyPageIndex = Math.min(historyPage, totalHistoryPages);
+
+    const paginatedHistoryVisitors = useMemo(() => {
+        const startIndex = (historyPageIndex - 1) * ITEMS_PER_PAGE;
+        return filteredHistoryVisitors.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredHistoryVisitors, historyPageIndex]);
     const todaysAppointments = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
         return (appointments || []).filter(a => a.date === today && a.status === 'pending');
@@ -745,7 +806,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             {activeTab === 'logs' && (
                 <div className="space-y-8 animate-fade-in-up">
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <div className="flex justify-between items-center mb-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                             <div>
                                 <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Active Registry</h3>
                                 <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">Currently identified personnel on premises</p>
@@ -753,6 +814,23 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                             <div className="flex items-center gap-2">
                                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
                                 <span className="text-[10px] font-black uppercase text-emerald-600">Secure Live Status</span>
+                            </div>
+                        </div>
+
+                        {/* Search Bar for Active Registry */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                            <div className="relative w-full max-w-md">
+                                <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <input
+                                    type="text"
+                                    value={activeSearch}
+                                    onChange={(e) => {
+                                        setActiveSearch(e.target.value);
+                                        setActivePage(1);
+                                    }}
+                                    className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-850 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-xs"
+                                    placeholder="Search by name, phone, plate, host..."
+                                />
                             </div>
                         </div>
 
@@ -768,7 +846,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-900/50">
-                                    {activeVisitors.map(v => {
+                                    {paginatedActiveVisitors.map(v => {
                                         const host = users.find(u => u.id === v.hostId);
                                         return (
                                             <tr key={v.id} className={`group hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20 transition-colors ${exitingVisitorIds.includes(v.id) ? 'visitor-checkout-exit' : ''}`}>
@@ -827,14 +905,14 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                             </tr>
                                         );
                                     })}
-                                    {activeVisitors.length === 0 && (
+                                    {filteredActiveVisitors.length === 0 && (
                                         <tr>
                                             <td colSpan={5} className="px-4 py-20 text-center">
                                                 <div className="flex flex-col items-center">
                                                     <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full mb-3 opacity-50">
                                                         <ClipboardListIcon className="w-8 h-8 text-slate-300" />
                                                     </div>
-                                                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Registry is currently empty</p>
+                                                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No matching active records found</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -842,6 +920,48 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Active Registry Pagination */}
+                        {filteredActiveVisitors.length > ITEMS_PER_PAGE && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                    Showing {(activePageIndex - 1) * ITEMS_PER_PAGE + 1} to {Math.min(activePageIndex * ITEMS_PER_PAGE, filteredActiveVisitors.length)} of {filteredActiveVisitors.length} entries
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setActivePage(prev => Math.max(prev - 1, 1))}
+                                        disabled={activePageIndex === 1}
+                                        className="px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-650 dark:text-slate-350 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50 disabled:pointer-events-none rounded-xl font-black text-[9px] uppercase tracking-widest transition-all border border-slate-100 dark:border-slate-800"
+                                    >
+                                        Previous
+                                    </button>
+                                    {Array.from({ length: totalActivePages }, (_, i) => i + 1)
+                                        .filter(p => p === 1 || p === totalActivePages || Math.abs(p - activePageIndex) <= 1)
+                                        .map((p, index, array) => {
+                                            const showEllipsis = index > 0 && p - array[index - 1] > 1;
+                                            return (
+                                                <React.Fragment key={p}>
+                                                    {showEllipsis && <span className="px-2 self-center text-slate-400">...</span>}
+                                                    <button
+                                                        onClick={() => setActivePage(p)}
+                                                        className={`w-8 h-8 rounded-xl font-black text-[10px] transition-all flex items-center justify-center ${activePageIndex === p ? 'bg-indigo-600 text-white shadow-md shadow-indigo-150 dark:shadow-none' : 'bg-slate-50 dark:bg-slate-900 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-850'}`}
+                                                    >
+                                                        {p}
+                                                    </button>
+                                                </React.Fragment>
+                                            );
+                                        })
+                                    }
+                                    <button
+                                        onClick={() => setActivePage(prev => Math.min(prev + 1, totalActivePages))}
+                                        disabled={activePageIndex === totalActivePages}
+                                        className="px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-650 dark:text-slate-350 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50 disabled:pointer-events-none rounded-xl font-black text-[9px] uppercase tracking-widest transition-all border border-slate-100 dark:border-slate-800"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
@@ -852,6 +972,24 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                             <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Checkout History</h3>
                             <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">Archive of previous visitors</p>
                         </div>
+
+                        {/* Search Bar for History */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                            <div className="relative w-full max-w-md">
+                                <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <input
+                                    type="text"
+                                    value={historySearch}
+                                    onChange={(e) => {
+                                        setHistorySearch(e.target.value);
+                                        setHistoryPage(1);
+                                    }}
+                                    className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-850 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-xs"
+                                    placeholder="Search history by name, phone, plate, purpose..."
+                                />
+                            </div>
+                        </div>
+
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
                                 <thead>
@@ -864,7 +1002,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-900/50">
-                                    {(visitors || []).filter(v => !!v.timeOut).sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || '')).slice(0, 20).map(v => (
+                                    {paginatedHistoryVisitors.map(v => (
                                         <tr key={v.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
                                             <td className="px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-300 uppercase">
                                                 <div>{v.name}</div>
@@ -883,14 +1021,56 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                             <td className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">{v.purpose}</td>
                                         </tr>
                                     ))}
-                                    {(visitors || []).filter(v => !!v.timeOut).length === 0 && (
+                                    {filteredHistoryVisitors.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="px-4 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px] italic">No historical records found</td>
+                                            <td colSpan={5} className="px-4 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px] italic">No matching history records found</td>
                                         </tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* History Pagination */}
+                        {filteredHistoryVisitors.length > ITEMS_PER_PAGE && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                    Showing {(historyPageIndex - 1) * ITEMS_PER_PAGE + 1} to {Math.min(historyPageIndex * ITEMS_PER_PAGE, filteredHistoryVisitors.length)} of {filteredHistoryVisitors.length} entries
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setHistoryPage(prev => Math.max(prev - 1, 1))}
+                                        disabled={historyPageIndex === 1}
+                                        className="px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-650 dark:text-slate-350 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50 disabled:pointer-events-none rounded-xl font-black text-[9px] uppercase tracking-widest transition-all border border-slate-100 dark:border-slate-800"
+                                    >
+                                        Previous
+                                    </button>
+                                    {Array.from({ length: totalHistoryPages }, (_, i) => i + 1)
+                                        .filter(p => p === 1 || p === totalHistoryPages || Math.abs(p - historyPageIndex) <= 1)
+                                        .map((p, index, array) => {
+                                            const showEllipsis = index > 0 && p - array[index - 1] > 1;
+                                            return (
+                                                <React.Fragment key={p}>
+                                                    {showEllipsis && <span className="px-2 self-center text-slate-400">...</span>}
+                                                    <button
+                                                        onClick={() => setHistoryPage(p)}
+                                                        className={`w-8 h-8 rounded-xl font-black text-[10px] transition-all flex items-center justify-center ${historyPageIndex === p ? 'bg-indigo-600 text-white shadow-md shadow-indigo-150 dark:shadow-none' : 'bg-slate-50 dark:bg-slate-900 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-850'}`}
+                                                    >
+                                                        {p}
+                                                    </button>
+                                                </React.Fragment>
+                                            );
+                                        })
+                                    }
+                                    <button
+                                        onClick={() => setHistoryPage(prev => Math.min(prev + 1, totalHistoryPages))}
+                                        disabled={historyPageIndex === totalHistoryPages}
+                                        className="px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-655 dark:text-slate-355 hover:bg-indigo-600 hover:text-white disabled:opacity-50 disabled:pointer-events-none rounded-xl font-black text-[9px] uppercase tracking-widest transition-all border border-slate-100 dark:border-slate-800"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
