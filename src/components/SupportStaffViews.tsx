@@ -76,7 +76,7 @@ export interface SupportStaffViewProps {
     currentInstitution?: Institution | null;
     users?: User[];
     visitors?: Visitor[];
-    onAddVisitor?: (visitor: Omit<Visitor, 'id'>) => void;
+    onAddVisitor?: (visitor: Omit<Visitor, 'id'>) => Promise<void> | void;
     onCheckoutVisitor?: (id: string) => void;
     onAddAppointment?: (apt: Omit<Appointment, 'id' | 'status' | 'createdAt'>) => void;
     onUpdateVisitor?: (id: string, data: Partial<Visitor>) => void;
@@ -354,7 +354,10 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             };
 
             // Fire-and-forget – don't block the UI on the DB round-trip
-            onAddVisitor(visitorPayload).catch(console.error);
+            const addRes = onAddVisitor(visitorPayload);
+            if (addRes instanceof Promise) {
+                addRes.catch(console.error);
+            }
 
             // If visitor is attending a today's event, check them in immediately
             if (selectedEventId) {

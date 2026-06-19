@@ -214,41 +214,69 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
         </div>
     `;
 
-    // Inject a style that hides everything EXCEPT our print div during printing
-    const styleTag = document.createElement('style');
-    styleTag.id = '__walkin_gatepass_style__';
-    styleTag.innerHTML = `
-        @media print {
-            body > *:not(#__walkin_gatepass_print__) { display: none !important; }
-            #__walkin_gatepass_print__ {
-                display: block !important;
-                position: fixed !important;
-                top: 0; left: 0;
-                width: 72mm;
-                margin: 0 auto;
-                padding: 5mm 0;
-                font-family: 'Courier New', Courier, monospace;
-                font-size: 11px;
-                line-height: 1.3;
-                color: #000;
-                background: #fff;
-            }
-            @page { size: 80mm auto; margin: 0; }
-        }
-        #__walkin_gatepass_print__ { display: none; }
+    // Create a hidden iframe for isolated printing
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.visibility = 'hidden';
+    
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) {
+        console.error("Could not obtain iframe document for printing");
+        return;
+    }
+
+    const fullHtml = `
+        <html>
+        <head>
+            <title>Gate Pass</title>
+            <style>
+                @page {
+                    size: 80mm auto;
+                    margin: 0;
+                }
+                body {
+                    width: 72mm;
+                    margin: 0 auto;
+                    padding: 5mm 0;
+                    font-family: 'Courier New', Courier, monospace;
+                    font-size: 11px;
+                    line-height: 1.3;
+                    color: #000;
+                    background-color: #fff;
+                }
+            </style>
+        </head>
+        <body>
+            ${innerHtml}
+        </body>
+        </html>
     `;
-    document.head.appendChild(styleTag);
 
-    // Clean up after printing
-    const cleanup = () => {
-        document.getElementById('__walkin_gatepass_print__')?.remove();
-        document.getElementById('__walkin_gatepass_style__')?.remove();
-        window.removeEventListener('afterprint', cleanup);
-    };
-    window.addEventListener('afterprint', cleanup);
+    doc.open();
+    doc.write(fullHtml);
+    doc.close();
 
-    // Trigger print — no popup, no preview window
-    window.print();
+    // Give a brief delay for signature image URLs to be parsed & rendered inside the iframe
+    setTimeout(() => {
+        try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+        } catch (e) {
+            console.error("Iframe print triggered exception:", e);
+        }
+        
+        // Remove iframe after user dismisses print dialog or after a short delay
+        setTimeout(() => {
+            iframe.remove();
+        }, 1000);
+    }, 250);
 };
 
 interface SecurityGatePassViewProps {
