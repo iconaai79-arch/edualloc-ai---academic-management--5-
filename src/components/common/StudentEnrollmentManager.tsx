@@ -254,6 +254,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [analysisSearchTerm, setAnalysisSearchTerm] = useState('');
     const [analysisStatusFilter, setAnalysisStatusFilter] = useState<'All' | 'Checked-in' | 'Accepted' | 'Declined' | 'Pending'>('All');
     const [analysisTab, setAnalysisTab] = useState<'rsvp' | 'audit'>('rsvp');
+    const [auditViewTab, setAuditViewTab] = useState<'missing' | 'covered'>('missing');
+    const [auditCustomMessage, setAuditCustomMessage] = useState('');
     
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1177,7 +1179,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             const supportRoles = getRolesForInstitution(currentInstitution).filter(
                                 role => !teacherRoles.includes(role) && !nonSupportRoles.includes(role)
                             );
-                            resolvedRole = (supportRoles.includes(inputRole) || VALID_STAFF_ROLES.includes(inputRole as any)) 
+                            resolvedRole = ((supportRoles as string[]).includes(inputRole) || (VALID_STAFF_ROLES as readonly string[]).includes(inputRole)) 
                                 ? inputRole 
                                 : (supportRoles[0] || 'staff');
                         }
@@ -1640,7 +1642,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
                 const fallbackParent = {
                     name: enr.metadata?.parentName || '',
-                    phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                    phone: enr.metadata?.parentPhone || (enr as any).parentPhone || '',
                     email: enr.metadata?.parentEmail || '',
                     relation: enr.metadata?.parentRelation || 'Guardian'
                 };
@@ -1893,7 +1895,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
                 const fallbackParent = {
                     name: enr.metadata?.parentName || '',
-                    phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                    phone: enr.metadata?.parentPhone || (enr as any).parentPhone || '',
                     email: enr.metadata?.parentEmail || '',
                     relation: enr.metadata?.parentRelation || 'Guardian'
                 };
@@ -1976,7 +1978,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
                 const fallbackParent = {
                     name: enr.metadata?.parentName || '',
-                    phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                    phone: enr.metadata?.parentPhone || (enr as any).parentPhone || '',
                     email: enr.metadata?.parentEmail || '',
                     relation: enr.metadata?.parentRelation || 'Guardian'
                 };
@@ -2196,6 +2198,371 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         } catch (err: any) {
             console.error("Failed to resend PINs:", err);
             setStatusMsg({ type: 'error', message: `PIN dispatch failed: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
+    // Generate and send PIN to individual recipient
+    const handleSendPinToIndividualRecipient = async (event: any, item: any, additionalMessage: string = '') => {
+        setStatusMsg({ type: 'info', message: `Generating and sending PIN to ${item.targetName}...` });
+        setIsLoading(true);
+
+        try {
+            const enr = item.enr;
+            const currentUsersList = [...users];
+            let associatedUser = currentUsersList.find(u => u.id === enr.userId);
+
+            if (!associatedUser) {
+                try {
+                    const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                        filter: { id: enr.userId }
+                    });
+                    if (dbUsers && dbUsers.length > 0) {
+                        associatedUser = dbUsers[0];
+                        if (associatedUser.institutionId !== currentInstitution.id) {
+                            associatedUser.institutionId = currentInstitution.id;
+                            await apiService.updateModuleRecord('users', associatedUser.id, associatedUser);
+                        }
+                    }
+                } catch (err) {
+                    console.error('[IndividualPin] Error searching student user:', enr.userId, err);
+                }
+            }
+
+            if (!associatedUser) {
+                const newUserId = enr.userId || `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                associatedUser = {
+                    id: newUserId,
+                    name: item.studentName || 'Student Name',
+                    email: `student_${newUserId}@eduai.local`,
+                    phoneNumber: '',
+                    role: 'student',
+                    institutionId: currentInstitution.id,
+                    createdAt: new Date().toISOString(),
+                    metadata: {}
+                };
+                await apiService.saveModuleRecord('users', associatedUser);
+            }
+
+            const parentsList: { name: string; phone: string; email: string; relation: string }[] = enr.metadata?.parents || [];
+            const fallbackParent = {
+                name: enr.metadata?.parentName || '',
+                phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                email: enr.metadata?.parentEmail || '',
+                relation: enr.metadata?.parentRelation || 'Guardian'
+            };
+            const resolvedParents = parentsList.length > 0 ? parentsList : (fallbackParent.name || fallbackParent.phone ? [fallbackParent] : []);
+            const primaryParent = resolvedParents[0];
+
+            let targetUserId = associatedUser.id;
+            let targetName = associatedUser.name;
+            let targetPhone = isPrimaryOrSecondary ? '' : (associatedUser.phoneNumber || '');
+            let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
+
+            if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                let parentUser = currentUsersList.find(u =>
+                    (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
+                    (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                );
+
+                if (!parentUser) {
+                    try {
+                        const filterVal: any = {};
+                        if (primaryParent.email) filterVal.email = primaryParent.email.toLowerCase();
+                        else if (primaryParent.phone) filterVal.phoneNumber = primaryParent.phone;
+
+                        const dbParents = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                            filter: filterVal
+                        });
+                        if (dbParents && dbParents.length > 0) {
+                            parentUser = dbParents[0];
+                            if (parentUser.institutionId !== currentInstitution.id) {
+                                parentUser.institutionId = currentInstitution.id;
+                                await apiService.updateModuleRecord('users', parentUser.id, parentUser);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('[IndividualPin] Error searching parent user:', err);
+                    }
+                }
+
+                if (!parentUser) {
+                    const newId = `u_par_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    parentUser = {
+                        id: newId,
+                        institutionId: currentInstitution.id,
+                        name: primaryParent.name || 'Parent / Guardian',
+                        email: primaryParent.email || (primaryParent.phone ? `parent_${primaryParent.phone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
+                        phoneNumber: primaryParent.phone || null,
+                        role: 'parent',
+                        studentIds: [associatedUser.id],
+                        metadata: {},
+                        createdAt: new Date().toISOString()
+                    } as any;
+                    await apiService.saveModuleRecord('users', parentUser);
+                } else {
+                    const currentStudentIds = Array.isArray(parentUser.studentIds) ? parentUser.studentIds : [];
+                    if (!currentStudentIds.includes(associatedUser.id)) {
+                        parentUser = {
+                            ...parentUser,
+                            studentIds: [...currentStudentIds, associatedUser.id]
+                        };
+                        await apiService.updateModuleRecord('users', parentUser.id, parentUser);
+                    }
+                }
+
+                const currentParentIds = Array.isArray(associatedUser.parentIds) ? associatedUser.parentIds : [];
+                if (!currentParentIds.includes(parentUser!.id)) {
+                    const updatedStudent = {
+                        ...associatedUser,
+                        parentIds: [...currentParentIds, parentUser!.id]
+                    };
+                    await apiService.updateModuleRecord('users', associatedUser.id, updatedStudent);
+                }
+
+                targetUserId = parentUser!.id;
+                targetName = primaryParent.name || 'Parent / Guardian';
+                targetPhone = primaryParent.phone;
+                targetEmail = primaryParent.email;
+            }
+
+            // Verify if PIN exists already
+            const existingPin = eventPins.find(p => p.eventId === event.id && p.userId === targetUserId);
+            const pinCode = existingPin ? existingPin.pin : Math.floor(100000 + Math.random() * 900000).toString();
+            const pinId = existingPin ? existingPin.id : `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+            if (!existingPin) {
+                const newPinRecord = {
+                    id: pinId,
+                    institutionId: currentInstitution.id,
+                    eventId: event.id,
+                    userId: targetUserId,
+                    pin: pinCode,
+                    status: 'pending' as const,
+                    createdAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('event_pins', newPinRecord);
+            }
+
+            const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                ? 'https://portal.eduai.co.ke'
+                : window.location.origin;
+
+            const fallbackPayload = [
+                pinCode,                                              // 0
+                event.title,                                          // 1
+                event.eventDate,                                      // 2
+                event.eventTime,                                      // 3
+                event.venue,                                          // 4
+                targetName || 'Parent / Guardian',                    // 5
+                targetPhone || '',                                    // 6
+                currentInstitution.name || '',                        // 7
+                currentInstitution.id,                                // 8
+                event.description || '',                              // 9
+                targetUserId,                                         // 10
+                event.id                                              // 11
+            ];
+            const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
+            const rawLink = `${origin}/?view=event-confirm&pinId=${pinId}&data=${base64Data}`;
+            const shortLink = `${origin}/?view=event-confirm&pinId=${pinId}`;
+
+            const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
+            const studentName = associatedUser.name || 'your child';
+            const smsMessage = primaryParent
+                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
+                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
+
+            const emailMessage = primaryParent
+                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`
+                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${rawLink}`;
+
+            let smsSuccess = false;
+            let errorMsg: string | undefined = undefined;
+
+            if (targetPhone) {
+                try {
+                    const res = await apiService.sendSms(
+                        targetPhone,
+                        smsMessage,
+                        currentInstitution.smsConfig,
+                        1,
+                        currentInstitution.id
+                    );
+                    smsSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
+                    if (!smsSuccess) {
+                        errorMsg = res?.message || 'Rejected by SMS gateway';
+                    }
+                } catch (e: any) {
+                    console.error("SMS individual PIN send failed", e);
+                    errorMsg = e.message || 'Connection failed';
+                }
+            } else {
+                errorMsg = isPrimaryOrSecondary ? 'No parent phone number configured for student' : 'No phone number configured';
+            }
+
+            if (targetEmail) {
+                try {
+                    await apiService.sendEmail(
+                        targetEmail,
+                        `Event Attendance Invitation - ${event.title}`,
+                        emailMessage,
+                        currentInstitution.emailConfig
+                    );
+                } catch (e) {
+                    console.error("Email individual PIN send failed", e);
+                }
+            }
+
+            setStatusMsg({
+                type: smsSuccess ? 'success' : 'error',
+                message: smsSuccess 
+                    ? `PIN successfully generated and sent to ${targetName}.` 
+                    : `Generated PIN, but SMS delivery failed: ${errorMsg || 'No phone number'}`
+            });
+
+            setSmsDeliveryReport([{
+                recipientName: targetName,
+                phone: targetPhone || 'No phone number',
+                success: smsSuccess,
+                errorMsg
+            }]);
+
+            loadAllData();
+        } catch (err: any) {
+            console.error("Failed to generate/send individual PIN:", err);
+            setStatusMsg({ type: 'error', message: `Failed to send individual PIN: ${err.message}` });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
+    // Resend an existing PIN to a covered recipient
+    const handleResendExistingPin = async (event: any, item: any, additionalMessage: string = '') => {
+        setStatusMsg({ type: 'info', message: `Resending PIN to ${item.targetName}...` });
+        setIsLoading(true);
+
+        try {
+            const pinRecord = item.pin;
+            const targetUserId = pinRecord.userId;
+            const targetName = item.targetName;
+            
+            let targetUser = users.find(u => u.id === targetUserId);
+            if (!targetUser) {
+                try {
+                    const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                        filter: { id: targetUserId }
+                    });
+                    if (dbUsers && dbUsers.length > 0) {
+                        targetUser = dbUsers[0];
+                    }
+                } catch (err) {
+                    console.error('[ResendExistingPin] Error searching recipient user:', err);
+                }
+            }
+            if (!targetUser) {
+                throw new Error("Recipient user profile not found.");
+            }
+
+            const targetPhone = targetUser.phoneNumber || '';
+            const targetEmail = targetUser.email || '';
+
+            const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                ? 'https://portal.eduai.co.ke'
+                : window.location.origin;
+
+            const fallbackPayload = [
+                pinRecord.pin,                                        // 0
+                event.title,                                          // 1
+                event.eventDate,                                      // 2
+                event.eventTime,                                      // 3
+                event.venue,                                          // 4
+                targetName || 'Parent / Guardian',                    // 5
+                targetPhone || '',                                    // 6
+                currentInstitution.name || '',                        // 7
+                currentInstitution.id,                                // 8
+                event.description || '',                              // 9
+                targetUserId,                                         // 10
+                event.id                                              // 11
+            ];
+            const base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(fallbackPayload))));
+            const rawLink = `${origin}/?view=event-confirm&pinId=${pinRecord.id}&data=${base64Data}`;
+            const shortLink = `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
+
+            const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
+            
+            let studentName = 'your child';
+            if (targetUser.role === 'parent') {
+                const studentUser = users.find(u => u.id === item.enr?.userId);
+                if (studentUser) {
+                    studentName = studentUser.name || 'your child';
+                }
+            }
+
+            const smsMessage = targetUser.role === 'parent'
+                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${shortLink}`
+                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${shortLink}`;
+
+            const emailMessage = targetUser.role === 'parent'
+                ? `Dear ${targetName}, you are invited to "${event.title}" on ${event.eventDate} at ${event.eventTime}, ${event.venue} — regarding ${studentName}.${suffix} Confirm attendance: ${rawLink}`
+                : `You are invited to "${event.title}" on ${event.eventDate}.${suffix} Please confirm your attendance here: ${rawLink}`;
+
+            let smsSuccess = false;
+            let errorMsg: string | undefined = undefined;
+
+            if (targetPhone) {
+                try {
+                    const res = await apiService.sendSms(
+                        targetPhone,
+                        smsMessage,
+                        currentInstitution.smsConfig,
+                        1,
+                        currentInstitution.id
+                    );
+                    smsSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
+                    if (!smsSuccess) {
+                        errorMsg = res?.message || 'Rejected by SMS gateway';
+                    }
+                } catch (e: any) {
+                    console.error("SMS PIN resend failed", e);
+                    errorMsg = e.message || 'Connection failed';
+                }
+            } else {
+                errorMsg = 'No phone number configured';
+            }
+
+            if (targetEmail) {
+                try {
+                    await apiService.sendEmail(
+                        targetEmail,
+                        `Event Attendance Invitation - ${event.title}`,
+                        emailMessage,
+                        currentInstitution.emailConfig
+                    );
+                } catch (e) {
+                    console.error("Email PIN resend failed", e);
+                }
+            }
+
+            setStatusMsg({
+                type: smsSuccess ? 'success' : 'error',
+                message: smsSuccess 
+                    ? `PIN successfully resent to ${targetName}.` 
+                    : `SMS resend failed: ${errorMsg || 'No phone number'}`
+            });
+
+            setSmsDeliveryReport([{
+                recipientName: targetName,
+                phone: targetPhone || 'No phone number',
+                success: smsSuccess,
+                errorMsg
+            }]);
+
+        } catch (err: any) {
+            console.error("Failed to resend PIN:", err);
+            setStatusMsg({ type: 'error', message: `Failed to resend PIN: ${err.message}` });
         } finally {
             setIsLoading(false);
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
@@ -3887,7 +4254,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             {eventPins.slice().sort((a,b) => (b.createdAt || b.created_at || '').localeCompare(a.createdAt || a.created_at || '')).map((pin) => {
                                                 const pinUser = users.find(u => u.id === pin.userId);
                                                 const pinEvent = events.find(e => e.id === pin.eventId);
-                                                const hasPhone = !!(pinUser?.phoneNumber || pinUser?.phone_number);
+                                                const hasPhone = !!(pinUser?.phoneNumber || (pinUser as any)?.phone_number);
                                                 const hasEmail = !!pinUser?.email;
                                                 
                                                 return (
@@ -3897,7 +4264,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                         </td>
                                                         <td className="py-3 pr-4">
                                                             <p className="font-bold text-slate-850 dark:text-white">{pinUser?.name || 'External Parent/Guest'}</p>
-                                                            <p className="text-slate-500 text-[10px] mt-0.5">{pinUser?.phoneNumber || pinUser?.phone_number || 'No Phone'}</p>
+                                                            <p className="text-slate-500 text-[10px] mt-0.5">{pinUser?.phoneNumber || (pinUser as any)?.phone_number || 'No Phone'}</p>
                                                         </td>
                                                         <td className="py-3 pr-4 max-w-xs truncate">
                                                             <p className="font-bold text-slate-800 dark:text-slate-200">{pinEvent?.title || 'Unknown Event'}</p>
@@ -5944,6 +6311,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 </div>
                             </div>
 
+                            {/* Additional Message Input */}
+                            <div className="space-y-2 mb-6">
+                                <label className="block text-[10px] font-black text-slate-350 uppercase tracking-widest">
+                                    Additional Custom Message (Optional)
+                                </label>
+                                <textarea
+                                    value={auditCustomMessage}
+                                    onChange={e => setAuditCustomMessage(e.target.value)}
+                                    placeholder="e.g. Please carry your national identity card and arrive 15 minutes early."
+                                    rows={2}
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500/50 focus:bg-white/[0.07] transition-all resize-none font-sans"
+                                />
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                                    This message will be appended to the SMS and Email templates when generating or resending PINs.
+                                </p>
+                            </div>
+
                             {/* ── Tab Switcher: RSVP | PIN Audit ── */}
                             <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 mb-5">
                                 <button
@@ -6087,16 +6471,32 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             <p className="text-2xl font-black text-white mt-1 font-mono">{auditTotal}</p>
                                             <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">Enrollments in target</p>
                                         </div>
-                                        <div className={`border rounded-2xl p-4 text-center ${auditIssued === auditTotal ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-indigo-500/5 border-indigo-500/10'}`}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAuditViewTab('covered')}
+                                            className={`text-center border rounded-2xl p-4 transition-all hover:bg-indigo-500/10 focus:outline-none ${
+                                                auditViewTab === 'covered'
+                                                    ? 'bg-indigo-500/10 border-indigo-500 ring-2 ring-indigo-500/30'
+                                                    : auditIssued === auditTotal ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-indigo-500/5 border-indigo-500/10'
+                                            }`}
+                                        >
                                             <p className={`text-[9px] font-black uppercase tracking-wider ${auditIssued === auditTotal ? 'text-emerald-500/60' : 'text-indigo-500/60'}`}>PINs Issued</p>
                                             <p className={`text-2xl font-black mt-1 font-mono ${auditIssued === auditTotal ? 'text-emerald-400' : 'text-indigo-400'}`}>{auditIssued}</p>
                                             <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{auditCoverage}% coverage</p>
-                                        </div>
-                                        <div className={`border rounded-2xl p-4 text-center ${auditMissing === 0 ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-rose-500/5 border-rose-500/10'}`}>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAuditViewTab('missing')}
+                                            className={`text-center border rounded-2xl p-4 transition-all hover:bg-rose-500/10 focus:outline-none ${
+                                                auditViewTab === 'missing'
+                                                    ? 'bg-rose-500/10 border-rose-500 ring-2 ring-rose-500/30'
+                                                    : auditMissing === 0 ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-rose-500/5 border-rose-500/10'
+                                            }`}
+                                        >
                                             <p className={`text-[9px] font-black uppercase tracking-wider ${auditMissing === 0 ? 'text-emerald-500/60' : 'text-rose-500/60'}`}>Not Received</p>
                                             <p className={`text-2xl font-black mt-1 font-mono ${auditMissing === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{auditMissing}</p>
                                             <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{auditMissing === 0 ? 'All covered!' : 'Missing PINs'}</p>
-                                        </div>
+                                        </button>
                                     </div>
 
                                     {/* Coverage Progress Bar */}
@@ -6112,57 +6512,134 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             />
                                         </div>
                                         <div className="flex gap-5 mt-3 text-[10px] font-black uppercase tracking-wider">
-                                            <span className="flex items-center gap-1.5 text-indigo-400"><span className="w-2.5 h-2.5 rounded bg-indigo-500" /> Covered ({auditIssued})</span>
-                                            <span className="flex items-center gap-1.5 text-rose-400"><span className="w-2.5 h-2.5 rounded bg-rose-500" /> Missing ({auditMissing})</span>
+                                            <button type="button" onClick={() => setAuditViewTab('covered')} className={`flex items-center gap-1.5 transition-colors ${auditViewTab === 'covered' ? 'text-indigo-400 font-black' : 'text-slate-500 hover:text-slate-400'}`}><span className="w-2.5 h-2.5 rounded bg-indigo-500" /> Covered ({auditIssued})</button>
+                                            <button type="button" onClick={() => setAuditViewTab('missing')} className={`flex items-center gap-1.5 transition-colors ${auditViewTab === 'missing' ? 'text-rose-400 font-black' : 'text-slate-500 hover:text-slate-400'}`}><span className="w-2.5 h-2.5 rounded bg-rose-500" /> Missing ({auditMissing})</button>
                                         </div>
                                     </div>
 
-                                    {/* Missing Recipients Table */}
+                                    {/* Recipients Table */}
                                     <div className="border border-white/10 rounded-2xl overflow-hidden bg-slate-950/20 mb-5 max-h-[280px] overflow-y-auto no-scrollbar">
-                                        {auditMissing === 0 ? (
-                                            <div className="text-center py-12 space-y-2">
-                                                <CheckCircle className="w-10 h-10 mx-auto text-emerald-500/50" />
-                                                <p className="text-xs font-black text-emerald-400">All {auditTotal} recipients have been issued PINs!</p>
-                                                <p className="text-[10px] text-slate-500 font-semibold">No action required for this event.</p>
-                                            </div>
-                                        ) : (
-                                            <table className="w-full text-left border-collapse">
-                                                <thead>
-                                                    <tr className="bg-white/5 border-b border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                        <th className="py-3 px-4">Student</th>
-                                                        <th className="py-3 px-4">Recipient / Contact</th>
-                                                        <th className="py-3 px-4">Phone</th>
-                                                        <th className="py-3 px-4">Cohort</th>
-                                                        <th className="py-3 px-4 text-center">PIN Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-white/5 font-bold">
-                                                    {auditMissingList.map((item, idx) => (
-                                                        <tr key={idx} className="text-xs hover:bg-rose-500/5 transition-colors">
-                                                            <td className="py-3 px-4">
-                                                                <p className="font-black text-slate-100 truncate max-w-[150px]">{item.studentName}</p>
-                                                            </td>
-                                                            <td className="py-3 px-4">
-                                                                <p className="font-bold text-rose-300 truncate max-w-[160px]">
-                                                                    {item.targetName !== item.studentName ? item.targetName : <span className="italic text-slate-500 font-sans font-semibold text-[10px]">Same as student</span>}
-                                                                </p>
-                                                                {item.targetEmail && <p className="text-[9px] text-slate-500 mt-0.5 truncate max-w-[160px]">{item.targetEmail}</p>}
-                                                            </td>
-                                                            <td className="py-3 px-4">
-                                                                <p className="font-semibold text-slate-300">
-                                                                    {item.targetPhone || <span className="italic text-slate-600 font-sans font-semibold text-[10px]">No phone</span>}
-                                                                </p>
-                                                            </td>
-                                                            <td className="py-3 px-4">
-                                                                <span className="bg-white/5 text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold">{item.cohort}</span>
-                                                            </td>
-                                                            <td className="py-3 px-4 text-center">
-                                                                <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">Missing</span>
-                                                            </td>
+                                        {auditViewTab === 'missing' ? (
+                                            auditMissing === 0 ? (
+                                                <div className="text-center py-12 space-y-2">
+                                                    <CheckCircle className="w-10 h-10 mx-auto text-emerald-500/50" />
+                                                    <p className="text-xs font-black text-emerald-400">All {auditTotal} recipients have been issued PINs!</p>
+                                                    <p className="text-[10px] text-slate-500 font-semibold">No missing PINs to generate.</p>
+                                                </div>
+                                            ) : (
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-white/5 border-b border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                            <th className="py-3 px-4">Student</th>
+                                                            <th className="py-3 px-4">Recipient / Contact</th>
+                                                            <th className="py-3 px-4">Phone</th>
+                                                            <th className="py-3 px-4">Cohort</th>
+                                                            <th className="py-3 px-4 text-center">PIN Status</th>
+                                                            <th className="py-3 px-4 text-center">Action</th>
                                                         </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-white/5 font-bold">
+                                                        {auditMissingList.map((item, idx) => (
+                                                            <tr key={idx} className="text-xs hover:bg-rose-500/5 transition-colors">
+                                                                <td className="py-3 px-4">
+                                                                    <p className="font-black text-slate-100 truncate max-w-[150px]">{item.studentName}</p>
+                                                                </td>
+                                                                <td className="py-3 px-4">
+                                                                    <p className="font-bold text-rose-300 truncate max-w-[160px]">
+                                                                        {item.targetName !== item.studentName ? item.targetName : <span className="italic text-slate-500 font-sans font-semibold text-[10px]">Same as student</span>}
+                                                                    </p>
+                                                                    {item.targetEmail && <p className="text-[9px] text-slate-500 mt-0.5 truncate max-w-[160px]">{item.targetEmail}</p>}
+                                                                </td>
+                                                                <td className="py-3 px-4">
+                                                                    <p className="font-semibold text-slate-300">
+                                                                        {item.targetPhone || <span className="italic text-slate-600 font-sans font-semibold text-[10px]">No phone</span>}
+                                                                    </p>
+                                                                </td>
+                                                                <td className="py-3 px-4">
+                                                                    <span className="bg-white/5 text-slate-400 px-2 py-0.5 rounded text-[9px] font-bold">{item.cohort}</span>
+                                                                </td>
+                                                                <td className="py-3 px-4 text-center">
+                                                                    <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">Missing</span>
+                                                                </td>
+                                                                <td className="py-3 px-4 text-center">
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={isLoading}
+                                                                        onClick={() => handleSendPinToIndividualRecipient(event, item, auditCustomMessage)}
+                                                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-600/40 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1 focus:outline-none"
+                                                                    >
+                                                                        <Send className="w-2.5 h-2.5" /> Generate &amp; Send
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            )
+                                        ) : (
+                                            auditIssued === 0 ? (
+                                                <div className="text-center py-12 space-y-2">
+                                                    <AlertCircle className="w-10 h-10 mx-auto text-slate-500/50" />
+                                                    <p className="text-xs font-black text-slate-400">No PINs have been issued yet.</p>
+                                                    <p className="text-[10px] text-slate-500 font-semibold">Generate PINs below or individually.</p>
+                                                </div>
+                                            ) : (
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-white/5 border-b border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                            <th className="py-3 px-4">Student</th>
+                                                            <th className="py-3 px-4">Recipient</th>
+                                                            <th className="py-3 px-4">PIN Code</th>
+                                                            <th className="py-3 px-4 text-center">PIN Status</th>
+                                                            <th className="py-3 px-4 text-center">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-white/5 font-bold">
+                                                        {auditIssuedList.map((item, idx) => {
+                                                            const studentUser = users.find(u => u.id === item.enr?.userId);
+                                                            const studentName = studentUser?.name || item.enr?.metadata?.studentName || `Enrollment #${(item.enr?.id || '').slice(-6)}`;
+                                                            let pinStatusCls = 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20';
+                                                            let pinStatusLabel = 'Issued';
+                                                            if (item.pin.status === 'used') {
+                                                                pinStatusCls = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                                                                pinStatusLabel = 'Checked-in';
+                                                            } else if (item.pin.status === 'accepted') {
+                                                                pinStatusCls = 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/25';
+                                                                pinStatusLabel = 'Accepted';
+                                                            } else if (item.pin.status === 'rejected') {
+                                                                pinStatusCls = 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+                                                                pinStatusLabel = 'Declined';
+                                                            }
+                                                            return (
+                                                                <tr key={idx} className="text-xs hover:bg-indigo-500/5 transition-colors">
+                                                                    <td className="py-3 px-4">
+                                                                        <p className="font-black text-slate-100 truncate max-w-[150px]">{studentName}</p>
+                                                                    </td>
+                                                                    <td className="py-3 px-4">
+                                                                        <p className="font-black text-slate-100 truncate max-w-[150px]">{item.targetName}</p>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 font-mono font-black text-indigo-400">
+                                                                        {item.pin.pin}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${pinStatusCls}`}>{pinStatusLabel}</span>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={isLoading}
+                                                                            onClick={() => handleResendExistingPin(event, item, auditCustomMessage)}
+                                                                            className="px-2.5 py-1 bg-indigo-600/80 hover:bg-indigo-750 disabled:bg-indigo-600/40 text-indigo-100 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1 focus:outline-none"
+                                                                        >
+                                                                            <RotateCcw className="w-2.5 h-2.5" /> Resend PIN
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            )
                                         )}
                                     </div>
 
@@ -6174,9 +6651,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 disabled={isLoading}
                                                 onClick={() => {
                                                     setSelectedAnalysisEvent(null);
-                                                    handleSendPinsToMissingRecipients(event);
+                                                    handleSendPinsToMissingRecipients(event, auditCustomMessage);
                                                 }}
-                                                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-600/40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-500/15"
+                                                className="flex-1 py-3 bg-rose-600 hover:bg-rose-750 disabled:bg-rose-600/40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-500/15"
                                             >
                                                 <Send className="w-4 h-4" />
                                                 {isLoading ? 'Sending...' : `Send to ${auditMissing} Missing Recipient${auditMissing !== 1 ? 's' : ''}`}
@@ -6282,7 +6759,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         const parentsList = enr.metadata?.parents || [];
                                         const fallbackParent = {
                                             name: enr.metadata?.parentName || '',
-                                            phone: enr.metadata?.parentPhone || enr.parentPhone || '',
+                                            phone: enr.metadata?.parentPhone || (enr as any).parentPhone || '',
                                             email: enr.metadata?.parentEmail || '',
                                             relation: enr.metadata?.parentRelation || 'Guardian'
                                         };

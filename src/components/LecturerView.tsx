@@ -544,7 +544,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         <EduFlowManager
                             context="academic"
                             currentUser={user}
-                            currentInstitution={currentInstitution}
+                            currentInstitution={currentInstitution || null}
                             subjects={subjects}
                             users={props.users || []}
                             courses={courses}

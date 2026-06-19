@@ -3,9 +3,10 @@ import {
     ClipboardList, Plus, Search, Filter, Calendar as CalendarIcon, 
     List as ListIcon, Columns, Trash2, Edit, Clock, User as UserIcon, 
     CheckCircle, XCircle, AlertCircle, MessageSquare, Tag, CheckSquare, 
-    Square, Send, BookOpen, AlertTriangle
+    Square, Send, BookOpen, AlertTriangle, Folder, Upload, Download,
+    FileText, Paperclip, File as FileIcon
 } from 'lucide-react';
-import type { User, Subject, Course, Institution, EduFlowTask, EduFlowComment, Department } from '../../types';
+import type { User, Subject, Course, Institution, EduFlowTask, EduFlowComment, EduFlowFile, Department } from '../../types';
 import { apiService } from '../../services/apiService';
 
 interface EduFlowManagerProps {
@@ -42,15 +43,25 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
     // State management
     const [tasks, setTasks] = useState<EduFlowTask[]>([]);
     const [comments, setComments] = useState<EduFlowComment[]>([]);
+    const [files, setFiles] = useState<EduFlowFile[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [activeView, setActiveView] = useState<'board' | 'list' | 'calendar'>('board');
+    const [activeView, setActiveView] = useState<'board' | 'list' | 'calendar' | 'files'>('board');
     
+    // File upload specific states
+    const [isUploading, setIsUploading] = useState(false);
+    const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+    const [uploadFileName, setUploadFileName] = useState('');
+    const [uploadCohortId, setUploadCohortId] = useState('');
+    const [uploadSubjectId, setUploadSubjectId] = useState('');
+    const [uploadTaskId, setUploadTaskId] = useState('');
+
     // Filters state
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [priorityFilter, setPriorityFilter] = useState<string>('all');
     const [subjectFilter, setSubjectFilter] = useState<string>('all');
     const [assigneeFilter, setAssigneeFilter] = useState<string>('all'); // 'all', 'me', or userId
+    const [cohortFilter, setCohortFilter] = useState<string>('all');
 
     // Modals state
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -72,15 +83,17 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
     const [newCommentBody, setNewCommentBody] = useState('');
     const [newSubtaskText, setNewSubtaskText] = useState('');
 
-    // Fetch tasks & comments on mount / change
+    // Fetch tasks, comments & files on mount / change
     const loadTasksAndComments = async () => {
         if (!currentInstitution) return;
         setIsLoading(true);
         try {
             const fetchedTasks = await apiService.fetchModuleRecords<EduFlowTask>('eduflow_tasks', currentInstitution.id);
             const fetchedComments = await apiService.fetchModuleRecords<EduFlowComment>('eduflow_comments', currentInstitution.id);
+            const fetchedFiles = await apiService.fetchModuleRecords<EduFlowFile>('eduflow_files', currentInstitution.id);
             setTasks(fetchedTasks || []);
             setComments(fetchedComments || []);
+            setFiles(fetchedFiles || []);
         } catch (error) {
             console.error("Failed to load EduFlow records:", error);
         } finally {
@@ -89,7 +102,57 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
     };
 
     useEffect(() => {
-        loadTasksAndComments();
+        const runAutoMigration = async () => {
+            const migrationSql = `
+                CREATE TABLE IF NOT EXISTS public.eduflow_files (
+                    id TEXT PRIMARY KEY,
+                    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+                    task_id TEXT REFERENCES public.eduflow_tasks(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    file_url TEXT NOT NULL,
+                    file_type TEXT,
+                    uploaded_by TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+                    cohort_id TEXT,
+                    subject_id TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+
+                ALTER TABLE public.eduflow_files ENABLE ROW LEVEL SECURITY;
+
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policies 
+                        WHERE tablename = 'eduflow_files' 
+                        AND policyname = 'Institutional tenancy select: eduflow_files'
+                    ) THEN
+                        CREATE POLICY "Institutional tenancy select: eduflow_files" 
+                        ON public.eduflow_files FOR SELECT 
+                        USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+                    END IF;
+
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policies 
+                        WHERE tablename = 'eduflow_files' 
+                        AND policyname = 'Institutional tenancy manage: eduflow_files'
+                    ) THEN
+                        CREATE POLICY "Institutional tenancy manage: eduflow_files" 
+                        ON public.eduflow_files FOR ALL 
+                        USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+                    END IF;
+                END $$;
+
+                GRANT ALL ON public.eduflow_files TO anon, authenticated, service_role;
+            `;
+            try {
+                await apiService.runMigration(migrationSql);
+            } catch (err) {
+                console.warn("EduFlowFiles auto-migration skipped/failed:", err);
+            }
+        };
+        if (currentInstitution?.id) {
+            runAutoMigration().then(() => loadTasksAndComments());
+        }
     }, [currentInstitution?.id]);
 
     // Available cohorts based on context
@@ -311,6 +374,74 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
         }
     };
 
+    // File operations
+    const handleFileUpload = async (e: React.FormEvent, assocTaskId?: string) => {
+        e.preventDefault();
+        if (!fileToUpload || !currentInstitution) {
+            alert("Please select a file to upload.");
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const timestamp = Date.now();
+            const cleanFileName = fileToUpload.name.replace(/\s+/g, '_');
+            const path = `eduflow/${currentInstitution.id}/${timestamp}_${cleanFileName}`;
+
+            // Upload the file
+            const fileUrl = await apiService.uploadFile('eduai', path, fileToUpload);
+            if (!fileUrl) {
+                alert("Failed to upload the file to storage.");
+                return;
+            }
+
+            const filePayload: EduFlowFile = {
+                id: 'file_' + Math.random().toString(36).slice(2, 11),
+                institutionId: currentInstitution.id,
+                taskId: assocTaskId || uploadTaskId || undefined,
+                name: uploadFileName.trim() || fileToUpload.name,
+                fileUrl,
+                fileType: fileToUpload.type || fileToUpload.name.split('.').pop(),
+                uploadedBy: currentUser.id,
+                cohortId: assocTaskId ? (selectedTask?.cohortId || undefined) : (uploadCohortId || undefined),
+                subjectId: assocTaskId ? (selectedTask?.subjectId || undefined) : (uploadSubjectId || undefined),
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('eduflow_files', filePayload);
+            setFiles(prev => [filePayload, ...prev]);
+            
+            // Reset state
+            setFileToUpload(null);
+            setUploadFileName('');
+            setUploadCohortId('');
+            setUploadSubjectId('');
+            setUploadTaskId('');
+            
+            // Reset file inputs
+            const inputs = document.querySelectorAll('input[type="file"]') as NodeListOf<HTMLInputElement>;
+            inputs.forEach(input => { input.value = ''; });
+
+            alert("File shared successfully!");
+        } catch (error) {
+            console.error("File upload error:", error);
+            alert("Failed to upload and share the file.");
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleDeleteFile = async (fileId: string) => {
+        if (!window.confirm("Are you sure you want to remove this shared file?")) return;
+        try {
+            await apiService.deleteModuleRecord('eduflow_files', fileId);
+            setFiles(prev => prev.filter(f => f.id !== fileId));
+        } catch (error) {
+            console.error("Failed to delete file:", error);
+            alert("Failed to delete file.");
+        }
+    };
+
     // Helper formats
     const resetForm = () => {
         setTaskForm({
@@ -354,6 +485,16 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
         });
         return map;
     }, [filteredTasks]);
+
+    const filteredFiles = useMemo(() => {
+        return files.filter(f => {
+            const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSubject = subjectFilter === 'all' || f.subjectId === subjectFilter;
+            const matchesCohort = cohortFilter === 'all' || f.cohortId === cohortFilter;
+            return matchesSearch && matchesSubject && matchesCohort;
+        });
+    }, [files, searchQuery, subjectFilter, cohortFilter]);
+
 
     // Calendar day cells helper (simple 35 day grid around current month)
     const calendarDays = useMemo(() => {
@@ -408,6 +549,12 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${activeView === 'calendar' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                         >
                             <CalendarIcon className="w-3.5 h-3.5" /> Calendar
+                        </button>
+                        <button
+                            onClick={() => setActiveView('files')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${activeView === 'files' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                        >
+                            <Folder className="w-3.5 h-3.5" /> Shared Files
                         </button>
                     </div>
 
@@ -536,9 +683,17 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
 
                                                 {/* Meta Row */}
                                                 <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                                    <span className="flex items-center gap-1">
-                                                        <Clock className="w-3 h-3 text-slate-400" />
-                                                        {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No deadline'}
+                                                    <span className="flex items-center gap-1.5">
+                                                        <span className="flex items-center gap-1">
+                                                            <Clock className="w-3 h-3 text-slate-400" />
+                                                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No deadline'}
+                                                        </span>
+                                                        {files.some(f => f.taskId === task.id) && (
+                                                            <span className="flex items-center gap-0.5 text-indigo-500 dark:text-indigo-400" title="Has attachments">
+                                                                <Paperclip className="w-3 h-3" />
+                                                                <span>{files.filter(f => f.taskId === task.id).length}</span>
+                                                            </span>
+                                                        )}
                                                     </span>
                                                     
                                                     {assignee && (
@@ -606,7 +761,15 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
                                             className="hover:bg-slate-50 dark:hover:bg-slate-900/50 cursor-pointer transition-colors"
                                         >
                                             <td className="py-4 px-6 min-w-[200px]">
-                                                <p className="font-black text-slate-900 dark:text-white">{task.title}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-black text-slate-900 dark:text-white">{task.title}</p>
+                                                    {files.some(f => f.taskId === task.id) && (
+                                                        <span className="flex items-center text-indigo-500 dark:text-indigo-400 gap-0.5 animate-pulse" title="Has attachments">
+                                                            <Paperclip className="w-3 h-3" />
+                                                            <span className="text-[8px] font-black">{files.filter(f => f.taskId === task.id).length}</span>
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {task.description && <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1 font-semibold">{task.description}</p>}
                                             </td>
                                             <td className="py-4 px-4 whitespace-nowrap">
@@ -703,6 +866,248 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
                                 </div>
                             );
                         })}
+                    </div>
+                </div>
+            )}
+
+            {/* Shared Files View */}
+            {activeView === 'files' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left/Middle: Files List & Filters */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row gap-4">
+                            <div className="flex-1 relative">
+                                <span className="block text-[9px] uppercase text-slate-400 mb-1 ml-1">Search Files</span>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search by file name..."
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-1 focus:ring-indigo-500 text-xs font-bold"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="w-full sm:w-48">
+                                <span className="block text-[9px] uppercase text-slate-400 mb-1 ml-1">Subject</span>
+                                <select 
+                                    value={subjectFilter} 
+                                    onChange={e => setSubjectFilter(e.target.value)} 
+                                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold font-sans"
+                                >
+                                    <option value="all">All Subjects</option>
+                                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                                </select>
+                            </div>
+
+                            <div className="w-full sm:w-48">
+                                <span className="block text-[9px] uppercase text-slate-400 mb-1 ml-1">Class / Cohort</span>
+                                <select 
+                                    value={cohortFilter} 
+                                    onChange={e => setCohortFilter(e.target.value)} 
+                                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold font-sans"
+                                >
+                                    <option value="all">All Classes</option>
+                                    {cohorts.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Files Grid */}
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-4">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                                <Folder className="w-4 h-4 text-indigo-500" /> Uploaded & Shared Resources ({filteredFiles.length})
+                            </h3>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {filteredFiles.map(file => {
+                                    const uploader = users.find(u => u.id === file.uploadedBy);
+                                    const subject = subjects.find(s => s.id === file.subjectId);
+                                    const task = tasks.find(t => t.id === file.taskId);
+                                    const fileExt = file.name.split('.').pop()?.toLowerCase();
+                                    
+                                    // Determine styling/icons based on file extension
+                                    let iconColor = 'bg-slate-100 dark:bg-slate-900 text-slate-500';
+                                    if (fileExt === 'pdf') iconColor = 'bg-red-50 dark:bg-red-950/20 text-red-500';
+                                    else if (['doc', 'docx', 'txt'].includes(fileExt || '')) iconColor = 'bg-blue-50 dark:bg-blue-950/20 text-blue-500';
+                                    else if (['xls', 'xlsx', 'csv'].includes(fileExt || '')) iconColor = 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-500';
+                                    else if (['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(fileExt || '')) iconColor = 'bg-purple-50 dark:bg-purple-950/20 text-purple-500';
+
+                                    return (
+                                        <div 
+                                            key={file.id} 
+                                            className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-750 p-4 rounded-2xl flex flex-col justify-between hover:shadow-md transition-all group"
+                                        >
+                                            <div className="space-y-3">
+                                                <div className="flex gap-3 items-start">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${iconColor}`}>
+                                                        <FileIcon className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <h4 className="text-xs font-black tracking-tight text-slate-800 dark:text-white truncate" title={file.name}>
+                                                            {file.name}
+                                                        </h4>
+                                                        <p className="text-[9px] text-slate-400 uppercase tracking-widest mt-0.5">
+                                                            Uploaded by {uploader?.name.split(' ')[0] || 'Unknown'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Meta tags / badges */}
+                                                <div className="flex flex-wrap gap-1.5 pt-2">
+                                                    {file.cohortId && (
+                                                        <span className="bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                                                            Class: {file.cohortId}
+                                                        </span>
+                                                    )}
+                                                    {subject && (
+                                                        <span className="bg-amber-50 dark:bg-amber-950/30 text-amber-650 dark:text-amber-400 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                                                            {subject.code}
+                                                        </span>
+                                                    )}
+                                                    {task && (
+                                                        <span className="bg-rose-50 dark:bg-rose-950/30 text-rose-650 dark:text-rose-400 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded max-w-[120px] truncate" title={task.title}>
+                                                            Task: {task.title}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-[9px] text-slate-400 font-bold">
+                                                <span>{new Date(file.createdAt).toLocaleDateString()}</span>
+                                                <div className="flex gap-2">
+                                                    <a 
+                                                        href={file.fileUrl} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer" 
+                                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                                                    >
+                                                        <Download className="w-3 h-3" /> Download
+                                                    </a>
+                                                    {(currentUser.role === 'admin' || currentUser.role === 'super_admin' || file.uploadedBy === currentUser.id) && (
+                                                        <button 
+                                                            onClick={() => handleDeleteFile(file.id)}
+                                                            className="p-1 hover:bg-red-50 text-red-500 rounded-lg transition-all"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {filteredFiles.length === 0 && (
+                                    <div className="sm:col-span-2 text-center py-16 text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest text-xs italic">
+                                        No shared resources found matching criteria.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Side: Upload Form */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-5 animate-fade-in">
+                            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
+                                <Upload className="w-4 h-4 text-indigo-500" />
+                                <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">Share a Resource</h3>
+                            </div>
+
+                            <form onSubmit={(e) => handleFileUpload(e)} className="space-y-4 text-xs font-bold text-slate-650">
+                                <div className="space-y-2">
+                                    <label className="block text-[9px] text-slate-400 uppercase tracking-widest ml-1">Select File *</label>
+                                    <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center hover:border-indigo-400 dark:hover:border-indigo-600 transition-all cursor-pointer bg-slate-50/50 dark:bg-slate-900/20">
+                                        <input 
+                                            type="file" 
+                                            required
+                                            onChange={e => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    setFileToUpload(file);
+                                                    if (!uploadFileName) setUploadFileName(file.name);
+                                                }
+                                            }}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        />
+                                        <Paperclip className="w-6 h-6 text-slate-400 mx-auto mb-2" />
+                                        <span className="block text-[10px] text-slate-500 uppercase tracking-wide truncate">
+                                            {fileToUpload ? fileToUpload.name : "Choose or drag file..."}
+                                        </span>
+                                        <span className="block text-[8px] text-slate-400 mt-1 uppercase">Max 50MB. All types.</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-[9px] text-slate-400 uppercase tracking-widest ml-1">Display Name (Optional)</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. Syllabus Notes.pdf"
+                                        value={uploadFileName}
+                                        onChange={e => setUploadFileName(e.target.value)}
+                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-white"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-[9px] text-slate-400 uppercase tracking-widest ml-1">Class Cohort (Optional)</label>
+                                    <select 
+                                        value={uploadCohortId} 
+                                        onChange={e => setUploadCohortId(e.target.value)} 
+                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white font-sans"
+                                    >
+                                        <option value="">None / General</option>
+                                        {cohorts.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-[9px] text-slate-400 uppercase tracking-widest ml-1">Subject (Optional)</label>
+                                    <select 
+                                        value={uploadSubjectId} 
+                                        onChange={e => setUploadSubjectId(e.target.value)} 
+                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white font-sans"
+                                    >
+                                        <option value="">None / General</option>
+                                        {subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="block text-[9px] text-slate-400 uppercase tracking-widest ml-1">Linked Task (Optional)</label>
+                                    <select 
+                                        value={uploadTaskId} 
+                                        onChange={e => setUploadTaskId(e.target.value)} 
+                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white font-sans"
+                                    >
+                                        <option value="">None / General</option>
+                                        {tasks.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+                                    </select>
+                                </div>
+
+                                <button 
+                                    type="submit" 
+                                    disabled={isUploading || !fileToUpload}
+                                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-indigo-500/20 active:scale-95 flex items-center justify-center gap-1.5"
+                                >
+                                    {isUploading ? (
+                                        <>
+                                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            <span>Uploading...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload className="w-3.5 h-3.5" />
+                                            <span>Share Document</span>
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             )}
@@ -926,6 +1331,86 @@ export const EduFlowManager: React.FC<EduFlowManagerProps> = ({
                                             />
                                             <button onClick={handleAddSubtask} className="px-3 bg-indigo-550 hover:bg-indigo-600 text-white rounded-xl font-black uppercase text-[10px] tracking-wider transition-all">Add</button>
                                         </div>
+                                    </div>
+                                </div>
+                                {/* Task Attachments */}
+                                <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-750">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                                        <Paperclip className="w-4 h-4 text-indigo-500" /> Attached Files / Resources
+                                    </h4>
+
+                                    <div className="space-y-2 text-xs font-bold">
+                                        {files.filter(f => f.taskId === selectedTask.id).map(file => {
+                                            const uploader = users.find(u => u.id === file.uploadedBy);
+                                            return (
+                                                <div key={file.id} className="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-xl">
+                                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                        <FileText className="w-4 h-4 text-indigo-550 dark:text-indigo-400 shrink-0" />
+                                                        <span className="truncate text-slate-750 dark:text-slate-200" title={file.name}>
+                                                            {file.name}
+                                                        </span>
+                                                        <span className="text-[8px] text-slate-400 shrink-0 font-medium ml-1">
+                                                            (by {uploader?.name.split(' ')[0] || 'Unknown'})
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <a 
+                                                            href={file.fileUrl} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer" 
+                                                            className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-indigo-650 dark:text-indigo-455 transition-colors"
+                                                            title="Download"
+                                                        >
+                                                            <Download className="w-3.5 h-3.5" />
+                                                        </a>
+                                                        {(currentUser.role === 'admin' || currentUser.role === 'super_admin' || file.uploadedBy === currentUser.id) && (
+                                                            <button 
+                                                                onClick={() => handleDeleteFile(file.id)}
+                                                                className="p-1.5 hover:bg-red-50 hover:text-red-650 text-red-500 rounded-lg transition-colors"
+                                                                title="Delete"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+
+                                        {files.filter(f => f.taskId === selectedTask.id).length === 0 && (
+                                            <p className="text-[10px] text-slate-400 dark:text-slate-500 italic font-semibold py-1">
+                                                No attachments uploaded for this task yet.
+                                            </p>
+                                        )}
+
+                                        {/* Attachment Uploader */}
+                                        <form onSubmit={(e) => handleFileUpload(e, selectedTask.id)} className="flex gap-2 pt-2 items-center">
+                                            <div className="flex-1 relative">
+                                                <input 
+                                                    type="file" 
+                                                    onChange={e => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            setFileToUpload(file);
+                                                            setUploadFileName(file.name);
+                                                        }
+                                                    }}
+                                                    className="w-full text-[10px] text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-indigo-50 file:text-indigo-600 dark:file:bg-slate-700 dark:file:text-slate-200 cursor-pointer"
+                                                />
+                                            </div>
+                                            <button 
+                                                type="submit" 
+                                                disabled={isUploading || !fileToUpload}
+                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 text-white rounded-xl font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-1 shrink-0"
+                                            >
+                                                {isUploading ? (
+                                                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                ) : (
+                                                    <Upload className="w-3 h-3" />
+                                                )}
+                                                <span>Attach</span>
+                                            </button>
+                                        </form>
                                     </div>
                                 </div>
                             </div>

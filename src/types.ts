@@ -5328,4 +5328,18 @@ export interface EduFlowComment {
     createdAt: string;
 }
 
+export interface EduFlowFile {
+    id: string;
+    institutionId: string;
+    taskId?: string;
+    name: string;
+    fileUrl: string;
+    fileType?: string;
+    uploadedBy: string;
+    cohortId?: string;
+    subjectId?: string;
+    createdAt: string;
+}
+
+
 

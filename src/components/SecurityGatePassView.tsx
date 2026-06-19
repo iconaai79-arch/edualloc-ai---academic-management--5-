@@ -8,8 +8,10 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { UserIcon } from './icons/UserIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
-import type { TransportVehicle, VehicleLog, User, Institution, Visitor } from '../types';
+import type { TransportVehicle, VehicleLog, User, Institution, Visitor, Course } from '../types';
 import { apiService } from '../services/apiService';
 
 export const printEposGatePass = (pin: any, parent: any, event: any, institution: any) => {
@@ -208,6 +210,31 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const [scannablePins, setScannablePins] = useState<any[]>([]);
     const [loadingPins, setLoadingPins] = useState(false);
     const [scanFilter, setScanFilter] = useState('');
+
+    const [allEventPins, setAllEventPins] = useState<any[]>([]);
+    const [allEvents, setAllEvents] = useState<any[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+
+    const fetchHistoryAndEvents = async () => {
+        if (!currentInstitution?.id) return;
+        setLoadingHistory(true);
+        try {
+            const [pins, evts] = await Promise.all([
+                apiService.fetchModuleRecords('event_pins', currentInstitution.id),
+                apiService.fetchModuleRecords('institution_events', currentInstitution.id)
+            ]);
+            setAllEventPins(pins || []);
+            setAllEvents(evts || []);
+        } catch (e) {
+            console.error("Failed to fetch event pins / events history:", e);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchHistoryAndEvents();
+    }, [currentInstitution?.id]);
 
     useEffect(() => {
         if (parentScanning) {
@@ -472,7 +499,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             // Add the parent first
             await onAddVisitor({
                 name: parent.name,
-                phoneNumber: parent.phoneNumber || parent.phone_number || '',
+                phoneNumber: parent.phoneNumber || '',
                 purpose: `Event Check-In: Parent of ${student?.name || 'Student'}`,
                 visitDate: dateStr,
                 timeIn: timeInStr,
@@ -491,7 +518,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                             if (guestName && typeof guestName === 'string' && guestName.trim()) {
                                 await onAddVisitor({
                                     name: guestName.trim(),
-                                    phoneNumber: parent.phoneNumber || parent.phone_number || '',
+                                    phoneNumber: parent.phoneNumber || '',
                                     purpose: `Accompanying Guest (Invited by ${parent.name})`,
                                     visitDate: dateStr,
                                     timeIn: timeInStr,
@@ -515,6 +542,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     status: 'used'
                 };
                 await apiService.updateModuleRecord('event_pins', pin.id, updatedPin);
+                await fetchHistoryAndEvents();
             }
             
             alert('Parent and guests verified and logged successfully for entry. Gatepass sent to printer.');
@@ -824,37 +852,129 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 
                 {/* Recent History */}
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 h-fit">
-                    <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white mb-6">Security Log (Recent Vehicles)</h3>
-                    <div className="space-y-4">
-                        {recentLogs.map(log => {
-                            const vehicle = vehicles.find(v => v.id === log.vehicleId);
-                            const security = activeUsers.find(u => u.id === log.securityId);
-                            return (
-                                <div key={log.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
-                                    <div className={`p-3 rounded-full h-fit ${log.eventType === 'entry' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                                        <ArrowRightOnRectangleIcon className={`w-5 h-5 ${log.eventType === 'entry' ? 'rotate-180' : ''}`} />
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex justify-between items-start">
-                                            <p className="font-black text-slate-800 dark:text-white">{vehicle?.plateNumber || 'Unknown'}</p>
-                                            <span className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-1">
-                                                <ClockIcon className="w-3 h-3" />
-                                                {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
+                    {activeTab === 'vehicle' ? (
+                        <>
+                            <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white mb-6">Security Log (Recent Vehicles)</h3>
+                            <div className="space-y-4">
+                                {recentLogs.map(log => {
+                                    const vehicle = vehicles.find(v => v.id === log.vehicleId);
+                                    const security = activeUsers.find(u => u.id === log.securityId);
+                                    return (
+                                        <div key={log.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                                            <div className={`p-3 rounded-full h-fit ${log.eventType === 'entry' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                <ArrowRightOnRectangleIcon className={`w-5 h-5 ${log.eventType === 'entry' ? 'rotate-180' : ''}`} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-start">
+                                                    <p className="font-black text-slate-800 dark:text-white">{vehicle?.plateNumber || 'Unknown'}</p>
+                                                    <span className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-1">
+                                                        <ClockIcon className="w-3 h-3" />
+                                                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">{log.eventType === 'entry' ? 'Incoming' : 'Outgoing'} • {security?.name || 'Security'}</p>
+                                                {log.notes && <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 italic">"{log.notes}"</p>}
+                                            </div>
                                         </div>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase">{log.eventType === 'entry' ? 'Incoming' : 'Outgoing'} • {security?.name || 'Security'}</p>
-                                        {log.notes && <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 italic">"{log.notes}"</p>}
+                                    );
+                                })}
+                                {recentLogs.length === 0 && (
+                                    <div className="text-center py-12">
+                                        <ClockIcon className="w-12 h-12 text-slate-200 mx-auto mb-2" />
+                                        <p className="text-slate-400 text-xs font-bold uppercase">No records today</p>
                                     </div>
-                                </div>
-                            );
-                        })}
-                        {recentLogs.length === 0 && (
-                            <div className="text-center py-12">
-                                <ClockIcon className="w-12 h-12 text-slate-200 mx-auto mb-2" />
-                                <p className="text-slate-400 text-xs font-bold uppercase">No records today</p>
+                                )}
                             </div>
-                        )}
-                    </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white">Recent Event Check-Ins</h3>
+                                <button 
+                                    onClick={fetchHistoryAndEvents} 
+                                    className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+                                    title="Refresh Check-ins"
+                                >
+                                    <ArrowPathIcon className={`w-4 h-4 ${loadingHistory ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
+                            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+                                {(() => {
+                                    const checkedInPins = allEventPins
+                                        .filter(p => p.status === 'used')
+                                        .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+                                        .slice(0, 10);
+
+                                    if (checkedInPins.length === 0) {
+                                        return (
+                                            <div className="text-center py-12">
+                                                <UserGroupIcon className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                                                <p className="text-slate-400 text-xs font-bold uppercase">No check-ins logged yet</p>
+                                            </div>
+                                        );
+                                    }
+
+                                    return checkedInPins.map(pin => {
+                                        const parent = activeUsers.find(u => u.id === pin.userId);
+                                        const parentName = parent?.name || 'Invited Guest';
+                                        const event = allEvents.find(e => e.id === pin.eventId);
+                                        const student = activeUsers.find(u => 
+                                            u.role === 'student' && (
+                                                u.parentIds?.includes(pin.userId) || 
+                                                parent?.studentIds?.includes(u.id) || 
+                                                (u as any).parentPhone === (parent?.phoneNumber || '')
+                                            )
+                                        );
+
+                                        return (
+                                            <div key={pin.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 space-y-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="font-black text-slate-800 dark:text-white uppercase text-xs">{parentName}</p>
+                                                        <p className="text-[10px] text-purple-600 font-bold uppercase tracking-wider mt-0.5">PIN: {pin.pin}</p>
+                                                    </div>
+                                                    <span className="text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">Checked In</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-550 dark:text-slate-450 space-y-0.5 leading-relaxed">
+                                                    <p><span className="font-bold">Event:</span> {event?.title || 'Institution Event'}</p>
+                                                    {student && <p><span className="font-bold">Student:</span> {student.name}</p>}
+                                                </div>
+                                                <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedPin(pin);
+                                                            setSelectedParent(parent || {
+                                                                id: pin.userId,
+                                                                name: parentName,
+                                                                phoneNumber: '',
+                                                                role: 'parent',
+                                                                institutionId: currentInstitution.id
+                                                            } as any);
+                                                            setAssociatedEvent(event || null);
+                                                            setSelectedStudent(student || null);
+                                                        }}
+                                                        className="flex-1 py-1.5 bg-slate-200 hover:bg-slate-350 dark:bg-slate-700 dark:hover:bg-slate-655 text-slate-800 dark:text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                                    >
+                                                        View Pass
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            printEposGatePass(pin, parent || { name: parentName }, event || { title: 'Institution Event' }, currentInstitution);
+                                                        }}
+                                                        className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 shadow-md shadow-purple-500/10"
+                                                    >
+                                                        <PrinterIcon className="w-2.5 h-2.5 text-white" /> Reprint
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -951,7 +1071,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     return filteredScannablePins.map((p: any) => {
                                         const parent = activeUsers.find(u => u.id === p.userId);
                                         const parentName = parent?.name || 'Invited Guest';
-                                        const parentPhone = parent?.phoneNumber || parent?.phone_number || '';
+                                        const parentPhone = parent?.phoneNumber || '';
                                         return (
                                             <button
                                                 key={p.id}
