@@ -95,6 +95,10 @@
   scrollbar-width: none;
 }
 
+.custom-scrollbar-horizontal {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 70, 229, 0.4) rgba(255, 255, 255, 0.05);
+}
 .custom-scrollbar-horizontal::-webkit-scrollbar {
   height: 8px;
 }
@@ -111,6 +115,10 @@
   background: rgba(79, 70, 229, 0.6);
 }
 
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 70, 229, 0.3) transparent;
+}
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
@@ -332,6 +340,7 @@
   .no-print {
     display: none !important;
   }
+
 
   .qr-bulk-grid {
     display: grid !important;
