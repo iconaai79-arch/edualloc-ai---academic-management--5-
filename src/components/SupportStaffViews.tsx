@@ -263,6 +263,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [walkInSuccess, setWalkInSuccess] = useState(false);
     const [hostSearch, setHostSearch] = useState('');
     const [showHostDropdown, setShowHostDropdown] = useState(false);
+    const [selectedEventId, setSelectedEventId] = useState('');
     const [hostSignature, setHostSignature] = useState<string>('');
     const sigCanvasRef = useRef<HTMLCanvasElement>(null);
     const isDrawingRef = useRef(false);
@@ -271,6 +272,13 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const visitorSigCanvasRef = useRef<HTMLCanvasElement>(null);
     const isVisitorDrawingRef = useRef(false);
     const lastVisitorPointRef = useRef<{ x: number; y: number } | null>(null);
+    const todaysActiveEvents = useMemo(() => {
+        const today = new Date().toISOString().split('T')[0];
+        return (institutionEvents || []).filter(e =>
+            (e.eventDate || e.event_date || '').split('T')[0] === today
+        );
+    }, [institutionEvents]);
+
     const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
     const todaysAppointments = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -348,6 +356,33 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             // Fire-and-forget – don't block the UI on the DB round-trip
             onAddVisitor(visitorPayload).catch(console.error);
 
+            // If visitor is attending a today's event, check them in immediately
+            if (selectedEventId) {
+                const targetEvent = institutionEvents.find(e => e.id === selectedEventId);
+                if (targetEvent) {
+                    const walkinUserId = `walkin_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
+                    const pinRecord = {
+                        id: `pin_walkin_${Date.now()}`,
+                        eventId: selectedEventId,
+                        userId: walkinUserId,
+                        pin: Math.floor(100000 + Math.random() * 900000).toString(),
+                        status: 'used',
+                        institutionId: user?.institutionId || '',
+                        createdAt: new Date().toISOString(),
+                        metadata: {
+                            walkIn: true,
+                            visitorName: walkInForm.name,
+                            visitorPhone: walkInForm.phone,
+                            visitorId: walkInForm.idNumber,
+                            checkedInAt: new Date().toISOString(),
+                            checkedInBy: user?.name || 'Security'
+                        }
+                    };
+                    apiService.saveModuleRecord('event_pins', pinRecord).catch(console.error);
+                    props.onLogAction?.(`Walk-in ${walkInForm.name} checked in to event: ${targetEvent.title}`)?.catch?.(() => {});
+                }
+            }
+
             // Print gate pass immediately (non-blocking)
             try {
                 const hostUser = users.find(u => u.id === finalHostId);
@@ -367,6 +402,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             setShowHostDropdown(false);
             setHostSignature('');
             setVisitorSignature('');
+            setSelectedEventId('');
             // Clear canvases
             [sigCanvasRef, visitorSigCanvasRef].forEach(ref => {
                 const c = ref.current;
@@ -911,6 +947,38 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Today's Events — optional event check-in */}
+                            {todaysActiveEvents.length > 0 && (
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                                    <label className="block text-[10px] font-black uppercase mb-2 ml-1" style={{color: selectedEventId ? '#6366f1' : undefined}}>
+                                        🎫 Attending Today's Event <span className="text-slate-400 normal-case font-semibold">(optional)</span>
+                                    </label>
+                                    <select
+                                        className="form-select"
+                                        value={selectedEventId}
+                                        onChange={(e) => {
+                                            setSelectedEventId(e.target.value);
+                                            if (e.target.value) {
+                                                setWalkInForm(prev => ({ ...prev, purpose: 'Event Attendance' }));
+                                            }
+                                        }}
+                                    >
+                                        <option value="">-- Not attending an event --</option>
+                                        {todaysActiveEvents.map(ev => (
+                                            <option key={ev.id} value={ev.id}>
+                                                {ev.title}{ev.eventTime ? ` — ${ev.eventTime}` : ''}{ev.venue ? ` @ ${ev.venue}` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {selectedEventId && (
+                                        <p className="text-[10px] font-bold text-indigo-500 mt-1.5 ml-1 uppercase tracking-wide">
+                                            ✓ Visitor will be checked in to this event on entry
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="relative">
                                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Host / Personnel To See</label>
                                 {/* Searchable host picker */}
