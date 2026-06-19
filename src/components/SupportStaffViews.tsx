@@ -859,12 +859,12 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
 
             {isRegistering && (
                 <div className="fixed inset-0 bg-slate-900/80 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up">
-                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                            <h3 className="text-2xl font-black uppercase tracking-tight">Visitor Entry Card</h3>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg flex flex-col border border-slate-200 dark:border-slate-800 animate-fade-in-up" style={{maxHeight:'95vh'}}>
+                        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
+                            <h3 className="text-xl font-black uppercase tracking-tight">Visitor Entry Card</h3>
                             <button onClick={() => setIsRegistering(false)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-6 h-6" /></button>
                         </div>
-                        <form onSubmit={handleRegisterWalkIn} className="p-8 space-y-5">
+                        <form onSubmit={handleRegisterWalkIn} className="p-5 space-y-4 overflow-y-auto flex-1">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="relative">
                                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Phone Number (Lookup)</label>

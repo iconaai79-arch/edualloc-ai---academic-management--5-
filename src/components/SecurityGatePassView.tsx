@@ -214,12 +214,6 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
         </div>
     `;
 
-    // Inject a hidden print-only container into the current page
-    const printDiv = document.createElement('div');
-    printDiv.id = '__walkin_gatepass_print__';
-    printDiv.innerHTML = innerHtml;
-    document.body.appendChild(printDiv);
-
     // Inject a style that hides everything EXCEPT our print div during printing
     const styleTag = document.createElement('style');
     styleTag.id = '__walkin_gatepass_style__';
