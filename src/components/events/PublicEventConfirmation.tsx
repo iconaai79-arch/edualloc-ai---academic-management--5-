@@ -302,6 +302,45 @@ export const PublicEventConfirmation: React.FC = () => {
         setIsLoading(false);
     };
 
+    // Auto-generate a PIN for a user when none exists
+    const autoGeneratePin = async (userId: string, institutionId: string): Promise<any | null> => {
+        try {
+            // Find the most recent / upcoming event for this institution
+            const events = await apiService.fetchModuleRecords('institution_events', institutionId);
+            if (!events || events.length === 0) return null;
+
+            // Sort: prefer future events, then most recently created
+            const now = new Date().toISOString().split('T')[0];
+            const sorted = [...events].sort((a: any, b: any) => {
+                const aDate = a.eventDate || a.event_date || '';
+                const bDate = b.eventDate || b.event_date || '';
+                const aFuture = aDate >= now;
+                const bFuture = bDate >= now;
+                if (aFuture && !bFuture) return -1;
+                if (!aFuture && bFuture) return 1;
+                return aDate > bDate ? 1 : -1;
+            });
+            const targetEvent = sorted[0];
+
+            const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+            const newPinId = `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const newPin = {
+                id: newPinId,
+                institutionId,
+                eventId: targetEvent.id,
+                userId,
+                pin: pinCode,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('event_pins', newPin);
+            return newPin;
+        } catch (err) {
+            console.error('Auto-generate PIN failed:', err);
+            return null;
+        }
+    };
+
     const handleLookupByPhone = async (e: React.FormEvent) => {
         e.preventDefault();
         setLookupError('');
@@ -336,11 +375,18 @@ export const PublicEventConfirmation: React.FC = () => {
             }
 
             // Find their event pin(s)
-            const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, { filter: { userId: matchedUser.id } });
+            let pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, { filter: { userId: matchedUser.id } });
+
+            // Auto-generate if no PIN exists
             if (!pins || pins.length === 0) {
-                setLookupError('No event invitation found for this phone number.');
-                setIsLookingUp(false);
-                return;
+                const newPin = await autoGeneratePin(matchedUser.id, matchedUser.institutionId || matchedUser.institution_id || '');
+                if (!newPin) {
+                    setLookupError('No upcoming events found. Please contact the school for your invitation.');
+                    setIsLookingUp(false);
+                    return;
+                }
+                pins = [newPin];
+                setStatusMsg({ type: 'success', text: '✅ An event pass has been generated for you automatically.' });
             }
 
             // Pick the most recent pending pin, or the latest one
@@ -387,14 +433,15 @@ export const PublicEventConfirmation: React.FC = () => {
 
             // Find parent IDs from student record
             const parentIds: string[] = matchedStudent.parentIds || matchedStudent.parent_ids || [];
-            if (!parentIds.length) {
-                setLookupError('No parent linked to this admission number. Please contact the school.');
-                setIsLookingUp(false);
-                return;
-            }
+            const studentInstitutionId = matchedStudent.institutionId || matchedStudent.institution_id
+                || allEnrollments.find((e: any) => e.userId === matchedStudent.id)?.institutionId
+                || allEnrollments.find((e: any) => e.userId === matchedStudent.id)?.institution_id
+                || '';
 
-            // Find event pin for any of these parents
+            // Find event pin for any of these parents, or auto-generate
             let pin: any = null;
+            let ownerParentId = parentIds[0] || null;
+
             for (const parentId of parentIds) {
                 const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, { filter: { userId: parentId } });
                 if (pins && pins.length > 0) {
@@ -404,14 +451,26 @@ export const PublicEventConfirmation: React.FC = () => {
                         return (b.createdAt || b.created_at || '') > (a.createdAt || a.created_at || '') ? 1 : -1;
                     });
                     pin = sorted[0];
+                    ownerParentId = parentId;
                     break;
                 }
             }
 
+            // Auto-generate PIN if none found
             if (!pin) {
-                setLookupError('No event invitation found linked to this admission number.');
-                setIsLookingUp(false);
-                return;
+                if (!ownerParentId || !studentInstitutionId) {
+                    setLookupError('Could not determine parent or institution. Please contact the school.');
+                    setIsLookingUp(false);
+                    return;
+                }
+                const newPin = await autoGeneratePin(ownerParentId, studentInstitutionId);
+                if (!newPin) {
+                    setLookupError('No upcoming events found. Please contact the school for your invitation.');
+                    setIsLookingUp(false);
+                    return;
+                }
+                pin = newPin;
+                setStatusMsg({ type: 'success', text: '✅ An event pass has been generated for you automatically.' });
             }
 
             setPinId(pin.id);
