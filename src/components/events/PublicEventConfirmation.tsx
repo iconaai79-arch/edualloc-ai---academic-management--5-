@@ -34,6 +34,8 @@ export const PublicEventConfirmation: React.FC = () => {
     const [useVehicle, setUseVehicle] = useState(false);
     const [vehicleRegistration, setVehicleRegistration] = useState('');
     const [verificationPhone, setVerificationPhone] = useState('');
+    const [verificationAdmNo, setVerificationAdmNo] = useState('');
+    const [verifyMode, setVerifyMode] = useState<'phone' | 'admNo'>('phone');
     const [isVerified, setIsVerified] = useState(false);
     const [verificationError, setVerificationError] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
@@ -264,17 +266,79 @@ export const PublicEventConfirmation: React.FC = () => {
         setGuests(guests.filter((_, i) => i !== index));
     };
 
+    // Shared post-verification logic: pre-fill profile & populate children guests
+    const handleVerifySuccess = async (dbPhone: string) => {
+        setIsVerified(true);
+        setEditName(userRecord?.name || '');
+        setEditEmail(userRecord?.email || '');
+        setEditPhone(userRecord?.phoneNumber || userRecord?.phone_number || verificationPhone);
+
+        try {
+            const enrollments = await apiService.fetchModuleRecords('student_enrollments', pinRecord?.institutionId);
+            const students = await apiService.fetchModuleRecords('users', pinRecord?.institutionId, undefined, {
+                filter: { role: 'student' }
+            });
+
+            const dbParentPhone = dbPhone.slice(-9);
+
+            const matchedStudents = students.filter((stu: any) => {
+                const studentParentIds = stu.parentIds || stu.parent_ids || [];
+                const isIdMatch = Array.isArray(studentParentIds)
+                    ? studentParentIds.includes(userRecord.id)
+                    : typeof studentParentIds === 'string' && studentParentIds.includes(userRecord.id);
+                const sParentPhone = (stu.parentPhone || stu.parent_phone || stu.phoneNumber || stu.phone_number || '').replace(/[^\d]/g, '').slice(-9);
+                const isPhoneMatch = sParentPhone && dbParentPhone && (sParentPhone === dbParentPhone);
+                return isIdMatch || isPhoneMatch;
+            });
+
+            const matchedEnrollments = enrollments.filter((enr: any) => {
+                const eParentPhone = (enr.metadata?.parentPhone || enr.metadata?.parent_phone || '').replace(/[^\d]/g, '').slice(-9);
+                return eParentPhone && dbParentPhone && (eParentPhone === dbParentPhone);
+            });
+
+            const childrenGuests: string[] = [];
+
+            matchedStudents.forEach((stu: any) => {
+                const enr = enrollments.find((e: any) => e.userId === stu.id);
+                const adm = stu.admissionNumber || stu.admission_number || enr?.admissionNumber || enr?.admission_number || 'N/A';
+                const name = stu.name;
+                const grade = enr?.metadata?.gradeLevel || enr?.metadata?.grade_level || stu.gradeLevel || stu.grade_level || '';
+                const stream = enr?.metadata?.stream || '';
+                const className = [grade, stream].filter(Boolean).join(' ') || 'N/A';
+                const guestStr = `${adm} - ${name} (${className})`;
+                if (!childrenGuests.includes(guestStr)) childrenGuests.push(guestStr);
+            });
+
+            matchedEnrollments.forEach((enr: any) => {
+                const stu = students.find((s: any) => s.id === enr.userId);
+                if (!stu) return;
+                const adm = stu.admissionNumber || stu.admission_number || enr.admissionNumber || enr.admission_number || 'N/A';
+                const name = stu.name;
+                const grade = enr.metadata?.gradeLevel || enr.metadata?.grade_level || stu.gradeLevel || stu.grade_level || '';
+                const stream = enr.metadata?.stream || '';
+                const className = [grade, stream].filter(Boolean).join(' ') || 'N/A';
+                const guestStr = `${adm} - ${name} (${className})`;
+                if (!childrenGuests.includes(guestStr)) childrenGuests.push(guestStr);
+            });
+
+            if (childrenGuests.length > 0 && guests.length === 0) {
+                setGuests(childrenGuests);
+            }
+        } catch (err) {
+            console.error('Failed to pre-populate children guests:', err);
+        }
+    };
+
     const handleVerifyPhone = async (e: React.FormEvent) => {
         e.preventDefault();
         setVerificationError('');
         setIsVerifying(true);
-        
+
         try {
-            const enteredDigits = verificationPhone.replace(/[^\d]/g, '');
             const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
             const dbPhone = rawDbPhone.replace(/[^\d]/g, '');
-            
-            if (!enteredDigits) {
+
+            if (!verificationPhone.trim()) {
                 setVerificationError('Please enter your phone number.');
                 setIsVerifying(false);
                 return;
@@ -284,15 +348,11 @@ export const PublicEventConfirmation: React.FC = () => {
                 setIsVerifying(false);
                 return;
             }
-            
+
             const cleanPhone = (p: string) => {
                 const digits = p.replace(/[^\d]/g, '');
-                if (digits.startsWith('254') && digits.length > 9) {
-                    return digits.substring(3);
-                }
-                if (digits.startsWith('0') && digits.length > 8) {
-                    return digits.substring(1);
-                }
+                if (digits.startsWith('254') && digits.length > 9) return digits.substring(3);
+                if (digits.startsWith('0') && digits.length > 8) return digits.substring(1);
                 return digits;
             };
 
@@ -300,87 +360,82 @@ export const PublicEventConfirmation: React.FC = () => {
             const cleanDb = cleanPhone(rawDbPhone);
 
             const match = cleanEntered && cleanDb && (
-                cleanEntered === cleanDb || 
-                (cleanEntered.length >= 7 && cleanDb.endsWith(cleanEntered)) || 
+                cleanEntered === cleanDb ||
+                (cleanEntered.length >= 7 && cleanDb.endsWith(cleanEntered)) ||
                 (cleanDb.length >= 7 && cleanEntered.endsWith(cleanDb))
             );
 
             if (match) {
-                setIsVerified(true);
-                // Pre-fill profile edit fields from existing record
-                setEditName(userRecord?.name || '');
-                setEditEmail(userRecord?.email || '');
-                setEditPhone(userRecord?.phoneNumber || userRecord?.phone_number || verificationPhone);
-                
-                // Pre-populate children as accompanying guests by default if guests array is empty
-                try {
-                    const enrollments = await apiService.fetchModuleRecords('student_enrollments', pinRecord?.institutionId);
-                    const students = await apiService.fetchModuleRecords('users', pinRecord?.institutionId, undefined, {
-                        filter: { role: 'student' }
-                    });
-
-                    const dbParentPhone = dbPhone.slice(-9);
-                    
-                    const matchedStudents = students.filter((stu: any) => {
-                        const studentParentIds = stu.parentIds || stu.parent_ids || [];
-                        const isIdMatch = Array.isArray(studentParentIds) 
-                            ? studentParentIds.includes(userRecord.id)
-                            : typeof studentParentIds === 'string' && studentParentIds.includes(userRecord.id);
-
-                        const sParentPhone = (stu.parentPhone || stu.parent_phone || stu.phoneNumber || stu.phone_number || '').replace(/[^\d]/g, '').slice(-9);
-                        const isPhoneMatch = sParentPhone && dbParentPhone && (sParentPhone === dbParentPhone);
-
-                        return isIdMatch || isPhoneMatch;
-                    });
-
-                    const matchedEnrollments = enrollments.filter((enr: any) => {
-                        const eParentPhone = (enr.metadata?.parentPhone || enr.metadata?.parent_phone || '').replace(/[^\d]/g, '').slice(-9);
-                        return eParentPhone && dbParentPhone && (eParentPhone === dbParentPhone);
-                    });
-
-                    const childrenGuests: string[] = [];
-
-                    matchedStudents.forEach((stu: any) => {
-                        const enr = enrollments.find((e: any) => e.userId === stu.id);
-                        const adm = stu.admissionNumber || stu.admission_number || enr?.admissionNumber || enr?.admission_number || 'N/A';
-                        const name = stu.name;
-                        const grade = enr?.metadata?.gradeLevel || enr?.metadata?.grade_level || stu.gradeLevel || stu.grade_level || '';
-                        const stream = enr?.metadata?.stream || '';
-                        const className = [grade, stream].filter(Boolean).join(' ') || 'N/A';
-                        
-                        const guestStr = `${adm} - ${name} (${className})`;
-                        if (!childrenGuests.includes(guestStr)) {
-                            childrenGuests.push(guestStr);
-                        }
-                    });
-
-                    matchedEnrollments.forEach((enr: any) => {
-                        const stu = students.find((s: any) => s.id === enr.userId);
-                        if (!stu) return;
-                        
-                        const adm = stu.admissionNumber || stu.admission_number || enr.admissionNumber || enr.admission_number || 'N/A';
-                        const name = stu.name;
-                        const grade = enr.metadata?.gradeLevel || enr.metadata?.grade_level || stu.gradeLevel || stu.grade_level || '';
-                        const stream = enr.metadata?.stream || '';
-                        const className = [grade, stream].filter(Boolean).join(' ') || 'N/A';
-                        
-                        const guestStr = `${adm} - ${name} (${className})`;
-                        if (!childrenGuests.includes(guestStr)) {
-                            childrenGuests.push(guestStr);
-                        }
-                    });
-
-                    if (childrenGuests.length > 0 && guests.length === 0) {
-                        setGuests(childrenGuests);
-                    }
-                } catch (err) {
-                    console.error("Failed to pre-populate children guests:", err);
-                }
+                await handleVerifySuccess(dbPhone);
             } else {
                 setVerificationError('Verification failed. The phone number does not match our records.');
             }
         } catch (error: any) {
-            console.error("Verification processing error:", error);
+            console.error('Verification processing error:', error);
+            setVerificationError('An error occurred during verification. Please try again.');
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
+    const handleVerifyAdmNo = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setVerificationError('');
+        setIsVerifying(true);
+
+        try {
+            const enteredAdm = verificationAdmNo.trim();
+            if (!enteredAdm) {
+                setVerificationError('Please enter the admission number.');
+                setIsVerifying(false);
+                return;
+            }
+
+            // Fetch students and enrollments for the institution
+            const students = await apiService.fetchModuleRecords('users', pinRecord?.institutionId, undefined, {
+                filter: { role: 'student' }
+            });
+            const enrollments = await apiService.fetchModuleRecords('student_enrollments', pinRecord?.institutionId);
+
+            // Find a student whose admission number matches
+            const matchedStudent = students.find((stu: any) => {
+                const stuAdm = (stu.admissionNumber || stu.admission_number || '').toString().trim().toLowerCase();
+                const enr = enrollments.find((e: any) => e.userId === stu.id);
+                const enrAdm = (enr?.admissionNumber || enr?.admission_number || '').toString().trim().toLowerCase();
+                return stuAdm === enteredAdm.toLowerCase() || enrAdm === enteredAdm.toLowerCase();
+            });
+
+            if (!matchedStudent) {
+                setVerificationError('Admission number not found. Please check and try again.');
+                setIsVerifying(false);
+                return;
+            }
+
+            // Verify the student is linked to this invitation's parent
+            const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
+            const dbPhone = rawDbPhone.replace(/[^\d]/g, '');
+            const dbParentPhone = dbPhone.slice(-9);
+
+            const studentParentIds = matchedStudent.parentIds || matchedStudent.parent_ids || [];
+            const isIdMatch = Array.isArray(studentParentIds)
+                ? studentParentIds.includes(userRecord?.id)
+                : typeof studentParentIds === 'string' && studentParentIds.includes(userRecord?.id);
+
+            const sParentPhone = (matchedStudent.parentPhone || matchedStudent.parent_phone || '').replace(/[^\d]/g, '').slice(-9);
+            const isPhoneMatch = sParentPhone && dbParentPhone && sParentPhone === dbParentPhone;
+
+            // Also check enrollment metadata for parent phone
+            const enr = enrollments.find((e: any) => e.userId === matchedStudent.id);
+            const eParentPhone = (enr?.metadata?.parentPhone || enr?.metadata?.parent_phone || '').replace(/[^\d]/g, '').slice(-9);
+            const isEnrPhoneMatch = eParentPhone && dbParentPhone && eParentPhone === dbParentPhone;
+
+            if (isIdMatch || isPhoneMatch || isEnrPhoneMatch) {
+                await handleVerifySuccess(dbPhone);
+            } else {
+                setVerificationError('This admission number is not linked to this invitation. Please contact the school administrator.');
+            }
+        } catch (error: any) {
+            console.error('ADM verification error:', error);
             setVerificationError('An error occurred during verification. Please try again.');
         } finally {
             setIsVerifying(false);
@@ -592,6 +647,7 @@ export const PublicEventConfirmation: React.FC = () => {
 
                             {!isVerified ? (
                                 <div className="space-y-6 pt-4 border-t border-slate-850 animate-fade-in">
+                                    {/* Verification header */}
                                     <div className="bg-slate-950/40 border border-slate-850 rounded-3xl p-5 space-y-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
@@ -599,48 +655,116 @@ export const PublicEventConfirmation: React.FC = () => {
                                             </div>
                                             <div>
                                                 <h4 className="text-xs font-black uppercase text-white tracking-wider">Verification Required</h4>
-                                                <p className="text-[10px] text-slate-400">Verify your phone number to access RSVP options.</p>
+                                                <p className="text-[10px] text-slate-400">Verify your identity to access RSVP options.</p>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <form onSubmit={handleVerifyPhone} className="space-y-4">
-                                        <div className="space-y-2">
-                                            <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">
-                                                Phone Number
-                                            </label>
-                                            <input 
-                                                type="tel" 
-                                                placeholder="Enter registered phone number" 
-                                                value={verificationPhone}
-                                                onChange={e => {
-                                                    setVerificationPhone(e.target.value);
-                                                    if (verificationError) setVerificationError('');
-                                                }}
-                                                className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
-                                            />
-                                            {(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (userRecord?.phoneNumber || userRecord?.phone_number) && (
-                                                <p className="text-[10px] text-indigo-400 font-bold mt-1">
-                                                    [Development Mode] Expected: {userRecord.phoneNumber || userRecord.phone_number}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {verificationError && (
-                                            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[11px] font-bold text-rose-400 flex items-center gap-2">
-                                                <AlertCircle className="w-4 h-4 shrink-0" />
-                                                <span>{verificationError}</span>
-                                            </div>
-                                        )}
-
-                                        <button 
-                                            type="submit"
-                                            disabled={isVerifying}
-                                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-50"
+                                    {/* Mode toggle tabs */}
+                                    <div className="flex gap-1 p-1 bg-slate-950/60 border border-slate-850 rounded-2xl">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setVerifyMode('phone'); setVerificationError(''); }}
+                                            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                verifyMode === 'phone'
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                                    : 'text-slate-500 hover:text-slate-300'
+                                            }`}
                                         >
-                                            {isVerifying ? 'Verifying...' : 'Verify Identity'}
+                                            📞 Phone Number
                                         </button>
-                                    </form>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setVerifyMode('admNo'); setVerificationError(''); }}
+                                            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                verifyMode === 'admNo'
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                                    : 'text-slate-500 hover:text-slate-300'
+                                            }`}
+                                        >
+                                            🎓 Admission No.
+                                        </button>
+                                    </div>
+
+                                    {/* Phone verification form */}
+                                    {verifyMode === 'phone' && (
+                                        <form onSubmit={handleVerifyPhone} className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">
+                                                    Registered Phone Number
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    placeholder="Enter registered phone number"
+                                                    value={verificationPhone}
+                                                    onChange={e => {
+                                                        setVerificationPhone(e.target.value);
+                                                        if (verificationError) setVerificationError('');
+                                                    }}
+                                                    className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
+                                                />
+                                                {(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (userRecord?.phoneNumber || userRecord?.phone_number) && (
+                                                    <p className="text-[10px] text-indigo-400 font-bold mt-1">
+                                                        [Dev] Expected: {userRecord.phoneNumber || userRecord.phone_number}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {verificationError && (
+                                                <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[11px] font-bold text-rose-400 flex items-center gap-2">
+                                                    <AlertCircle className="w-4 h-4 shrink-0" />
+                                                    <span>{verificationError}</span>
+                                                </div>
+                                            )}
+
+                                            <button
+                                                type="submit"
+                                                disabled={isVerifying}
+                                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-50"
+                                            >
+                                                {isVerifying ? 'Verifying...' : 'Verify with Phone'}
+                                            </button>
+                                        </form>
+                                    )}
+
+                                    {/* Admission number verification form */}
+                                    {verifyMode === 'admNo' && (
+                                        <form onSubmit={handleVerifyAdmNo} className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">
+                                                    Child's Admission Number
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. ADM/2024/001"
+                                                    value={verificationAdmNo}
+                                                    onChange={e => {
+                                                        setVerificationAdmNo(e.target.value);
+                                                        if (verificationError) setVerificationError('');
+                                                    }}
+                                                    className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
+                                                />
+                                                <p className="text-[10px] text-slate-500 mt-1">
+                                                    Enter the admission number of any of your children enrolled at this institution.
+                                                </p>
+                                            </div>
+
+                                            {verificationError && (
+                                                <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[11px] font-bold text-rose-400 flex items-center gap-2">
+                                                    <AlertCircle className="w-4 h-4 shrink-0" />
+                                                    <span>{verificationError}</span>
+                                                </div>
+                                            )}
+
+                                            <button
+                                                type="submit"
+                                                disabled={isVerifying}
+                                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-50"
+                                            >
+                                                {isVerifying ? 'Verifying...' : 'Verify with Admission No.'}
+                                            </button>
+                                        </form>
+                                    )}
                                 </div>
                             ) : (
                                 <>
