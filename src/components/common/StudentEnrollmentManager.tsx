@@ -6701,35 +6701,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     <div className="space-y-3">
                                         {/* Primary bulk actions row */}
                                         <div className="flex flex-col sm:flex-row gap-3">
-                                            {/* Bulk Generate & Send ALL — opens full bulk invite modal */}
+                                            {/* Bulk Generate & Send — only targets missing PINs */}
                                             <button
                                                 type="button"
-                                                disabled={isLoading}
+                                                disabled={isLoading || auditMissing === 0}
                                                 onClick={() => {
-                                                    setBulkInviteModalEvent(event);
-                                                    setBulkInviteAddMsg(auditCustomMessage);
+                                                    setSelectedAnalysisEvent(null);
+                                                    handleSendPinsToMissingRecipients(event, auditCustomMessage);
                                                 }}
-                                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
+                                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
                                             >
                                                 <Sparkles className="w-4 h-4" />
-                                                Bulk Generate &amp; Send All ({auditTotal})
+                                                {isLoading ? 'Generating...' : auditMissing === 0 ? 'All PINs Issued ✓' : `Bulk Generate & Send to ${auditMissing} Missing`}
                                             </button>
-
-                                            {/* Send ONLY to missing recipients */}
-                                            {auditMissing > 0 && (
-                                                <button
-                                                    type="button"
-                                                    disabled={isLoading}
-                                                    onClick={() => {
-                                                        setSelectedAnalysisEvent(null);
-                                                        handleSendPinsToMissingRecipients(event, auditCustomMessage);
-                                                    }}
-                                                    className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-600/40 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-500/15"
-                                                >
-                                                    <Send className="w-4 h-4" />
-                                                    {isLoading ? 'Sending...' : `Send to ${auditMissing} Missing`}
-                                                </button>
-                                            )}
                                         </div>
 
                                         {/* Secondary actions row */}
