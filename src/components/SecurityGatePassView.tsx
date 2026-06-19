@@ -160,7 +160,7 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
     printWin.document.close();
 };
 
-export const printEposWalkInGatePass = (visitor: any, host: any, institution: any, hostSignature?: string) => {
+export const printEposWalkInGatePass = (visitor: any, host: any, institution: any, hostSignature?: string, visitorSignature?: string) => {
     const timestamp = new Date().toLocaleString();
 
     const printWin = window.open('', '_blank', 'width=400,height=600,toolbar=0,menubar=0,scrollbars=0');
@@ -193,9 +193,12 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
                 .info-table td { padding: 2px 0; vertical-align: top; }
                 .info-label { width: 40%; }
                 .sig-section { margin-top: 10px; }
-                .sig-label { font-size: 9px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px; }
-                .sig-line { border-bottom: 1px solid #000; height: 28px; width: 100%; margin-top: 4px; }
-                .sig-img { width: 100%; max-height: 50px; object-fit: contain; border-bottom: 1px solid #000; display: block; }
+                .sig-label { font-size: 9px; font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
+                .sig-line { border-bottom: 1px solid #000; height: 30px; width: 100%; }
+                .sig-img { width: 100%; max-height: 45px; object-fit: contain; border-bottom: 1px solid #000; display: block; }
+                .sig-name { font-size: 8px; margin-top: 2px; }
+                .sig-table { width: 100%; border-collapse: collapse; }
+                .sig-table td { width: 50%; vertical-align: top; padding: 0 2px; }
                 .footer { margin-top: 15px; font-size: 9px; }
             </style>
         </head>
@@ -245,14 +248,26 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
 
             <div class="separator"></div>
 
-            <div class="sig-section">
-                <div class="sig-label">Host Signature:</div>
-                ${hostSignature
-                    ? `<img src="${hostSignature}" class="sig-img" alt="Host Signature" />`
-                    : `<div class="sig-line"></div>`
-                }
-                <div style="font-size: 8px; margin-top: 3px;">${host?.name || ''}</div>
-            </div>
+            <table class="sig-table">
+                <tr>
+                    <td>
+                        <div class="sig-label">Visitor Signature:</div>
+                        ${visitorSignature
+                            ? `<img src="${visitorSignature}" class="sig-img" alt="Visitor Signature" />`
+                            : `<div class="sig-line"></div>`
+                        }
+                        <div class="sig-name">${visitor?.name || ''}</div>
+                    </td>
+                    <td>
+                        <div class="sig-label">Host Signature:</div>
+                        ${hostSignature
+                            ? `<img src="${hostSignature}" class="sig-img" alt="Host Signature" />`
+                            : `<div class="sig-line"></div>`
+                        }
+                        <div class="sig-name">${host?.name || ''}</div>
+                    </td>
+                </tr>
+            </table>
 
             <div class="separator"></div>
 

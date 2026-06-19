@@ -267,6 +267,10 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const sigCanvasRef = useRef<HTMLCanvasElement>(null);
     const isDrawingRef = useRef(false);
     const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+    const [visitorSignature, setVisitorSignature] = useState<string>('');
+    const visitorSigCanvasRef = useRef<HTMLCanvasElement>(null);
+    const isVisitorDrawingRef = useRef(false);
+    const lastVisitorPointRef = useRef<{ x: number; y: number } | null>(null);
     const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
     const todaysAppointments = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -347,7 +351,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             // Print gate pass immediately (non-blocking)
             try {
                 const hostUser = users.find(u => u.id === finalHostId);
-                printEposWalkInGatePass(visitorPayload, hostUser, props.currentInstitution, hostSignature || undefined);
+                printEposWalkInGatePass(visitorPayload, hostUser, props.currentInstitution, hostSignature || undefined, visitorSignature || undefined);
             } catch (err) {
                 console.error("Failed to automatically print walk-in gatepass:", err);
             }
@@ -362,6 +366,12 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             setHostSearch('');
             setShowHostDropdown(false);
             setHostSignature('');
+            setVisitorSignature('');
+            // Clear canvases
+            [sigCanvasRef, visitorSigCanvasRef].forEach(ref => {
+                const c = ref.current;
+                if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height);
+            });
             setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
 
             // Show brief inline success toast instead of blocking alert
@@ -1002,88 +1012,117 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 </div>
                             </div>
 
-                            {/* ── Host Signature Pad ── */}
-                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="block text-[10px] font-black uppercase text-slate-400 ml-1">Host Signature <span className="text-slate-300">(Optional)</span></label>
-                                    {hostSignature && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setHostSignature('');
-                                                const canvas = sigCanvasRef.current;
-                                                if (canvas) {
-                                                    const ctx = canvas.getContext('2d');
-                                                    ctx?.clearRect(0, 0, canvas.width, canvas.height);
-                                                }
-                                            }}
-                                            className="text-[10px] font-black uppercase text-red-500 hover:text-red-700 transition-colors"
-                                        >
-                                            Clear
-                                        </button>
-                                    )}
-                                </div>
-                                <div className={`relative rounded-2xl border-2 transition-colors ${hostSignature ? 'border-indigo-300 dark:border-indigo-700' : 'border-dashed border-slate-200 dark:border-slate-700'} bg-white dark:bg-slate-950 overflow-hidden`}>
-                                    <canvas
-                                        ref={sigCanvasRef}
-                                        width={460}
-                                        height={120}
-                                        className="w-full touch-none cursor-crosshair"
-                                        style={{ display: 'block' }}
-                                        onPointerDown={(e) => {
-                                            const canvas = sigCanvasRef.current;
-                                            if (!canvas) return;
-                                            canvas.setPointerCapture(e.pointerId);
-                                            isDrawingRef.current = true;
-                                            const rect = canvas.getBoundingClientRect();
-                                            const scaleX = canvas.width / rect.width;
-                                            const scaleY = canvas.height / rect.height;
-                                            lastPointRef.current = {
-                                                x: (e.clientX - rect.left) * scaleX,
-                                                y: (e.clientY - rect.top) * scaleY
-                                            };
-                                        }}
-                                        onPointerMove={(e) => {
-                                            if (!isDrawingRef.current) return;
-                                            const canvas = sigCanvasRef.current;
-                                            if (!canvas) return;
-                                            const ctx = canvas.getContext('2d');
-                                            if (!ctx || !lastPointRef.current) return;
-                                            const rect = canvas.getBoundingClientRect();
-                                            const scaleX = canvas.width / rect.width;
-                                            const scaleY = canvas.height / rect.height;
-                                            const x = (e.clientX - rect.left) * scaleX;
-                                            const y = (e.clientY - rect.top) * scaleY;
-                                            ctx.beginPath();
-                                            ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
-                                            ctx.lineTo(x, y);
-                                            ctx.strokeStyle = '#1e293b';
-                                            ctx.lineWidth = 2.5;
-                                            ctx.lineCap = 'round';
-                                            ctx.lineJoin = 'round';
-                                            ctx.stroke();
-                                            lastPointRef.current = { x, y };
-                                        }}
-                                        onPointerUp={() => {
-                                            isDrawingRef.current = false;
-                                            lastPointRef.current = null;
-                                            const canvas = sigCanvasRef.current;
-                                            if (canvas) setHostSignature(canvas.toDataURL('image/png'));
-                                        }}
-                                        onPointerLeave={() => {
-                                            isDrawingRef.current = false;
-                                            lastPointRef.current = null;
-                                        }}
-                                    />
-                                    {!hostSignature && (
-                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                            <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">Sign here with finger or stylus</p>
+                            {/* ── Signatures Row: Visitor + Host ── */}
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <p className="text-[10px] font-black uppercase text-slate-400 mb-3 ml-1">Signatures</p>
+                                <div className="grid grid-cols-2 gap-4">
+
+                                    {/* Visitor Signature */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="text-[10px] font-black uppercase text-emerald-600">Visitor Sign</label>
+                                            {visitorSignature && (
+                                                <button type="button" onClick={() => {
+                                                    setVisitorSignature('');
+                                                    const c = visitorSigCanvasRef.current;
+                                                    if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height);
+                                                }} className="text-[9px] font-black uppercase text-red-400 hover:text-red-600 transition-colors">Clear</button>
+                                            )}
                                         </div>
-                                    )}
+                                        <div className={`relative rounded-xl border-2 transition-colors overflow-hidden bg-white dark:bg-slate-950 ${visitorSignature ? 'border-emerald-400' : 'border-dashed border-emerald-200 dark:border-emerald-900'}`}>
+                                            <canvas
+                                                ref={visitorSigCanvasRef}
+                                                width={220} height={100}
+                                                className="w-full touch-none cursor-crosshair block"
+                                                onPointerDown={(e) => {
+                                                    const c = visitorSigCanvasRef.current; if (!c) return;
+                                                    c.setPointerCapture(e.pointerId);
+                                                    isVisitorDrawingRef.current = true;
+                                                    const r = c.getBoundingClientRect();
+                                                    lastVisitorPointRef.current = { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) };
+                                                }}
+                                                onPointerMove={(e) => {
+                                                    if (!isVisitorDrawingRef.current) return;
+                                                    const c = visitorSigCanvasRef.current; if (!c) return;
+                                                    const ctx = c.getContext('2d'); if (!ctx || !lastVisitorPointRef.current) return;
+                                                    const r = c.getBoundingClientRect();
+                                                    const x = (e.clientX - r.left) * (c.width / r.width);
+                                                    const y = (e.clientY - r.top) * (c.height / r.height);
+                                                    ctx.beginPath(); ctx.moveTo(lastVisitorPointRef.current.x, lastVisitorPointRef.current.y);
+                                                    ctx.lineTo(x, y); ctx.strokeStyle = '#059669'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+                                                    lastVisitorPointRef.current = { x, y };
+                                                }}
+                                                onPointerUp={() => {
+                                                    isVisitorDrawingRef.current = false; lastVisitorPointRef.current = null;
+                                                    const c = visitorSigCanvasRef.current;
+                                                    if (c) setVisitorSignature(c.toDataURL('image/png'));
+                                                }}
+                                                onPointerLeave={() => { isVisitorDrawingRef.current = false; lastVisitorPointRef.current = null; }}
+                                            />
+                                            {!visitorSignature && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-1">
+                                                    <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-wide">I acknowledge entry</p>
+                                                    <p className="text-[9px] text-slate-300">Sign with finger</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Host Signature */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="text-[10px] font-black uppercase text-indigo-600">Host Sign</label>
+                                            {hostSignature && (
+                                                <button type="button" onClick={() => {
+                                                    setHostSignature('');
+                                                    const c = sigCanvasRef.current;
+                                                    if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height);
+                                                }} className="text-[9px] font-black uppercase text-red-400 hover:text-red-600 transition-colors">Clear</button>
+                                            )}
+                                        </div>
+                                        <div className={`relative rounded-xl border-2 transition-colors overflow-hidden bg-white dark:bg-slate-950 ${hostSignature ? 'border-indigo-400' : 'border-dashed border-indigo-200 dark:border-indigo-900'}`}>
+                                            <canvas
+                                                ref={sigCanvasRef}
+                                                width={220} height={100}
+                                                className="w-full touch-none cursor-crosshair block"
+                                                onPointerDown={(e) => {
+                                                    const c = sigCanvasRef.current; if (!c) return;
+                                                    c.setPointerCapture(e.pointerId);
+                                                    isDrawingRef.current = true;
+                                                    const r = c.getBoundingClientRect();
+                                                    lastPointRef.current = { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) };
+                                                }}
+                                                onPointerMove={(e) => {
+                                                    if (!isDrawingRef.current) return;
+                                                    const c = sigCanvasRef.current; if (!c) return;
+                                                    const ctx = c.getContext('2d'); if (!ctx || !lastPointRef.current) return;
+                                                    const r = c.getBoundingClientRect();
+                                                    const x = (e.clientX - r.left) * (c.width / r.width);
+                                                    const y = (e.clientY - r.top) * (c.height / r.height);
+                                                    ctx.beginPath(); ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+                                                    ctx.lineTo(x, y); ctx.strokeStyle = '#4f46e5'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+                                                    lastPointRef.current = { x, y };
+                                                }}
+                                                onPointerUp={() => {
+                                                    isDrawingRef.current = false; lastPointRef.current = null;
+                                                    const c = sigCanvasRef.current;
+                                                    if (c) setHostSignature(c.toDataURL('image/png'));
+                                                }}
+                                                onPointerLeave={() => { isDrawingRef.current = false; lastPointRef.current = null; }}
+                                            />
+                                            {!hostSignature && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-1">
+                                                    <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-wide">I authorize entry</p>
+                                                    <p className="text-[9px] text-slate-300">Sign with finger</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
                                 </div>
                             </div>
 
-                            <button type="submit" className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95 mt-4">
+                            <button type="submit" className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95 mt-2">
                                 Authorize Entry
                             </button>
                         </form>
