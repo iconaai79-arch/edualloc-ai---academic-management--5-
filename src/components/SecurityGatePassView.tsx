@@ -163,133 +163,98 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
 export const printEposWalkInGatePass = (visitor: any, host: any, institution: any, hostSignature?: string, visitorSignature?: string) => {
     const timestamp = new Date().toLocaleString();
 
-    const printWin = window.open('', '_blank', 'width=400,height=600,toolbar=0,menubar=0,scrollbars=0');
-    if (!printWin) return;
+    const innerHtml = `
+        <div style="text-align:center;">
+            <div style="font-weight:bold;font-size:14px;text-transform:uppercase;margin:4px 0;">${institution?.name || 'Academic Institution'}</div>
+            <div style="font-size:11px;text-transform:uppercase;margin-bottom:8px;">Gate Entry Pass</div>
+            <div style="border-top:1px dashed #000;margin:8px 0;"></div>
+            <div style="font-weight:bold;font-size:12px;margin:5px 0;">WALK-IN VISITOR PASS</div>
+            <div style="border-top:1px dashed #000;margin:8px 0;"></div>
+        </div>
 
-    const htmlContent = `
-        <html>
-        <head>
-            <style>
-                @page {
-                    size: 80mm auto;
-                    margin: 0;
-                }
-                body {
-                    width: 72mm;
-                    margin: 0 auto;
-                    padding: 5mm 0;
-                    font-family: 'Courier New', Courier, monospace;
-                    font-size: 11px;
-                    line-height: 1.3;
-                    color: #000;
-                    background-color: #fff;
-                }
-                .text-center { text-align: center; }
-                .bold { font-weight: bold; }
-                .title { font-size: 14px; margin: 4px 0; text-transform: uppercase; }
-                .subtitle { font-size: 11px; margin-bottom: 8px; text-transform: uppercase; }
-                .separator { border-top: 1px dashed #000; margin: 8px 0; }
-                .info-table { width: 100%; margin-bottom: 8px; }
-                .info-table td { padding: 2px 0; vertical-align: top; }
-                .info-label { width: 40%; }
-                .sig-section { margin-top: 10px; }
-                .sig-label { font-size: 9px; font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
-                .sig-line { border-bottom: 1px solid #000; height: 30px; width: 100%; }
-                .sig-img { width: 100%; max-height: 45px; object-fit: contain; border-bottom: 1px solid #000; display: block; }
-                .sig-name { font-size: 8px; margin-top: 2px; }
-                .sig-table { width: 100%; border-collapse: collapse; }
-                .sig-table td { width: 50%; vertical-align: top; padding: 0 2px; }
-                .footer { margin-top: 15px; font-size: 9px; }
-            </style>
-        </head>
-        <body>
-            <div class="text-center">
-                <div class="bold title">${institution?.name || 'Academic Institution'}</div>
-                <div class="subtitle">Gate Entry Pass</div>
-                <div class="separator"></div>
-                <div class="bold" style="font-size: 12px; margin: 5px 0;">WALK-IN VISITOR PASS</div>
-                <div class="separator"></div>
-            </div>
+        <table style="width:100%;margin-bottom:8px;font-size:11px;">
+            <tr><td style="width:40%;font-weight:bold;padding:2px 0;vertical-align:top;">VISITOR:</td><td style="padding:2px 0;">${visitor?.name || 'Unknown Visitor'}</td></tr>
+            <tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">PHONE:</td><td style="padding:2px 0;">${visitor?.phoneNumber || visitor?.phone || 'N/A'}</td></tr>
+            ${visitor?.idNumber ? `<tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">ID/REF:</td><td style="padding:2px 0;">${visitor.idNumber}</td></tr>` : ''}
+            <tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">PURPOSE:</td><td style="padding:2px 0;">${visitor?.purpose || 'N/A'}</td></tr>
+            <tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">HOST:</td><td style="padding:2px 0;">${visitor?.hostName || host?.name || 'N/A'}</td></tr>
+            ${visitor?.vehiclePlate ? `<tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">VEHICLE:</td><td style="font-weight:bold;padding:2px 0;">${visitor.vehiclePlate}${visitor.vehicleModel ? ` (${visitor.vehicleModel})` : ''}</td></tr>` : ''}
+            <tr><td style="font-weight:bold;padding:2px 0;vertical-align:top;">TIME:</td><td style="padding:2px 0;">${timestamp}</td></tr>
+        </table>
 
-            <table class="info-table">
-                <tr>
-                    <td class="info-label bold">VISITOR:</td>
-                    <td>${visitor?.name || 'Unknown Visitor'}</td>
-                </tr>
-                <tr>
-                    <td class="info-label bold">PHONE:</td>
-                    <td>${visitor?.phoneNumber || visitor?.phone || 'N/A'}</td>
-                </tr>
-                ${visitor?.idNumber ? `
-                <tr>
-                    <td class="info-label bold">ID/REF:</td>
-                    <td>${visitor.idNumber}</td>
-                </tr>
-                ` : ''}
-                <tr>
-                    <td class="info-label bold">PURPOSE:</td>
-                    <td>${visitor?.purpose || 'N/A'}</td>
-                </tr>
-                <tr>
-                    <td class="info-label bold">HOST:</td>
-                    <td>${visitor?.hostName || host?.name || 'N/A'}</td>
-                </tr>
-                ${visitor?.vehiclePlate ? `
-                <tr>
-                    <td class="info-label bold">VEHICLE:</td>
-                    <td class="bold">${visitor.vehiclePlate} ${visitor.vehicleModel ? `(${visitor.vehicleModel})` : ''}</td>
-                </tr>
-                ` : ''}
-                <tr>
-                    <td class="info-label bold">TIME:</td>
-                    <td>${timestamp}</td>
-                </tr>
-            </table>
+        <div style="border-top:1px dashed #000;margin:8px 0;"></div>
 
-            <div class="separator"></div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <tr>
+                <td style="width:50%;vertical-align:top;padding:0 2px;">
+                    <div style="font-size:9px;font-weight:bold;text-transform:uppercase;margin-bottom:3px;">Visitor Signature:</div>
+                    ${visitorSignature
+                        ? `<img src="${visitorSignature}" style="width:100%;max-height:45px;object-fit:contain;border-bottom:1px solid #000;display:block;" alt="Visitor Signature" />`
+                        : `<div style="border-bottom:1px solid #000;height:30px;width:100%;"></div>`
+                    }
+                    <div style="font-size:8px;margin-top:2px;">${visitor?.name || ''}</div>
+                </td>
+                <td style="width:50%;vertical-align:top;padding:0 2px;">
+                    <div style="font-size:9px;font-weight:bold;text-transform:uppercase;margin-bottom:3px;">Host Signature:</div>
+                    ${hostSignature
+                        ? `<img src="${hostSignature}" style="width:100%;max-height:45px;object-fit:contain;border-bottom:1px solid #000;display:block;" alt="Host Signature" />`
+                        : `<div style="border-bottom:1px solid #000;height:30px;width:100%;"></div>`
+                    }
+                    <div style="font-size:8px;margin-top:2px;">${host?.name || ''}</div>
+                </td>
+            </tr>
+        </table>
 
-            <table class="sig-table">
-                <tr>
-                    <td>
-                        <div class="sig-label">Visitor Signature:</div>
-                        ${visitorSignature
-                            ? `<img src="${visitorSignature}" class="sig-img" alt="Visitor Signature" />`
-                            : `<div class="sig-line"></div>`
-                        }
-                        <div class="sig-name">${visitor?.name || ''}</div>
-                    </td>
-                    <td>
-                        <div class="sig-label">Host Signature:</div>
-                        ${hostSignature
-                            ? `<img src="${hostSignature}" class="sig-img" alt="Host Signature" />`
-                            : `<div class="sig-line"></div>`
-                        }
-                        <div class="sig-name">${host?.name || ''}</div>
-                    </td>
-                </tr>
-            </table>
+        <div style="border-top:1px dashed #000;margin:8px 0;"></div>
 
-            <div class="separator"></div>
-
-            <div class="text-center footer">
-                <div class="bold">VISITOR APPROVED ENTRY</div>
-                <div style="margin-top: 4px;">Please keep this pass visible.</div>
-                <div style="font-size: 8px; margin-top: 6px; color: #555;">Powered by Edualloc-AI</div>
-            </div>
-            
-            <script>
-                window.onload = function() {
-                    window.print();
-                    setTimeout(function() { window.close(); }, 500);
-                }
-            </script>
-        </body>
-        </html>
+        <div style="text-align:center;font-size:9px;margin-top:15px;">
+            <div style="font-weight:bold;">VISITOR APPROVED ENTRY</div>
+            <div style="margin-top:4px;">Please keep this pass visible.</div>
+            <div style="font-size:8px;margin-top:6px;color:#555;">Powered by Edualloc-AI</div>
+        </div>
     `;
 
-    printWin.document.open();
-    printWin.document.write(htmlContent);
-    printWin.document.close();
+    // Inject a hidden print-only container into the current page
+    const printDiv = document.createElement('div');
+    printDiv.id = '__walkin_gatepass_print__';
+    printDiv.innerHTML = innerHtml;
+    document.body.appendChild(printDiv);
+
+    // Inject a style that hides everything EXCEPT our print div during printing
+    const styleTag = document.createElement('style');
+    styleTag.id = '__walkin_gatepass_style__';
+    styleTag.innerHTML = `
+        @media print {
+            body > *:not(#__walkin_gatepass_print__) { display: none !important; }
+            #__walkin_gatepass_print__ {
+                display: block !important;
+                position: fixed !important;
+                top: 0; left: 0;
+                width: 72mm;
+                margin: 0 auto;
+                padding: 5mm 0;
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 11px;
+                line-height: 1.3;
+                color: #000;
+                background: #fff;
+            }
+            @page { size: 80mm auto; margin: 0; }
+        }
+        #__walkin_gatepass_print__ { display: none; }
+    `;
+    document.head.appendChild(styleTag);
+
+    // Clean up after printing
+    const cleanup = () => {
+        document.getElementById('__walkin_gatepass_print__')?.remove();
+        document.getElementById('__walkin_gatepass_style__')?.remove();
+        window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+
+    // Trigger print — no popup, no preview window
+    window.print();
 };
 
 interface SecurityGatePassViewProps {
