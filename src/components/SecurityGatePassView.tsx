@@ -13,6 +13,7 @@ import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
 import type { TransportVehicle, VehicleLog, User, Institution, Visitor, Course } from '../types';
 import { apiService } from '../services/apiService';
+import { phonesMatch, phoneContains } from '../utils/stringUtils';
 
 export const printEposGatePass = (pin: any, parent: any, event: any, institution: any) => {
     const guests = (() => {
@@ -469,7 +470,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     u.role === 'student' && (
                         u.parentIds?.includes(pin.userId) || 
                         parentMatch?.studentIds?.includes(u.id) || 
-                        (u as any).parentPhone === (parentMatch?.phoneNumber || '')
+                        phonesMatch((u as any).parentPhone || '', parentMatch?.phoneNumber || '')
                     )
                 );
                 const finalStudent = childMatch || null;
@@ -507,7 +508,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             if (studentMatch.parentIds && studentMatch.parentIds.length > 0) {
                 parentMatch = searchUsers.find(u => u.id === studentMatch.parentIds![0]);
             } else if ((studentMatch as any).parentPhone) {
-                 parentMatch = searchUsers.find(u => u.role === 'parent' && u.phoneNumber === (studentMatch as any).parentPhone);
+                 parentMatch = searchUsers.find(u => u.role === 'parent' && phonesMatch(u.phoneNumber || '', (studentMatch as any).parentPhone || ''));
             }
             
             if (parentMatch) {
@@ -554,7 +555,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         // 2. Search by Parent Phone Number or Name directly
         const parentDirectMatch = searchUsers.find(u => 
             u.role === 'parent' && 
-            (u.phoneNumber?.includes(term) || u.name.toLowerCase().includes(term))
+            (phoneContains(u.phoneNumber || '', term) || u.name.toLowerCase().includes(term))
         );
 
         if (parentDirectMatch) {
@@ -564,7 +565,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 u.role === 'student' && (
                     u.parentIds?.includes(parentDirectMatch.id) || 
                     parentDirectMatch.studentIds?.includes(u.id) || 
-                    (u as any).parentPhone === parentDirectMatch.phoneNumber
+                    phonesMatch((u as any).parentPhone || '', parentDirectMatch.phoneNumber || '')
                 )
             );
             if (childMatch) {
@@ -772,9 +773,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     filter: { role: 'parent' }
                 });
                 parentUser = existing.find((u: any) => {
-                    const p = (u.phoneNumber || u.phone_number || '').replace(/[^\d]/g, '').slice(-9);
-                    const entered = phone.replace(/[^\d]/g, '').slice(-9);
-                    return p && entered && p === entered;
+                    return phonesMatch(u.phoneNumber || u.phone_number || '', phone);
                 });
             }
             if (!parentUser) {
@@ -1218,7 +1217,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                             u.role === 'student' && (
                                                 u.parentIds?.includes(pin.userId) || 
                                                 parent?.studentIds?.includes(u.id) || 
-                                                (u as any).parentPhone === (parent?.phoneNumber || '')
+                                                phonesMatch((u as any).parentPhone || '', parent?.phoneNumber || '')
                                             )
                                         );
 

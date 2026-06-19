@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiService } from '../../services/apiService';
+import { phonesMatch } from '../../utils/stringUtils';
 import { 
     Calendar, 
     MapPin, 
@@ -349,23 +350,11 @@ export const PublicEventConfirmation: React.FC = () => {
             const entered = lookupPhone.trim();
             if (!entered) { setLookupError('Please enter your phone number.'); setIsLookingUp(false); return; }
 
-            const cleanPhone = (p: string) => {
-                const d = p.replace(/[^\d]/g, '');
-                if (d.startsWith('254') && d.length > 9) return d.substring(3);
-                if (d.startsWith('0') && d.length > 8) return d.substring(1);
-                return d;
-            };
-            const cleanEntered = cleanPhone(entered);
-
             // Find matching user by phone
             const allUsers = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
             const matchedUser = allUsers.find((u: any) => {
-                const uPhone = cleanPhone(u.phoneNumber || u.phone_number || '');
-                return uPhone && cleanEntered && (
-                    uPhone === cleanEntered ||
-                    uPhone.endsWith(cleanEntered) ||
-                    cleanEntered.endsWith(uPhone)
-                );
+                const uPhone = u.phoneNumber || u.phone_number || '';
+                return phonesMatch(uPhone, entered);
             });
 
             if (!matchedUser) {
@@ -573,28 +562,11 @@ export const PublicEventConfirmation: React.FC = () => {
                 return;
             }
 
-            const cleanPhone = (p: string) => {
-                const digits = p.replace(/[^\d]/g, '');
-                if (digits.startsWith('254') && digits.length > 9) return digits.substring(3);
-                if (digits.startsWith('0') && digits.length > 8) return digits.substring(1);
-                return digits;
-            };
-
-            const cleanEntered = cleanPhone(enteredPhone);
-
             // 1. First try matching against the record attached to this PIN
             const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
-            if (rawDbPhone) {
-                const cleanDb = cleanPhone(rawDbPhone);
-                const match = cleanEntered && cleanDb && (
-                    cleanEntered === cleanDb ||
-                    (cleanEntered.length >= 7 && cleanDb.endsWith(cleanEntered)) ||
-                    (cleanDb.length >= 7 && cleanEntered.endsWith(cleanDb))
-                );
-                if (match) {
-                    await handleVerifySuccess(rawDbPhone);
-                    return;
-                }
+            if (rawDbPhone && phonesMatch(rawDbPhone, enteredPhone)) {
+                await handleVerifySuccess(rawDbPhone);
+                return;
             }
 
             // 2. Fallback: search ALL parents in the institution by phone
@@ -605,12 +577,8 @@ export const PublicEventConfirmation: React.FC = () => {
                     filter: { role: 'parent' }
                 });
                 const matched = allParents.find((u: any) => {
-                    const uPhone = cleanPhone(u.phoneNumber || u.phone_number || '');
-                    return uPhone && cleanEntered && (
-                        uPhone === cleanEntered ||
-                        uPhone.endsWith(cleanEntered) ||
-                        cleanEntered.endsWith(uPhone)
-                    );
+                    const uPhone = u.phoneNumber || u.phone_number || '';
+                    return phonesMatch(uPhone, enteredPhone);
                 });
                 if (matched) {
                     // Update userRecord with the real parent so name/email show correctly
@@ -629,13 +597,10 @@ export const PublicEventConfirmation: React.FC = () => {
             const students = await apiService.fetchModuleRecords('users', institutionId, undefined, { filter: { role: 'student' } });
             const enrollments = await apiService.fetchModuleRecords('student_enrollments', institutionId);
             const studentMatch = students.find((stu: any) => {
-                const sPhone = cleanPhone(stu.parentPhone || stu.parent_phone || '');
+                const sPhone = stu.parentPhone || stu.parent_phone || '';
                 const enr = enrollments.find((e: any) => e.userId === stu.id);
-                const ePhone = cleanPhone(enr?.metadata?.parentPhone || enr?.metadata?.parent_phone || '');
-                return (
-                    (sPhone && cleanEntered && (sPhone === cleanEntered || sPhone.endsWith(cleanEntered) || cleanEntered.endsWith(sPhone))) ||
-                    (ePhone && cleanEntered && (ePhone === cleanEntered || ePhone.endsWith(cleanEntered) || cleanEntered.endsWith(ePhone)))
-                );
+                const ePhone = enr?.metadata?.parentPhone || enr?.metadata?.parent_phone || '';
+                return phonesMatch(sPhone, enteredPhone) || phonesMatch(ePhone, enteredPhone);
             });
             if (studentMatch) {
                 await handleVerifySuccess(enteredPhone);
@@ -708,24 +673,17 @@ export const PublicEventConfirmation: React.FC = () => {
             ].filter(Boolean);
 
             const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
-            const cleanPhone = (p: string) => {
-                const d = (p || '').replace(/[^\d]/g, '');
-                if (d.startsWith('254') && d.length > 9) return d.substring(3);
-                if (d.startsWith('0') && d.length > 8) return d.substring(1);
-                return d;
-            };
-            const dbParentPhone = cleanPhone(rawDbPhone);
 
             // Check 1: Student's parentIds includes this invitation's userId
             const isIdMatch = userRecord?.id && studentParentIds.includes(userRecord.id);
 
             // Check 2: Student record has parentPhone matching userRecord phone
-            const sParentPhone = cleanPhone(matchedStudent.parentPhone || matchedStudent.parent_phone || '');
-            const isPhoneMatch = sParentPhone && dbParentPhone && sParentPhone === dbParentPhone;
+            const sParentPhone = matchedStudent.parentPhone || matchedStudent.parent_phone || '';
+            const isPhoneMatch = sParentPhone && rawDbPhone && phonesMatch(sParentPhone, rawDbPhone);
 
             // Check 3: Enrollment metadata parentPhone matches
-            const eParentPhone = cleanPhone(enr?.metadata?.parentPhone || enr?.metadata?.parent_phone || '');
-            const isEnrPhoneMatch = eParentPhone && dbParentPhone && eParentPhone === dbParentPhone;
+            const eParentPhone = enr?.metadata?.parentPhone || enr?.metadata?.parent_phone || '';
+            const isEnrPhoneMatch = eParentPhone && rawDbPhone && phonesMatch(eParentPhone, rawDbPhone);
 
             // Check 4: Student's institution matches invitation's institution (broadest — same school)
             const studentInstitutionId = matchedStudent.institutionId || matchedStudent.institution_id ||
