@@ -44,6 +44,7 @@ import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
 import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
 import { VALID_STAFF_ROLES } from '../../constants';
+import { formatPhoneNumber } from '../../utils/stringUtils';
 
 const teacherRoles = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher'];
 const nonSupportRoles = [
@@ -686,6 +687,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 if (updatedUser.institutionId !== currentInstitution.id) {
                     updatedUser.institutionId = currentInstitution.id;
                 }
+                if (!updatedUser.password) {
+                    updatedUser.password = 'student123';
+                }
                 await apiService.updateModuleRecord('users', existingUser.id, updatedUser);
             } else {
                 // Create a base user identity profile
@@ -712,7 +716,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     newUser.gender = formData.gender as any;
                 }
                 
-                await apiService.saveModuleRecord('users', newUser);
+                await apiService.registerUser(newUser, currentInstitution.name);
                 userId = newUserId;
             }
             
@@ -1061,7 +1065,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             if (item.gender) {
                                 newUser.gender = String(item.gender).trim() as any;
                             }
-                            await apiService.saveModuleRecord('users', newUser);
+                            await apiService.registerUser(newUser, currentInstitution.name);
                             userId = newUserId;
                             currentUsersList.push(newUser);
                         }
@@ -1213,13 +1217,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             if (updatedUser.institutionId !== currentInstitution.id) {
                                 updatedUser.institutionId = currentInstitution.id;
                             }
+                            if (!updatedUser.password) {
+                                updatedUser.password = 'password123';
+                            }
                             await apiService.updateModuleRecord('users', existingUser.id, updatedUser);
                         } else {
                             // Create new staff profile
                             const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                             const staffEmail = item.email && String(item.email).trim()
-                                ? String(item.email).trim()
-                                : `staff_${newUserId}@eduai.local`;
+                                  ? String(item.email).trim()
+                                  : `staff_${newUserId}@eduai.local`;
 
                             const newUser: User = {
                                 id: newUserId,
@@ -1234,7 +1241,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             if (item.gender) {
                                 newUser.gender = String(item.gender).trim() as any;
                             }
-                            await apiService.saveModuleRecord('users', newUser);
+                            await apiService.registerUser(newUser, currentInstitution.name);
                             currentUsersList.push(newUser);
                         }
                         successCount++;
@@ -1627,7 +1634,25 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }[] = [];
 
             for (const enr of targetEnrollments) {
-                const associatedUser = currentUsersList.find(u => u.id === enr.userId);
+                let associatedUser = currentUsersList.find(u => u.id === enr.userId);
+                if (!associatedUser) {
+                    try {
+                        const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                            filter: { id: enr.userId }
+                        });
+                        if (dbUsers && dbUsers.length > 0) {
+                            associatedUser = dbUsers[0];
+                            if (associatedUser.institutionId !== currentInstitution.id) {
+                                associatedUser.institutionId = currentInstitution.id;
+                                usersToUpsert.set(associatedUser.id, associatedUser);
+                            }
+                            currentUsersList.push(associatedUser);
+                        }
+                    } catch (err) {
+                        console.error('[CohortPin] Error searching student user:', enr.userId, err);
+                    }
+                }
+
                 if (!associatedUser) {
                     results.push({
                         recipientName: `Enrollment ID: ${enr.id}`,
@@ -1655,14 +1680,37 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
 
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                    const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
                     // Try to find if this parent user already exists in the local copy, usersToUpsert, or system database
                     let parentUser = Array.from(usersToUpsert.values()).find((u: any) =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
                     ) || currentUsersList.find(u =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
                     );
+
+                    if (!parentUser) {
+                        try {
+                            const filterVal: any = {};
+                            if (primaryParent.email) filterVal.email = primaryParent.email.toLowerCase();
+                            else if (primaryParent.phone) filterVal.phoneNumber = formattedParentPhone;
+
+                            const dbParents = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                                filter: filterVal
+                            });
+                            if (dbParents && dbParents.length > 0) {
+                                parentUser = dbParents[0];
+                                if (parentUser.institutionId !== currentInstitution.id) {
+                                    parentUser.institutionId = currentInstitution.id;
+                                    usersToUpsert.set(parentUser.id, parentUser);
+                                }
+                                currentUsersList.push(parentUser);
+                            }
+                        } catch (err) {
+                            console.error('[CohortPin] Error searching parent user:', err);
+                        }
+                    }
 
                     if (!parentUser) {
                         // Create temporary parent user profile
@@ -1671,8 +1719,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             id: newId,
                             institutionId: currentInstitution.id,
                             name: primaryParent.name || 'Parent / Guardian',
-                            email: primaryParent.email || (primaryParent.phone ? `parent_${primaryParent.phone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
-                            phoneNumber: primaryParent.phone || null,
+                            email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
+                            phoneNumber: primaryParent.phone ? formattedParentPhone : null,
                             role: 'parent',
                             studentIds: [associatedUser.id],
                             metadata: {},
@@ -1991,19 +2039,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
 
                 if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                    const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
                     let parentUser = Array.from(usersToUpsert.values()).find((u: any) =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
                     ) || currentUsersList.find(u =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
                     );
 
                     if (!parentUser) {
                         try {
                             const filterVal: any = {};
                             if (primaryParent.email) filterVal.email = primaryParent.email.toLowerCase();
-                            else if (primaryParent.phone) filterVal.phoneNumber = primaryParent.phone;
+                            else if (primaryParent.phone) filterVal.phoneNumber = formattedParentPhone;
 
                             const dbParents = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
                                 filter: filterVal
@@ -2014,6 +2063,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     parentUser.institutionId = currentInstitution.id;
                                     usersToUpsert.set(parentUser.id, parentUser);
                                 }
+                                currentUsersList.push(parentUser);
                             }
                         } catch (err) {
                             console.error('[ResendPins] Error searching parent user:', err);
@@ -2026,8 +2076,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             id: newId,
                             institutionId: currentInstitution.id,
                             name: primaryParent.name || 'Parent / Guardian',
-                            email: primaryParent.email || (primaryParent.phone ? `parent_${primaryParent.phone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
-                            phoneNumber: primaryParent.phone || null,
+                            email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
+                            phoneNumber: primaryParent.phone ? formattedParentPhone : null,
                             role: 'parent',
                             studentIds: [associatedUser.id],
                             metadata: {},
@@ -2262,16 +2312,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             let targetEmail = isPrimaryOrSecondary ? '' : (associatedUser.email || '');
 
             if (primaryParent && (primaryParent.phone || primaryParent.email)) {
+                const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
                 let parentUser = currentUsersList.find(u =>
                     (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                    (primaryParent.phone && u.phoneNumber && u.phoneNumber === primaryParent.phone)
+                    (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
                 );
 
                 if (!parentUser) {
                     try {
                         const filterVal: any = {};
                         if (primaryParent.email) filterVal.email = primaryParent.email.toLowerCase();
-                        else if (primaryParent.phone) filterVal.phoneNumber = primaryParent.phone;
+                        else if (primaryParent.phone) filterVal.phoneNumber = formattedParentPhone;
 
                         const dbParents = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
                             filter: filterVal
@@ -2294,8 +2345,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         id: newId,
                         institutionId: currentInstitution.id,
                         name: primaryParent.name || 'Parent / Guardian',
-                        email: primaryParent.email || (primaryParent.phone ? `parent_${primaryParent.phone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
-                        phoneNumber: primaryParent.phone || null,
+                        email: primaryParent.email || (primaryParent.phone ? `parent_${formattedParentPhone}@eduai.co.ke` : `parent_${newId}@eduai.co.ke`),
+                        phoneNumber: primaryParent.phone ? formattedParentPhone : null,
                         role: 'parent',
                         studentIds: [associatedUser.id],
                         metadata: {},
@@ -2898,6 +2949,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     courseId: courseToUpdate?.id || undefined,
                     updatedAt: new Date().toISOString()
                 } as any;
+                if (!updatedUser.password) {
+                    updatedUser.password = 'password123';
+                }
                 await apiService.updateModuleRecord('users', editingStaff.id, updatedUser);
                 setStatusMsg({ type: 'success', message: 'Staff profile updated successfully.' });
             } else {
@@ -2919,7 +2973,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     createdAt: new Date().toISOString(),
                     metadata: {}
                 };
-                await apiService.saveModuleRecord('users', newUser);
+                await apiService.registerUser(newUser, currentInstitution.name);
                 setStatusMsg({ type: 'success', message: 'New staff member onboarded successfully.' });
             }
 

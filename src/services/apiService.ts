@@ -646,7 +646,10 @@ export const apiService = {
             // Local simple filter
             if (options?.filter) {
                 records = records.filter((r: any) => 
-                    Object.entries(options.filter as any).every(([k, v]) => r[k] === v)
+                    Object.entries(options.filter as any).every(([k, v]) => {
+                        const snakeK = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                        return r[k] === v || r[snakeK] === v;
+                    })
                 );
             }
 

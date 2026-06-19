@@ -8,7 +8,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    RETURN (SELECT institution_id FROM public.users WHERE id = auth.uid() LIMIT 1);
+    RETURN (
+        SELECT institution_id 
+        FROM public.users 
+        WHERE id = auth.uid()::text 
+           OR id = 'u_' || auth.uid()::text 
+        LIMIT 1
+    );
 END;
 $$;
 
@@ -21,7 +27,13 @@ AS $$
 DECLARE
     v_role TEXT;
 BEGIN
-    v_role := (SELECT role FROM public.users WHERE id = auth.uid() LIMIT 1);
+    v_role := (
+        SELECT role 
+        FROM public.users 
+        WHERE id = auth.uid()::text 
+           OR id = 'u_' || auth.uid()::text 
+        LIMIT 1
+    );
     
     -- Bootstrap Super Admin (Safe fallback if profile not yet created)
     IF v_role IS NULL AND auth.jwt() ->> 'email' = 'super@app.com' THEN
