@@ -15,19 +15,6 @@ import type { TransportVehicle, VehicleLog, User, Institution, Visitor, Course }
 import { apiService } from '../services/apiService';
 
 export const printEposGatePass = (pin: any, parent: any, event: any, institution: any) => {
-    let iframe = document.getElementById('epos-print-iframe') as HTMLIFrameElement;
-    if (!iframe) {
-        iframe = document.createElement('iframe');
-        iframe.id = 'epos-print-iframe';
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = '0';
-        document.body.appendChild(iframe);
-    }
-
     const guests = (() => {
         try {
             const parsed = JSON.parse(pin.guests || '[]');
@@ -38,6 +25,9 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
     })();
 
     const timestamp = new Date().toLocaleString();
+
+    const printWin = window.open('', '_blank', 'width=400,height=600,toolbar=0,menubar=0,scrollbars=0');
+    if (!printWin) return;
 
     const htmlContent = `
         <html>
@@ -158,35 +148,23 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
             <script>
                 window.onload = function() {
                     window.print();
+                    setTimeout(function() { window.close(); }, 500);
                 }
             </script>
         </body>
         </html>
     `;
 
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (doc) {
-        doc.open();
-        doc.write(htmlContent);
-        doc.close();
-    }
+    printWin.document.open();
+    printWin.document.write(htmlContent);
+    printWin.document.close();
 };
 
 export const printEposWalkInGatePass = (visitor: any, host: any, institution: any) => {
-    let iframe = document.getElementById('epos-print-iframe') as HTMLIFrameElement;
-    if (!iframe) {
-        iframe = document.createElement('iframe');
-        iframe.id = 'epos-print-iframe';
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = '0';
-        document.body.appendChild(iframe);
-    }
-
     const timestamp = new Date().toLocaleString();
+
+    const printWin = window.open('', '_blank', 'width=400,height=600,toolbar=0,menubar=0,scrollbars=0');
+    if (!printWin) return;
 
     const htmlContent = `
         <html>
@@ -298,18 +276,16 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
             <script>
                 window.onload = function() {
                     window.print();
+                    setTimeout(function() { window.close(); }, 500);
                 }
             </script>
         </body>
         </html>
     `;
 
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (doc) {
-        doc.open();
-        doc.write(htmlContent);
-        doc.close();
-    }
+    printWin.document.open();
+    printWin.document.write(htmlContent);
+    printWin.document.close();
 };
 
 interface SecurityGatePassViewProps {
