@@ -38,6 +38,14 @@ export const PublicEventConfirmation: React.FC = () => {
     const [verificationError, setVerificationError] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
 
+    // Profile editing after verification
+    const [editName, setEditName] = useState('');
+    const [editEmail, setEditEmail] = useState('');
+    const [editPhone, setEditPhone] = useState('');
+    const [profileSaved, setProfileSaved] = useState(false);
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [profileMsg, setProfileMsg] = useState<{ type: 'idle' | 'success' | 'error'; text: string }>({ type: 'idle', text: '' });
+
     useEffect(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -299,6 +307,10 @@ export const PublicEventConfirmation: React.FC = () => {
 
             if (match) {
                 setIsVerified(true);
+                // Pre-fill profile edit fields from existing record
+                setEditName(userRecord?.name || '');
+                setEditEmail(userRecord?.email || '');
+                setEditPhone(userRecord?.phoneNumber || userRecord?.phone_number || verificationPhone);
                 
                 // Pre-populate children as accompanying guests by default if guests array is empty
                 try {
@@ -547,7 +559,12 @@ export const PublicEventConfirmation: React.FC = () => {
                                 </span>
                                 <h2 className="text-3xl font-black tracking-tight text-white uppercase">You're Invited!</h2>
                                 <p className="text-slate-400 text-xs sm:text-sm">
-                                    Hello <strong className="text-white">{userRecord?.name || 'Parent'}</strong>, please confirm if you will attend the scheduled event below.
+                                    {isVerified
+                                        ? <>
+                                            Hello <strong className="text-white">{editName || userRecord?.name || 'Parent'}</strong>, please confirm if you will attend the scheduled event below.
+                                          </>
+                                        : 'Please verify your identity to access RSVP options.'
+                                    }
                                 </p>
                             </div>
 
@@ -627,8 +644,101 @@ export const PublicEventConfirmation: React.FC = () => {
                                 </div>
                             ) : (
                                 <>
-                                    {/* Guests Input Form */}
-                                    <div className="space-y-4">
+                                    {/* Profile Update Section */}
+                                    {!profileSaved ? (
+                                        <div className="space-y-4 pt-4 border-t border-slate-850 animate-fade-in">
+                                            <div className="flex items-center gap-3 mb-1">
+                                                <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                                                    <User className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-xs font-black uppercase text-white tracking-wider">Confirm Your Details</h4>
+                                                    <p className="text-[10px] text-slate-400">Review and update your information before submitting your RSVP.</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <div className="space-y-1.5">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">Full Name</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Your full name"
+                                                        value={editName}
+                                                        onChange={e => setEditName(e.target.value)}
+                                                        className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition-colors placeholder:text-slate-600"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">Email Address</label>
+                                                    <input
+                                                        type="email"
+                                                        placeholder="Your email address (optional)"
+                                                        value={editEmail}
+                                                        onChange={e => setEditEmail(e.target.value)}
+                                                        className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition-colors placeholder:text-slate-600"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">Phone Number</label>
+                                                    <input
+                                                        type="tel"
+                                                        placeholder="Your phone number"
+                                                        value={editPhone}
+                                                        onChange={e => setEditPhone(e.target.value)}
+                                                        className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition-colors placeholder:text-slate-600"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {profileMsg.type !== 'idle' && (
+                                                <div className={`p-3 rounded-xl text-[11px] font-bold flex items-center gap-2 ${
+                                                    profileMsg.type === 'success'
+                                                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                                                        : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
+                                                }`}>
+                                                    <AlertCircle className="w-4 h-4 shrink-0" />
+                                                    <span>{profileMsg.text}</span>
+                                                </div>
+                                            )}
+
+                                            <button
+                                                onClick={async () => {
+                                                    if (!editName.trim()) {
+                                                        setProfileMsg({ type: 'error', text: 'Full name is required.' });
+                                                        return;
+                                                    }
+                                                    setIsSavingProfile(true);
+                                                    setProfileMsg({ type: 'idle', text: '' });
+                                                    try {
+                                                        const updatedUser = {
+                                                            ...userRecord,
+                                                            name: editName.trim(),
+                                                            email: editEmail.trim() || userRecord?.email || '',
+                                                            phoneNumber: editPhone.trim() || userRecord?.phoneNumber || userRecord?.phone_number || ''
+                                                        };
+                                                        await apiService.saveModuleRecord('users', updatedUser);
+                                                        setUserRecord(updatedUser);
+                                                        setProfileSaved(true);
+                                                        setProfileMsg({ type: 'success', text: 'Details updated successfully!' });
+                                                    } catch (err: any) {
+                                                        setProfileMsg({ type: 'error', text: `Failed to save details: ${err.message || 'Please try again.'}` });
+                                                    } finally {
+                                                        setIsSavingProfile(false);
+                                                    }
+                                                }}
+                                                disabled={isSavingProfile}
+                                                className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-purple-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-50"
+                                            >
+                                                {isSavingProfile ? 'Saving...' : 'Confirm Details & Continue'}
+                                            </button>
+                                            <p className="text-center text-[10px] text-slate-500">
+                                                Your details will be updated on file. This helps ensure accurate records.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                        {/* Guests Input Form */}
+                                        <div className="space-y-4">
                                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">
                                             Accompanying Guests
                                         </label>
@@ -719,6 +829,8 @@ export const PublicEventConfirmation: React.FC = () => {
                                             Decline Invite
                                         </button>
                                     </div>
+                                        </>
+                                    )}
                                 </>
                             )}
                         </div>
