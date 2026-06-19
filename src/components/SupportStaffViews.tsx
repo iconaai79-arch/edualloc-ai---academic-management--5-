@@ -881,7 +881,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Host / Personnel To See</label>
                                 <select className="form-select" value={walkInForm.hostId} onChange={(e) => setWalkInForm({ ...walkInForm, hostId: e.target.value })} required>
                                     <option value="">Select Host</option>
-                                    {users.filter(u => !isSchool || u.role !== 'student').map(u => <option key={u.id} value={u.id}>{u.name} ({formatRoleDisplayName(u.role, props.currentInstitution)})</option>)}
+                                    {users.filter(u => u.role !== 'student' && u.role !== 'parent').map(u => <option key={u.id} value={u.id}>{u.name} ({formatRoleDisplayName(u.role, props.currentInstitution)})</option>)}
                                     <option value="other_custom">-- Other (Not on list - Direct to Receptionist) --</option>
                                 </select>
                             </div>
@@ -2810,7 +2810,7 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
                                     onChange={(e) => setNewHostId(e.target.value)}
                                 >
                                     <option value="">Select Target Host</option>
-                                    {users.filter(u => u.id !== redirectingVisitor.hostId).map(u => (
+                                    {users.filter(u => u.id !== redirectingVisitor.hostId && u.role !== 'student' && u.role !== 'parent').map(u => (
                                         <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                                     ))}
                                 </select>
