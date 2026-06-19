@@ -1342,81 +1342,167 @@ export const PublicEventConfirmation: React.FC = () => {
                                 </p>
                             </div>
 
-                            {/* Ticket Card */}
-                            <div className="bg-slate-950 border border-slate-850 rounded-[2rem] p-6 space-y-6 relative overflow-hidden print:bg-white print:border-2 print:border-black">
-                                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 print:hidden"></div>
-                                
-                                <div className="space-y-1">
-                                    <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block print:text-indigo-600">
-                                        Check-In Gate Pass
-                                    </span>
-                                    <h3 className="text-xl font-black text-white print:text-black">{eventRecord?.title || 'Institution Event'}</h3>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                        For: {userRecord?.name || 'Invited Parent'}
-                                    </p>
-                                </div>
-
-                                {/* QR Canvas */}
-                                <div className="inline-block bg-white p-3 rounded-2xl shadow-xl mx-auto">
-                                    <canvas id="pass-qr" className="w-48 h-48 mx-auto" />
-                                </div>
-
-                                {/* backup PIN */}
-                                <div className="bg-slate-900/60 border border-slate-850 rounded-2xl py-3 px-4 max-w-xs mx-auto print:border-black">
-                                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block">Backup Entry PIN</span>
-                                    <span className="text-2xl font-mono font-black text-indigo-400 tracking-wider print:text-indigo-600">
-                                        {pinRecord?.pin}
-                                    </span>
-                                </div>
-
-                                {/* Event Info Details */}
-                                <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-450 pt-4 border-t border-slate-900 print:border-black">
-                                    <span className="flex items-center gap-1.5 justify-center">
-                                        <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                                        {eventRecord?.eventDate}
-                                    </span>
-                                    <span className="flex items-center gap-1.5 justify-center">
-                                        <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                                        {eventRecord?.eventTime}
-                                    </span>
-                                    <span className="flex items-center gap-1.5 justify-center col-span-2">
-                                        <MapPin className="w-3.5 h-3.5 text-indigo-400" />
-                                        {eventRecord?.venue}
-                                    </span>
-                                </div>
-
-                                {/* Accompanying Guests / Vehicle Info */}
-                                {(guests.length > 0 || pinRecord?.vehicleRegistration) && (
-                                    <div className="pt-4 border-t border-slate-900 text-left space-y-3 print:border-black">
-                                        {guests.length > 0 && (
-                                            <div className="space-y-1.5">
-                                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block text-center">
-                                                    Accompanying Guests ({guests.length})
-                                                </span>
-                                                <div className="flex flex-wrap gap-1.5 justify-center">
-                                                    {guests.map((g, i) => (
-                                                        <span key={i} className="px-2.5 py-1 bg-slate-900 border border-slate-850 text-slate-350 rounded-lg text-[10px] font-bold print:border-black print:text-black">
-                                                            {g}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {pinRecord?.vehicleRegistration && (
-                                            <div className="space-y-1.5 pt-1">
-                                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block text-center">
-                                                    Vehicle Access Cleared
-                                                </span>
-                                                <div className="text-center">
-                                                    <span className="px-4 py-1.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-black uppercase tracking-widest inline-block print:border-black print:text-black">
-                                                        {pinRecord.vehicleRegistration}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
+                            {/* ═══════════════════════════════════════════════════════════
+                                PROFESSIONAL GATEPASS TICKET CARD
+                                ═══════════════════════════════════════════════════════════ */}
+                            <div
+                                id="gatepass-ticket"
+                                className="relative overflow-hidden rounded-[2rem] shadow-2xl print:shadow-none print:rounded-none"
+                                style={{ fontFamily: "'Inter', sans-serif" }}
+                            >
+                                {/* ── Header stripe ───────────────────────────────────── */}
+                                <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-purple-700 px-6 py-5 text-white print:bg-indigo-700">
+                                    <div className="flex items-start justify-between">
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-200">
+                                                {institution?.name || 'EduAi Institution'}
+                                            </p>
+                                            <h3 className="text-lg font-black tracking-tight leading-tight">
+                                                {eventRecord?.title || 'Institution Event'}
+                                            </h3>
+                                            <p className="text-[10px] text-indigo-200 font-semibold">
+                                                Official Event Admission Pass
+                                            </p>
+                                        </div>
+                                        <div className="text-right shrink-0 ml-4">
+                                            <span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block">Pass Code</span>
+                                            <span className="text-sm font-mono font-black tracking-widest text-white">
+                                                #{(pinRecord?.id || pinRecord?.pin || '').toString().replace('pin_', '').toUpperCase().slice(-8)}
+                                            </span>
+                                        </div>
                                     </div>
-                                )}
+                                </div>
+
+                                {/* ── Tear-line ───────────────────────────────────────── */}
+                                <div className="relative flex items-center bg-slate-950 print:bg-white">
+                                    <div className="absolute -left-3 w-6 h-6 rounded-full bg-slate-950 border-2 border-slate-850 print:bg-gray-100 print:border-gray-300" />
+                                    <div className="flex-1 border-t-2 border-dashed border-slate-800 mx-6 print:border-gray-400" />
+                                    <div className="absolute -right-3 w-6 h-6 rounded-full bg-slate-950 border-2 border-slate-850 print:bg-gray-100 print:border-gray-300" />
+                                </div>
+
+                                {/* ── Body ────────────────────────────────────────────── */}
+                                <div className="bg-slate-950 px-6 py-5 space-y-5 print:bg-white print:text-black">
+
+                                    {/* Holder Info */}
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 print:border-indigo-600">
+                                            <User className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block print:text-gray-500">Pass Holder</span>
+                                            <span className="text-sm font-black text-white print:text-black">{userRecord?.name || 'Invited Parent / Guardian'}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* QR Code */}
+                                    <div className="flex justify-center">
+                                        <div className="inline-block bg-white p-3 rounded-2xl shadow-xl border border-slate-800 print:border-gray-300">
+                                            <canvas id="pass-qr" className="w-40 h-40 mx-auto" />
+                                        </div>
+                                    </div>
+
+                                    {/* Gate PIN */}
+                                    <div className="text-center">
+                                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-1 print:text-gray-500">Gate Entry PIN</span>
+                                        <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl px-6 py-3 print:border-indigo-600">
+                                            <span className="text-3xl font-mono font-black text-indigo-400 tracking-[0.25em] print:text-indigo-700">
+                                                {pinRecord?.pin}
+                                            </span>
+                                        </div>
+                                        <p className="text-[9px] text-slate-600 mt-1.5 print:text-gray-500">Show QR or PIN at the security gate</p>
+                                    </div>
+
+                                    {/* Event Details Grid */}
+                                    <div className="grid grid-cols-3 gap-2 pt-4 border-t border-slate-900 print:border-gray-300">
+                                        <div className="text-center space-y-1">
+                                            <Calendar className="w-4 h-4 text-indigo-400 mx-auto print:text-indigo-600" />
+                                            <span className="text-[9px] font-black text-slate-500 uppercase block print:text-gray-500">Date</span>
+                                            <span className="text-[10px] font-bold text-slate-200 print:text-black">{eventRecord?.eventDate || '—'}</span>
+                                        </div>
+                                        <div className="text-center space-y-1">
+                                            <Clock className="w-4 h-4 text-indigo-400 mx-auto print:text-indigo-600" />
+                                            <span className="text-[9px] font-black text-slate-500 uppercase block print:text-gray-500">Time</span>
+                                            <span className="text-[10px] font-bold text-slate-200 print:text-black">{eventRecord?.eventTime || '—'}</span>
+                                        </div>
+                                        <div className="text-center space-y-1">
+                                            <MapPin className="w-4 h-4 text-indigo-400 mx-auto print:text-indigo-600" />
+                                            <span className="text-[9px] font-black text-slate-500 uppercase block print:text-gray-500">Venue</span>
+                                            <span className="text-[10px] font-bold text-slate-200 print:text-black">{eventRecord?.venue || '—'}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Accompanying Guests */}
+                                    {guests.length > 0 && (
+                                        <div className="pt-3 border-t border-slate-900 space-y-2 print:border-gray-300">
+                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block text-center print:text-gray-500">
+                                                Accompanying Guests ({guests.length})
+                                            </span>
+                                            <div className="flex flex-wrap gap-1.5 justify-center">
+                                                {guests.map((g, i) => (
+                                                    <span key={i} className="px-2.5 py-1 bg-slate-900 border border-slate-800 text-slate-300 rounded-lg text-[10px] font-bold print:border-gray-300 print:text-black">
+                                                        {g}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Vehicle Clearance */}
+                                    {pinRecord?.vehicleRegistration && (
+                                        <div className="pt-3 border-t border-slate-900 space-y-2 print:border-gray-300">
+                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block text-center print:text-gray-500">Vehicle Access Cleared</span>
+                                            <div className="text-center">
+                                                <span className="px-5 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-black uppercase tracking-widest inline-block print:border-green-600 print:text-green-700">
+                                                    {pinRecord.vehicleRegistration}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── Second tear-line ─────────────────────────────────── */}
+                                <div className="relative flex items-center bg-slate-950 print:bg-white">
+                                    <div className="absolute -left-3 w-6 h-6 rounded-full bg-slate-950 border-2 border-slate-850 print:bg-gray-100 print:border-gray-300" />
+                                    <div className="flex-1 border-t-2 border-dashed border-slate-800 mx-6 print:border-gray-400" />
+                                    <div className="absolute -right-3 w-6 h-6 rounded-full bg-slate-950 border-2 border-slate-850 print:bg-gray-100 print:border-gray-300" />
+                                </div>
+
+                                {/* ── Footer branding ──────────────────────────────────── */}
+                                <div className="bg-slate-900 border-t border-slate-850 px-6 py-4 print:bg-gray-50 print:border-gray-300">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-md flex items-center justify-center text-white font-black text-[10px]">E</div>
+                                            <div>
+                                                <p className="text-[9px] font-black text-slate-300 leading-none print:text-black">Powered by <span className="text-indigo-400 print:text-indigo-700">EduAi OS</span></p>
+                                                <p className="text-[8px] text-slate-500 print:text-gray-500">Academic Management Platform</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest print:text-gray-500">Support</p>
+                                            <a
+                                                href="tel:+254700000000"
+                                                className="text-[10px] font-black text-indigo-400 print:text-indigo-700"
+                                            >
+                                                {institution?.supportPhone || institution?.support_phone || '+254 700 000 000'}
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 pt-3 border-t border-slate-850 flex items-center justify-between print:border-gray-300">
+                                        <p className="text-[8px] text-slate-600 print:text-gray-500">
+                                            Pass ID: <span className="font-mono font-black text-slate-500 print:text-gray-700">{(pinRecord?.id || '').toString().toUpperCase()}</span>
+                                        </p>
+                                        <p className="text-[8px] text-slate-600 print:text-gray-500">
+                                            Issued: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* ── Security watermark (print only) ──────────────────── */}
+                                <div className="hidden print:flex absolute inset-0 items-center justify-center pointer-events-none opacity-[0.04] rotate-[-35deg]">
+                                    <span className="text-7xl font-black text-indigo-900 tracking-widest uppercase whitespace-nowrap">EduAi OS</span>
+                                </div>
                             </div>
+
 
                             {/* Pass Actions */}
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 print:hidden">
