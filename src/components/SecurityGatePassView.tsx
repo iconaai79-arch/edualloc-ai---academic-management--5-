@@ -172,6 +172,146 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
     }
 };
 
+export const printEposWalkInGatePass = (visitor: any, host: any, institution: any) => {
+    let iframe = document.getElementById('epos-print-iframe') as HTMLIFrameElement;
+    if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'epos-print-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+    }
+
+    const timestamp = new Date().toLocaleString();
+
+    const htmlContent = `
+        <html>
+        <head>
+            <style>
+                @page {
+                    size: 80mm auto;
+                    margin: 0;
+                }
+                body {
+                    width: 72mm;
+                    margin: 0 auto;
+                    padding: 5mm 0;
+                    font-family: 'Courier New', Courier, monospace;
+                    font-size: 11px;
+                    line-height: 1.3;
+                    color: #000;
+                    background-color: #fff;
+                }
+                .text-center {
+                    text-align: center;
+                }
+                .bold {
+                    font-weight: bold;
+                }
+                .title {
+                    font-size: 14px;
+                    margin: 4px 0;
+                    text-transform: uppercase;
+                }
+                .subtitle {
+                    font-size: 11px;
+                    margin-bottom: 8px;
+                    text-transform: uppercase;
+                }
+                .separator {
+                    border-top: 1px dashed #000;
+                    margin: 8px 0;
+                }
+                .info-table {
+                    width: 100%;
+                    margin-bottom: 8px;
+                }
+                .info-table td {
+                    padding: 2px 0;
+                    vertical-align: top;
+                }
+                .info-label {
+                    width: 40%;
+                }
+                .footer {
+                    margin-top: 15px;
+                    font-size: 9px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="text-center">
+                <div class="bold title">${institution?.name || 'Academic Institution'}</div>
+                <div class="subtitle">Gate Entry Pass</div>
+                <div class="separator"></div>
+                <div class="bold" style="font-size: 12px; margin: 5px 0;">WALK-IN VISITOR PASS</div>
+                <div class="separator"></div>
+            </div>
+
+            <table class="info-table">
+                <tr>
+                    <td class="info-label bold">VISITOR:</td>
+                    <td>${visitor?.name || 'Unknown Visitor'}</td>
+                </tr>
+                <tr>
+                    <td class="info-label bold">PHONE:</td>
+                    <td>${visitor?.phoneNumber || visitor?.phone || 'N/A'}</td>
+                </tr>
+                ${visitor?.idNumber ? `
+                <tr>
+                    <td class="info-label bold">ID/REF:</td>
+                    <td>${visitor.idNumber}</td>
+                </tr>
+                ` : ''}
+                <tr>
+                    <td class="info-label bold">PURPOSE:</td>
+                    <td>${visitor?.purpose || 'N/A'}</td>
+                </tr>
+                <tr>
+                    <td class="info-label bold">HOST:</td>
+                    <td>${visitor?.hostName || host?.name || 'N/A'}</td>
+                </tr>
+                ${visitor?.vehiclePlate ? `
+                <tr>
+                    <td class="info-label bold">VEHICLE:</td>
+                    <td class="bold">${visitor.vehiclePlate} ${visitor.vehicleModel ? `(${visitor.vehicleModel})` : ''}</td>
+                </tr>
+                ` : ''}
+                <tr>
+                    <td class="info-label bold">TIME:</td>
+                    <td>${timestamp}</td>
+                </tr>
+            </table>
+
+            <div class="separator"></div>
+
+            <div class="text-center footer">
+                <div class="bold">VISITOR APPROVED ENTRY</div>
+                <div style="margin-top: 4px;">Please keep this pass visible.</div>
+                <div style="font-size: 8px; margin-top: 6px; color: #555;">Powered by Edualloc-AI</div>
+            </div>
+            
+            <script>
+                window.onload = function() {
+                    window.print();
+                }
+            </script>
+        </body>
+        </html>
+    `;
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (doc) {
+        doc.open();
+        doc.write(htmlContent);
+        doc.close();
+    }
+};
+
 interface SecurityGatePassViewProps {
     vehicles: TransportVehicle[];
     vehicleLogs: VehicleLog[];

@@ -55,7 +55,7 @@ import { StoreItemForm } from './StoreItemForm';
 import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';
 import { TransactionForm } from './TransactionForm';
 import { ItemQrCodeModal } from './ItemQrCodeModal';
-import { SecurityGatePassView, printEposGatePass } from './SecurityGatePassView';
+import { SecurityGatePassView, printEposGatePass, printEposWalkInGatePass } from './SecurityGatePassView';
 import { apiService } from '../services/apiService';
 import { TransportOnboardingView } from './TransportOnboardingView';
 import { SupplierForm } from './retail/SupplierForm';
@@ -320,7 +320,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 finalHostName = customHostName.trim();
             }
 
-            await onAddVisitor({
+            const visitorPayload = {
                 name: walkInForm.name,
                 phoneNumber: walkInForm.phone,
                 purpose: walkInForm.purpose,
@@ -332,13 +332,23 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 visitDate: new Date().toISOString().split('T')[0],
                 timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 institutionId: user?.institutionId || ''
-            });
+            };
+
+            await onAddVisitor(visitorPayload);
+            
+            try {
+                const hostUser = users.find(u => u.id === finalHostId);
+                printEposWalkInGatePass(visitorPayload, hostUser, props.currentInstitution);
+            } catch (err) {
+                console.error("Failed to automatically print walk-in gatepass:", err);
+            }
+
             await props.onLogAction?.(`Registered visitor: ${walkInForm.name} (ID: ${walkInForm.idNumber}) for ${walkInForm.purpose}`);
             setIsRegistering(false);
             setLookupStatus('idle');
             setCustomHostName('');
             setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
-            alert("Visitor Registered & Signed In");
+            alert("Visitor Registered, Pass Generated & Signed In");
         }
     };
     const handleCheckInAppointment = async (apt: Appointment) => {
@@ -379,7 +389,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 // Add the parent first
                 await onAddVisitor({
                     name: parent.name,
-                    phoneNumber: parent.phoneNumber || parent.phone_number || '',
+                    phoneNumber: parent.phoneNumber || '',
                     purpose: `Event Check-In: Parent of ${student?.name || 'Student'}`,
                     visitDate: dateStr,
                     timeIn: timeInStr,
@@ -398,7 +408,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 if (guestName && typeof guestName === 'string' && guestName.trim()) {
                                     await onAddVisitor({
                                         name: guestName.trim(),
-                                        phoneNumber: parent.phoneNumber || parent.phone_number || '',
+                                        phoneNumber: parent.phoneNumber || '',
                                         purpose: `Accompanying Guest (Invited by ${parent.name})`,
                                         visitDate: dateStr,
                                         timeIn: timeInStr,
