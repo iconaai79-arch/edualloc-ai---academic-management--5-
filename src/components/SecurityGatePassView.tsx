@@ -26,138 +26,169 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
 
     const timestamp = new Date().toLocaleString();
 
-    const printWin = window.open('', '_blank', 'width=400,height=600,toolbar=0,menubar=0,scrollbars=0');
-    if (!printWin) return;
+    // Clean up any existing print container
+    const existing = document.getElementById('epos-print-container');
+    if (existing) {
+        existing.remove();
+    }
 
-    const htmlContent = `
-        <html>
-        <head>
-            <style>
-                @page {
-                    size: 80mm auto;
-                    margin: 0;
-                }
-                body {
-                    width: 72mm;
-                    margin: 0 auto;
-                    padding: 5mm 0;
-                    font-family: 'Courier New', Courier, monospace;
-                    font-size: 11px;
-                    line-height: 1.3;
-                    color: #000;
-                    background-color: #fff;
-                }
-                .text-center {
-                    text-align: center;
-                }
-                .bold {
-                    font-weight: bold;
-                }
-                .title {
-                    font-size: 14px;
-                    margin: 4px 0;
-                    text-transform: uppercase;
-                }
-                .subtitle {
-                    font-size: 11px;
-                    margin-bottom: 8px;
-                    text-transform: uppercase;
-                }
-                .separator {
-                    border-top: 1px dashed #000;
-                    margin: 8px 0;
-                }
-                .info-table {
-                    width: 100%;
-                    margin-bottom: 8px;
-                }
-                .info-table td {
-                    padding: 2px 0;
-                    vertical-align: top;
-                }
-                .info-label {
-                    width: 40%;
-                }
-                .guests-title {
-                    margin-top: 8px;
-                    text-transform: uppercase;
-                }
-                .guest-item {
-                    padding: 2px 0;
-                }
-                .footer {
-                    margin-top: 15px;
-                    font-size: 9px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="text-center">
-                <div class="bold title">${institution?.name || 'Academic Institution'}</div>
-                <div class="subtitle">Gate Entry Pass</div>
-                <div class="separator"></div>
-                <div class="bold" style="font-size: 12px; margin: 5px 0;">EVENT CHECK-IN PASS</div>
-                <div class="separator"></div>
-            </div>
+    const container = document.createElement('div');
+    container.id = 'epos-print-container';
+    container.className = 'print-only';
 
-            <table class="info-table">
-                <tr>
-                    <td class="info-label bold">EVENT:</td>
-                    <td>${event?.title || 'School Event'}</td>
-                </tr>
-                <tr>
-                    <td class="info-label bold">HOLDER:</td>
-                    <td>${parent?.name || 'Invited Guest'}</td>
-                </tr>
-                <tr>
-                    <td class="info-label bold">PHONE:</td>
-                    <td>${parent?.phoneNumber || parent?.phone_number || 'N/A'}</td>
-                </tr>
-                ${pin.vehicleRegistration || pin.vehicle_registration ? `
-                <tr>
-                    <td class="info-label bold">VEHICLE:</td>
-                    <td class="bold">${pin.vehicleRegistration || pin.vehicle_registration}</td>
-                </tr>
-                ` : ''}
-                <tr>
-                    <td class="info-label bold">TIME:</td>
-                    <td>${timestamp}</td>
-                </tr>
-                <tr>
-                    <td class="info-label bold">PIN CODE:</td>
-                    <td class="bold">${pin.pin}</td>
-                </tr>
-            </table>
-
+    const innerHtml = `
+        <div class="text-center">
+            <div class="bold title">${institution?.name || 'Academic Institution'}</div>
+            <div class="subtitle">Gate Entry Pass</div>
             <div class="separator"></div>
-
-            <div class="bold guests-title">Accompanying Guests (${guests.length}):</div>
-            ${guests.length > 0 
-                ? guests.map((g: string, idx: number) => `<div class="guest-item">${idx + 1}. ${g}</div>`).join('')
-                : '<div class="guest-item">No accompanying guests</div>'
-            }
-
+            <div class="bold" style="font-size: 12px; margin: 5px 0;">EVENT CHECK-IN PASS</div>
             <div class="separator"></div>
+        </div>
 
-            <div class="text-center footer">
-                <div class="bold">ENTRY APPROVED</div>
-                <div style="margin-top: 4px;">Thank you for attending.</div>
-                <div style="font-size: 8px; margin-top: 6px; color: #555;">Powered by Edualloc-AI</div>
-            </div>
-            
-            <script>
-                window.onload = function() {
-                    window.print();
-                    setTimeout(function() { window.close(); }, 500);
-                }
-            </script>
-        </body>
-        </html>
+        <table class="info-table">
+            <tr>
+                <td class="info-label bold">EVENT:</td>
+                <td>${event?.title || 'School Event'}</td>
+            </tr>
+            <tr>
+                <td class="info-label bold">HOLDER:</td>
+                <td>${parent?.name || 'Invited Guest'}</td>
+            </tr>
+            <tr>
+                <td class="info-label bold">PHONE:</td>
+                <td>${parent?.phoneNumber || parent?.phone_number || 'N/A'}</td>
+            </tr>
+            ${pin.vehicleRegistration || pin.vehicle_registration ? `
+            <tr>
+                <td class="info-label bold">VEHICLE:</td>
+                <td class="bold">${pin.vehicleRegistration || pin.vehicle_registration}</td>
+            </tr>
+            ` : ''}
+            <tr>
+                <td class="info-label bold">TIME:</td>
+                <td>${timestamp}</td>
+            </tr>
+            <tr>
+                <td class="info-label bold">PIN CODE:</td>
+                <td class="bold">${pin.pin}</td>
+            </tr>
+        </table>
+
+        <div class="separator"></div>
+
+        <div class="bold guests-title">Accompanying Guests (${guests.length}):</div>
+        ${guests.length > 0 
+            ? guests.map((g: string, idx: number) => `<div class="guest-item">${idx + 1}. ${g}</div>`).join('')
+            : '<div class="guest-item">No accompanying guests</div>'
+        }
+
+        <div class="separator"></div>
+
+        <div class="text-center footer">
+            <div class="bold">ENTRY APPROVED</div>
+            <div style="margin-top: 4px;">Thank you for attending.</div>
+            <div style="font-size: 8px; margin-top: 6px; color: #555;">Powered by Edualloc-AI</div>
+        </div>
     `;
 
-    printWin.document.open();
-    printWin.document.write(htmlContent);
-    printWin.document.close();
+    container.innerHTML = `
+        <style>
+            @media print {
+                @page {
+                    size: 80mm auto !important;
+                    margin: 0 !important;
+                }
+                html, body {
+                    height: auto !important;
+                    overflow: visible !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
+                }
+                body > *:not(#epos-print-container) {
+                    display: none !important;
+                    height: 0 !important;
+                    overflow: hidden !important;
+                }
+                #epos-print-container, #epos-print-container * {
+                    visibility: visible !important;
+                }
+                #epos-print-container {
+                    position: absolute !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    top: 0 !important;
+                    width: 72mm !important;
+                    margin: 0 auto !important;
+                    padding: 5mm 0 !important;
+                    display: block !important;
+                    z-index: 99999 !important;
+                    background: #fff !important;
+                    font-family: 'Courier New', Courier, monospace !important;
+                    font-size: 11px !important;
+                    line-height: 1.3 !important;
+                    color: #000 !important;
+                }
+            }
+            #epos-print-container .text-center {
+                text-align: center;
+            }
+            #epos-print-container .bold {
+                font-weight: bold;
+            }
+            #epos-print-container .title {
+                font-size: 14px;
+                margin: 4px 0;
+                text-transform: uppercase;
+            }
+            #epos-print-container .subtitle {
+                font-size: 11px;
+                margin-bottom: 8px;
+                text-transform: uppercase;
+            }
+            #epos-print-container .separator {
+                border-top: 1px dashed #000;
+                margin: 8px 0;
+            }
+            #epos-print-container .info-table {
+                width: 100%;
+                margin-bottom: 8px;
+                font-size: 11px;
+            }
+            #epos-print-container .info-table td {
+                padding: 2px 0;
+                vertical-align: top;
+            }
+            #epos-print-container .info-label {
+                width: 40%;
+            }
+            #epos-print-container .guests-title {
+                margin-top: 8px;
+                text-transform: uppercase;
+            }
+            #epos-print-container .guest-item {
+                padding: 2px 0;
+            }
+            #epos-print-container .footer {
+                margin-top: 15px;
+                font-size: 9px;
+            }
+        </style>
+        ${innerHtml}
+    `;
+
+    document.body.appendChild(container);
+
+    setTimeout(() => {
+        try {
+            window.print();
+        } catch (e) {
+            console.error("Print triggered exception:", e);
+        }
+        setTimeout(() => {
+            container.remove();
+        }, 1000);
+    }, 250);
 };
 
 export const printEposWalkInGatePass = (visitor: any, host: any, institution: any, hostSignature?: string, visitorSignature?: string) => {
@@ -214,69 +245,71 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
         </div>
     `;
 
-    // Create a hidden iframe for isolated printing
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    iframe.style.visibility = 'hidden';
-    
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document || iframe.contentDocument;
-    if (!doc) {
-        console.error("Could not obtain iframe document for printing");
-        return;
+    // Clean up any existing print container
+    const existing = document.getElementById('epos-print-container');
+    if (existing) {
+        existing.remove();
     }
 
-    const fullHtml = `
-        <html>
-        <head>
-            <title>Gate Pass</title>
-            <style>
+    const container = document.createElement('div');
+    container.id = 'epos-print-container';
+    container.className = 'print-only';
+
+    container.innerHTML = `
+        <style>
+            @media print {
                 @page {
-                    size: 80mm auto;
-                    margin: 0;
+                    size: 80mm auto !important;
+                    margin: 0 !important;
                 }
-                body {
-                    width: 72mm;
-                    margin: 0 auto;
-                    padding: 5mm 0;
-                    font-family: 'Courier New', Courier, monospace;
-                    font-size: 11px;
-                    line-height: 1.3;
-                    color: #000;
-                    background-color: #fff;
+                html, body {
+                    height: auto !important;
+                    overflow: visible !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
                 }
-            </style>
-        </head>
-        <body>
-            ${innerHtml}
-        </body>
-        </html>
+                body > *:not(#epos-print-container) {
+                    display: none !important;
+                    height: 0 !important;
+                    overflow: hidden !important;
+                }
+                #epos-print-container, #epos-print-container * {
+                    visibility: visible !important;
+                }
+                #epos-print-container {
+                    position: absolute !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    top: 0 !important;
+                    width: 72mm !important;
+                    margin: 0 auto !important;
+                    padding: 5mm 0 !important;
+                    display: block !important;
+                    z-index: 99999 !important;
+                    background: #fff !important;
+                    font-family: 'Courier New', Courier, monospace !important;
+                    font-size: 11px !important;
+                    line-height: 1.3 !important;
+                    color: #000 !important;
+                }
+            }
+        </style>
+        ${innerHtml}
     `;
 
-    doc.open();
-    doc.write(fullHtml);
-    doc.close();
+    document.body.appendChild(container);
 
-    // Give a brief delay for signature image URLs to be parsed & rendered inside the iframe
     setTimeout(() => {
         try {
-            iframe.contentWindow?.focus();
-            iframe.contentWindow?.print();
+            window.print();
         } catch (e) {
-            console.error("Iframe print triggered exception:", e);
+            console.error("Print triggered exception:", e);
         }
-        
-        // Remove iframe after user dismisses print dialog or after a short delay
         setTimeout(() => {
-            iframe.remove();
+            container.remove();
         }, 1000);
-    }, 250);
+    }, 300);
 };
 
 interface SecurityGatePassViewProps {
