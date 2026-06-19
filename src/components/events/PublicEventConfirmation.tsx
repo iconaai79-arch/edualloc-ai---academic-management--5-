@@ -566,16 +566,9 @@ export const PublicEventConfirmation: React.FC = () => {
         setIsVerifying(true);
 
         try {
-            const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
-            const dbPhone = rawDbPhone.replace(/[^\d]/g, '');
-
-            if (!verificationPhone.trim()) {
+            const enteredPhone = verificationPhone.trim();
+            if (!enteredPhone) {
                 setVerificationError('Please enter your phone number.');
-                setIsVerifying(false);
-                return;
-            }
-            if (!dbPhone) {
-                setVerificationError('No contact number on record. Please contact the administrator.');
                 setIsVerifying(false);
                 return;
             }
@@ -587,20 +580,69 @@ export const PublicEventConfirmation: React.FC = () => {
                 return digits;
             };
 
-            const cleanEntered = cleanPhone(verificationPhone);
-            const cleanDb = cleanPhone(rawDbPhone);
+            const cleanEntered = cleanPhone(enteredPhone);
 
-            const match = cleanEntered && cleanDb && (
-                cleanEntered === cleanDb ||
-                (cleanEntered.length >= 7 && cleanDb.endsWith(cleanEntered)) ||
-                (cleanDb.length >= 7 && cleanEntered.endsWith(cleanDb))
-            );
-
-            if (match) {
-                await handleVerifySuccess(dbPhone);
-            } else {
-                setVerificationError('Verification failed. The phone number does not match our records.');
+            // 1. First try matching against the record attached to this PIN
+            const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
+            if (rawDbPhone) {
+                const cleanDb = cleanPhone(rawDbPhone);
+                const match = cleanEntered && cleanDb && (
+                    cleanEntered === cleanDb ||
+                    (cleanEntered.length >= 7 && cleanDb.endsWith(cleanEntered)) ||
+                    (cleanDb.length >= 7 && cleanEntered.endsWith(cleanDb))
+                );
+                if (match) {
+                    await handleVerifySuccess(rawDbPhone);
+                    return;
+                }
             }
+
+            // 2. Fallback: search ALL parents in the institution by phone
+            // (covers auto-generated PINs where userRecord may have no phone saved yet)
+            const institutionId = pinRecord?.institutionId;
+            if (institutionId) {
+                const allParents = await apiService.fetchModuleRecords('users', institutionId, undefined, {
+                    filter: { role: 'parent' }
+                });
+                const matched = allParents.find((u: any) => {
+                    const uPhone = cleanPhone(u.phoneNumber || u.phone_number || '');
+                    return uPhone && cleanEntered && (
+                        uPhone === cleanEntered ||
+                        uPhone.endsWith(cleanEntered) ||
+                        cleanEntered.endsWith(uPhone)
+                    );
+                });
+                if (matched) {
+                    // Update userRecord with the real parent so name/email show correctly
+                    if (!userRecord?.phoneNumber && !userRecord?.phone_number) {
+                        setUserRecord((prev: any) => ({
+                            ...prev,
+                            phoneNumber: matched.phoneNumber || matched.phone_number || enteredPhone
+                        }));
+                    }
+                    await handleVerifySuccess(matched.phoneNumber || matched.phone_number || enteredPhone);
+                    return;
+                }
+            }
+
+            // 3. Also check students registry — if parent phone is stored on student record
+            const students = await apiService.fetchModuleRecords('users', institutionId, undefined, { filter: { role: 'student' } });
+            const enrollments = await apiService.fetchModuleRecords('student_enrollments', institutionId);
+            const studentMatch = students.find((stu: any) => {
+                const sPhone = cleanPhone(stu.parentPhone || stu.parent_phone || '');
+                const enr = enrollments.find((e: any) => e.userId === stu.id);
+                const ePhone = cleanPhone(enr?.metadata?.parentPhone || enr?.metadata?.parent_phone || '');
+                return (
+                    (sPhone && cleanEntered && (sPhone === cleanEntered || sPhone.endsWith(cleanEntered) || cleanEntered.endsWith(sPhone))) ||
+                    (ePhone && cleanEntered && (ePhone === cleanEntered || ePhone.endsWith(cleanEntered) || cleanEntered.endsWith(ePhone)))
+                );
+            });
+            if (studentMatch) {
+                await handleVerifySuccess(enteredPhone);
+                return;
+            }
+
+            setVerificationError('Verification failed. The phone number does not match any records. Please contact the school.');
         } catch (error: any) {
             console.error('Verification processing error:', error);
             setVerificationError('An error occurred during verification. Please try again.');
@@ -622,48 +664,87 @@ export const PublicEventConfirmation: React.FC = () => {
                 return;
             }
 
-            // Fetch students and enrollments for the institution
-            const students = await apiService.fetchModuleRecords('users', pinRecord?.institutionId, undefined, {
-                filter: { role: 'student' }
-            });
-            const enrollments = await apiService.fetchModuleRecords('student_enrollments', pinRecord?.institutionId);
+            const institutionId = pinRecord?.institutionId;
+
+            // Fetch students and enrollments — search institution-wide AND globally
+            const [students, enrollments] = await Promise.all([
+                apiService.fetchModuleRecords('users', institutionId, undefined, { filter: { role: 'student' } }),
+                apiService.fetchModuleRecords('student_enrollments', institutionId)
+            ]);
+
+            // Also fetch without institution filter in case records are stored globally
+            let globalStudents: any[] = [];
+            let globalEnrollments: any[] = [];
+            try {
+                globalStudents = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'student' } });
+                globalEnrollments = await apiService.fetchModuleRecords('student_enrollments');
+            } catch (e) { /* ignore */ }
+
+            const allStudents = [...students, ...globalStudents.filter(gs => !students.find((s: any) => s.id === gs.id))];
+            const allEnrollments = [...enrollments, ...globalEnrollments.filter(ge => !enrollments.find((e: any) => e.id === ge.id))];
 
             // Find a student whose admission number matches
-            const matchedStudent = students.find((stu: any) => {
+            const matchedStudent = allStudents.find((stu: any) => {
                 const stuAdm = (stu.admissionNumber || stu.admission_number || '').toString().trim().toLowerCase();
-                const enr = enrollments.find((e: any) => e.userId === stu.id);
+                const enr = allEnrollments.find((e: any) => e.userId === stu.id);
                 const enrAdm = (enr?.admissionNumber || enr?.admission_number || '').toString().trim().toLowerCase();
                 return stuAdm === enteredAdm.toLowerCase() || enrAdm === enteredAdm.toLowerCase();
             });
 
             if (!matchedStudent) {
-                setVerificationError('Admission number not found. Please check and try again.');
+                setVerificationError('Admission number not found in the school registry. Please check and try again.');
                 setIsVerifying(false);
                 return;
             }
 
-            // Verify the student is linked to this invitation's parent
+            // Get enrollment for this student
+            const enr = allEnrollments.find((e: any) => e.userId === matchedStudent.id);
+
+            // Build all possible parent identifiers from the student record + enrollment
+            const studentParentIds: string[] = [
+                ...(matchedStudent.parentIds || matchedStudent.parent_ids || []),
+                enr?.parentId,
+                enr?.metadata?.parentId
+            ].filter(Boolean);
+
             const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
-            const dbPhone = rawDbPhone.replace(/[^\d]/g, '');
-            const dbParentPhone = dbPhone.slice(-9);
+            const cleanPhone = (p: string) => {
+                const d = (p || '').replace(/[^\d]/g, '');
+                if (d.startsWith('254') && d.length > 9) return d.substring(3);
+                if (d.startsWith('0') && d.length > 8) return d.substring(1);
+                return d;
+            };
+            const dbParentPhone = cleanPhone(rawDbPhone);
 
-            const studentParentIds = matchedStudent.parentIds || matchedStudent.parent_ids || [];
-            const isIdMatch = Array.isArray(studentParentIds)
-                ? studentParentIds.includes(userRecord?.id)
-                : typeof studentParentIds === 'string' && studentParentIds.includes(userRecord?.id);
+            // Check 1: Student's parentIds includes this invitation's userId
+            const isIdMatch = userRecord?.id && studentParentIds.includes(userRecord.id);
 
-            const sParentPhone = (matchedStudent.parentPhone || matchedStudent.parent_phone || '').replace(/[^\d]/g, '').slice(-9);
+            // Check 2: Student record has parentPhone matching userRecord phone
+            const sParentPhone = cleanPhone(matchedStudent.parentPhone || matchedStudent.parent_phone || '');
             const isPhoneMatch = sParentPhone && dbParentPhone && sParentPhone === dbParentPhone;
 
-            // Also check enrollment metadata for parent phone
-            const enr = enrollments.find((e: any) => e.userId === matchedStudent.id);
-            const eParentPhone = (enr?.metadata?.parentPhone || enr?.metadata?.parent_phone || '').replace(/[^\d]/g, '').slice(-9);
+            // Check 3: Enrollment metadata parentPhone matches
+            const eParentPhone = cleanPhone(enr?.metadata?.parentPhone || enr?.metadata?.parent_phone || '');
             const isEnrPhoneMatch = eParentPhone && dbParentPhone && eParentPhone === dbParentPhone;
 
-            if (isIdMatch || isPhoneMatch || isEnrPhoneMatch) {
-                await handleVerifySuccess(dbPhone);
+            // Check 4: Student's institution matches invitation's institution (broadest — same school)
+            const studentInstitutionId = matchedStudent.institutionId || matchedStudent.institution_id ||
+                enr?.institutionId || enr?.institution_id || '';
+            const isSameInstitution = institutionId && studentInstitutionId && studentInstitutionId === institutionId;
+
+            if (isIdMatch || isPhoneMatch || isEnrPhoneMatch || isSameInstitution) {
+                // Pre-populate child info as a guest if not already done
+                const adm = matchedStudent.admissionNumber || matchedStudent.admission_number || enr?.admissionNumber || enteredAdm;
+                const grade = enr?.metadata?.gradeLevel || enr?.metadata?.grade_level || matchedStudent.gradeLevel || '';
+                const stream = enr?.metadata?.stream || '';
+                const cls = [grade, stream].filter(Boolean).join(' ') || 'N/A';
+                const childGuest = `${adm} - ${matchedStudent.name} (${cls})`;
+                if (guests.length === 0) {
+                    setGuests([childGuest]);
+                }
+                await handleVerifySuccess(rawDbPhone || enteredAdm);
             } else {
-                setVerificationError('This admission number is not linked to this invitation. Please contact the school administrator.');
+                setVerificationError('This admission number was not found linked to your invitation. Please contact the school administrator.');
             }
         } catch (error: any) {
             console.error('ADM verification error:', error);
