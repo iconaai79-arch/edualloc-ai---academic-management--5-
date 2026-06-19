@@ -1721,15 +1721,18 @@ export const App: React.FC = () => {
     }, [currentUser, activeInstitution, loadData]);
 
     const handleAddVisitor = useCallback(async (v: Omit<Visitor, 'id'>) => {
-        await apiService.saveModuleRecord('visitors', { 
-            ...v, 
-            id: `vis_${Date.now()}`, 
-            status: 'pending', 
-            entryTime: new Date().toISOString(), 
-            institutionId: currentUser?.institutionId 
-        });
-        loadData();
-    }, [currentUser, loadData]);
+        const newVisitor: Visitor = {
+            ...v,
+            id: `vis_${Date.now()}`,
+            status: 'pending',
+            entryTime: new Date().toISOString(),
+            institutionId: currentUser?.institutionId || v.institutionId || ''
+        };
+        // Optimistic update – show immediately without waiting for DB
+        setVisitors(prev => [newVisitor, ...prev]);
+        // Fire-and-forget DB save in background
+        apiService.saveModuleRecord('visitors', newVisitor).catch(console.error);
+    }, [currentUser, setVisitors]);
 
     const handleCheckoutVisitor = useCallback(async (id: string) => {
         const v = (visitors || []).find(x => x.id === id);

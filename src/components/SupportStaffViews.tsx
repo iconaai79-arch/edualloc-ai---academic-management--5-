@@ -260,6 +260,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'none'>('idle');
     const [customHostName, setCustomHostName] = useState('');
     const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
+    const [walkInSuccess, setWalkInSuccess] = useState(false);
     const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
     const todaysAppointments = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -334,8 +335,10 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 institutionId: user?.institutionId || ''
             };
 
-            await onAddVisitor(visitorPayload);
-            
+            // Fire-and-forget – don't block the UI on the DB round-trip
+            onAddVisitor(visitorPayload).catch(console.error);
+
+            // Print gate pass immediately (non-blocking)
             try {
                 const hostUser = users.find(u => u.id === finalHostId);
                 printEposWalkInGatePass(visitorPayload, hostUser, props.currentInstitution);
@@ -343,12 +346,18 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 console.error("Failed to automatically print walk-in gatepass:", err);
             }
 
-            await props.onLogAction?.(`Registered visitor: ${walkInForm.name} (ID: ${walkInForm.idNumber}) for ${walkInForm.purpose}`);
+            // Log in background – don't await
+            props.onLogAction?.(`Registered visitor: ${walkInForm.name} (ID: ${walkInForm.idNumber}) for ${walkInForm.purpose}`).catch?.(() => {});
+
+            // Reset form instantly
             setIsRegistering(false);
             setLookupStatus('idle');
             setCustomHostName('');
             setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
-            alert("Visitor Registered, Pass Generated & Signed In");
+
+            // Show brief inline success toast instead of blocking alert
+            setWalkInSuccess(true);
+            setTimeout(() => setWalkInSuccess(false), 3000);
         }
     };
     const handleCheckInAppointment = async (apt: Appointment) => {
@@ -465,6 +474,12 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     ))}
                 </nav>
             </div>
+            {walkInSuccess && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl shadow-emerald-200 animate-fade-in-up font-black uppercase tracking-widest text-sm">
+                    <CheckCircleIcon className="w-5 h-5" />
+                    Visitor Registered & Pass Sent to Printer
+                </div>
+            )}
             {activeTab === 'checkpoint' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in-up">
                     <div className="space-y-6">
