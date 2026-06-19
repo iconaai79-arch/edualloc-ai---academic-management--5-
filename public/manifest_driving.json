@@ -1,0 +1,22 @@
+{
+  "name": "DS Pro Master | Driving School",
+  "short_name": "DS Pro",
+  "description": "Advanced driving school portal for scheduling lessons, tracking skills, and managing instructor logs.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "/driving_school_logo_3d.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/driving_school_logo_3d.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

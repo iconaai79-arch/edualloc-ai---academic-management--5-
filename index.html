@@ -4,25 +4,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Alumnae Network | Alma Mater Digital Ecosystem & Community</title>
-  <meta name="description" content="Official Alumnae Network and Alma Mater community portal. Connect with classmates, find mentorship, explore career opportunities, and support your institution's legacy." />
-  <meta name="keywords" content="alumnae network, alma mater, school registry, classmate connection, alumni portal, mentorship, career growth, institution support, kenya alumnae, eduai os" />
+  <title>EduAI OS | Enterprise Automation Ecosystem</title>
+  <meta name="description" content="Comprehensive automation ecosystem for education, hospitality, healthcare, agriculture, and business operations." />
+  <meta name="keywords" content="eduai, school management, enterprise automation, PWA, hospital management, ERP Kenya, logistics" />
   <meta name="author" content="EduAI Team" />
-  <link rel="canonical" href="https://almamater.eduai.co.ke/" />
+  <link rel="canonical" href="https://portal.eduai.co.ke/" />
   
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://almamater.eduai.co.ke/" />
-  <meta property="og:title" content="Alumnae Network | The Ultimate Alma Mater Community" />
-  <meta property="og:description" content="Official Alumnae Portal for institutional graduates. Connect with peers, find jobs, and access exclusive community benefits." />
-  <meta property="og:image" content="https://almamater.eduai.co.ke/alumnae_logo_3d.png" />
+  <meta property="og:url" content="https://portal.eduai.co.ke/" />
+  <meta property="og:title" content="EduAI OS | Enterprise Automation Ecosystem" />
+  <meta property="og:description" content="Comprehensive automation ecosystem for education, hospitality, healthcare, agriculture, and business operations." />
+  <meta property="og:image" content="https://portal.eduai.co.ke/eduai_logo_3d.png" />
 
   <!-- Twitter -->
   <meta property="twitter:card" content="summary_large_image" />
-  <meta property="twitter:url" content="https://almamater.eduai.co.ke/" />
-  <meta property="twitter:title" content="Alumnae Network | Alma Mater Portal" />
-  <meta property="twitter:description" content="Empowering graduates through networking, mentorship, and career opportunities." />
-  <meta property="twitter:image" content="https://almamater.eduai.co.ke/alumnae_logo_3d.png" />
+  <meta property="twitter:url" content="https://portal.eduai.co.ke/" />
+  <meta property="twitter:title" content="EduAI OS | Enterprise Automation Ecosystem" />
+  <meta property="twitter:description" content="Comprehensive automation ecosystem for education, hospitality, healthcare, agriculture, and business operations." />
+  <meta property="twitter:image" content="https://portal.eduai.co.ke/eduai_logo_3d.png" />
 
   <!-- Structured Data (JSON-LD) for SEO -->
   <script type="application/ld+json">
@@ -46,19 +46,92 @@
   }
   </script>
 
-  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="icon" type="image/png" href="/eduai_logo_3d.png" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Alumnae" />
-  <link rel="apple-touch-icon" href="/alumnae_logo_3d.png" />
+  <meta name="apple-mobile-web-app-title" content="EduAI OS" />
+  <link rel="apple-touch-icon" href="/eduai_logo_3d.png" />
 
   <link rel="stylesheet" href="/index.css">
   <!-- PDF Generation Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+
+  <script>
+    (function() {
+      var hostname = window.location.hostname.toLowerCase();
+      var params = new URLSearchParams(window.location.search);
+      var view = params.get('view') || '';
+      
+      var isAlumnae = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater') || view.startsWith('alumnae_');
+      var isDriving = hostname.includes('drivingschool') || hostname.includes('urbands') || view === 'ds' || view === 'driving';
+
+      var title = "EduAI OS | Enterprise Automation Ecosystem";
+      var desc = "Comprehensive automation ecosystem for education, hospitality, healthcare, agriculture, and business operations.";
+      var manifest = "/manifest.json";
+      var icon = "/eduai_logo_3d.png";
+      var appleTitle = "EduAI OS";
+
+      if (isAlumnae) {
+        title = "Alumnae Network | Alma Mater Digital Ecosystem & Community";
+        desc = "Official Alumnae Network and Alma Mater community portal. Connect with classmates, find mentorship, and support your legacy.";
+        manifest = "/manifest_alumnae.json";
+        icon = "/alumnae_logo_3d.png";
+        appleTitle = "Alumnae";
+      } else if (isDriving) {
+        title = "DS Pro Master | Driving School Management Portal";
+        desc = "Advanced driving school portal for scheduling lessons, tracking skills, and managing instructor logs.";
+        manifest = "/manifest_driving.json";
+        icon = "/driving_school_logo_3d.png";
+        appleTitle = "DS Pro";
+      }
+
+      document.title = title;
+      
+      // Update meta description
+      var descMeta = document.querySelector('meta[name="description"]');
+      if (descMeta) descMeta.setAttribute('content', desc);
+
+      // Update apple-touch-icon
+      var appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+      if (appleIcon) appleIcon.setAttribute('href', icon);
+
+      // Update manifest
+      var manifestLink = document.querySelector('link[rel="manifest"]');
+      if (manifestLink) manifestLink.setAttribute('href', manifest);
+
+      // Update favicon
+      var faviconLink = document.querySelector('link[rel="icon"]');
+      if (faviconLink) faviconLink.setAttribute('href', icon);
+
+      // Update Apple App Title
+      var appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (appleTitleMeta) appleTitleMeta.setAttribute('content', appleTitle);
+
+      // Update Canonical Link
+      var canonicalLink = document.querySelector('link[rel="canonical"]');
+      if (canonicalLink) canonicalLink.setAttribute('href', window.location.origin + '/');
+
+      // Update OG / Twitter meta tags
+      var updateMeta = function(propertyOrName, value) {
+        var el = document.querySelector('meta[property="' + propertyOrName + '"], meta[name="' + propertyOrName + '"]');
+        if (el) el.setAttribute('content', value);
+      };
+
+      updateMeta('og:url', window.location.href);
+      updateMeta('og:title', title);
+      updateMeta('og:description', desc);
+      updateMeta('og:image', window.location.origin + icon);
+
+      updateMeta('twitter:url', window.location.href);
+      updateMeta('twitter:title', title);
+      updateMeta('twitter:description', desc);
+      updateMeta('twitter:image', window.location.origin + icon);
+    })();
+  </script>
 
   <script>
     if ('serviceWorker' in navigator) {

@@ -1,20 +1,20 @@
 {
-  "name": "Alumnae Circle | Professional Network",
-  "short_name": "Alumnae",
-  "description": "Professional networking and alumni management platform.",
+  "name": "EduAI OS | Enterprise Automation Ecosystem",
+  "short_name": "EduAI OS",
+  "description": "Comprehensive automation ecosystem for education, hospitality, healthcare, agriculture, and business operations.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#0f172a",
   "theme_color": "#4f46e5",
   "icons": [
     {
-      "src": "/alumnae_logo_3d.png",
+      "src": "/eduai_logo_3d.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/favicon.png",
+      "src": "/eduai_logo_3d.png",
       "sizes": "192x192",
       "type": "image/png"
     }
