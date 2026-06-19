@@ -355,6 +355,12 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const [allEvents, setAllEvents] = useState<any[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
 
+    // Walk-in registration state
+    const [showWalkInForm, setShowWalkInForm] = useState(false);
+    const [walkInName, setWalkInName] = useState('');
+    const [walkInPhone, setWalkInPhone] = useState('');
+    const [walkInGenerating, setWalkInGenerating] = useState(false);
+
     const fetchHistoryAndEvents = async () => {
         if (!currentInstitution?.id) return;
         setLoadingHistory(true);
@@ -697,9 +703,113 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         }
     };
 
+    // Auto-generate a PIN for a parent against the nearest upcoming event
+    const autoGeneratePinForParent = async (parentUser: any): Promise<any | null> => {
+        try {
+            const events = await apiService.fetchModuleRecords('institution_events', currentInstitution.id);
+            if (!events || events.length === 0) return null;
+            const now = new Date().toISOString().split('T')[0];
+            const sorted = [...events].sort((a: any, b: any) => {
+                const aDate = a.eventDate || a.event_date || '';
+                const bDate = b.eventDate || b.event_date || '';
+                const aFuture = aDate >= now;
+                const bFuture = bDate >= now;
+                if (aFuture && !bFuture) return -1;
+                if (!aFuture && bFuture) return 1;
+                return aDate > bDate ? 1 : -1;
+            });
+            const targetEvent = sorted[0];
+            const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+            const newPinId = `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const newPin = {
+                id: newPinId,
+                institutionId: currentInstitution.id,
+                eventId: targetEvent.id,
+                userId: parentUser.id,
+                pin: pinCode,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('event_pins', newPin);
+            return { pin: newPin, event: targetEvent };
+        } catch (err) {
+            console.error('Auto-generate PIN failed:', err);
+            return null;
+        }
+    };
+
     const handleVerifyParent = async () => {
         if (!selectedParent) return;
-        await performVerificationAndPrint(selectedPin, selectedParent, associatedEvent, selectedStudent);
+
+        let pinToUse = selectedPin;
+        let eventToUse = associatedEvent;
+
+        // Auto-generate a PIN if none exists
+        if (!pinToUse) {
+            const result = await autoGeneratePinForParent(selectedParent);
+            if (result) {
+                pinToUse = result.pin;
+                eventToUse = result.event;
+                setSelectedPin(pinToUse);
+                setAssociatedEvent(eventToUse);
+            }
+        }
+
+        await performVerificationAndPrint(pinToUse, selectedParent, eventToUse, selectedStudent);
+    };
+
+    // Handle walk-in registration (creates user + PIN from scratch)
+    const handleWalkInRegister = async () => {
+        const name = walkInName.trim();
+        const phone = walkInPhone.trim();
+        if (!name) { alert('Please enter the visitor\'s name.'); return; }
+        setWalkInGenerating(true);
+        try {
+            // Create or find user
+            let parentUser: any = null;
+            if (phone) {
+                const existing = await apiService.fetchModuleRecords('users', currentInstitution.id, undefined, {
+                    filter: { role: 'parent' }
+                });
+                parentUser = existing.find((u: any) => {
+                    const p = (u.phoneNumber || u.phone_number || '').replace(/[^\d]/g, '').slice(-9);
+                    const entered = phone.replace(/[^\d]/g, '').slice(-9);
+                    return p && entered && p === entered;
+                });
+            }
+            if (!parentUser) {
+                const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                parentUser = {
+                    id: newUserId,
+                    name,
+                    phoneNumber: phone,
+                    role: 'parent',
+                    institutionId: currentInstitution.id,
+                    createdAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('users', parentUser);
+            }
+
+            const result = await autoGeneratePinForParent(parentUser);
+            if (!result) {
+                alert('No upcoming events found to assign a pass. Please create an event first.');
+                setWalkInGenerating(false);
+                return;
+            }
+
+            setSelectedParent(parentUser);
+            setSelectedPin(result.pin);
+            setAssociatedEvent(result.event);
+            setSelectedStudent(null);
+            setShowWalkInForm(false);
+            setWalkInName('');
+            setWalkInPhone('');
+            await performVerificationAndPrint(result.pin, parentUser, result.event, null);
+        } catch (err: any) {
+            alert(err.message || 'Failed to register walk-in visitor.');
+        } finally {
+            setWalkInGenerating(false);
+        }
     };
 
     const recentLogs = (vehicleLogs || [])
@@ -926,9 +1036,55 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                             )}
 
                             {parentSearchTerm.length >= 3 && !selectedParent && (
-                                <div className="text-center py-8">
-                                    <UserGroupIcon className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                                    <p className="text-slate-500 font-bold uppercase text-xs">No Parent/Student Found</p>
+                                <div className="space-y-4">
+                                    <div className="text-center py-6">
+                                        <UserGroupIcon className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                                        <p className="text-slate-500 font-bold uppercase text-xs mb-1">No Registered Parent / Student Found</p>
+                                        <p className="text-slate-400 text-[11px] mb-4">You can register a walk-in visitor and generate an entry pass on the spot.</p>
+                                        <button
+                                            onClick={() => setShowWalkInForm(v => !v)}
+                                            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all"
+                                        >
+                                            {showWalkInForm ? 'Cancel' : '+ Register Walk-In Visitor'}
+                                        </button>
+                                    </div>
+
+                                    {showWalkInForm && (
+                                        <div className="p-5 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-2xl space-y-4 animate-in fade-in slide-in-from-bottom-4">
+                                            <h4 className="font-black text-sm uppercase text-purple-700 dark:text-purple-300 tracking-wider">Walk-In Registration</h4>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Full Name *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={walkInName}
+                                                        onChange={e => setWalkInName(e.target.value)}
+                                                        placeholder="Visitor full name"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-700 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Phone Number</label>
+                                                    <input
+                                                        type="tel"
+                                                        value={walkInPhone}
+                                                        onChange={e => setWalkInPhone(e.target.value)}
+                                                        placeholder="e.g. 0712 345 678"
+                                                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-700 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={handleWalkInRegister}
+                                                disabled={walkInGenerating || !walkInName.trim()}
+                                                className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                <CheckCircleIcon className="w-4 h-4" />
+                                                {walkInGenerating ? 'Generating Pass...' : 'Generate Pass & Check In'}
+                                            </button>
+                                            <p className="text-[10px] text-slate-400 text-center">A unique entry PIN will be created and the gatepass will print automatically.</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -979,7 +1135,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     <span className="font-black uppercase text-base tracking-wide">
                                         {selectedPin 
                                             ? (selectedPin.status === 'used' ? 'PIN Already Used - Grant Entry & Print' : 'Verify & Print EPOS Gatepass') 
-                                            : 'Verify & Grant Entry'}
+                                            : 'Generate Pass & Grant Entry'}
                                     </span>
                                 </button>
                                 {!onAddVisitor && (
