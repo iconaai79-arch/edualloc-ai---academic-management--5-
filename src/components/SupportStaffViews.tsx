@@ -261,6 +261,8 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [customHostName, setCustomHostName] = useState('');
     const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
     const [walkInSuccess, setWalkInSuccess] = useState(false);
+    const [hostSearch, setHostSearch] = useState('');
+    const [showHostDropdown, setShowHostDropdown] = useState(false);
     const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
     const todaysAppointments = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -353,6 +355,8 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             setIsRegistering(false);
             setLookupStatus('idle');
             setCustomHostName('');
+            setHostSearch('');
+            setShowHostDropdown(false);
             setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
 
             // Show brief inline success toast instead of blocking alert
@@ -892,24 +896,93 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     </select>
                                 </div>
                             </div>
-                            <div>
+                            <div className="relative">
                                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Host / Personnel To See</label>
-                                <select className="form-select" value={walkInForm.hostId} onChange={(e) => setWalkInForm({ ...walkInForm, hostId: e.target.value })} required>
-                                    <option value="">Select Host</option>
-                                    {users.filter(u => u.role !== 'student' && u.role !== 'parent').map(u => <option key={u.id} value={u.id}>{u.name} ({formatRoleDisplayName(u.role, props.currentInstitution)})</option>)}
-                                    <option value="other_custom">-- Other (Not on list - Direct to Receptionist) --</option>
-                                </select>
+                                {/* Searchable host picker */}
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        className="form-input pr-10"
+                                        placeholder="Search by name or role..."
+                                        value={hostSearch}
+                                        autoComplete="off"
+                                        onFocus={() => setShowHostDropdown(true)}
+                                        onChange={(e) => {
+                                            setHostSearch(e.target.value);
+                                            setShowHostDropdown(true);
+                                            // Clear selection if user starts typing again
+                                            if (walkInForm.hostId && walkInForm.hostId !== 'other_custom') {
+                                                setWalkInForm({ ...walkInForm, hostId: '' });
+                                            }
+                                        }}
+                                    />
+                                    <MagnifyingGlassIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                </div>
+                                {showHostDropdown && (
+                                    <div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl max-h-56 overflow-y-auto">
+                                        {(() => {
+                                            const q = hostSearch.toLowerCase();
+                                            const filtered = users.filter(u =>
+                                                u.role !== 'student' && u.role !== 'parent' &&
+                                                (u.name?.toLowerCase().includes(q) || formatRoleDisplayName(u.role, props.currentInstitution).toLowerCase().includes(q))
+                                            );
+                                            return (
+                                                <>
+                                                    {filtered.length === 0 && (
+                                                        <div className="px-4 py-3 text-xs text-slate-400 font-bold uppercase tracking-widest">No staff found</div>
+                                                    )}
+                                                    {filtered.map(u => (
+                                                        <button
+                                                            key={u.id}
+                                                            type="button"
+                                                            onMouseDown={(e) => e.preventDefault()}
+                                                            onClick={() => {
+                                                                setWalkInForm({ ...walkInForm, hostId: u.id });
+                                                                setHostSearch(`${u.name} (${formatRoleDisplayName(u.role, props.currentInstitution)})`);
+                                                                setShowHostDropdown(false);
+                                                            }}
+                                                            className={`w-full text-left px-4 py-3 text-sm font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-colors flex items-center justify-between gap-2 ${
+                                                                walkInForm.hostId === u.id ? 'bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'text-slate-800 dark:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            <span>{u.name}</span>
+                                                            <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full shrink-0">{formatRoleDisplayName(u.role, props.currentInstitution)}</span>
+                                                        </button>
+                                                    ))}
+                                                    <button
+                                                        type="button"
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => {
+                                                            setWalkInForm({ ...walkInForm, hostId: 'other_custom' });
+                                                            setHostSearch('-- Other (Direct to Receptionist) --');
+                                                            setShowHostDropdown(false);
+                                                        }}
+                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800 transition-colors"
+                                                    >
+                                                        Other — Not on list (Direct to Receptionist)
+                                                    </button>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
+                                {/* Click-outside to close */}
+                                {showHostDropdown && (
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowHostDropdown(false)} />
+                                )}
+                                {/* Hidden native input for form validation */}
+                                <input type="text" required value={walkInForm.hostId} onChange={() => {}} className="sr-only" aria-hidden />
                             </div>
                             {walkInForm.hostId === 'other_custom' && (
                                 <div className="animate-fade-in-up">
                                     <label className="block text-[10px] font-black uppercase text-slate-450 mb-2 ml-1">Custom Host Name</label>
-                                    <input 
-                                        type="text" 
-                                        value={customHostName} 
-                                        onChange={(e) => setCustomHostName(e.target.value)} 
-                                        className="form-input" 
-                                        placeholder="Type name of the person to see..." 
-                                        required={walkInForm.hostId === 'other_custom'} 
+                                    <input
+                                        type="text"
+                                        value={customHostName}
+                                        onChange={(e) => setCustomHostName(e.target.value)}
+                                        className="form-input"
+                                        placeholder="Type name of the person to see..."
+                                        required={walkInForm.hostId === 'other_custom'}
                                     />
                                 </div>
                             )}
