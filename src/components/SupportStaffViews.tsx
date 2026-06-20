@@ -588,6 +588,26 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         }
     };
 
+    const handleViewGatePassForVisitor = (v: Visitor) => {
+        const pinCode = v.idNumber?.startsWith('PIN: ') ? v.idNumber.replace('PIN: ', '') : '';
+        const foundPin = pinCode ? eventPins.find(p => p.pin === pinCode) : null;
+        
+        if (foundPin) {
+            const parent = localUsers.find(u => u.id === foundPin.userId) || ({
+                id: foundPin.userId,
+                name: v.name,
+                phoneNumber: v.phoneNumber || '',
+                role: 'parent',
+                institutionId: user.institutionId
+            } as User);
+            const event = institutionEvents.find(e => e.id === foundPin.eventId);
+            printEposGatePass(foundPin, parent, event, props.currentInstitution);
+        } else {
+            const hostUser = localUsers.find(u => u.id === v.hostId);
+            printEposWalkInGatePass(v, hostUser, props.currentInstitution);
+        }
+    };
+
     const dashboardTitle = isSchool ? "School Security Hub" : "Campus Security Hub";
 
     return (
@@ -905,19 +925,29 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-4 text-right">
-                                                    <button
-                                                        onClick={async () => {
-                                                            setExitingVisitorIds(prev => [...prev, v.id]);
-                                                            setTimeout(async () => {
-                                                                onCheckoutVisitor?.(v.id);
-                                                                await onLogAction?.(`Checked out visitor: ${v.name}`);
-                                                                setExitingVisitorIds(prev => prev.filter(id => id !== v.id));
-                                                            }, 400);
-                                                        }}
-                                                        className="px-4 py-2 bg-red-50 dark:bg-red-950/30 text-red-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all active:scale-95 border border-red-100 dark:border-red-900/50"
-                                                    >
-                                                        Finalize Exit
-                                                    </button>
+                                                    <div className="flex justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleViewGatePassForVisitor(v)}
+                                                            className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all active:scale-95 border border-indigo-100 dark:border-indigo-900/50"
+                                                        >
+                                                            View Pass
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                setExitingVisitorIds(prev => [...prev, v.id]);
+                                                                setTimeout(async () => {
+                                                                    onCheckoutVisitor?.(v.id);
+                                                                    await onLogAction?.(`Checked out visitor: ${v.name}`);
+                                                                    setExitingVisitorIds(prev => prev.filter(id => id !== v.id));
+                                                                }, 400);
+                                                            }}
+                                                            className="px-4 py-2 bg-red-50 dark:bg-red-950/30 text-red-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all active:scale-95 border border-red-100 dark:border-red-900/50"
+                                                        >
+                                                            Finalize Exit
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -1010,13 +1040,14 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
                                 <thead>
-                                    <tr>
-                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Visitor / Contact</th>
-                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Visit Date</th>
-                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Entry / Exit</th>
-                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Duration</th>
-                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Purpose</th>
-                                    </tr>
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Visitor / Contact</th>
+                                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Visit Date</th>
+                                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Entry / Exit</th>
+                                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Duration</th>
+                                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Purpose</th>
+                                                        <th className="px-4 py-3 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                                    </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-900/50">
                                     {paginatedHistoryVisitors.map(v => (
@@ -1036,11 +1067,20 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">{v.purpose}</td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleViewGatePassForVisitor(v)}
+                                                    className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all active:scale-95 border border-indigo-100 dark:border-indigo-900/50"
+                                                >
+                                                    View Pass
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))}
                                     {filteredHistoryVisitors.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="px-4 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px] italic">No matching history records found</td>
+                                            <td colSpan={6} className="px-4 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px] italic">No matching history records found</td>
                                         </tr>
                                     )}
                                 </tbody>
