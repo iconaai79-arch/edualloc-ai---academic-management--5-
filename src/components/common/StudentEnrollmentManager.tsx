@@ -35,7 +35,8 @@ import {
     UserRound,
     Edit2,
     RotateCcw,
-    X
+    X,
+    Star
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course } from '../../types';
@@ -254,7 +255,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [selectedAnalysisEvent, setSelectedAnalysisEvent] = useState<any | null>(null);
     const [analysisSearchTerm, setAnalysisSearchTerm] = useState('');
     const [analysisStatusFilter, setAnalysisStatusFilter] = useState<'All' | 'Checked-in' | 'Accepted' | 'Declined' | 'Pending'>('All');
-    const [analysisTab, setAnalysisTab] = useState<'rsvp' | 'audit'>('rsvp');
+    const [analysisTab, setAnalysisTab] = useState<'rsvp' | 'audit' | 'feedback'>('rsvp');
     const [auditViewTab, setAuditViewTab] = useState<'missing' | 'covered'>('missing');
     const [auditCustomMessage, setAuditCustomMessage] = useState('');
     
@@ -528,39 +529,45 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                 );
 
-                CREATE TABLE IF NOT EXISTS public.event_pins (
-                    id TEXT PRIMARY KEY,
-                    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
-                    event_id TEXT NOT NULL REFERENCES public.institution_events(id) ON DELETE CASCADE,
-                    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-                    pin TEXT NOT NULL,
-                    status TEXT DEFAULT 'pending',
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                );
-                
-                ALTER TABLE public.student_enrollments ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE public.broadcaster_messages ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE public.institution_events ENABLE ROW LEVEL SECURITY;
-                ALTER TABLE public.event_pins ENABLE ROW LEVEL SECURITY;
-                
-                DO $$
-                DECLARE
-                    tables text[] := ARRAY['student_enrollments', 'broadcaster_messages', 'institution_events', 'event_pins'];
-                    t text;
-                BEGIN
-                    FOREACH t IN ARRAY tables LOOP
-                        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %I" ON public.%I', t, t);
-                        EXECUTE format('CREATE POLICY "Institutional tenancy select: %I" ON public.%I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
-                        
-                        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %I" ON public.%I', t, t);
-                        EXECUTE format('CREATE POLICY "Institutional tenancy manage: %I" ON public.%I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
-                        
-                        EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
-                    END LOOP;
-                END $$;
-
-                ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS guests TEXT;
-                ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS vehicle_registration TEXT;
+                 CREATE TABLE IF NOT EXISTS public.event_pins (
+                     id TEXT PRIMARY KEY,
+                     institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+                     event_id TEXT NOT NULL REFERENCES public.institution_events(id) ON DELETE CASCADE,
+                     user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+                     pin TEXT NOT NULL,
+                     status TEXT DEFAULT 'pending',
+                     guests TEXT,
+                     vehicle_registration TEXT,
+                     rating INTEGER,
+                     feedback TEXT,
+                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                 );
+                 
+                 ALTER TABLE public.student_enrollments ENABLE ROW LEVEL SECURITY;
+                 ALTER TABLE public.broadcaster_messages ENABLE ROW LEVEL SECURITY;
+                 ALTER TABLE public.institution_events ENABLE ROW LEVEL SECURITY;
+                 ALTER TABLE public.event_pins ENABLE ROW LEVEL SECURITY;
+                 
+                 DO $$
+                 DECLARE
+                     tables text[] := ARRAY['student_enrollments', 'broadcaster_messages', 'institution_events', 'event_pins'];
+                     t text;
+                 BEGIN
+                     FOREACH t IN ARRAY tables LOOP
+                         EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %I" ON public.%I', t, t);
+                         EXECUTE format('CREATE POLICY "Institutional tenancy select: %I" ON public.%I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+                         
+                         EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %I" ON public.%I', t, t);
+                         EXECUTE format('CREATE POLICY "Institutional tenancy manage: %I" ON public.%I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+                         
+                         EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
+                     END LOOP;
+                 END $$;
+ 
+                 ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS guests TEXT;
+                 ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS vehicle_registration TEXT;
+                 ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS rating INTEGER;
+                 ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS feedback TEXT;
                 
                 DROP POLICY IF EXISTS "Public select: event_pins" ON public.event_pins;
                 CREATE POLICY "Public select: event_pins" ON public.event_pins FOR SELECT USING (true);
@@ -2620,6 +2627,103 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setIsLoading(false);
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
         }
+    };
+
+    // Bulk request feedback from attendees who have checked in (status 'used' or 'accepted') but haven't rated yet
+    const handleSendFeedbackRequests = async (event: any) => {
+        const attendeesWithoutFeedback = (eventPins || []).filter(
+            (p: any) => p.eventId === event.id && 
+                       (p.status === 'used' || p.status === 'accepted') && 
+                       (p.rating === undefined || p.rating === null)
+        );
+
+        if (attendeesWithoutFeedback.length === 0) {
+            setStatusMsg({ type: 'error', message: 'No checked-in attendees without submitted feedback found.' });
+            return;
+        }
+
+        setStatusMsg({ type: 'info', message: `Sending feedback requests to ${attendeesWithoutFeedback.length} attendee(s)...` });
+        setIsLoading(true);
+
+        const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+            ? 'https://portal.eduai.co.ke'
+            : window.location.origin;
+
+        const results: { recipientName: string; phone: string; success: boolean; errorMsg?: string }[] = [];
+        let sent = 0;
+
+        for (const pinRecord of attendeesWithoutFeedback) {
+            try {
+                let targetUser = users.find(u => u.id === pinRecord.userId);
+                if (!targetUser) {
+                    try {
+                        const dbUsers = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
+                            filter: { id: pinRecord.userId }
+                        });
+                        if (dbUsers && dbUsers.length > 0) targetUser = dbUsers[0];
+                    } catch { /* skip */ }
+                }
+                if (!targetUser) {
+                    results.push({ recipientName: 'Unknown', phone: '', success: false, errorMsg: 'User not found' });
+                    continue;
+                }
+
+                const targetPhone = targetUser.phoneNumber || '';
+                const targetEmail = targetUser.email || '';
+                const targetName = targetUser.name || 'Parent/Guardian';
+                const shortLink = `${origin}/?view=event-confirm&pinId=${pinRecord.id}`;
+                
+                // Shorten link using shortener service
+                let shortenedLink = shortLink;
+                try {
+                    shortenedLink = await apiService.shortenUrl(shortLink);
+                } catch (e) {
+                    console.error("Shortener failed:", e);
+                }
+
+                const smsMessage = `Thank you for attending "${event.title}". Please take a moment to share your rating and feedback with us: ${shortenedLink}`;
+                const emailMessage = smsMessage;
+
+                let smsSuccess = false;
+                let errorMsg: string | undefined;
+
+                if (targetPhone) {
+                    try {
+                        const res = await apiService.sendSms(targetPhone, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id);
+                        smsSuccess = !!(res?.success || res?.status === 'success' || res?.status === 'sent');
+                        if (!smsSuccess) errorMsg = res?.message || 'Rejected by gateway';
+                        else sent++;
+                    } catch (e: any) {
+                        errorMsg = e.message || 'Connection failed';
+                    }
+                } else {
+                    errorMsg = 'No phone number';
+                }
+
+                if (targetEmail) {
+                    try {
+                        await apiService.sendEmail(targetEmail, `Feedback Requested: ${event.title}`, emailMessage, currentInstitution.emailConfig);
+                    } catch { /* ignore */ }
+                }
+
+                results.push({
+                    recipientName: targetName,
+                    phone: targetPhone || 'No Phone',
+                    success: smsSuccess,
+                    errorMsg
+                });
+            } catch (err: any) {
+                console.error("Failed to request feedback for PIN:", pinRecord.id, err);
+            }
+        }
+
+        setIsLoading(false);
+        setSmsDeliveryReport(results);
+        setStatusMsg({
+            type: 'success',
+            message: `Feedback requests sent to ${sent} recipient(s). View detailed reports below.`
+        });
+        setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 6000);
     };
 
     // Bulk reminder: resend invite to all pending (not yet responded) recipients
@@ -6471,7 +6575,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     </p>
                                 </div>
 
-                                {/* ── Tab Switcher: RSVP | PIN Audit ── */}
+                                {/* ── Tab Switcher: RSVP | PIN Audit | Event Feedback ── */}
                                 <div className="flex bg-white/5 border border-white/10 rounded-xl p-1">
                                     <button
                                         onClick={() => setAnalysisTab('rsvp')}
@@ -6496,9 +6600,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             <span className="ml-1 bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none">{auditMissing}</span>
                                         )}
                                     </button>
+                                    <button
+                                        onClick={() => setAnalysisTab('feedback')}
+                                        className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                                            analysisTab === 'feedback'
+                                                ? 'bg-amber-600 text-white shadow-sm'
+                                                : 'text-slate-400 hover:text-slate-200'
+                                        }`}
+                                    >
+                                        <Star className="w-3 h-3 fill-current" /> Event Feedback
+                                    </button>
                                 </div>
 
-                                {analysisTab === 'rsvp' ? (
+                                {analysisTab === 'rsvp' && (
                                     <div className="space-y-4">
                                         {/* Search & Filter Bar */}
                                         <div className="flex flex-col sm:flex-row gap-3">
@@ -6595,7 +6709,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             )}
                                         </div>
                                     </div>
-                                ) : (
+                                )}
+                                {analysisTab === 'audit' && (
                                     <div className="space-y-4">
                                         {/* Summary Cards */}
                                         <div className="grid grid-cols-3 gap-4">
@@ -6777,11 +6892,134 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         </div>
                                     </div>
                                 )}
+
+                                {analysisTab === 'feedback' && (() => {
+                                    const feedbackPins = eventMatchingPins.filter(p => p.rating !== undefined && p.rating !== null);
+                                    const totalFeedbackCount = feedbackPins.length;
+                                    
+                                    // Calculate average rating
+                                    const totalStars = feedbackPins.reduce((acc, p) => acc + Number(p.rating), 0);
+                                    const avgRating = totalFeedbackCount > 0 ? (totalStars / totalFeedbackCount).toFixed(1) : '0.0';
+                                    
+                                    // Distribution of stars (1 to 5)
+                                    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+                                    feedbackPins.forEach(p => {
+                                        const r = Number(p.rating);
+                                        if (r >= 1 && r <= 5) {
+                                            distribution[r as 1|2|3|4|5]++;
+                                        }
+                                    });
+
+                                    return (
+                                        <div className="space-y-6 animate-fade-in">
+                                            {/* Metrics Panel */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                {/* Avg Rating Card */}
+                                                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-center flex flex-col justify-center items-center">
+                                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">Average Rating</p>
+                                                    <p className="text-3xl font-black text-white font-mono">{avgRating}</p>
+                                                    <div className="flex gap-0.5 mt-2 text-amber-400">
+                                                        {[1, 2, 3, 4, 5].map((star) => {
+                                                            const isFull = star <= Math.round(Number(avgRating));
+                                                            return (
+                                                                <Star
+                                                                    key={star}
+                                                                    className={`w-3.5 h-3.5 fill-current ${
+                                                                        isFull ? 'text-amber-405' : 'text-slate-700'
+                                                                    }`}
+                                                                />
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    <p className="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Out of 5.0 Stars</p>
+                                                </div>
+
+                                                {/* Total Reviews Card */}
+                                                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-center flex flex-col justify-center items-center">
+                                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1">Feedback Submitted</p>
+                                                    <p className="text-3xl font-black text-indigo-400 font-mono">{totalFeedbackCount}</p>
+                                                    <p className="text-[9px] text-slate-450 font-bold mt-2 uppercase tracking-widest">
+                                                        {eventMatchingPins.filter(p => p.status === 'used').length} checked in
+                                                    </p>
+                                                </div>
+
+                                                {/* Distribution Card */}
+                                                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 space-y-1">
+                                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1">Rating Distribution</p>
+                                                    {([5, 4, 3, 2, 1] as const).map(stars => {
+                                                        const count = distribution[stars];
+                                                        const percent = totalFeedbackCount > 0 ? Math.round((count / totalFeedbackCount) * 100) : 0;
+                                                        return (
+                                                            <div key={stars} className="flex items-center gap-2 text-[10px] font-bold">
+                                                                <span className="w-12 text-slate-400 shrink-0">{stars} Stars</span>
+                                                                <div className="flex-grow h-2 bg-slate-950/50 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className="h-full bg-amber-500 rounded-full transition-all duration-500" 
+                                                                        style={{ width: `${percent}%` }}
+                                                                    />
+                                                                </div>
+                                                                <span className="w-8 text-right text-slate-400 font-mono shrink-0">{count}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            {/* Reviews List */}
+                                            <div className="space-y-4">
+                                                <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Attendee Comments & Reviews</h4>
+                                                <div className="border border-white/10 rounded-2xl overflow-hidden bg-slate-950/20 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                                    {feedbackPins.length === 0 ? (
+                                                        <div className="text-center py-12 text-slate-500 font-bold text-xs">
+                                                            No feedback reviews submitted yet for this event.
+                                                        </div>
+                                                    ) : (
+                                                        <div className="divide-y divide-white/5">
+                                                            {feedbackPins.map((pin) => {
+                                                                const parentUser = users.find(u => u.id === pin.userId);
+                                                                const parentName = parentUser?.name || 'Parent/Guardian';
+                                                                const parentPhone = parentUser?.phoneNumber || parentUser?.phone_number || 'No Phone';
+                                                                
+                                                                return (
+                                                                    <div key={pin.id} className="p-4 space-y-2">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <div>
+                                                                                <span className="text-xs font-black text-white">{parentName}</span>
+                                                                                <span className="text-[10px] text-slate-500 block">{parentPhone}</span>
+                                                                            </div>
+                                                                            <div className="flex gap-0.5 text-amber-400">
+                                                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                                                    <Star
+                                                                                        key={star}
+                                                                                        className={`w-3.5 h-3.5 fill-current ${
+                                                                                            star <= Number(pin.rating) ? 'text-amber-400' : 'text-slate-750'
+                                                                                        }`}
+                                                                                    />
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                        {pin.feedback ? (
+                                                                            <p className="text-xs text-slate-300 bg-white/5 rounded-xl px-3 py-2 border border-white/5 font-medium leading-relaxed">
+                                                                                "{pin.feedback}"
+                                                                            </p>
+                                                                        ) : (
+                                                                            <p className="text-xs text-slate-500 italic font-medium">Left a rating without comment.</p>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {/* Sticky Footer Actions */}
                             <div className="border-t border-white/5 pt-4 mt-6 shrink-0">
-                                {analysisTab === 'rsvp' ? (
+                                {analysisTab === 'rsvp' && (
                                     <div className="space-y-3">
                                         {/* Reminder button — only when pending invitees exist */}
                                         {(() => {
@@ -6807,7 +7045,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             </button>
                                         </div>
                                     </div>
-                                ) : (
+                                )}
+                                {analysisTab === 'audit' && (
                                     <div className="space-y-3">
                                         {/* Primary bulk actions row */}
                                         <div className="flex flex-col sm:flex-row gap-3">
@@ -6835,6 +7074,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 Dismiss
                                             </button>
                                         </div>
+                                    </div>
+                                )}
+                                {analysisTab === 'feedback' && (
+                                    <div className="space-y-3">
+                                        <button
+                                            type="button"
+                                            disabled={isLoading || eventMatchingPins.filter(p => (p.status === 'used' || p.status === 'accepted') && (p.rating === undefined || p.rating === null)).length === 0}
+                                            onClick={() => handleSendFeedbackRequests(event)}
+                                            className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-45 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
+                                        >
+                                            <Send className="w-4 h-4" />
+                                            {isLoading ? 'Sending...' : 'Request Feedback (Bulk SMS)'}
+                                        </button>
+                                        <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                            Dismiss
+                                        </button>
                                     </div>
                                 )}
                             </div>

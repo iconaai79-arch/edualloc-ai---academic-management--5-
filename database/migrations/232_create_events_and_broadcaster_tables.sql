@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS public.event_pins (
     status TEXT DEFAULT 'pending',
     guests TEXT,
     vehicle_registration TEXT,
+    rating INTEGER,
+    feedback TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

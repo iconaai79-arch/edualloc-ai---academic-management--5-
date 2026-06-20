@@ -14,7 +14,8 @@ import {
     AlertCircle,
     ArrowLeft,
     ShieldCheck,
-    Download
+    Download,
+    Star
 } from 'lucide-react';
 
 export const PublicEventConfirmation: React.FC = () => {
@@ -57,6 +58,13 @@ export const PublicEventConfirmation: React.FC = () => {
     const [addSpouseAsGuest, setAddSpouseAsGuest] = useState(true);
     const [isSavingSpouse, setIsSavingSpouse] = useState(false);
     const [spouseMsg, setSpouseMsg] = useState<{ type: 'idle' | 'success' | 'error'; text: string }>({ type: 'idle', text: '' });
+
+    // Feedback & Rating States
+    const [parentRating, setParentRating] = useState<number>(0);
+    const [parentFeedback, setParentFeedback] = useState<string>('');
+    const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<boolean>(false);
+    const [feedbackSubmitted, setFeedbackSubmitted] = useState<boolean>(false);
+    const [hoverRating, setHoverRating] = useState<number>(0);
 
     // Self-service lookup (no pinId in URL)
     const [showLookup, setShowLookup] = useState(false);
@@ -136,6 +144,14 @@ export const PublicEventConfirmation: React.FC = () => {
 
                 setPinRecord(pin);
                 setRsvpStatus(pin.status);
+
+                if (pin.rating !== undefined && pin.rating !== null) {
+                    setParentRating(Number(pin.rating));
+                    setFeedbackSubmitted(true);
+                }
+                if (pin.feedback !== undefined && pin.feedback !== null) {
+                    setParentFeedback(pin.feedback);
+                }
 
                 if (pin.guests) {
                     try {
@@ -276,6 +292,14 @@ export const PublicEventConfirmation: React.FC = () => {
     const loadInvitationData = async (pin: any) => {
         setPinRecord(pin);
         setRsvpStatus(pin.status);
+
+        if (pin.rating !== undefined && pin.rating !== null) {
+            setParentRating(Number(pin.rating));
+            setFeedbackSubmitted(true);
+        }
+        if (pin.feedback !== undefined && pin.feedback !== null) {
+            setParentFeedback(pin.feedback);
+        }
 
         if (pin.guests) {
             try {
@@ -888,6 +912,32 @@ export const PublicEventConfirmation: React.FC = () => {
             } catch (err) {
                 console.error("Failed to save pass QR as image:", err);
             }
+        }
+    };
+
+    const handleFeedbackSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (parentRating === 0) {
+            setStatusMsg({ type: 'error', text: 'Please select a star rating.' });
+            return;
+        }
+        setIsSubmittingFeedback(true);
+        setStatusMsg({ type: 'idle', text: '' });
+        try {
+            const updatedPin = {
+                ...pinRecord,
+                rating: parentRating,
+                feedback: parentFeedback.trim()
+            };
+            await apiService.saveModuleRecord('event_pins', updatedPin);
+            setPinRecord(updatedPin);
+            setFeedbackSubmitted(true);
+            setStatusMsg({ type: 'success', text: 'Thank you for your feedback!' });
+        } catch (err: any) {
+            console.error("Failed to submit feedback:", err);
+            setStatusMsg({ type: 'error', text: `Failed to submit feedback: ${err.message || 'Error occurred'}` });
+        } finally {
+            setIsSubmittingFeedback(false);
         }
     };
 
@@ -1738,6 +1788,110 @@ export const PublicEventConfirmation: React.FC = () => {
                                     <ArrowLeft className="w-3.5 h-3.5" /> Modify RSVP / Guests
                                 </button>
                             </div>
+                        </div>
+                    )}
+
+                    {/* PHASE 4: Checked-in / Used (Post-Event Feedback) */}
+                    {rsvpStatus === 'used' && (
+                        <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl space-y-8 text-center animate-fade-in">
+                            <div className="space-y-2">
+                                <div className="w-14 h-14 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-400 mx-auto mb-3">
+                                    <CheckCircle className="w-7 h-7 text-indigo-400" />
+                                </div>
+                                <h2 className="text-2xl font-black tracking-tight text-white uppercase">Thank You for Attending!</h2>
+                                <p className="text-slate-400 text-xs sm:text-sm max-w-sm mx-auto">
+                                    We hope you enjoyed <strong className="text-indigo-350">{eventRecord?.title || 'the event'}</strong> at {institution?.name || 'our institution'}.
+                                </p>
+                            </div>
+
+                            {/* Event Summary Card */}
+                            <div className="bg-slate-950/40 border border-slate-850 rounded-3xl p-5 space-y-3 text-left">
+                                <h3 className="text-sm font-black text-white">{eventRecord?.title}</h3>
+                                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+                                    <span>📅 {eventRecord?.eventDate || eventRecord?.event_date}</span>
+                                    <span>📍 {eventRecord?.venue}</span>
+                                </div>
+                            </div>
+
+                            {feedbackSubmitted ? (
+                                <div className="bg-emerald-500/5 border border-emerald-500/25 rounded-3xl p-6 space-y-4 animate-fade-in">
+                                    <div className="flex items-center justify-center gap-1 text-amber-400">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <Star
+                                                key={star}
+                                                className={`w-6 h-6 fill-current ${
+                                                    star <= parentRating ? 'text-amber-400' : 'text-slate-700'
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">Your Feedback Submitted</span>
+                                        {parentFeedback ? (
+                                            <p className="text-xs text-slate-300 italic px-4 py-3 bg-slate-950/50 rounded-2xl border border-slate-850">
+                                                "{parentFeedback}"
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs text-slate-500 italic">No comments submitted.</p>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400">
+                                        Your feedback has been shared with the school administration to help us host better events.
+                                    </p>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleFeedbackSubmit} className="space-y-6 text-left border-t border-slate-850 pt-6">
+                                    <div className="space-y-3 text-center">
+                                        <label className="block text-[11px] font-black uppercase text-slate-450 tracking-wider">
+                                            Rate Your Experience
+                                        </label>
+                                        <div className="flex items-center justify-center gap-2">
+                                            {[1, 2, 3, 4, 5].map((star) => {
+                                                const isActive = star <= (hoverRating || parentRating);
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={star}
+                                                        onClick={() => setParentRating(star)}
+                                                        onMouseEnter={() => setHoverRating(star)}
+                                                        onMouseLeave={() => setHoverRating(0)}
+                                                        className="p-1 hover:scale-110 transition-transform focus:outline-none"
+                                                    >
+                                                        <Star
+                                                            className={`w-8 h-8 transition-colors ${
+                                                                isActive 
+                                                                    ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]' 
+                                                                    : 'text-slate-600 hover:text-slate-400'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">
+                                            Share Your Thoughts (Optional)
+                                        </label>
+                                        <textarea
+                                            rows={4}
+                                            placeholder="Tell us what you liked or how we can improve..."
+                                            value={parentFeedback}
+                                            onChange={(e) => setParentFeedback(e.target.value)}
+                                            className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-250 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 resize-none"
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingFeedback || parentRating === 0}
+                                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-50"
+                                    >
+                                        {isSubmittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                                    </button>
+                                </form>
+                            )}
                         </div>
                     )}
 
