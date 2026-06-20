@@ -589,11 +589,21 @@ export const PublicEventConfirmation: React.FC = () => {
     };
 
     // Shared post-verification logic: pre-fill profile & populate children guests
-    const handleVerifySuccess = async (dbPhone: string) => {
+    const handleVerifySuccess = async (dbPhone: string, verifiedUser?: any) => {
         setIsVerified(true);
-        setEditName(userRecord?.name || '');
-        setEditEmail(userRecord?.email || '');
-        setEditPhone(userRecord?.phoneNumber || userRecord?.phone_number || verificationPhone);
+        const activeUser = verifiedUser || userRecord;
+        if (verifiedUser) {
+            setUserRecord(verifiedUser);
+            if (pinRecord && pinRecord.userId !== verifiedUser.id) {
+                setPinRecord((prev: any) => ({
+                    ...prev,
+                    userId: verifiedUser.id
+                }));
+            }
+        }
+        setEditName(activeUser?.name || '');
+        setEditEmail(activeUser?.email || '');
+        setEditPhone(activeUser?.phoneNumber || activeUser?.phone_number || dbPhone || verificationPhone);
 
         try {
             const enrollments = await apiService.fetchModuleRecords('student_enrollments', pinRecord?.institutionId);
@@ -602,12 +612,13 @@ export const PublicEventConfirmation: React.FC = () => {
             });
 
             const dbParentPhone = dbPhone.slice(-9);
+            const activeUserId = activeUser?.id;
 
             const matchedStudents = students.filter((stu: any) => {
                 const studentParentIds = stu.parentIds || stu.parent_ids || [];
-                const isIdMatch = Array.isArray(studentParentIds)
-                    ? studentParentIds.includes(userRecord.id)
-                    : typeof studentParentIds === 'string' && studentParentIds.includes(userRecord.id);
+                const isIdMatch = activeUserId && (Array.isArray(studentParentIds)
+                    ? studentParentIds.includes(activeUserId)
+                    : typeof studentParentIds === 'string' && studentParentIds.includes(activeUserId));
                 const sParentPhone = (stu.parentPhone || stu.parent_phone || stu.phoneNumber || stu.phone_number || '').replace(/[^\d]/g, '').slice(-9);
                 const isPhoneMatch = sParentPhone && dbParentPhone && (sParentPhone === dbParentPhone);
                 return isIdMatch || isPhoneMatch;
@@ -667,7 +678,7 @@ export const PublicEventConfirmation: React.FC = () => {
             // 1. First try matching against the record attached to this PIN
             const rawDbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
             if (rawDbPhone && phonesMatch(rawDbPhone, enteredPhone)) {
-                await handleVerifySuccess(rawDbPhone);
+                await handleVerifySuccess(rawDbPhone, userRecord);
                 return;
             }
 
@@ -683,14 +694,7 @@ export const PublicEventConfirmation: React.FC = () => {
                     return phonesMatch(uPhone, enteredPhone);
                 });
                 if (matched) {
-                    // Update userRecord with the real parent so name/email show correctly
-                    if (!userRecord?.phoneNumber && !userRecord?.phone_number) {
-                        setUserRecord((prev: any) => ({
-                            ...prev,
-                            phoneNumber: matched.phoneNumber || matched.phone_number || enteredPhone
-                        }));
-                    }
-                    await handleVerifySuccess(matched.phoneNumber || matched.phone_number || enteredPhone);
+                    await handleVerifySuccess(matched.phoneNumber || matched.phone_number || enteredPhone, matched);
                     return;
                 }
             }
@@ -705,7 +709,22 @@ export const PublicEventConfirmation: React.FC = () => {
                 return phonesMatch(sPhone, enteredPhone) || phonesMatch(ePhone, enteredPhone);
             });
             if (studentMatch) {
-                await handleVerifySuccess(enteredPhone);
+                const allParents = await apiService.fetchModuleRecords('users', institutionId, undefined, {
+                    filter: { role: 'parent' }
+                });
+                const matched = allParents.find((u: any) => {
+                    const uPhone = u.phoneNumber || u.phone_number || '';
+                    return phonesMatch(uPhone, enteredPhone);
+                });
+                if (matched) {
+                    await handleVerifySuccess(matched.phoneNumber || matched.phone_number || enteredPhone, matched);
+                } else {
+                    const updatedUser = {
+                        ...userRecord,
+                        phoneNumber: enteredPhone
+                    };
+                    await handleVerifySuccess(enteredPhone, updatedUser);
+                }
                 return;
             }
 
@@ -1357,14 +1376,42 @@ export const PublicEventConfirmation: React.FC = () => {
                                                     setIsSavingProfile(true);
                                                     setProfileMsg({ type: 'idle', text: '' });
                                                     try {
+                                                        const enteredPhone = editPhone.trim();
+                                                        let activeUser = userRecord;
+                                                        const institutionId = pinRecord?.institutionId || userRecord?.institutionId || '';
+
+                                                        if (enteredPhone && (!userRecord?.phoneNumber && !userRecord?.phone_number || !phonesMatch(userRecord.phoneNumber || userRecord.phone_number || '', enteredPhone))) {
+                                                            // Search if there is an existing parent user with this phone number
+                                                            const allParents = await apiService.fetchModuleRecords('users', institutionId, undefined, {
+                                                                filter: { role: 'parent' }
+                                                                });
+                                                            const matched = allParents.find((u: any) => {
+                                                                const uPhone = u.phoneNumber || u.phone_number || '';
+                                                                return phonesMatch(uPhone, enteredPhone);
+                                                            });
+                                                            if (matched && matched.id !== userRecord?.id) {
+                                                                activeUser = matched;
+                                                            }
+                                                        }
+
                                                         const updatedUser = {
-                                                            ...userRecord,
+                                                            ...activeUser,
                                                             name: editName.trim(),
-                                                            email: editEmail.trim() || userRecord?.email || '',
-                                                            phoneNumber: editPhone.trim() || userRecord?.phoneNumber || userRecord?.phone_number || ''
+                                                            email: editEmail.trim() || activeUser?.email || '',
+                                                            phoneNumber: enteredPhone || activeUser?.phoneNumber || activeUser?.phone_number || ''
                                                         };
                                                         await apiService.saveModuleRecord('users', updatedUser);
                                                         setUserRecord(updatedUser);
+
+                                                        if (pinRecord && pinRecord.userId !== updatedUser.id) {
+                                                            const updatedPin = {
+                                                                ...pinRecord,
+                                                                userId: updatedUser.id
+                                                            };
+                                                            await apiService.saveModuleRecord('event_pins', updatedPin);
+                                                            setPinRecord(updatedPin);
+                                                        }
+
                                                         setProfileSaved(true);
                                                         setSpouseFormStep(true);
                                                         setProfileMsg({ type: 'success', text: 'Details updated successfully!' });
