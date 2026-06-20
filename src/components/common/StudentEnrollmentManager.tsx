@@ -44,7 +44,7 @@ import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
 import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
 import { VALID_STAFF_ROLES } from '../../constants';
-import { formatPhoneNumber } from '../../utils/stringUtils';
+import { formatPhoneNumber, phonesMatch } from '../../utils/stringUtils';
 
 const teacherRoles = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher'];
 const nonSupportRoles = [
@@ -904,7 +904,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const formattedParentPhone = parent.phone ? formatPhoneNumber(parent.phone) : '';
             const parentUser = users.find(u =>
                 (parent.email && u.email && u.email.toLowerCase() === parent.email.toLowerCase()) ||
-                (parent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
+                (parent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, parent.phone))
             );
 
             let parentUserId = parentUser?.id || '';
@@ -1685,10 +1685,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     // Try to find if this parent user already exists in the local copy, usersToUpsert, or system database
                     let parentUser = Array.from(usersToUpsert.values()).find((u: any) =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
+                        (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
                     ) || currentUsersList.find(u =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
+                        (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
                     );
 
                     if (!parentUser) {
@@ -1956,7 +1956,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
                     const parentUser = currentUsersList.find(u =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
+                        (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
                     );
                     if (parentUser) {
                         targetUserId = parentUser.id;
@@ -2044,10 +2044,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
                     let parentUser = Array.from(usersToUpsert.values()).find((u: any) =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
+                        (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
                     ) || currentUsersList.find(u =>
                         (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                        (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
+                        (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
                     );
 
                     if (!parentUser) {
@@ -2317,7 +2317,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
                 let parentUser = currentUsersList.find(u =>
                     (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                    (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
+                    (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
                 );
 
                 if (!parentUser) {
@@ -2482,7 +2482,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 errorMsg
             }]);
 
-            loadAllData();
+            await loadAllData();
         } catch (err: any) {
             console.error("Failed to generate/send individual PIN:", err);
             setStatusMsg({ type: 'error', message: `Failed to send individual PIN: ${err.message}` });
@@ -6331,7 +6331,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const formattedParentPhone = primaryParent.phone ? formatPhoneNumber(primaryParent.phone) : '';
                         const parentUser = (users as any[]).find(u =>
                             (primaryParent.email && u.email && u.email.toLowerCase() === primaryParent.email.toLowerCase()) ||
-                            (primaryParent.phone && u.phoneNumber && formatPhoneNumber(u.phoneNumber) === formattedParentPhone)
+                            (primaryParent.phone && u.phoneNumber && phonesMatch(u.phoneNumber, primaryParent.phone))
                         );
                         if (parentUser) {
                             targetUserId = parentUser.id;
