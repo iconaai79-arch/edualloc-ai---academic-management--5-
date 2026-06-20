@@ -2421,6 +2421,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 context={isDS ? 'driving_school' : 'academic'}
                                 currentInstitution={props.currentInstitution!}
                                 activeTab={enrollmentSubTab}
+                                companyDetails={props.companyDetails}
                             />
                         </div>
                     </div>
@@ -2439,6 +2440,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 activeTab === 'enrollment_calendar' ? 'calendar' :
                                 'guests'
                             }
+                            companyDetails={props.companyDetails}
                         />
                     </div>
                 )}

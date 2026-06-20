@@ -6476,3 +6476,260 @@ export const generateStudentIdCardPdf = async (student: any, institution: any, l
 
     return doc.output('datauristring');
 };
+
+export const generateEventReportPdf = async (
+    event: any,
+    eventMatchingPins: any[],
+    users: any[],
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+
+    // Load branding configurations
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
+    const logoImg = await loadImage(logoUrl);
+
+    // Create Page Header with Letterhead Cascade
+    const tableStartY = createPdfWithLetterhead(
+        doc,
+        'EVENT ATTENDANCE & FEEDBACK REPORT',
+        companyDetails,
+        institution,
+        logoImg,
+        headerImg
+    );
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Calculate RSVP / turnout stats
+    const totalInvited = eventMatchingPins.length;
+    const checkedInCount = eventMatchingPins.filter(p => p.status === 'used').length;
+    const acceptedCount = eventMatchingPins.filter(p => p.status === 'accepted').length;
+    const declinedCount = eventMatchingPins.filter(p => p.status === 'rejected').length;
+    const pendingCount = eventMatchingPins.filter(p => p.status === 'pending').length;
+
+    const totalAttendingResponses = checkedInCount + acceptedCount;
+    let totalAccompanyingGuests = 0;
+    eventMatchingPins.forEach(p => {
+        if (p.status === 'accepted' || p.status === 'used') {
+            if (p.guests) {
+                try {
+                    const parsed = JSON.parse(p.guests);
+                    if (Array.isArray(parsed)) {
+                        totalAccompanyingGuests += parsed.length;
+                    }
+                } catch {
+                    if (p.guests.trim()) {
+                        totalAccompanyingGuests += 1;
+                    }
+                }
+            }
+        }
+    });
+
+    const totalExpectedTurnout = totalAttendingResponses + totalAccompanyingGuests;
+    const turnoutRate = totalInvited > 0 ? Math.round((totalAttendingResponses / totalInvited) * 100) : 0;
+    const totalVehicles = eventMatchingPins.filter(p => p.vehicleRegistration || p.vehicle_registration).length;
+
+    // Calculate feedback/ratings
+    const feedbackPins = eventMatchingPins.filter(p => p.rating !== undefined && p.rating !== null);
+    const totalFeedbackCount = feedbackPins.length;
+    const totalStars = feedbackPins.reduce((acc, p) => acc + Number(p.rating), 0);
+    const avgRating = totalFeedbackCount > 0 ? (totalStars / totalFeedbackCount).toFixed(1) : '0.0';
+
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    feedbackPins.forEach(p => {
+        const r = Number(p.rating);
+        if (r >= 1 && r <= 5) {
+            distribution[r as 1|2|3|4|5]++;
+        }
+    });
+
+    // Theme primary color
+    const themeColorHex = companyDetails?.themeColor || '#4f46e5';
+    const hexToRgb = (hex: string): [number, number, number] => {
+        let cleanHex = hex.replace('#', '');
+        if (cleanHex.length === 3) {
+            cleanHex = cleanHex.split('').map(char => char + char).join('');
+        }
+        const num = parseInt(cleanHex, 16);
+        return [
+            (num >> 16) & 255,
+            (num >> 8) & 255,
+            num & 255
+        ];
+    };
+    const primaryColor = hexToRgb(themeColorHex);
+
+    let startY = tableStartY;
+
+    // ── SECTION 1: EVENT DETAILS ──
+    doc.setFillColor(248, 250, 252); // Slate-50 background
+    doc.setDrawColor(226, 232, 240); // Slate-200 border
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, startY, pageWidth - (margin * 2), 34, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text('1. EVENT DETAILS', margin + 6, startY + 6);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Event Title     :  ${event.title || 'N/A'}`, margin + 6, startY + 12);
+    doc.text(`Scheduled Date  :  ${event.eventDate || event.event_date || 'N/A'}${event.eventTime ? ' at ' + event.eventTime : ''}`, margin + 6, startY + 18);
+    doc.text(`Venue / Location:  ${event.venue || 'N/A'}`, margin + 6, startY + 24);
+    doc.text(`Target Audience :  ${event.target || 'N/A'}`, margin + 6, startY + 30);
+
+    startY += 40;
+
+    // ── SECTION 2: ATTENDANCE & RSVP METRICS ──
+    doc.setFillColor(248, 250, 252); // Slate-50 background
+    doc.setDrawColor(226, 232, 240); // Slate-200 border
+    doc.roundedRect(margin, startY, pageWidth - (margin * 2), 34, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text('2. ATTENDANCE & RSVP SUMMARY', margin + 6, startY + 6);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Total Invited (Passes)  :  ${totalInvited}`, margin + 6, startY + 13);
+    doc.text(`Turnout (Check-in Rate) :  ${turnoutRate}% (${checkedInCount} checked-in)`, margin + 6, startY + 19);
+    doc.text(`Total Expected Turnout  :  ${totalExpectedTurnout} (accompanying guests: ${totalAccompanyingGuests})`, margin + 6, startY + 25);
+    
+    // Column 2
+    doc.text(`RSVP Accepted :  ${acceptedCount}`, pageWidth / 2 + 10, startY + 13);
+    doc.text(`RSVP Declined :  ${declinedCount}`, pageWidth / 2 + 10, startY + 19);
+    doc.text(`Vehicles Reg  :  ${totalVehicles}`, pageWidth / 2 + 10, startY + 25);
+
+    startY += 40;
+
+    // ── SECTION 3: RATINGS & FEEDBACK METRICS ──
+    doc.setFillColor(248, 250, 252); // Slate-50 background
+    doc.setDrawColor(226, 232, 240); // Slate-200 border
+    doc.roundedRect(margin, startY, pageWidth - (margin * 2), 34, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text('3. FEEDBACK & RATING METRICS', margin + 6, startY + 6);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Average Star Rating :  ${avgRating} / 5.0`, margin + 6, startY + 13);
+    doc.text(`Total Reviews       :  ${totalFeedbackCount} responses`, margin + 6, startY + 19);
+
+    // Distribution
+    const distText = `5★: ${distribution[5]} | 4★: ${distribution[4]} | 3★: ${distribution[3]} | 2★: ${distribution[2]} | 1★: ${distribution[1]}`;
+    doc.text(`Star Distribution   :  ${distText}`, margin + 6, startY + 25);
+
+    startY += 44;
+
+    // ── SECTION 4: CHECKED-IN ATTENDEES LIST ──
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text('4. CONFIRMED CHECKED-IN & ATTENDING GUESTS', margin, startY);
+
+    startY += 4;
+
+    const checkedInPins = eventMatchingPins.filter(p => p.status === 'used' || p.status === 'accepted');
+    const attendanceHead = [['#', 'ATTENDEE / PARENT', 'CONTACT PHONE', 'VEHICLE REG', 'ACCOMPANYING GUESTS']];
+    const attendanceBody = checkedInPins.map((p, idx) => {
+        const u = users.find(user => user.id === p.userId);
+        let guestList = 'None';
+        if (p.guests) {
+            try {
+                const parsed = JSON.parse(p.guests);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    guestList = parsed.join(', ');
+                }
+            } catch {
+                if (p.guests.trim()) guestList = p.guests;
+            }
+        }
+        return [
+            idx + 1,
+            u?.name || 'Parent / Guardian',
+            u?.phoneNumber || u?.phone_number || 'N/A',
+            p.vehicleRegistration || p.vehicle_registration || 'None',
+            guestList
+        ];
+    });
+
+    doc.autoTable({
+        head: attendanceHead,
+        body: attendanceBody,
+        startY: startY,
+        theme: 'striped',
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 4 },
+        columnStyles: {
+            0: { cellWidth: 8 },
+            1: { cellWidth: 40, fontStyle: 'bold' },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 30 },
+            4: { fontStyle: 'normal' }
+        }
+    });
+
+    let nextY = (doc as any).lastAutoTable.finalY + 15;
+
+    // ── SECTION 5: DETAILED FEEDBACK REVIEWS ──
+    if (nextY + 30 > doc.internal.pageSize.getHeight()) {
+        doc.addPage();
+        nextY = margin + 10;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text('5. ATTENDEE FEEDBACK & REVIEWS LIST', margin, nextY);
+
+    nextY += 4;
+
+    const feedbackHead = [['#', 'ATTENDEE / PARENT', 'PHONE', 'RATING', 'FEEDBACK COMMENTS / SUGGESTIONS']];
+    const feedbackBody = feedbackPins.map((p, idx) => {
+        const u = users.find(user => user.id === p.userId);
+        return [
+            idx + 1,
+            u?.name || 'Parent / Guardian',
+            u?.phoneNumber || u?.phone_number || 'N/A',
+            `${p.rating} Stars`,
+            p.feedback ? `"${p.feedback}"` : 'Left rating without comment.'
+        ];
+    });
+
+    doc.autoTable({
+        head: feedbackHead,
+        body: feedbackBody,
+        startY: nextY,
+        theme: 'striped',
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 4 },
+        columnStyles: {
+            0: { cellWidth: 8 },
+            1: { cellWidth: 40, fontStyle: 'bold' },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+            4: { fontStyle: 'italic' }
+        }
+    });
+
+    // Process footers on all pages
+    setupPdfFooter(doc, footerImg, footerText);
+
+    return doc.output('datauristring');
+};

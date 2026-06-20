@@ -39,8 +39,9 @@ import {
     Star
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course } from '../../types';
+import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course, CompanyDetails } from '../../types';
 import { apiService } from '../../services/apiService';
+import { generateEventReportPdf } from '../../services/pdfService';
 import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
 import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
@@ -185,12 +186,14 @@ interface StudentEnrollmentManagerProps {
     context: 'academic' | 'driving_school';
     currentInstitution: Institution;
     activeTab?: 'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests';
+    companyDetails?: CompanyDetails;
 }
 
 export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> = ({ 
     context, 
     currentInstitution,
-    activeTab: passedActiveTab
+    activeTab: passedActiveTab,
+    companyDetails
 }) => {
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [isStaffFormOpen, setIsStaffFormOpen] = useState(false);
@@ -258,6 +261,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [analysisTab, setAnalysisTab] = useState<'rsvp' | 'audit' | 'feedback'>('rsvp');
     const [auditViewTab, setAuditViewTab] = useState<'missing' | 'covered'>('missing');
     const [auditCustomMessage, setAuditCustomMessage] = useState('');
+    
+    // PDF Preview Modal States
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+    const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
+    const [pdfFileName, setPdfFileName] = useState('');
     
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1599,6 +1607,48 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    // Generate comprehensive PDF Event Attendance & Feedback report
+    const handleExportEventReportPdf = async (event: any, pins: any[]) => {
+        setIsLoading(true);
+        try {
+            const logoUrl = currentInstitution.logoUrl || currentInstitution.logo_url || null;
+            const resolvedCompanyDetails = companyDetails || (currentInstitution as any).companyDetails || {
+                name: 'EduAi Automation',
+                address: 'Nairobi, Kenya',
+                email: 'info@eduai.co.ke',
+                phone: '+254700000000',
+                website: 'www.eduai.co.ke',
+                logoUrl: logoUrl,
+                themeColor: '#4f46e5',
+                letterheadConfig: {
+                    headerImageUrl: null,
+                    footerImageUrl: null,
+                    stampImageUrl: null,
+                    showStamp: false,
+                    footerText: 'EduAi Automation - Secure Document'
+                }
+            };
+
+            const dataUri = await generateEventReportPdf(
+                event,
+                pins,
+                users,
+                currentInstitution,
+                resolvedCompanyDetails,
+                logoUrl
+            );
+            
+            setPdfPreviewUrl(dataUri);
+            setPdfPreviewTitle("Event Attendance & Feedback Report Preview");
+            setPdfFileName(`Event-Report-${event.title.replace(/\s+/g, '-')}-${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')}.pdf`);
+        } catch (err: any) {
+            console.error("PDF generation failed:", err);
+            alert("Failed to generate PDF: " + err.message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     // Send Attendance Pin
@@ -7040,6 +7090,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             <button type="button" onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15">
                                                 <FileSpreadsheet className="w-4 h-4" /> Export CSV List
                                             </button>
+                                            <button type="button" onClick={() => handleExportEventReportPdf(event, eventMatchingPins)} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/15">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg> Export PDF Report
+                                            </button>
                                             <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
                                                 Dismiss
                                             </button>
@@ -7070,6 +7123,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             <button type="button" onClick={() => handleExportAttendanceCsv(event, eventMatchingPins)} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
                                                 <FileSpreadsheet className="w-4 h-4" /> Export CSV
                                             </button>
+                                            <button type="button" onClick={() => handleExportEventReportPdf(event, eventMatchingPins)} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg> Export PDF
+                                            </button>
                                             <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
                                                 Dismiss
                                             </button>
@@ -7087,9 +7143,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             <Send className="w-4 h-4" />
                                             {isLoading ? 'Sending...' : 'Request Feedback (Bulk SMS)'}
                                         </button>
-                                        <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                                            Dismiss
-                                        </button>
+                                         <div className="flex flex-col sm:flex-row gap-3">
+                                             <button type="button" onClick={() => handleExportEventReportPdf(event, eventMatchingPins)} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/15">
+                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg> Export PDF Report
+                                             </button>
+                                             <button type="button" onClick={() => setSelectedAnalysisEvent(null)} className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                                 Dismiss
+                                             </button>
+                                         </div>
                                     </div>
                                 )}
                             </div>
@@ -7297,6 +7358,67 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     </div>
                 );
             })(),
+            document.body
+        )}
+
+        {/* ── PDF Preview Modal ── */}
+        {pdfPreviewUrl && createPortal(
+            <div
+                className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[120] flex items-center justify-center p-4"
+                onClick={() => setPdfPreviewUrl(null)}
+            >
+                <div
+                    className="bg-slate-950 border border-white/10 shadow-2xl rounded-3xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                    onClick={e => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/[0.02]">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black text-white uppercase tracking-tight">{pdfPreviewTitle || 'Document Preview'}</h3>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{pdfFileName || 'document.pdf'}</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setPdfPreviewUrl(null)}
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* PDF iframe Preview Content */}
+                    <div className="flex-1 bg-slate-900 p-2">
+                        <iframe
+                            src={pdfPreviewUrl}
+                            title="PDF Document Preview"
+                            className="w-full h-full rounded-2xl border border-white/5 bg-slate-950"
+                        />
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex gap-3 px-6 py-4 border-t border-white/5 bg-white/[0.02]">
+                        <button
+                            type="button"
+                            onClick={() => setPdfPreviewUrl(null)}
+                            className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                        >
+                            Close
+                        </button>
+                        <a
+                            href={pdfPreviewUrl}
+                            download={pdfFileName}
+                            className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/15 flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                            Download PDF
+                        </a>
+                    </div>
+                </div>
+            </div>,
             document.body
         )}
         </div>
