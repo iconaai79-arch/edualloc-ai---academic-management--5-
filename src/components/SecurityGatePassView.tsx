@@ -88,7 +88,8 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
         <div class="text-center footer">
             <div class="bold">ENTRY APPROVED</div>
             <div style="margin-top: 4px;">Thank you for attending.</div>
-            <div style="font-size: 8px; margin-top: 6px; color: #555;">Powered by Edualloc-AI</div>
+            <div style="font-size: 8px; margin-top: 4px; color: #555;">Eduai OS Support: 0723348912</div>
+            <div style="font-size: 8px; margin-top: 4px; color: #555;">Powered by Edualloc-AI</div>
         </div>
     `;
 
@@ -242,6 +243,7 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
         <div style="text-align:center;font-size:9px;margin-top:15px;">
             <div style="font-weight:bold;">VISITOR APPROVED ENTRY</div>
             <div style="margin-top:4px;">Please keep this pass visible.</div>
+            <div style="font-size:8px;margin-top:4px;color:#555;">Eduai OS Support: 0723348912</div>
             <div style="font-size:8px;margin-top:6px;color:#555;">Powered by Edualloc-AI</div>
         </div>
     `;
