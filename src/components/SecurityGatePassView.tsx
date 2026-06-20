@@ -600,6 +600,57 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             return;
         }
 
+        // 3. Search by Parent Info stored directly on Student registry
+        const studentRegistryParentMatch = searchUsers.find(u => 
+            u.role === 'student' && (
+                ((u as any).parentPhone && phoneContains((u as any).parentPhone, term)) ||
+                ((u as any).parent_phone && phoneContains((u as any).parent_phone, term)) ||
+                ((u as any).parentName?.toLowerCase().includes(term)) ||
+                ((u as any).parent_name?.toLowerCase().includes(term))
+            )
+        );
+
+        if (studentRegistryParentMatch) {
+            setSelectedStudent(studentRegistryParentMatch);
+            // Construct a mock parent
+            const parentPhone = (studentRegistryParentMatch as any).parentPhone || (studentRegistryParentMatch as any).parent_phone || '';
+            const parentName = (studentRegistryParentMatch as any).parentName || (studentRegistryParentMatch as any).parent_name || 'Unknown Parent';
+            const mockParent = {
+                id: 'temp_' + studentRegistryParentMatch.id,
+                name: parentName,
+                phoneNumber: parentPhone,
+                role: 'parent',
+                email: (studentRegistryParentMatch as any).parentEmail || (studentRegistryParentMatch as any).parent_email || '',
+                institutionId: currentInstitution.id
+            } as any;
+            setSelectedParent(mockParent);
+
+            // Look up associated active/used PIN if any
+            try {
+                const pinRecords = await apiService.fetchModuleRecords('event_pins', currentInstitution.id);
+                const activePins = pinRecords.filter(p => 
+                    (p.userId === studentRegistryParentMatch.id || p.userId === mockParent.id)
+                );
+                if (activePins.length > 0) {
+                    const sortedPins = [...activePins].sort((a, b) => {
+                        const score = (status: string) => status === 'pending' || status === 'accepted' ? 2 : 1;
+                        return score(b.status) - score(a.status);
+                    });
+                    const pin = sortedPins[0];
+                    setSelectedPin(pin);
+                    const events = await apiService.fetchModuleRecords('institution_events', currentInstitution.id, undefined, {
+                        filter: { id: pin.eventId }
+                    });
+                    if (events && events.length > 0) {
+                        setAssociatedEvent(events[0]);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to query PIN for student registry parent match:", e);
+            }
+            return;
+        }
+
         // Reset if nothing found
         setSelectedParent(null);
         setSelectedStudent(null);
@@ -707,6 +758,40 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     // Auto-generate a PIN for a parent against the nearest upcoming event
     const autoGeneratePinForParent = async (parentUser: any): Promise<any | null> => {
         try {
+            // Save mock parent user in the DB first if needed
+            let realUserId = parentUser.id;
+            if (parentUser.id.startsWith('temp_')) {
+                const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const newParentRecord = {
+                    id: newUserId,
+                    name: parentUser.name,
+                    phoneNumber: parentUser.phoneNumber || null,
+                    role: 'parent',
+                    institutionId: currentInstitution.id,
+                    createdAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('users', newParentRecord);
+                realUserId = newUserId;
+
+                // Update the student record to link this parent user
+                if (selectedStudent) {
+                    const studentParentIds = [...(selectedStudent.parentIds || selectedStudent.parent_ids || [])];
+                    if (!studentParentIds.includes(newUserId)) {
+                        studentParentIds.push(newUserId);
+                    }
+                    const updatedStudent = {
+                        ...selectedStudent,
+                        parentIds: studentParentIds
+                    };
+                    await apiService.updateModuleRecord('users', selectedStudent.id, updatedStudent);
+                    setSelectedStudent(updatedStudent);
+                }
+
+                // Update selectedParent reference in local state
+                parentUser.id = newUserId;
+                setSelectedParent(prev => prev ? { ...prev, id: newUserId } : null);
+            }
+
             const events = await apiService.fetchModuleRecords('institution_events', currentInstitution.id);
             if (!events || events.length === 0) return null;
             const now = new Date().toISOString().split('T')[0];
@@ -726,7 +811,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 id: newPinId,
                 institutionId: currentInstitution.id,
                 eventId: targetEvent.id,
-                userId: parentUser.id,
+                userId: realUserId,
                 pin: pinCode,
                 status: 'pending',
                 createdAt: new Date().toISOString()

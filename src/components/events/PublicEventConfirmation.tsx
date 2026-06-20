@@ -49,6 +49,15 @@ export const PublicEventConfirmation: React.FC = () => {
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileMsg, setProfileMsg] = useState<{ type: 'idle' | 'success' | 'error'; text: string }>({ type: 'idle', text: '' });
 
+    // Spouse editing after profile verification
+    const [spouseFormStep, setSpouseFormStep] = useState(false);
+    const [spouseName, setSpouseName] = useState('');
+    const [spousePhone, setSpousePhone] = useState('');
+    const [spouseEmail, setSpouseEmail] = useState('');
+    const [addSpouseAsGuest, setAddSpouseAsGuest] = useState(true);
+    const [isSavingSpouse, setIsSavingSpouse] = useState(false);
+    const [spouseMsg, setSpouseMsg] = useState<{ type: 'idle' | 'success' | 'error'; text: string }>({ type: 'idle', text: '' });
+
     // Self-service lookup (no pinId in URL)
     const [showLookup, setShowLookup] = useState(false);
     const [lookupMode, setLookupMode] = useState<'phone' | 'admNo'>('phone');
@@ -484,6 +493,75 @@ export const PublicEventConfirmation: React.FC = () => {
 
     const handleRemoveGuest = (index: number) => {
         setGuests(guests.filter((_, i) => i !== index));
+    };
+
+    const handleSaveSpouse = async () => {
+        if (!spouseName.trim() || !spousePhone.trim()) {
+            setSpouseMsg({ type: 'error', text: 'Spouse name and phone number are required.' });
+            return;
+        }
+        setIsSavingSpouse(true);
+        setSpouseMsg({ type: 'idle', text: '' });
+        try {
+            const spouseId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const spouseUser = {
+                id: spouseId,
+                name: spouseName.trim(),
+                phoneNumber: spousePhone.trim(),
+                email: spouseEmail.trim() || `spouse_${spousePhone.trim()}@eduai.co.ke`,
+                role: 'parent',
+                institutionId: pinRecord?.institutionId || userRecord?.institutionId || '',
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('users', spouseUser);
+
+            const instId = pinRecord?.institutionId || userRecord?.institutionId;
+            if (instId) {
+                const students = await apiService.fetchModuleRecords('users', instId, undefined, {
+                    filter: { role: 'student' }
+                });
+                const dbPhone = userRecord?.phoneNumber || userRecord?.phone_number || '';
+                const dbParentPhone = dbPhone.replace(/[^\d]/g, '').slice(-9);
+
+                const matchedStudents = students.filter((stu: any) => {
+                    const studentParentIds = stu.parentIds || stu.parent_ids || [];
+                    const isIdMatch = Array.isArray(studentParentIds)
+                        ? studentParentIds.includes(userRecord?.id)
+                        : typeof studentParentIds === 'string' && studentParentIds.includes(userRecord?.id);
+                    const sParentPhone = (stu.parentPhone || stu.parent_phone || stu.phoneNumber || stu.phone_number || '').replace(/[^\d]/g, '').slice(-9);
+                    const isPhoneMatch = sParentPhone && dbParentPhone && (sParentPhone === dbParentPhone);
+                    return isIdMatch || isPhoneMatch;
+                });
+
+                for (const student of matchedStudents) {
+                    const pIds = [...(student.parentIds || student.parent_ids || [])];
+                    if (!pIds.includes(spouseId)) {
+                        pIds.push(spouseId);
+                    }
+                    const updatedStudent = {
+                        ...student,
+                        parentIds: pIds
+                    };
+                    await apiService.updateModuleRecord('users', student.id, updatedStudent);
+                }
+            }
+
+            if (addSpouseAsGuest) {
+                const guestName = `${spouseName.trim()} (Spouse)`;
+                if (!guests.includes(guestName)) {
+                    setGuests(prev => [...prev, guestName]);
+                }
+            }
+
+            setSpouseMsg({ type: 'success', text: 'Spouse details added and linked successfully!' });
+            setTimeout(() => {
+                setSpouseFormStep(false);
+            }, 1000);
+        } catch (err: any) {
+            setSpouseMsg({ type: 'error', text: `Failed to save spouse details: ${err.message || 'Please try again.'}` });
+        } finally {
+            setIsSavingSpouse(false);
+        }
     };
 
     // Shared post-verification logic: pre-fill profile & populate children guests
@@ -1238,6 +1316,7 @@ export const PublicEventConfirmation: React.FC = () => {
                                                         await apiService.saveModuleRecord('users', updatedUser);
                                                         setUserRecord(updatedUser);
                                                         setProfileSaved(true);
+                                                        setSpouseFormStep(true);
                                                         setProfileMsg({ type: 'success', text: 'Details updated successfully!' });
                                                     } catch (err: any) {
                                                         setProfileMsg({ type: 'error', text: `Failed to save details: ${err.message || 'Please try again.'}` });
@@ -1249,13 +1328,95 @@ export const PublicEventConfirmation: React.FC = () => {
                                                 className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-purple-500/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-50"
                                             >
                                                 {isSavingProfile ? 'Saving...' : 'Confirm Details & Continue'}
-                                            </button>
+                                    </button>
                                             <p className="text-center text-[10px] text-slate-500">
                                                 Your details will be updated on file. This helps ensure accurate records.
                                             </p>
                                         </div>
-                                    ) : (
-                                        <>
+                                     ) : spouseFormStep ? (
+                                         <div className="space-y-4 pt-4 border-t border-slate-850 animate-fade-in">
+                                             <div className="flex items-center gap-3 mb-1">
+                                                 <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                                                     <User className="w-5 h-5" />
+                                                 </div>
+                                                 <div>
+                                                     <h4 className="text-xs font-black uppercase text-white tracking-wider">Add Spouse Details</h4>
+                                                     <p className="text-[10px] text-slate-400">Add your spouse to link them to your children's school records and optionally add them as a guest.</p>
+                                                 </div>
+                                             </div>
+
+                                             <div className="space-y-3">
+                                                 <div className="space-y-1.5">
+                                                     <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">Spouse Full Name</label>
+                                                     <input
+                                                         type="text"
+                                                         placeholder="Spouse full name"
+                                                         value={spouseName}
+                                                         onChange={e => setSpouseName(e.target.value)}
+                                                         className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition-colors placeholder:text-slate-650"
+                                                     />
+                                                 </div>
+                                                 <div className="space-y-1.5">
+                                                     <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">Spouse Phone Number</label>
+                                                     <input
+                                                         type="tel"
+                                                         placeholder="Spouse phone number"
+                                                         value={spousePhone}
+                                                         onChange={e => setSpousePhone(e.target.value)}
+                                                         className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition-colors placeholder:text-slate-650"
+                                                     />
+                                                 </div>
+                                                 <div className="space-y-1.5">
+                                                     <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">Spouse Email Address (Optional)</label>
+                                                     <input
+                                                         type="email"
+                                                         placeholder="Spouse email address"
+                                                         value={spouseEmail}
+                                                         onChange={e => setSpouseEmail(e.target.value)}
+                                                         className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition-colors placeholder:text-slate-650"
+                                                     />
+                                                 </div>
+                                                 
+                                                 <label className="flex items-center gap-2 px-1 py-1 cursor-pointer">
+                                                     <input
+                                                         type="checkbox"
+                                                         checked={addSpouseAsGuest}
+                                                         onChange={e => setAddSpouseAsGuest(e.target.checked)}
+                                                         className="rounded bg-slate-950 border-slate-850 text-purple-600 focus:ring-purple-500"
+                                                     />
+                                                     <span className="text-[11px] font-bold text-slate-400">Add spouse as an accompanying guest to my invitation pass</span>
+                                                 </label>
+                                             </div>
+
+                                             {spouseMsg.type !== 'idle' && (
+                                                 <div className={`p-3 rounded-xl text-[11px] font-bold flex items-center gap-2 ${
+                                                     spouseMsg.type === 'success'
+                                                         ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                                                         : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
+                                                 }`}>
+                                                     <AlertCircle className="w-4 h-4 shrink-0" />
+                                                     <span>{spouseMsg.text}</span>
+                                                 </div>
+                                             )}
+
+                                             <div className="flex gap-3 pt-2">
+                                                 <button
+                                                     onClick={() => setSpouseFormStep(false)}
+                                                     className="flex-1 py-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 rounded-2xl font-black uppercase text-xs tracking-widest transition-all"
+                                                 >
+                                                     Skip / Continue
+                                                 </button>
+                                                 <button
+                                                     onClick={handleSaveSpouse}
+                                                     disabled={isSavingSpouse || !spouseName.trim() || !spousePhone.trim()}
+                                                     className="flex-1 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-purple-500/10 transition-all disabled:opacity-50"
+                                                 >
+                                                     {isSavingSpouse ? 'Saving...' : 'Save & Continue'}
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     ) : (
+                                         <>
                                         {/* Guests Input Form */}
                                         <div className="space-y-4">
                                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">
