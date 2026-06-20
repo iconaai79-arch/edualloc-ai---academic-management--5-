@@ -325,10 +325,13 @@ interface SecurityGatePassViewProps {
     onLogGateAction: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
     onAddVisitor?: (visitor: Omit<Visitor, 'id'>) => Promise<void> | void;
     courses?: Course[];
+    eventPins?: any[];
+    events?: any[];
 }
 
 export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
-    vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor, courses = []
+    vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor, courses = [],
+    eventPins, events
 }) => {
     const [activeTab, setActiveTab] = useState<'vehicle' | 'parent'>('vehicle');
     const [activeUsers, setActiveUsers] = useState<User[]>(users);
@@ -384,6 +387,18 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     useEffect(() => {
         fetchHistoryAndEvents();
     }, [currentInstitution?.id]);
+
+    useEffect(() => {
+        if (eventPins) {
+            setAllEventPins(eventPins);
+        }
+    }, [eventPins]);
+
+    useEffect(() => {
+        if (events) {
+            setAllEvents(events);
+        }
+    }, [events]);
 
     useEffect(() => {
         if (parentScanning) {

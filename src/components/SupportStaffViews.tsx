@@ -815,6 +815,8 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     onLogGateAction={props.onLogGateAction!}
                     onAddVisitor={props.onAddVisitor}
                     courses={courses}
+                    eventPins={eventPins}
+                    events={institutionEvents}
                 />
             )}
 
