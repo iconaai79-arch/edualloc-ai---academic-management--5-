@@ -178,20 +178,21 @@ const BaseDashboard: React.FC<{ title: string; icon: React.ReactNode; children: 
     </div>
 );
 
+const parseTime = (t: string) => {
+    const parts = t.match(/(\d+):(\d+)(?:\s*(AM|PM))?/i);
+    if (!parts) return 0;
+    let hours = parseInt(parts[1], 10);
+    const minutes = parseInt(parts[2], 10);
+    const ampm = parts[3];
+    if (ampm) {
+        if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+        if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+    }
+    return hours * 60 + minutes;
+};
+
 const formatDuration = (timeIn?: string, timeOut?: string) => {
     if (!timeIn || !timeOut) return '--';
-    const parseTime = (t: string) => {
-        const parts = t.match(/(\d+):(\d+)(?:\s*(AM|PM))?/i);
-        if (!parts) return 0;
-        let hours = parseInt(parts[1], 10);
-        const minutes = parseInt(parts[2], 10);
-        const ampm = parts[3];
-        if (ampm) {
-            if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
-            if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
-        }
-        return hours * 60 + minutes;
-    };
     const start = parseTime(timeIn);
     const end = parseTime(timeOut);
     const diff = end - start;
@@ -279,7 +280,15 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         );
     }, [institutionEvents]);
 
-    const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
+    const activeVisitors = useMemo(() => {
+        return (visitors || [])
+            .filter(v => !v.timeOut)
+            .sort((a, b) => {
+                const dateCompare = (b.visitDate || '').localeCompare(a.visitDate || '');
+                if (dateCompare !== 0) return dateCompare;
+                return parseTime(b.timeIn || '') - parseTime(a.timeIn || '');
+            });
+    }, [visitors]);
 
     // Search and pagination for Security Logs tab
     const [activeSearch, setActiveSearch] = useState('');
@@ -303,7 +312,13 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     }, [activeVisitors, activeSearch]);
 
     const historicalVisitors = useMemo(() => {
-        return (visitors || []).filter(v => !!v.timeOut).sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''));
+        return (visitors || [])
+            .filter(v => !!v.timeOut)
+            .sort((a, b) => {
+                const dateCompare = (b.visitDate || '').localeCompare(a.visitDate || '');
+                if (dateCompare !== 0) return dateCompare;
+                return parseTime(b.timeIn || '') - parseTime(a.timeIn || '');
+            });
     }, [visitors]);
 
     const filteredHistoryVisitors = useMemo(() => {
