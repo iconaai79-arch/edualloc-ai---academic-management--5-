@@ -177,6 +177,22 @@ export const PublicEventConfirmation: React.FC = () => {
                     console.error("Failed to fetch pin from DB, trying payload fallback:", e);
                 }
 
+                // Handle preview pin ID
+                if (!pin && pinId && (pinId === 'pin_preview_0' || pinId.startsWith('pin_preview'))) {
+                    const eventIdParam = params.get('eventId') || params.get('event_id');
+                    const instIdParam = params.get('institutionId') || params.get('institution_id');
+                    pin = {
+                        id: pinId,
+                        pin: '123456',
+                        status: 'pending',
+                        eventId: eventIdParam || 'evt_preview',
+                        userId: 'usr_preview',
+                        institutionId: instIdParam || 'inst_preview',
+                        guests: null,
+                        vehicleRegistration: null
+                    };
+                }
+
                 // Fallback to URL payload if not found in database (array-based payload)
                 if (!pin && urlPayload && Array.isArray(urlPayload)) {
                     pin = {
@@ -239,6 +255,17 @@ export const PublicEventConfirmation: React.FC = () => {
                     console.error("Failed to fetch event from DB:", e);
                 }
 
+                if (!event && pinId && (pinId === 'pin_preview_0' || pinId.startsWith('pin_preview'))) {
+                    event = {
+                        id: pin.eventId,
+                        title: 'Demo Preview Event',
+                        description: 'This is a preview description for your event.',
+                        eventDate: new Date().toISOString(),
+                        eventTime: '10:00 AM',
+                        venue: 'Main Auditorium'
+                    };
+                }
+
                 if (!event && urlPayload && Array.isArray(urlPayload)) {
                     event = {
                         id: urlPayload[11],
@@ -266,6 +293,14 @@ export const PublicEventConfirmation: React.FC = () => {
                     console.error("Failed to fetch user from DB:", e);
                 }
 
+                if (!userRec && pinId && (pinId === 'pin_preview_0' || pinId.startsWith('pin_preview'))) {
+                    userRec = {
+                        id: 'usr_preview',
+                        name: 'John Doe (Guest Preview)',
+                        phoneNumber: '+254700000000'
+                    };
+                }
+
                 if (!userRec && urlPayload && Array.isArray(urlPayload)) {
                     userRec = {
                         id: urlPayload[10],
@@ -288,6 +323,13 @@ export const PublicEventConfirmation: React.FC = () => {
                     } catch (e) {
                         console.error("Failed to fetch institution from DB:", e);
                     }
+                }
+
+                if (!inst && pinId && (pinId === 'pin_preview_0' || pinId.startsWith('pin_preview'))) {
+                    inst = {
+                        id: pin.institutionId,
+                        name: 'Demo Academy (Preview)'
+                    };
                 }
 
                 if (!inst && urlPayload && Array.isArray(urlPayload)) {
@@ -440,6 +482,55 @@ export const PublicEventConfirmation: React.FC = () => {
         }
     };
 
+    const findParentUser = async (phone: string, email?: string): Promise<any | null> => {
+        // 1. If email is provided, search by email first (exact case-insensitive match)
+        if (email && email.trim()) {
+            const byEmail = await apiService.fetchModuleRecords('users', undefined, undefined, {
+                filter: { email: email.trim().toLowerCase() }
+            });
+            if (byEmail && byEmail.length > 0) {
+                return byEmail[0];
+            }
+        }
+
+        // 2. Search by phone number formats in DB
+        if (phone && phone.trim()) {
+            const normalized = phone.trim();
+            const formatted = formatPhoneNumber(normalized);
+            const phonesToTry = Array.from(new Set([
+                normalized,
+                formatted,
+                normalizePhone(normalized),
+                normalized.startsWith('+') ? normalized : `+${normalized}`,
+                normalized.startsWith('+') ? normalized.substring(1) : normalized,
+                formatted.startsWith('+') ? formatted : `+${formatted}`
+            ])).filter(Boolean);
+
+            for (const p of phonesToTry) {
+                const byPhone = await apiService.fetchModuleRecords('users', undefined, undefined, {
+                    filter: { phoneNumber: p }
+                });
+                if (byPhone && byPhone.length > 0) return byPhone[0];
+
+                const byPhoneSn = await apiService.fetchModuleRecords('users', undefined, undefined, {
+                    filter: { phone_number: p }
+                });
+                if (byPhoneSn && byPhoneSn.length > 0) return byPhoneSn[0];
+            }
+        }
+
+        // 3. Fallback: retrieve limited set of parents as final memory-match backup
+        try {
+            const allUsers = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
+            const matched = allUsers.find((u: any) => phonesMatch(u.phoneNumber || u.phone_number || '', phone));
+            if (matched) return matched;
+        } catch (e) {
+            console.error("Fallback search failed:", e);
+        }
+
+        return null;
+    };
+
     const handleLookupByPhone = async (e: React.FormEvent) => {
         e.preventDefault();
         setLookupError('');
@@ -448,12 +539,8 @@ export const PublicEventConfirmation: React.FC = () => {
             const entered = lookupPhone.trim();
             if (!entered) { setLookupError('Please enter your phone number.'); setIsLookingUp(false); return; }
 
-            // Find matching user by phone
-            const allUsers = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
-            const matchedUser = allUsers.find((u: any) => {
-                const uPhone = u.phoneNumber || u.phone_number || '';
-                return phonesMatch(uPhone, entered);
-            });
+            // Find matching user by phone variations
+            const matchedUser = await findParentUser(entered);
 
             if (!matchedUser) {
                 setLookupError('No account found with that phone number. Please contact the school.');
@@ -598,6 +685,21 @@ export const PublicEventConfirmation: React.FC = () => {
         setIsSavingSpouse(true);
         setSpouseMsg({ type: 'idle', text: '' });
         try {
+            if (pinRecord?.id === 'pin_preview_0' || pinRecord?.id?.startsWith('pin_preview')) {
+                if (addSpouseAsGuest) {
+                    const guestName = `${spouseName.trim()} (Spouse)`;
+                    if (!guests.includes(guestName)) {
+                        setGuests(prev => [...prev, guestName]);
+                    }
+                }
+                setSpouseMsg({ type: 'success', text: 'Spouse details added and linked successfully! (Preview Mode: changes not saved)' });
+                setTimeout(() => {
+                    setSpouseFormStep(false);
+                }, 1000);
+                setIsSavingSpouse(false);
+                return;
+            }
+
             const spouseId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             const spouseUser = {
                 id: spouseId,
@@ -1000,11 +1102,10 @@ export const PublicEventConfirmation: React.FC = () => {
             let resolvedUserId = '';
             
             if (enteredPhone) {
-                const allUsers = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
-                const matchedUser = allUsers.find((u: any) => phonesMatch(u.phoneNumber || u.phone_number || '', enteredPhone));
+                const matchedUser = await findParentUser(enteredPhone);
                 if (matchedUser) {
                     resolvedUserId = matchedUser.id;
-                    if (enteredName && matchedUser.name !== enteredName) {
+                    if (enteredName && matchedUser.name !== enteredName && pinId !== 'pin_preview_0') {
                         await apiService.saveModuleRecord('users', { ...matchedUser, name: enteredName });
                     }
                 } else {
@@ -1017,7 +1118,9 @@ export const PublicEventConfirmation: React.FC = () => {
                         role: 'parent' as const,
                         institutionId: eventRecord.institutionId || eventRecord.institution_id || ''
                     };
-                    await apiService.saveModuleRecord('users', newUser);
+                    if (pinId !== 'pin_preview_0') {
+                        await apiService.saveModuleRecord('users', newUser);
+                    }
                     resolvedUserId = newUserId;
                 }
             } else {
@@ -1029,12 +1132,14 @@ export const PublicEventConfirmation: React.FC = () => {
                     role: 'parent' as const,
                     institutionId: eventRecord.institutionId || eventRecord.institution_id || ''
                 };
-                await apiService.saveModuleRecord('users', anonUser);
+                if (pinId !== 'pin_preview_0') {
+                    await apiService.saveModuleRecord('users', anonUser);
+                }
                 resolvedUserId = anonId;
             }
 
             // Find or create pin
-            const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, {
+            const pins = (pinId === 'pin_preview_0') ? [] : await apiService.fetchModuleRecords('event_pins', undefined, undefined, {
                 filter: { eventId: eventRecord.id, userId: resolvedUserId }
             });
             let pinRecordToUpdate;
@@ -1048,7 +1153,7 @@ export const PublicEventConfirmation: React.FC = () => {
             } else {
                 const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
                 pinRecordToUpdate = {
-                    id: `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    id: (pinId === 'pin_preview_0') ? 'pin_preview_0' : `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     institutionId: eventRecord.institutionId || eventRecord.institution_id || '',
                     eventId: eventRecord.id,
                     userId: resolvedUserId,
@@ -1058,6 +1163,16 @@ export const PublicEventConfirmation: React.FC = () => {
                     feedback: parentFeedback.trim(),
                     createdAt: new Date().toISOString()
                 };
+            }
+
+            if (pinId === 'pin_preview_0') {
+                // Bypass DB write in preview mode
+                setPinRecord(pinRecordToUpdate);
+                setUserRecord({ id: resolvedUserId, name: enteredName || 'Anonymous Attendee', phoneNumber: enteredPhone });
+                setFeedbackSubmitted(true);
+                setRsvpStatus('used');
+                setStatusMsg({ type: 'success', text: 'Thank you for your feedback! (Preview Mode: changes not saved)' });
+                return;
             }
 
             await apiService.saveModuleRecord('event_pins', pinRecordToUpdate);
@@ -1088,11 +1203,10 @@ export const PublicEventConfirmation: React.FC = () => {
         setStatusMsg({ type: 'idle', text: '' });
         try {
             let resolvedUserId = '';
-            const allUsers = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
-            const matchedUser = allUsers.find((u: any) => phonesMatch(u.phoneNumber || u.phone_number || '', enteredPhone));
+            const matchedUser = await findParentUser(enteredPhone, publicEmail);
             if (matchedUser) {
                 resolvedUserId = matchedUser.id;
-                if (matchedUser.name !== enteredName || (publicEmail.trim() && matchedUser.email !== publicEmail.trim())) {
+                if ((matchedUser.name !== enteredName || (publicEmail.trim() && matchedUser.email !== publicEmail.trim())) && pinId !== 'pin_preview_0') {
                     await apiService.saveModuleRecord('users', {
                         ...matchedUser,
                         name: enteredName,
@@ -1109,12 +1223,14 @@ export const PublicEventConfirmation: React.FC = () => {
                     role: 'parent' as const,
                     institutionId: eventRecord.institutionId || eventRecord.institution_id || ''
                 };
-                await apiService.saveModuleRecord('users', newUser);
+                if (pinId !== 'pin_preview_0') {
+                    await apiService.saveModuleRecord('users', newUser);
+                }
                 resolvedUserId = newUserId;
             }
 
             // Find or create pin
-            const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, {
+            const pins = (pinId === 'pin_preview_0') ? [] : await apiService.fetchModuleRecords('event_pins', undefined, undefined, {
                 filter: { eventId: eventRecord.id, userId: resolvedUserId }
             });
             let pinRecordToUpdate;
@@ -1128,7 +1244,7 @@ export const PublicEventConfirmation: React.FC = () => {
             } else {
                 const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
                 pinRecordToUpdate = {
-                    id: `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    id: (pinId === 'pin_preview_0') ? 'pin_preview_0' : `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     institutionId: eventRecord.institutionId || eventRecord.institution_id || '',
                     eventId: eventRecord.id,
                     userId: resolvedUserId,
@@ -1138,6 +1254,15 @@ export const PublicEventConfirmation: React.FC = () => {
                     vehicleRegistration: vehicleRegistration.trim() || null,
                     createdAt: new Date().toISOString()
                 };
+            }
+
+            if (pinId === 'pin_preview_0') {
+                // Bypass DB write in preview mode
+                setPinRecord(pinRecordToUpdate);
+                setUserRecord({ id: resolvedUserId, name: enteredName, phoneNumber: enteredPhone, email: publicEmail });
+                setRsvpStatus('accepted');
+                setStatusMsg({ type: 'success', text: 'Registration confirmed! Your Gatepass Ticket is generated. (Preview Mode: changes not saved)' });
+                return;
             }
 
             await apiService.saveModuleRecord('event_pins', pinRecordToUpdate);
