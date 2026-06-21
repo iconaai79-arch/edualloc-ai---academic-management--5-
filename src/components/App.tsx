@@ -791,7 +791,7 @@ export const App: React.FC = () => {
                 apiService.fetchCompanySettings().catch(() => null),
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers(currentUser?.role === 'super_admin' ? undefined : currentUser?.institutionId).catch(() => []),
                 (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchFullRegistry().catch(() => []) : Promise.resolve([]),
-                apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
+                !currentUser ? Promise.resolve([]) : apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
                 apiService.fetchModuleRecords<any>('events').catch(() => []),
             ]);
 
