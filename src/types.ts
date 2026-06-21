@@ -3938,6 +3938,7 @@ export interface DSLead {
     quotedAmount?: number;
     feeStructureId?: string;
     notes?: string;
+    broadcastId?: string;
     createdAt: string;
     updatedAt?: string;
 }

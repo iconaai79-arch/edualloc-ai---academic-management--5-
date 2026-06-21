@@ -1133,7 +1133,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                     ]
                 };
             }
-            if (type === 'broadcast') return { title: '', message: '', target: 'All', priority: 'Medium', channels: ['Portal'] };
+            if (type === 'broadcast') return { id: 'bc_' + Date.now(), title: '', message: '', target: 'All', priority: 'Medium', channels: ['Portal'], includeShortlink: false };
         }
         if (initialData && type === 'fee_structure') {
             let itemsArr: any[] = [];
@@ -2771,6 +2771,21 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         ))}
                                     </div>
                                 </div>
+                                {((formData.channels || []).includes('SMS') || (formData.channels || []).includes('Email')) && (
+                                    <div className="md:col-span-2 flex items-center gap-3 bg-indigo-50/50 dark:bg-indigo-900/10 p-4 rounded-2xl border border-indigo-100/50 dark:border-indigo-900/30">
+                                        <input 
+                                            type="checkbox" 
+                                            id="includeShortlink" 
+                                            checked={formData.includeShortlink || false} 
+                                            onChange={e => setFormData({ ...formData, includeShortlink: e.target.checked })}
+                                            className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                        />
+                                        <label htmlFor="includeShortlink" className="flex flex-col cursor-pointer select-none">
+                                            <span className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">Include Self-Onboarding Shortlink</span>
+                                            <span className="text-[9px] text-indigo-500 font-bold uppercase tracking-widest mt-0.5">Recipients can click to register interest/self-onboard, and you can track responses</span>
+                                        </label>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
@@ -3540,7 +3555,8 @@ END $$;
                 "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS ntsa_booking_status text;",
                 "ALTER TABLE ds_license_categories ADD COLUMN IF NOT EXISTS daily_program jsonb;",
                 "ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS audited_by text;",
-                "ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS audited_at timestamp with time zone;"
+                "ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS audited_at timestamp with time zone;",
+                "ALTER TABLE ds_leads ADD COLUMN IF NOT EXISTS broadcast_id text;"
             ];
 
             migrations.forEach(sql => {
@@ -7881,7 +7897,11 @@ END $$;
 
                     {activeTab === 'broadcaster' && (
                         <div className="animate-fade-in">
-                            <DSBroadcasterView onNewBroadcast={() => setActionModal({ type: 'broadcast' })} />
+                            <DSBroadcasterView 
+                                onNewBroadcast={() => setActionModal({ type: 'broadcast' })} 
+                                currentInstitution={currentInstitution}
+                                leads={leads}
+                            />
                         </div>
                     )}
 
@@ -9437,80 +9457,110 @@ END $$;
                                 };
                                 await onUpdateSettings(next);
                             } else if (type === 'broadcast') {
-                                setIsActionLoading(true);
-                                try {
-                                    let targetUsers: any[] = data.target === 'Students' ? (students || []) : 
-                                                      data.target === 'Instructors' ? (instructors || []) : 
-                                                      data.target === 'Staff' ? (users || []).filter((u: User) => u.role !== 'student') : 
-                                                      [...(students || []), ...(instructors || [])];
+                                 setIsActionLoading(true);
+                                 try {
+                                     let targetUsers: any[] = data.target === 'Students' ? (students || []) : 
+                                                       data.target === 'Instructors' ? (instructors || []) : 
+                                                       data.target === 'Staff' ? (users || []).filter((u: User) => u.role !== 'student') : 
+                                                       [...(students || []), ...(instructors || [])];
 
-                                    if (data.target === 'Students') {
-                                        if (data.targetCategory) {
-                                            targetUsers = targetUsers.filter((s: any) => s.licenseCategory === data.targetCategory);
-                                        } else if (data.targetGroup) {
-                                            const catsInGroup = (settings?.licenseCategories || [])
-                                                .filter(c => (c.parentCategory || 'Driving') === data.targetGroup)
-                                                .map(c => c.code);
-                                            targetUsers = targetUsers.filter((s: any) => catsInGroup.includes(s.licenseCategory));
-                                        }
-                                    }
+                                     if (data.target === 'Students') {
+                                         if (data.targetCategory) {
+                                             targetUsers = targetUsers.filter((s: any) => s.licenseCategory === data.targetCategory);
+                                         } else if (data.targetGroup) {
+                                             const catsInGroup = (settings?.licenseCategories || [])
+                                                 .filter(c => (c.parentCategory || 'Driving') === data.targetGroup)
+                                                 .map(c => c.code);
+                                             targetUsers = targetUsers.filter((s: any) => catsInGroup.includes(s.licenseCategory));
+                                         }
+                                     }
 
-                                    const channels = data.channels || ['Portal'];
-                                    const priorityPrefix = data.priority === 'Critical' ? '🚨 [CRITICAL] ' : data.priority === 'High' ? '⚠️ [URGENT] ' : '';
-                                    
-                                    const emails: string[] = [];
-                                    const phones: string[] = [];
+                                     const channels = data.channels || ['Portal'];
+                                     const priorityPrefix = data.priority === 'Critical' ? '🚨 [CRITICAL] ' : data.priority === 'High' ? '⚠️ [URGENT] ' : '';
+                                     
+                                     // Handle shortlink generation
+                                     const broadcastId = data.id || `bc_${Date.now()}`;
+                                     let finalMessage = data.message;
+                                     if (data.includeShortlink && channels.some((c: string) => c === 'SMS' || c === 'Email')) {
+                                         const longUrl = `${window.location.origin}/?view=ds-interest&instId=${currentInstitution?.id || 'inst'}&bc=${broadcastId}`;
+                                         let shortUrl = '';
+                                         try {
+                                             shortUrl = await apiService.shortenUrl(longUrl);
+                                         } catch (urlErr) {
+                                             console.error("Shortlink shortening failed, falling back to long URL:", urlErr);
+                                             shortUrl = longUrl;
+                                         }
+                                         finalMessage = `${data.message}\n\nRegister interest: ${shortUrl}`;
+                                     }
 
-                                    targetUsers.forEach(user => {
-                                        const email = (user as any).email;
-                                        const phone = (user as any).phone || (user as any).phoneNumber;
-                                        if (channels.includes('Email') && email) emails.push(email);
-                                        if (channels.includes('SMS') && phone) phones.push(phone);
-                                    });
+                                     const emails: string[] = [];
+                                     const phones: string[] = [];
 
-                                    const tasks: Promise<any>[] = [];
-                                    let smsResInfo: any = null;
-                                    const currentBalance = currentInstitution?.smsBalance || 0;
+                                     targetUsers.forEach(user => {
+                                         const email = user.email;
+                                         const phone = user.phone || user.phoneNumber;
+                                         if (channels.includes('Email') && email) emails.push(email);
+                                         if (channels.includes('SMS') && phone) phones.push(phone);
+                                     });
 
-                                    let requiredUnits = 0;
+                                     const tasks = [];
+                                     let smsResInfo = null;
+                                     const currentBalance = currentInstitution?.smsBalance || 0;
 
-                                    if (phones.length > 0) {
-                                        const fullMsg = `${priorityPrefix}${data.title}: ${data.message}`;
-                                        const pages = calculateSmsPages(fullMsg);
-                                        requiredUnits = phones.length * pages;
-                                        
-                                        if (currentBalance < requiredUnits) {
-                                            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}. Please top up.`);
-                                            setIsActionLoading(false);
-                                            return;
-                                        }
-                                        // Await SMS dispatch to capture precise delivery metadata
-                                        smsResInfo = await apiService.sendSms(phones, fullMsg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
-                                    }
+                                     let requiredUnits = 0;
 
-                                    if (emails.length > 0) {
-                                        // We send emails in parallel to avoid sequential delay
-                                        tasks.push(...emails.map(email => apiService.sendEmail(email, `${priorityPrefix}${data.title}`, data.message)));
-                                    }
+                                     if (phones.length > 0) {
+                                         const fullMsg = `${priorityPrefix}${data.title}: ${finalMessage}`;
+                                         const pages = calculateSmsPages(fullMsg);
+                                         requiredUnits = phones.length * pages;
+                                         
+                                         if (currentBalance < requiredUnits) {
+                                             toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}. Please top up.`);
+                                             setIsActionLoading(false);
+                                             return;
+                                         }
+                                         smsResInfo = await apiService.sendSms(phones, fullMsg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
+                                     }
 
-                                    await Promise.all(tasks);
+                                     if (emails.length > 0) {
+                                         tasks.push(...emails.map(email => apiService.sendEmail(email, `${priorityPrefix}${data.title}`, finalMessage)));
+                                     }
 
-                                    let deliverySummary = `Broadcast dispatched to ${targetUsers.length} recipients.`;
-                                    if (phones.length > 0) {
-                                        const remainingBalance = Math.max(0, currentBalance - requiredUnits);
-                                        deliverySummary += ` SMS Delivery: dispatched to ${phones.length} destination numbers. Remaining Units: ${remainingBalance}.`;
-                                        if (smsResInfo?.message) {
-                                            deliverySummary += ` Gateway Status: ${smsResInfo.message}`;
-                                        }
-                                    }
-                                    success(deliverySummary);
-                                } catch (err) {
-                                    console.error("Broadcast failed:", err);
-                                    toastError("Failed to send broadcast to all recipients");
-                                } finally {
-                                    setIsActionLoading(false);
-                                }
-                            }
+                                     await Promise.all(tasks);
+
+                                     // Save broadcast log to database
+                                     try {
+                                         const logRecord = {
+                                             id: broadcastId,
+                                             institutionId: currentInstitution?.id || 'inst',
+                                             target: data.target + (data.target === 'Students' && data.targetCategory ? ` (${data.targetCategory})` : data.target === 'Students' && data.targetGroup ? ` (${data.targetGroup})` : ''),
+                                             channel: channels.join(' / '),
+                                             subject: data.title || "Institutional Broadcast",
+                                             body: finalMessage,
+                                             recipientsCount: targetUsers.length,
+                                             createdAt: new Date().toISOString()
+                                         };
+                                         await apiService.saveModuleRecord('broadcaster_messages', logRecord);
+                                     } catch (logErr) {
+                                         console.error("Failed to save broadcast log:", logErr);
+                                     }
+
+                                     let deliverySummary = `Broadcast dispatched to ${targetUsers.length} recipients.`;
+                                     if (phones.length > 0) {
+                                         const remainingBalance = Math.max(0, currentBalance - requiredUnits);
+                                         deliverySummary += ` SMS Delivery: dispatched to ${phones.length} destination numbers. Remaining Units: ${remainingBalance}.`;
+                                         if (smsResInfo?.message) {
+                                             deliverySummary += ` Gateway Status: ${smsResInfo.message}`;
+                                         }
+                                     }
+                                     success(deliverySummary);
+                                 } catch (err) {
+                                     console.error("Broadcast failed:", err);
+                                     toastError("Failed to send broadcast to all recipients");
+                                 } finally {
+                                     setIsActionLoading(false);
+                                 }
+                             }
                         }}
                         students={normalizedStudents}
                         instructors={normalizedInstructors}

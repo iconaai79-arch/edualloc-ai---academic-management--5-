@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { PlusIcon } from '../icons/PlusIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { ArrowPathIcon } from '../icons/ArrowPathIcon';
@@ -8,6 +8,8 @@ import { BellIcon } from '../icons/BellIcon';
 import { SearchIcon } from '../icons/SearchIcon';
 import { MegaphoneIcon, SignalIcon } from '../his/HealthIcons';
 import { TruckIcon, CalendarDaysIcon, AcademicCapIcon } from '../icons';
+import { apiService } from '../../services/apiService';
+import type { DSLead } from '../../types';
 
 interface Broadcast {
     id: string;
@@ -20,6 +22,8 @@ interface Broadcast {
 
 interface DSBroadcasterViewProps {
     onNewBroadcast?: () => void;
+    currentInstitution?: any;
+    leads?: DSLead[];
 }
 
 const MOCK_MESSAGES: Broadcast[] = [
@@ -29,14 +33,42 @@ const MOCK_MESSAGES: Broadcast[] = [
     { id: 'b4', title: 'Theory Session', message: 'Defensive Driving theory session for Group B starts in 20 mins at Room 2.', type: 'Info', priority: 'Medium', timestamp: '1 hour ago' },
 ];
 
-const MOCK_SENT_MESSAGES: Broadcast[] = [
-    { id: 's1', title: 'Weather Advisory', message: 'Heavy rain expected. All practical lessons to proceed with caution.', type: 'Info', priority: 'High', timestamp: '2 hours ago' },
-    { id: 's2', title: 'System Maintenance', message: 'Student portal will be down for maintenance from midnight to 2 AM.', type: 'Info', priority: 'Medium', timestamp: '1 day ago' },
-    { id: 's3', title: 'Instructor Meeting', message: 'Weekly briefing at 8 AM tomorrow in the main hall.', type: 'Info', priority: 'Medium', timestamp: '2 days ago' },
-];
-
-export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroadcast }) => {
+export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroadcast, currentInstitution, leads = [] }) => {
     const [activeTab, setActiveTab] = useState<'Live Feed' | 'Sent' | 'Outbox'>('Live Feed');
+    const [sentBroadcasts, setSentBroadcasts] = useState<any[]>([]);
+    const [loadingSent, setLoadingSent] = useState(false);
+
+    const fetchSentBroadcasts = useCallback(async () => {
+        if (!currentInstitution?.id) return;
+        setLoadingSent(true);
+        try {
+            const res = await apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution.id);
+            // Sort by created_at descending
+            const sorted = (res || []).sort((a: any, b: any) => {
+                const timeA = new Date(a.created_at || a.createdAt || 0).getTime();
+                const timeB = new Date(b.created_at || b.createdAt || 0).getTime();
+                return timeB - timeA;
+            });
+            setSentBroadcasts(sorted);
+        } catch (e) {
+            console.error("Failed to load sent broadcaster messages:", e);
+        } finally {
+            setLoadingSent(false);
+        }
+    }, [currentInstitution?.id]);
+
+    useEffect(() => {
+        if (activeTab === 'Sent') {
+            fetchSentBroadcasts();
+        }
+    }, [activeTab, fetchSentBroadcasts]);
+
+    const getResponseCount = (msgId: string) => {
+        return leads.filter(l => 
+            l.broadcastId === msgId || 
+            (l.notes && l.notes.includes(`[Campaign Ref: ${msgId}]`))
+        ).length;
+    };
 
     return (
         <div className="animate-fade-in-up space-y-8">
@@ -77,7 +109,7 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
                                 <button 
                                     key={tab}
                                     onClick={() => setActiveTab(tab as any)}
-                                    className={`text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                                    className={`text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all ${
                                         activeTab === tab 
                                         ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 shadow-sm border border-indigo-100 dark:border-indigo-900/50' 
                                         : 'text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -97,8 +129,56 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
                                     <h4 className="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Outbox is Empty</h4>
                                     <p className="text-xs text-slate-400 mt-2">All scheduled and queued broadcasts have been dispatched.</p>
                                 </div>
+                            ) : activeTab === 'Sent' ? (
+                                loadingSent ? (
+                                    <div className="text-center py-12">
+                                        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Fetching Sent Archive...</p>
+                                    </div>
+                                ) : sentBroadcasts.length === 0 ? (
+                                    <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/30 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+                                            <MegaphoneIcon className="w-8 h-8 opacity-50" />
+                                        </div>
+                                        <h4 className="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">No Sent Broadcasts</h4>
+                                        <p className="text-xs text-slate-400 mt-2">Any promotional messages or priority alerts you send will appear here.</p>
+                                    </div>
+                                ) : (
+                                    sentBroadcasts.map((msg, i) => {
+                                        const responses = getResponseCount(msg.id);
+                                        const dateStr = new Date(msg.created_at || msg.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+                                        return (
+                                            <div key={i} className="p-6 rounded-[2rem] border bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:shadow-md transition-all">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+                                                    <div className="flex gap-4">
+                                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center border bg-indigo-50 dark:bg-indigo-900/30 border-indigo-100 dark:border-indigo-800 text-indigo-600">
+                                                            <MegaphoneIcon className="w-6 h-6" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">{msg.subject || 'Institutional Broadcast'}</h4>
+                                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{dateStr}</span>
+                                                                <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-md uppercase tracking-wider">{msg.channel}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-3.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                                                            👥 {msg.recipientsCount || msg.recipients_count || 0} Sent
+                                                        </span>
+                                                        <span className="px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                                                            📈 {responses} responses
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-600 dark:text-slate-300 pl-0 sm:pl-16 whitespace-pre-line leading-relaxed">{msg.body}</p>
+                                            </div>
+                                        );
+                                    })
+                                )
                             ) : (
-                                (activeTab === 'Sent' ? MOCK_SENT_MESSAGES : MOCK_MESSAGES).map((msg, i) => (
+                                MOCK_MESSAGES.map((msg, i) => (
                                     <div key={i} className={`p-6 rounded-[2rem] border transition-all ${
                                         msg.type === 'Emergency' ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700'
                                     }`}>

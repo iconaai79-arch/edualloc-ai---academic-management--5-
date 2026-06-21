@@ -97,6 +97,7 @@ const PublicEventRegistration = safeLazy(() => import('./events/PublicEventRegis
 const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfirmation').then(m => ({ default: m.PublicEventConfirmation })));
 const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m.PublicInvoiceView })));
+const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m => ({ default: m.DSInterestPage })));
 
 
 
@@ -4918,6 +4919,18 @@ export const App: React.FC = () => {
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <CampaignJoinPage campaignId={joinCampaignId} onBack={() => { window.location.href = '/'; }} />
+            </Suspense>
+        );
+    }
+
+    // ── EARLY ESCAPE: Public driving school leads self-onboarding URL ──
+    if (window.location.search.includes('view=ds-interest')) {
+        const params = new URLSearchParams(window.location.search);
+        const instId = params.get('instId') || '';
+        const broadcastId = params.get('bc') || '';
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <DSInterestPage institutionId={instId} broadcastId={broadcastId} onBack={() => { window.location.href = '/'; }} />
             </Suspense>
         );
     }
