@@ -7597,13 +7597,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             (() => {
                 const event = bulkFeedbackModalEvent;
                 const attendeesWithoutFeedback = (eventPins || []).filter(
-                    (p: any) => p.eventId === event.id && 
+                    (p: any) => (p.eventId === event.id || p.event_id === event.id) && 
                                (p.status === 'used' || p.status === 'accepted') && 
-                               (p.rating === undefined || p.rating === null)
+                               (p.rating === undefined || p.rating === null || p.rating === '')
                 );
 
                 const recipientCount = attendeesWithoutFeedback.length;
                 const previewPins = attendeesWithoutFeedback.slice(0, 3);
+                const displayPins = previewPins.length > 0 ? previewPins : [
+                    {
+                        id: 'mock-pin-id',
+                        userId: 'mock-user-id',
+                        eventId: event.id,
+                        status: 'used',
+                        rating: null
+                    }
+                ];
 
                 return (
                     <div
@@ -7732,22 +7741,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 )}
                             </div>
 
-                            {/* Recipient Message Previews */}
+                            {/* Recipient Previews */}
                             <div className="space-y-3 mb-6">
                                 <div className="border-t border-white/5 pt-4">
                                     <h4 className="text-[10px] font-black text-slate-355 uppercase tracking-widest mb-1">
-                                        Recipient Message Previews ({previewPins.length} shown)
+                                        Recipient Previews {previewPins.length > 0 ? `(${previewPins.length} shown)` : '(Sample)'}
                                     </h4>
-                                    <p className="text-[9px] text-slate-500 font-medium">
-                                        Each attendee receives a unique confirmation link pointing to their ticket.
+                                    <p className="text-[9px] text-slate-500 font-medium font-sans">
+                                        Shows previews of how the SMS will look for the first few checked-in attendees.
                                     </p>
                                 </div>
 
                                 <div className="space-y-4 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
-                                    {previewPins.map((pinRecord, idx) => {
-                                        const targetUser = users.find(u => u.id === pinRecord.userId);
-                                        const targetName = targetUser?.name || 'Parent/Guardian';
-                                        const targetPhone = targetUser?.phoneNumber || 'No Phone';
+                                    {displayPins.map((pinRecord, idx) => {
+                                        const isMock = pinRecord.id === 'mock-pin-id';
+                                        const targetUser = isMock ? null : users.find(u => u.id === (pinRecord.userId || pinRecord.user_id));
+                                        const targetName = isMock ? 'John Doe (Sample Attendee)' : (targetUser?.name || 'Parent/Guardian');
+                                        const targetPhone = isMock ? '+254 700 000 000' : (targetUser?.phoneNumber || targetUser?.phone_number || 'No Phone');
                                         
                                         const shortLinkPreview = previewShortUrl || `https://is.gd/KmF6f2`;
                                         const suffix = bulkFeedbackAddMsg.trim() ? ` ${bulkFeedbackAddMsg.trim()}` : '';
@@ -7759,7 +7769,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     <div>
                                                         <span className="text-[10px] font-black text-white">{targetName}</span>
                                                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider ml-2 bg-white/5 px-2 py-0.5 rounded">
-                                                            Attendee
+                                                            {isMock ? 'Sample Attendee' : 'Attendee'}
                                                         </span>
                                                     </div>
                                                     <div className="text-[9px] text-slate-500 font-semibold">
@@ -7771,7 +7781,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider text-slate-400">
                                                         <MessageSquare className="w-2.5 h-2.5 text-amber-400" /> SMS Message Preview
                                                     </div>
-                                                    <div className="bg-slate-900 border border-white/5 rounded-2xl p-3 relative text-[10px] text-slate-350 leading-relaxed font-sans select-none font-medium">
+                                                    <div className="bg-slate-900 border border-white/5 rounded-2xl p-3 relative text-[10px] text-slate-355 leading-relaxed font-sans select-none font-medium">
                                                         {smsMessage}
                                                         <div className="absolute right-3 bottom-1 text-[7px] font-bold text-slate-500 uppercase tracking-widest font-mono">
                                                             ~{Math.ceil(smsMessage.length / 160)} SMS ({smsMessage.length} chars)
