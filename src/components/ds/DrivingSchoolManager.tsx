@@ -2698,6 +2698,45 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         <option value="Staff">Administrative Staff</option>
                                     </select>
                                 </div>
+                                {formData.target === 'Students' && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Filter by Category Group (Optional)</label>
+                                            <select 
+                                                value={formData.targetGroup || ''} 
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setFormData({
+                                                        ...formData,
+                                                        targetGroup: val,
+                                                        targetCategory: '' // Reset category filter
+                                                    });
+                                                }} 
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
+                                            >
+                                                <option value="">All Groups</option>
+                                                {(settings?.licenseGroups || ['Driving', 'Computer Classes', 'IELTS']).map(g => (
+                                                    <option key={g} value={g}>{g}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Filter by Specific Category (Optional)</label>
+                                            <select 
+                                                value={formData.targetCategory || ''} 
+                                                onChange={e => setFormData({...formData, targetCategory: e.target.value})} 
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100"
+                                            >
+                                                <option value="">All Categories</option>
+                                                {(settings?.licenseCategories || [])
+                                                    .filter(c => !formData.targetGroup || (c.parentCategory || 'Driving') === formData.targetGroup)
+                                                    .map(c => (
+                                                        <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+                                                    ))}
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Message Content</label>
                                     <textarea required rows={4} value={formData.message || ''} onChange={e => setFormData({...formData, message: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold resize-none text-slate-900 dark:text-slate-100 text-xs" placeholder="Type your school-wide message here..." />
@@ -9400,10 +9439,21 @@ END $$;
                             } else if (type === 'broadcast') {
                                 setIsActionLoading(true);
                                 try {
-                                    const targetUsers = data.target === 'Students' ? (students || []) : 
-                                                       data.target === 'Instructors' ? (instructors || []) : 
-                                                       data.target === 'Staff' ? (users || []).filter((u: User) => u.role !== 'student') : 
-                                                       [...(students || []), ...(instructors || [])];
+                                    let targetUsers: any[] = data.target === 'Students' ? (students || []) : 
+                                                      data.target === 'Instructors' ? (instructors || []) : 
+                                                      data.target === 'Staff' ? (users || []).filter((u: User) => u.role !== 'student') : 
+                                                      [...(students || []), ...(instructors || [])];
+
+                                    if (data.target === 'Students') {
+                                        if (data.targetCategory) {
+                                            targetUsers = targetUsers.filter((s: any) => s.licenseCategory === data.targetCategory);
+                                        } else if (data.targetGroup) {
+                                            const catsInGroup = (settings?.licenseCategories || [])
+                                                .filter(c => (c.parentCategory || 'Driving') === data.targetGroup)
+                                                .map(c => c.code);
+                                            targetUsers = targetUsers.filter((s: any) => catsInGroup.includes(s.licenseCategory));
+                                        }
+                                    }
 
                                     const channels = data.channels || ['Portal'];
                                     const priorityPrefix = data.priority === 'Critical' ? '🚨 [CRITICAL] ' : data.priority === 'High' ? '⚠️ [URGENT] ' : '';
