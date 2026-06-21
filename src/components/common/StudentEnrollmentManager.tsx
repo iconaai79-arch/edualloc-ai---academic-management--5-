@@ -267,6 +267,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     // Bulk feedback configuration state
     const [bulkFeedbackModalEvent, setBulkFeedbackModalEvent] = useState<any | null>(null);
     const [bulkFeedbackAddMsg, setBulkFeedbackAddMsg] = useState<string>('');
+    const [feedbackRecipientFilter, setFeedbackRecipientFilter] = useState<'pending' | 'accepted' | 'all_pending'>('all_pending');
+
 
     // URL shortener preview and checker states
     const [previewShortUrl, setPreviewShortUrl] = useState<string>('');
@@ -2762,15 +2764,25 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     };
 
     // Bulk request feedback from attendees who have checked in (status 'used' or 'accepted') but haven't rated yet
-    const handleSendFeedbackRequests = async (event: any, additionalMessage: string = '') => {
+    const handleSendFeedbackRequests = async (event: any, additionalMessage: string = '', recipientFilter: 'pending' | 'accepted' | 'all_pending' = 'all_pending') => {
         const attendeesWithoutFeedback = (eventPins || []).filter(
-            (p: any) => p.eventId === event.id && 
-                       (p.status === 'used' || p.status === 'accepted') && 
-                       (p.rating === undefined || p.rating === null)
+            (p: any) => {
+                const isCorrectEvent = p.eventId === event.id || p.event_id === event.id;
+                const isNotRated = p.rating === undefined || p.rating === null || p.rating === '';
+                if (!isCorrectEvent || !isNotRated) return false;
+                
+                if (recipientFilter === 'pending') {
+                    return p.status === 'used';
+                } else if (recipientFilter === 'accepted') {
+                    return p.status === 'accepted';
+                } else {
+                    return p.status === 'used' || p.status === 'accepted';
+                }
+            }
         );
 
         if (attendeesWithoutFeedback.length === 0) {
-            setStatusMsg({ type: 'error', message: 'No checked-in attendees without submitted feedback found.' });
+            setStatusMsg({ type: 'error', message: 'No matching attendees without submitted feedback found for the selected filter.' });
             return;
         }
 
@@ -7411,7 +7423,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <button
                                             type="button"
                                             disabled={isLoading || eventMatchingPins.filter(p => (p.status === 'used' || p.status === 'accepted') && (p.rating === undefined || p.rating === null)).length === 0}
-                                            onClick={() => { setBulkFeedbackModalEvent(event); setBulkFeedbackAddMsg(''); }}
+                                            onClick={() => { 
+                                                setBulkFeedbackModalEvent(event); 
+                                                setBulkFeedbackAddMsg(''); 
+                                                setFeedbackRecipientFilter('all_pending'); 
+                                            }}
                                             className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-45 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
                                         >
                                             <Send className="w-4 h-4" />
@@ -7640,9 +7656,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             (() => {
                 const event = bulkFeedbackModalEvent;
                 const attendeesWithoutFeedback = (eventPins || []).filter(
-                    (p: any) => (p.eventId === event.id || p.event_id === event.id) && 
-                               (p.status === 'used' || p.status === 'accepted') && 
-                               (p.rating === undefined || p.rating === null || p.rating === '')
+                    (p: any) => {
+                        const isCorrectEvent = p.eventId === event.id || p.event_id === event.id;
+                        const isNotRated = p.rating === undefined || p.rating === null || p.rating === '';
+                        if (!isCorrectEvent || !isNotRated) return false;
+                        
+                        if (feedbackRecipientFilter === 'pending') {
+                            return p.status === 'used';
+                        } else if (feedbackRecipientFilter === 'accepted') {
+                            return p.status === 'accepted';
+                        } else {
+                            return p.status === 'used' || p.status === 'accepted';
+                        }
+                    }
                 );
 
                 const recipientCount = attendeesWithoutFeedback.length;
@@ -7702,6 +7728,48 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
                                     This note will be injected into the feedback invite templates.
                                 </p>
+                            </div>
+
+                            {/* Target Recipients Selection */}
+                            <div className="space-y-2 mb-5">
+                                <label className="block text-[10px] font-black text-slate-355 uppercase tracking-widest">
+                                    Target Recipients
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFeedbackRecipientFilter('all_pending')}
+                                        className={`py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                            feedbackRecipientFilter === 'all_pending'
+                                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/40 shadow-lg shadow-amber-500/5'
+                                                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-white'
+                                        }`}
+                                    >
+                                        All Pending
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFeedbackRecipientFilter('pending')}
+                                        className={`py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                            feedbackRecipientFilter === 'pending'
+                                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/40 shadow-lg shadow-amber-500/5'
+                                                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-white'
+                                        }`}
+                                    >
+                                        Attended (Pending)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFeedbackRecipientFilter('accepted')}
+                                        className={`py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                            feedbackRecipientFilter === 'accepted'
+                                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/40 shadow-lg shadow-amber-500/5'
+                                                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-white'
+                                        }`}
+                                    >
+                                        RSVP Accepted (Pending)
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Link Verification Panel */}
@@ -7849,7 +7917,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        handleSendFeedbackRequests(event, bulkFeedbackAddMsg);
+                                        handleSendFeedbackRequests(event, bulkFeedbackAddMsg, feedbackRecipientFilter);
                                         setBulkFeedbackModalEvent(null);
                                     }}
                                     className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/15 flex items-center justify-center gap-2"

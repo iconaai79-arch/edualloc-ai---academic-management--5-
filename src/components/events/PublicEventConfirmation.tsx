@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiService } from '../../services/apiService';
-import { phonesMatch } from '../../utils/stringUtils';
+import { phonesMatch, formatPhoneNumber, normalizePhone } from '../../utils/stringUtils';
 import { 
     Calendar, 
     MapPin, 
@@ -1173,6 +1173,7 @@ export const PublicEventConfirmation: React.FC = () => {
                 setFeedbackSubmitted(true);
                 setRsvpStatus('used');
                 setStatusMsg({ type: 'success', text: 'Thank you for your feedback! (Preview Mode: changes not saved)' });
+                setIsSubmittingFeedback(false);
                 return;
             }
 
@@ -1263,6 +1264,7 @@ export const PublicEventConfirmation: React.FC = () => {
                 setUserRecord({ id: resolvedUserId, name: enteredName, phoneNumber: enteredPhone, email: publicEmail });
                 setRsvpStatus('accepted');
                 setStatusMsg({ type: 'success', text: 'Registration confirmed! Your Gatepass Ticket is generated. (Preview Mode: changes not saved)' });
+                setIsLoading(false);
                 return;
             }
 
