@@ -1012,6 +1012,7 @@ export const PublicEventConfirmation: React.FC = () => {
                     const newUser = {
                         id: newUserId,
                         name: enteredName || 'Guest Parent',
+                        email: `parent_${enteredPhone || newUserId}@eduai.co.ke`,
                         phoneNumber: enteredPhone,
                         role: 'parent' as const,
                         institutionId: eventRecord.institutionId || eventRecord.institution_id || ''
@@ -1024,6 +1025,7 @@ export const PublicEventConfirmation: React.FC = () => {
                 const anonUser = {
                     id: anonId,
                     name: enteredName || 'Anonymous Attendee',
+                    email: `anon_${anonId}@eduai.co.ke`,
                     role: 'parent' as const,
                     institutionId: eventRecord.institutionId || eventRecord.institution_id || ''
                 };

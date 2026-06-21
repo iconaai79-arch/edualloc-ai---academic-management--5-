@@ -269,39 +269,7 @@ export const apiService = {
             }
         } catch (_) {}
 
-        // Helper: attempt a shortener service and return the result or null
-        const tryShorten = async (shortenerUrl: string, extractFn: (text: string) => string | null): Promise<string | null> => {
-            try {
-                const res = await fetch(shortenerUrl, { method: 'GET', signal: AbortSignal.timeout(7000) });
-                if (res.ok) {
-                    const text = (await res.text()).trim();
-                    return extractFn(text);
-                }
-            } catch (_) {}
-            return null;
-        };
-
-        // 1. is.gd — generates unique slugs, no collision risk
-        const isgdShort = await tryShorten(
-            `https://is.gd/create.php?format=simple&url=${encodeURIComponent(normalizedUrl)}`,
-            (text) => (text.startsWith('https://is.gd/') ? text : null)
-        );
-        if (isgdShort) {
-            try { sessionStorage.setItem(cacheKey, isgdShort); } catch (_) {}
-            return isgdShort;
-        }
-
-        // 2. TinyURL — fallback (may have slug collisions for popular URLs)
-        const tinyShort = await tryShorten(
-            `https://tinyurl.com/api-create.php?url=${encodeURIComponent(normalizedUrl)}`,
-            (text) => (text.startsWith('https://tinyurl.com/') ? text : null)
-        );
-        if (tinyShort) {
-            try { sessionStorage.setItem(cacheKey, tinyShort); } catch (_) {}
-            return tinyShort;
-        }
-
-        // 3. Server-side proxy via integrations API (avoids CORS in some environments)
+        // 1. Try server-side proxy first (avoids browser CORS issues and uses server-side fetch with User-Agent)
         try {
             if (_supabase) {
                 const res = await fetch('/api/integrations', {
@@ -312,13 +280,53 @@ export const apiService = {
                 if (res.ok) {
                     const data = await res.json();
                     const short = data?.shortUrl;
-                    if (short && short.startsWith('http') && !short.includes('localhost')) {
+                    // Ensure the returned shortUrl is not the original longUrl fallback
+                    if (short && short.startsWith('http') && !short.includes('localhost') && (short.includes('is.gd') || short.includes('tinyurl.com'))) {
                         try { sessionStorage.setItem(cacheKey, short); } catch (_) {}
                         return short;
                     }
                 }
             }
         } catch (_) {}
+
+        // Helper: attempt a shortener service and return the result or null
+        const tryShorten = async (shortenerUrl: string, extractFn: (text: string) => string | null): Promise<string | null> => {
+            try {
+                const res = await fetch(shortenerUrl, { 
+                    method: 'GET', 
+                    headers: {
+                        'Accept': 'text/plain',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    },
+                    signal: AbortSignal.timeout(7000) 
+                });
+                if (res.ok) {
+                    const text = (await res.text()).trim();
+                    return extractFn(text);
+                }
+            } catch (_) {}
+            return null;
+        };
+
+        // 2. Client-side is.gd fallback
+        const isgdShort = await tryShorten(
+            `https://is.gd/create.php?format=simple&url=${encodeURIComponent(normalizedUrl)}`,
+            (text) => (text.startsWith('https://is.gd/') ? text : null)
+        );
+        if (isgdShort) {
+            try { sessionStorage.setItem(cacheKey, isgdShort); } catch (_) {}
+            return isgdShort;
+        }
+
+        // 3. Client-side TinyURL fallback
+        const tinyShort = await tryShorten(
+            `https://tinyurl.com/api-create.php?url=${encodeURIComponent(normalizedUrl)}`,
+            (text) => (text.startsWith('https://tinyurl.com/') ? text : null)
+        );
+        if (tinyShort) {
+            try { sessionStorage.setItem(cacheKey, tinyShort); } catch (_) {}
+            return tinyShort;
+        }
 
         // 4. Final fallback: return the original normalized URL unchanged
         return normalizedUrl;

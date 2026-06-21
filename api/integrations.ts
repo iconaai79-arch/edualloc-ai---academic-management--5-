@@ -393,7 +393,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 const isgdRes = await fetchWithTimeout(
                     `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`,
-                    { method: 'GET', headers: { 'Accept': 'text/plain' } },
+                    { 
+                        method: 'GET', 
+                        headers: { 
+                            'Accept': 'text/plain',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        } 
+                    },
                     7000
                 );
                 if (isgdRes.ok) {
@@ -409,7 +415,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 const tinyRes = await fetchWithTimeout(
                     `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
-                    { method: 'GET', headers: { 'Accept': 'text/plain' } },
+                    { 
+                        method: 'GET', 
+                        headers: { 
+                            'Accept': 'text/plain',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        } 
+                    },
                     7000
                 );
                 if (tinyRes.ok) {
