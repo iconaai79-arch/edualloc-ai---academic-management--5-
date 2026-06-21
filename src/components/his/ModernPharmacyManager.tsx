@@ -32,6 +32,7 @@ import {
 import { AddPharmacyInventoryModal } from './AddPharmacyInventoryModal';
 import { SmartPharmacyInventoryImporterModal } from './SmartPharmacyInventoryImporterModal';
 import { DispenseMedicationModal } from './DispenseMedicationModal';
+import { PdfViewer } from '../PdfViewer';
 
 
 export const ModernPharmacyManager: React.FC<{ 
@@ -1545,11 +1546,11 @@ export const ModernPharmacyManager: React.FC<{
                             >
                                 <TrashIcon className="w-6 h-6" />
                             </button>
-                            <iframe 
-                                src={selectedReportUrl} 
-                                className="w-full h-full"
-                                title="Pharmacy Report Preview"
-                            />
+                             <PdfViewer 
+                                 src={selectedReportUrl} 
+                                 className="w-full h-full"
+                                 title="Pharmacy Report Preview"
+                             />
                         </div>
                     )}
                 </>
@@ -1675,7 +1676,7 @@ export const ModernPharmacyManager: React.FC<{
                             >
                                 <TrashIcon className="w-6 h-6" />
                             </button>
-                            <iframe 
+                            <PdfViewer 
                                 src={selectedReportUrl} 
                                 className="w-full h-full"
                                 title="Pharmacy Sales Report Preview"

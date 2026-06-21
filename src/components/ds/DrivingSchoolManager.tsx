@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Webcam from 'react-webcam';
 import * as XLSX from 'xlsx';
 import { authenticateWebAuthn, captureUsbFingerprint, registerWebAuthn, verifyUsbFingerprint } from '../../utils/biometrics';
+import { PdfViewer } from '../PdfViewer';
 import { 
     UsersIcon, 
     TruckIcon, 
@@ -5618,7 +5619,7 @@ END $$;
                                                 
                                                 <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden min-h-[450px] relative flex items-center justify-center">
                                                     {onscreenPreviewPdf ? (
-                                                        <iframe 
+                                                        <PdfViewer 
                                                             src={onscreenPreviewPdf} 
                                                             className="w-full h-full border-none"
                                                             title="On-Screen Report Preview"
@@ -10116,7 +10117,7 @@ END $$;
                             </button>
                         </div>
                         <div className="flex-1 bg-slate-100 dark:bg-slate-950 p-4">
-                            <iframe 
+                            <PdfViewer 
                                 src={previewPdf} 
                                 className="w-full h-full rounded-2xl border-none shadow-inner"
                                 title="Report Preview"

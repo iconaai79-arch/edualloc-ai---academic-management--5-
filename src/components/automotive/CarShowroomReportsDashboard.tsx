@@ -32,8 +32,7 @@ import {
     Download,
     Receipt,
     TrendingUp
-} from 'lucide-react';
-
+} from 'lucide-react';import { PdfViewer } from '../PdfViewer';
 interface CarShowroomReportsDashboardProps {
     institutionId: string;
     users: User[];
@@ -875,8 +874,8 @@ export function CarShowroomReportsDashboard({ institutionId, users, companyDetai
                                     </div>
                                 )}
                                 {pdfPreviewUrl ? (
-                                    <iframe
-                                        src={`${pdfPreviewUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                                    <PdfViewer
+                                        src={pdfPreviewUrl}
                                         className="w-full h-full border-none"
                                         title="Sales PDF Preview"
                                     />

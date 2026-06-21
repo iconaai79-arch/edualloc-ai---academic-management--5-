@@ -5,6 +5,7 @@ import { apiService } from '../services/apiService';
 import { CommunicationsManager } from './CommunicationsManager';
 import { SmartCarWashCustomerImporterModal } from './SmartCarWashCustomerImporterModal';
 import { HybridPOSView } from './hybrid/HybridPOSView';
+import { PdfViewer } from './PdfViewer';
 import { KitchenDisplaySystem } from './hybrid/KitchenDisplaySystem';
 import { CustomerStatusBoard } from './hybrid/CustomerStatusBoard';
 import { CafeMenuManager } from './hybrid/CafeMenuManager';
@@ -3650,9 +3651,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             </div>
                         </div>
                         <div className="flex-1 bg-slate-100 dark:bg-slate-900 p-4">
-                            <iframe
+                            <PdfViewer
                                 src={pdfPreviewUrl}
-                                title="PDF Preview"
+                                title="Report Preview"
                                 className="w-full h-full rounded-2xl border-none shadow-inner"
                             />
                         </div>

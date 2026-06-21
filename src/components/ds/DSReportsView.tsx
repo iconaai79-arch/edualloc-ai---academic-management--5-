@@ -29,6 +29,7 @@ import { generateStudentStatement } from '../../utils/dsReportGenerator';
 import { CurrencyIcon } from '../icons';
 
 import { useToast } from '../../services/ToastContext';
+import { PdfViewer } from '../PdfViewer';
 
 
 
@@ -976,7 +977,7 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
 
                             <div className="flex-1 bg-slate-50 dark:bg-slate-950 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 relative">
 
-                                <iframe
+                                <PdfViewer
 
                                     src={logbookPreviewUrl}
 
@@ -1076,7 +1077,7 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">On-Screen PDF Viewer</h4>
                         {statementPreviewUrl ? (
                             <div className="flex-1 bg-slate-50 dark:bg-slate-950 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 relative">
-                                <iframe
+                                <PdfViewer
                                     src={statementPreviewUrl}
                                     className="w-full h-full border-none"
                                     title="Financial Statement PDF Preview"

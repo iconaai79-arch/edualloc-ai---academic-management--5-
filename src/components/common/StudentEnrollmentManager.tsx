@@ -49,6 +49,7 @@ import { ExcelSmartImporter } from './ExcelSmartImporter';
 import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
 import { VALID_STAFF_ROLES } from '../../constants';
 import { formatPhoneNumber, phonesMatch } from '../../utils/stringUtils';
+import { PdfViewer } from '../PdfViewer';
 
 const teacherRoles = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher'];
 const nonSupportRoles = [
@@ -7963,7 +7964,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                     {/* PDF iframe Preview Content */}
                     <div className="flex-1 bg-slate-900 p-2">
-                        <iframe
+                        <PdfViewer
                             src={pdfPreviewUrl}
                             title="PDF Document Preview"
                             className="w-full h-full rounded-2xl border border-white/5 bg-slate-950"

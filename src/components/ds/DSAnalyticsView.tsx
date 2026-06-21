@@ -87,8 +87,7 @@ import {
 
 
 } from 'lucide-react';
-
-
+import { PdfViewer } from '../PdfViewer';
 
 import { 
 
@@ -2320,7 +2319,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
 
 
-                            <iframe 
+                            <PdfViewer 
 
 
 

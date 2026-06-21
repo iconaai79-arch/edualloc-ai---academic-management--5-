@@ -4,6 +4,7 @@ import { XIcon } from './icons/XIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { EnvelopeIcon } from './icons/EnvelopeIcon';
 import { sendEmailNotification } from '../services/emailService';
+import { PdfViewer } from './PdfViewer';
 
 interface PdfPreviewModalProps {
     url: string;
@@ -124,8 +125,8 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, 
                     </div>
                 </div>
                 <div className="flex-grow bg-slate-100 dark:bg-slate-950 p-4">
-                    <iframe
-                        src={`${displayUrl}#toolbar=1&navpanes=0&scrollbar=1`}
+                    <PdfViewer
+                        src={displayUrl}
                         className="w-full h-full rounded-2xl shadow-inner border border-slate-200 dark:border-slate-800 bg-white"
                         title="PDF Preview"
                     />

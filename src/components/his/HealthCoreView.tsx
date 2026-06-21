@@ -38,6 +38,7 @@ import { ModernPharmacyManager } from './ModernPharmacyManager';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf } from '../../services/pdfService';
+import { PdfViewer } from '../PdfViewer';
 
 type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
 
@@ -484,7 +485,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             </div>
                         </div>
                         <div className="flex-1 overflow-hidden">
-                            <iframe src={pdfPreviewUrl} className="w-full h-full border-none" title="PDF Preview" />
+                            <PdfViewer src={pdfPreviewUrl} className="w-full h-full border-none" title="PDF Preview" />
                         </div>
                     </div>
                 </div>

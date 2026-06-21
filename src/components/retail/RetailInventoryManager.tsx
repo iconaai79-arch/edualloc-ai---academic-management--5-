@@ -17,6 +17,7 @@ import { apiService } from '../../services/apiService';
 import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { PdfViewer } from '../PdfViewer';
 
 interface RetailInventoryManagerProps {
     institutionId: string;
@@ -1382,7 +1383,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                 ) : null}
 
                                 {pdfPreviewUrl ? (
-                                    <iframe
+                                    <PdfViewer
                                         id="pdf-preview-iframe"
                                         src={pdfPreviewUrl}
                                         className="w-full h-full border-none"
