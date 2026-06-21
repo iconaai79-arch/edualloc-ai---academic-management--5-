@@ -291,6 +291,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [auditCustomMessage, setAuditCustomMessage] = useState('');
     const [feedbackSearchTerm, setFeedbackSearchTerm] = useState('');
     const [feedbackStatusFilter, setFeedbackStatusFilter] = useState<'All' | 'Submitted' | 'Pending'>('All');
+    const [isRefreshingFeedback, setIsRefreshingFeedback] = useState(false);
     
     // PDF Preview Modal States
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
@@ -6481,7 +6482,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         {selectedAnalysisEvent && createPortal(
             (() => {
                 const event = selectedAnalysisEvent;
-                const eventMatchingPins = eventPins.filter(p => p.eventId === event.id);
+                const eventMatchingPins = eventPins.filter(p => (p.eventId || p.event_id) === event.id);
+
+                const refreshEventFeedback = async () => {
+                    setIsRefreshingFeedback(true);
+                    try {
+                        const [freshPins, freshUsers] = await Promise.all([
+                            apiService.fetchModuleRecords<any>('event_pins', currentInstitution.id).catch(() => []),
+                            apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
+                        ]);
+                        setEventPins(freshPins || []);
+                        setUsers(freshUsers || []);
+                    } catch (e) {
+                        console.error('Failed to refresh feedback data:', e);
+                    } finally {
+                        setIsRefreshingFeedback(false);
+                    }
+                };
 
                 // Calculations
                 const totalInvited = eventMatchingPins.length;
@@ -6734,7 +6751,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         )}
                                     </button>
                                     <button
-                                        onClick={() => setAnalysisTab('feedback')}
+                                        onClick={() => {
+                                            setAnalysisTab('feedback');
+                                            // Auto-refresh pins & users to show latest feedback
+                                            setIsRefreshingFeedback(true);
+                                            Promise.all([
+                                                apiService.fetchModuleRecords<any>('event_pins', currentInstitution.id).catch(() => []),
+                                                apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
+                                            ]).then(([freshPins, freshUsers]) => {
+                                                setEventPins(freshPins || []);
+                                                setUsers(freshUsers || []);
+                                            }).catch(console.error).finally(() => setIsRefreshingFeedback(false));
+                                        }}
                                         className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
                                             analysisTab === 'feedback'
                                                 ? 'bg-amber-600 text-white shadow-sm'
@@ -7076,7 +7104,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 )}
 
                                 {analysisTab === 'feedback' && (() => {
-                                    const feedbackPins = eventMatchingPins.filter(p => p.rating !== undefined && p.rating !== null);
+                                    // Only count invited guests (those with a pin that existed before the event, i.e. not anonymous walk-ins created at feedback time)
+                                    const invitedPins = eventMatchingPins;
+                                    const feedbackPins = invitedPins.filter(p => p.rating !== undefined && p.rating !== null);
                                     const totalFeedbackCount = feedbackPins.length;
                                     
                                     // Calculate average rating
@@ -7094,7 +7124,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                                     const feedbackProgressPercent = totalInvited > 0 ? Math.round((totalFeedbackCount / totalInvited) * 100) : 0;
 
-                                    // Filtered guest list for feedback table
+                                    // Filtered guest list for feedback table (all pins for this event, including walk-in submitters)
                                     const filteredFeedbackGuests = eventMatchingPins.filter(p => {
                                         const user = users.find(u => u.id === p.userId);
                                         const userName = (user?.name || 'Guest / Anon').toLowerCase();
@@ -7113,6 +7143,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                                     return (
                                         <div className="space-y-6 animate-fade-in">
+                                            {/* Feedback Refresh Banner */}
+                                            <div className="flex items-center justify-between bg-indigo-950/40 border border-indigo-500/20 rounded-xl px-4 py-2.5">
+                                                <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-wider">Live Feedback Data — Refresh to see latest submissions</p>
+                                                <button
+                                                    onClick={refreshEventFeedback}
+                                                    disabled={isRefreshingFeedback}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                                                >
+                                                    <svg className={`w-3 h-3 ${isRefreshingFeedback ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                                    {isRefreshingFeedback ? 'Refreshing...' : 'Refresh'}
+                                                </button>
+                                            </div>
                                             {/* Metrics Panel */}
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                 {/* Avg Rating Card */}
@@ -7275,7 +7317,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                                         </div>
                                                                                         {pin.feedback ? (
                                                                                             <p className="text-[11px] text-slate-300 bg-white/5 rounded-xl px-2.5 py-1.5 border border-white/5 font-medium leading-relaxed italic max-w-[280px] break-words">
-                                                                                                "{pin.feedback}"
+                                                                                                &ldquo;{pin.feedback}&rdquo;
                                                                                             </p>
                                                                                         ) : (
                                                                                             <p className="text-[10px] text-slate-500 italic font-semibold">Left rating only</p>
