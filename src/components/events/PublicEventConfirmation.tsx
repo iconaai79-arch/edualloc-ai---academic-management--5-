@@ -2285,16 +2285,25 @@ export const PublicEventConfirmation: React.FC = () => {
                                 {/* ── Header stripe ───────────────────────────────────── */}
                                 <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-purple-700 px-6 py-5 text-white print:bg-indigo-700">
                                     <div className="flex items-start justify-between">
-                                        <div className="space-y-0.5">
-                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-200">
-                                                {institution?.name || 'EduAi Institution'}
-                                            </p>
-                                            <h3 className="text-lg font-black tracking-tight leading-tight">
-                                                {eventRecord?.title || 'Institution Event'}
-                                            </h3>
-                                            <p className="text-[10px] text-indigo-200 font-semibold">
-                                                Official Event Admission Pass
-                                            </p>
+                                        <div className="flex items-center gap-3">
+                                            {(institution?.logoUrl || institution?.logo_url) && (
+                                                <img 
+                                                    src={institution.logoUrl || institution.logo_url} 
+                                                    alt="Logo" 
+                                                    className="w-10 h-10 rounded-xl object-contain bg-white p-1 shrink-0" 
+                                                />
+                                            )}
+                                            <div className="space-y-0.5">
+                                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-200">
+                                                    {institution?.name || 'EduAi Institution'}
+                                                </p>
+                                                <h3 className="text-lg font-black tracking-tight leading-tight">
+                                                    {eventRecord?.title || 'Institution Event'}
+                                                </h3>
+                                                <p className="text-[10px] text-indigo-200 font-semibold">
+                                                    Official Event Admission Pass
+                                                </p>
+                                            </div>
                                         </div>
                                         <div className="text-right shrink-0 ml-4">
                                             <span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block">Pass Code</span>

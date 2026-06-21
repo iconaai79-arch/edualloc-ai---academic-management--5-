@@ -39,6 +39,9 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
 
     const innerHtml = `
         <div class="text-center">
+            ${institution?.logoUrl || institution?.logo_url ? `
+                <img src="${institution.logoUrl || institution.logo_url}" style="max-height: 40px; max-width: 120px; object-fit: contain; margin-bottom: 6px;" alt="Logo" /><br/>
+            ` : ''}
             <div class="bold title">${institution?.name || 'Academic Institution'}</div>
             <div class="subtitle">Gate Entry Pass</div>
             <div class="separator"></div>
@@ -198,6 +201,9 @@ export const printEposWalkInGatePass = (visitor: any, host: any, institution: an
 
     const innerHtml = `
         <div style="text-align:center;">
+            ${institution?.logoUrl || institution?.logo_url ? `
+                <img src="${institution.logoUrl || institution.logo_url}" style="max-height: 40px; max-width: 120px; object-fit: contain; margin-bottom: 6px;" alt="Logo" /><br/>
+            ` : ''}
             <div style="font-weight:bold;font-size:14px;text-transform:uppercase;margin:4px 0;">${institution?.name || 'Academic Institution'}</div>
             <div style="font-size:11px;text-transform:uppercase;margin-bottom:8px;">Gate Entry Pass</div>
             <div style="border-top:1px dashed #000;margin:8px 0;"></div>
