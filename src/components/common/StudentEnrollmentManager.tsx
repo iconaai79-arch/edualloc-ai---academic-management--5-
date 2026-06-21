@@ -91,7 +91,13 @@ const ShortenedUrlField: React.FC<{
                 }
             } catch (err) {
                 if (isMounted) {
-                    setError(true);
+                    // Fallback to normalized long URL so a copyable link is generated at all times
+                    const fallbackUrl = longUrl.includes('localhost') || longUrl.includes('127.0.0.1')
+                        ? longUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke')
+                        : longUrl;
+                    globalShortUrlCache[longUrl] = fallbackUrl;
+                    setShortUrl(fallbackUrl);
+                    setError(false);
                     setLoading(false);
                 }
             }
@@ -139,13 +145,23 @@ const ShortenedUrlField: React.FC<{
                             setError(false);
                             const shortened = await apiService.shortenUrl(longUrl);
                             if (isMounted) {
-                                globalShortUrlCache[longUrl] = shortened;
-                                setShortUrl(shortened);
+                                if (shortened && shortened.startsWith('http')) {
+                                    globalShortUrlCache[longUrl] = shortened;
+                                    setShortUrl(shortened);
+                                    setError(false);
+                                } else {
+                                    throw new Error('Invalid URL');
+                                }
                                 setLoading(false);
                             }
                         } catch (err) {
                             if (isMounted) {
-                                setError(true);
+                                const fallbackUrl = longUrl.includes('localhost') || longUrl.includes('127.0.0.1')
+                                    ? longUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke')
+                                    : longUrl;
+                                globalShortUrlCache[longUrl] = fallbackUrl;
+                                setShortUrl(fallbackUrl);
+                                setError(false);
                                 setLoading(false);
                             }
                         }

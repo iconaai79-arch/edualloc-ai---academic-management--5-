@@ -1414,6 +1414,15 @@ export const PublicEventConfirmation: React.FC = () => {
                             {/* FEEDBACK SUBMISSION MODE */}
                             {publicFormMode === 'feedback' && (
                                 <form onSubmit={handlePublicFeedbackSubmit} className="space-y-4">
+                                    {(institution?.logoUrl || institution?.logo_url) && (
+                                        <div className="flex justify-center mb-4">
+                                            <img
+                                                src={institution.logoUrl || institution.logo_url}
+                                                alt={institution.name || "Logo"}
+                                                className="max-h-16 w-auto object-contain rounded-xl"
+                                            />
+                                        </div>
+                                    )}
                                     <div className="space-y-3 text-center py-2 bg-slate-950/20 border border-slate-850/60 rounded-3xl p-4">
                                         <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">
                                             Rate Your Experience
@@ -2514,6 +2523,15 @@ export const PublicEventConfirmation: React.FC = () => {
                                 </div>
                             ) : (
                                 <form onSubmit={handleFeedbackSubmit} className="space-y-6 text-left border-t border-slate-850 pt-6">
+                                    {(institution?.logoUrl || institution?.logo_url) && (
+                                        <div className="flex justify-center mb-4">
+                                            <img
+                                                src={institution.logoUrl || institution.logo_url}
+                                                alt={institution.name || "Logo"}
+                                                className="max-h-16 w-auto object-contain rounded-xl"
+                                            />
+                                        </div>
+                                    )}
                                     <div className="space-y-3 text-center">
                                         <label className="block text-[11px] font-black uppercase text-slate-450 tracking-wider">
                                             Rate Your Experience
