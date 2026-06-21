@@ -798,7 +798,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 
                 // Update the student record to link this parent user
                 if (selectedStudent) {
-                    const studentParentIds = [...(selectedStudent.parentIds || selectedStudent.parent_ids || [])];
+                    const studentParentIds = [...(selectedStudent.parentIds || (selectedStudent as any).parent_ids || [])];
                     if (!studentParentIds.includes(newUserId)) {
                         studentParentIds.push(newUserId);
                     }
