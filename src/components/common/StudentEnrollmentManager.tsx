@@ -5035,6 +5035,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                     <div className="flex flex-col gap-0.5">
                                                                         <span className="text-[8px] font-bold text-indigo-500/80 dark:text-indigo-400/80 uppercase tracking-wider">Short URL</span>
                                                                         <ShortenedUrlField
+                                                                            key={regUrl}
                                                                             longUrl={regUrl}
                                                                             theme="indigo"
                                                                             setStatusMsg={setStatusMsg}
@@ -5271,6 +5272,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                 <div className="flex flex-col gap-0.5">
                                                                     <span className="text-[8px] font-bold text-violet-500/80 dark:text-violet-400/80 uppercase tracking-wider">Short RSVP URL</span>
                                                                     <ShortenedUrlField
+                                                                        key={rsvpUrl}
                                                                         longUrl={rsvpUrl}
                                                                         theme="violet"
                                                                         setStatusMsg={setStatusMsg}
@@ -6721,6 +6723,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <div className="flex-1 min-w-0">
                                             <span className="text-[8px] font-black uppercase text-slate-500 block mb-1">Shortened URL</span>
                                             <ShortenedUrlField
+                                                key={`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=event-confirm&eventId=${event.id}`}
                                                 longUrl={`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=event-confirm&eventId=${event.id}`}
                                                 theme="indigo"
                                                 setStatusMsg={setStatusMsg}
