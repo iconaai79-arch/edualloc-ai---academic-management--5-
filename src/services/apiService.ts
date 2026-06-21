@@ -255,8 +255,8 @@ export const apiService = {
             normalizedUrl = normalizedUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
         }
 
-        // Cache key — per unique normalized URL
-        const cacheKey = `eduai_short_${btoa(normalizedUrl).substring(0, 40)}`;
+        // Cache key — per unique normalized URL, using v2 prefix to prevent collision and clear legacy entries
+        const cacheKey = `eduai_short_v2_${encodeURIComponent(normalizedUrl)}`;
 
         // Validate cached entry: discard if it doesn't look like a legit short URL
         // or if the cache might be stale from a previous wrong session
