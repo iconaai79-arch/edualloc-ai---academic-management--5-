@@ -15,7 +15,9 @@ import {
     ArrowLeft,
     ShieldCheck,
     Download,
-    Star
+    Star,
+    Send,
+    Search
 } from 'lucide-react';
 
 export const PublicEventConfirmation: React.FC = () => {
@@ -30,7 +32,7 @@ export const PublicEventConfirmation: React.FC = () => {
     const [statusMsg, setStatusMsg] = useState<{ type: 'idle' | 'success' | 'error'; text: string }>({ type: 'idle', text: '' });
     
     // Form States
-    const [rsvpStatus, setRsvpStatus] = useState<'pending' | 'accepted' | 'rejected'>('pending');
+    const [rsvpStatus, setRsvpStatus] = useState<'pending' | 'accepted' | 'rejected' | 'used'>('pending');
     const [guests, setGuests] = useState<string[]>([]);
     const [guestInput, setGuestInput] = useState('');
     const [useVehicle, setUseVehicle] = useState(false);
@@ -74,14 +76,24 @@ export const PublicEventConfirmation: React.FC = () => {
     const [isLookingUp, setIsLookingUp] = useState(false);
     const [lookupError, setLookupError] = useState('');
 
+    // Public/Generic Event RSVP & Feedback States
+    const [eventId, setEventId] = useState<string | null>(null);
+    const [publicFormMode, setPublicFormMode] = useState<'feedback' | 'rsvp' | 'lookup'>('feedback');
+    const [publicName, setPublicName] = useState('');
+    const [publicPhone, setPublicPhone] = useState('');
+    const [publicEmail, setPublicEmail] = useState('');
+
     useEffect(() => {
         try {
             const params = new URLSearchParams(window.location.search);
             const id = params.get('pinId');
+            const urlEventId = params.get('eventId');
             if (id) {
                 setPinId(id);
+            } else if (urlEventId) {
+                setEventId(urlEventId);
             } else {
-                // No pinId — show self-service lookup instead of an error
+                // No pinId or eventId — show self-service lookup instead of an error
                 setShowLookup(true);
                 setIsLoading(false);
             }
@@ -90,6 +102,42 @@ export const PublicEventConfirmation: React.FC = () => {
             setIsLoading(false);
         }
     }, []);
+
+    useEffect(() => {
+        if (!eventId || pinId) return;
+
+        const loadEventData = async () => {
+            setIsLoading(true);
+            setErrorMsg('');
+            try {
+                // Fetch event details
+                const events = await apiService.fetchModuleRecords('institution_events', undefined, undefined, {
+                    filter: { id: eventId }
+                });
+                if (events && events.length > 0) {
+                    const ev = events[0];
+                    setEventRecord(ev);
+                    
+                    // Fetch institution details for branding
+                    if (ev.institutionId || ev.institution_id) {
+                        const insts = await apiService.fetchModuleRecords('institutions', ev.institutionId || ev.institution_id);
+                        if (insts && insts.length > 0) {
+                            setInstitution(insts[0]);
+                        }
+                    }
+                } else {
+                    setErrorMsg('Event not found or invalid.');
+                }
+            } catch (err: any) {
+                console.error("Failed to load public event:", err);
+                setErrorMsg('Failed to retrieve event details. Please reload.');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadEventData();
+    }, [eventId, pinId]);
 
     useEffect(() => {
         if (!pinId) return;
@@ -337,24 +385,34 @@ export const PublicEventConfirmation: React.FC = () => {
     };
 
     // Auto-generate a PIN for a user when none exists
-    const autoGeneratePin = async (userId: string, institutionId: string): Promise<any | null> => {
+    const autoGeneratePin = async (userId: string, institutionId: string, specificEventId?: string | null): Promise<any | null> => {
         try {
-            // Find the most recent / upcoming event for this institution
-            const events = await apiService.fetchModuleRecords('institution_events', institutionId);
-            if (!events || events.length === 0) return null;
+            let targetEvent = null;
+            if (specificEventId) {
+                const events = await apiService.fetchModuleRecords('institution_events', undefined, undefined, {
+                    filter: { id: specificEventId }
+                });
+                if (events && events.length > 0) targetEvent = events[0];
+            }
 
-            // Sort: prefer future events, then most recently created
-            const now = new Date().toISOString().split('T')[0];
-            const sorted = [...events].sort((a: any, b: any) => {
-                const aDate = a.eventDate || a.event_date || '';
-                const bDate = b.eventDate || b.event_date || '';
-                const aFuture = aDate >= now;
-                const bFuture = bDate >= now;
-                if (aFuture && !bFuture) return -1;
-                if (!aFuture && bFuture) return 1;
-                return aDate > bDate ? 1 : -1;
-            });
-            const targetEvent = sorted[0];
+            if (!targetEvent) {
+                // Find the most recent / upcoming event for this institution
+                const events = await apiService.fetchModuleRecords('institution_events', institutionId);
+                if (!events || events.length === 0) return null;
+
+                // Sort: prefer future events, then most recently created
+                const now = new Date().toISOString().split('T')[0];
+                const sorted = [...events].sort((a: any, b: any) => {
+                    const aDate = a.eventDate || a.event_date || '';
+                    const bDate = b.eventDate || b.event_date || '';
+                    const aFuture = aDate >= now;
+                    const bFuture = bDate >= now;
+                    if (aFuture && !bFuture) return -1;
+                    if (!aFuture && bFuture) return 1;
+                    return aDate > bDate ? 1 : -1;
+                });
+                targetEvent = sorted[0];
+            }
 
             const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
             const newPinId = `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -398,10 +456,13 @@ export const PublicEventConfirmation: React.FC = () => {
 
             // Find their event pin(s)
             let pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, { filter: { userId: matchedUser.id } });
+            if (eventId) {
+                pins = pins.filter((p: any) => p.eventId === eventId || p.event_id === eventId);
+            }
 
             // Auto-generate if no PIN exists
             if (!pins || pins.length === 0) {
-                const newPin = await autoGeneratePin(matchedUser.id, matchedUser.institutionId || matchedUser.institution_id || '');
+                const newPin = await autoGeneratePin(matchedUser.id, matchedUser.institutionId || matchedUser.institution_id || '', eventId);
                 if (!newPin) {
                     setLookupError('No upcoming events found. Please contact the school for your invitation.');
                     setIsLookingUp(false);
@@ -465,9 +526,12 @@ export const PublicEventConfirmation: React.FC = () => {
             let ownerParentId = parentIds[0] || null;
 
             for (const parentId of parentIds) {
-                const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, { filter: { userId: parentId } });
-                if (pins && pins.length > 0) {
-                    const sorted = [...pins].sort((a: any, b: any) => {
+                let parentPins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, { filter: { userId: parentId } });
+                if (eventId) {
+                    parentPins = parentPins.filter((p: any) => p.eventId === eventId || p.event_id === eventId);
+                }
+                if (parentPins && parentPins.length > 0) {
+                    const sorted = [...parentPins].sort((a: any, b: any) => {
                         if (a.status === 'pending' && b.status !== 'pending') return -1;
                         if (b.status === 'pending' && a.status !== 'pending') return 1;
                         return (b.createdAt || b.created_at || '') > (a.createdAt || a.created_at || '') ? 1 : -1;
@@ -485,7 +549,7 @@ export const PublicEventConfirmation: React.FC = () => {
                     setIsLookingUp(false);
                     return;
                 }
-                const newPin = await autoGeneratePin(ownerParentId, studentInstitutionId);
+                const newPin = await autoGeneratePin(ownerParentId, studentInstitutionId, eventId);
                 if (!newPin) {
                     setLookupError('No upcoming events found. Please contact the school for your invitation.');
                     setIsLookingUp(false);
@@ -915,6 +979,172 @@ export const PublicEventConfirmation: React.FC = () => {
         }
     };
 
+    const handlePublicFeedbackSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (parentRating === 0) {
+            setStatusMsg({ type: 'error', text: 'Please select a star rating.' });
+            return;
+        }
+        setIsSubmittingFeedback(true);
+        setStatusMsg({ type: 'idle', text: '' });
+        try {
+            const enteredPhone = publicPhone.trim();
+            const enteredName = publicName.trim();
+            let resolvedUserId = '';
+            
+            if (enteredPhone) {
+                const allUsers = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
+                const matchedUser = allUsers.find((u: any) => phonesMatch(u.phoneNumber || u.phone_number || '', enteredPhone));
+                if (matchedUser) {
+                    resolvedUserId = matchedUser.id;
+                    if (enteredName && matchedUser.name !== enteredName) {
+                        await apiService.saveModuleRecord('users', { ...matchedUser, name: enteredName });
+                    }
+                } else {
+                    const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    const newUser = {
+                        id: newUserId,
+                        name: enteredName || 'Guest Parent',
+                        phoneNumber: enteredPhone,
+                        role: 'parent' as const,
+                        institutionId: eventRecord.institutionId || eventRecord.institution_id || ''
+                    };
+                    await apiService.saveModuleRecord('users', newUser);
+                    resolvedUserId = newUserId;
+                }
+            } else {
+                const anonId = `usr_anon_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const anonUser = {
+                    id: anonId,
+                    name: enteredName || 'Anonymous Attendee',
+                    role: 'parent' as const,
+                    institutionId: eventRecord.institutionId || eventRecord.institution_id || ''
+                };
+                await apiService.saveModuleRecord('users', anonUser);
+                resolvedUserId = anonId;
+            }
+
+            // Find or create pin
+            const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, {
+                filter: { eventId: eventRecord.id, userId: resolvedUserId }
+            });
+            let pinRecordToUpdate;
+            if (pins && pins.length > 0) {
+                pinRecordToUpdate = {
+                    ...pins[0],
+                    rating: parentRating,
+                    feedback: parentFeedback.trim(),
+                    status: 'used'
+                };
+            } else {
+                const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+                pinRecordToUpdate = {
+                    id: `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    institutionId: eventRecord.institutionId || eventRecord.institution_id || '',
+                    eventId: eventRecord.id,
+                    userId: resolvedUserId,
+                    pin: pinCode,
+                    status: 'used',
+                    rating: parentRating,
+                    feedback: parentFeedback.trim(),
+                    createdAt: new Date().toISOString()
+                };
+            }
+
+            await apiService.saveModuleRecord('event_pins', pinRecordToUpdate);
+            
+            setPinRecord(pinRecordToUpdate);
+            setUserRecord({ id: resolvedUserId, name: enteredName || 'Anonymous Attendee', phoneNumber: enteredPhone });
+            setFeedbackSubmitted(true);
+            setRsvpStatus('used');
+            setStatusMsg({ type: 'success', text: 'Thank you for your feedback!' });
+        } catch (err: any) {
+            console.error("Failed to submit guest feedback:", err);
+            setStatusMsg({ type: 'error', text: `Failed to submit feedback: ${err.message || 'Error occurred'}` });
+        } finally {
+            setIsSubmittingFeedback(false);
+        }
+    };
+
+    const handlePublicRsvpSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const enteredName = publicName.trim();
+        const enteredPhone = publicPhone.trim();
+        if (!enteredName || !enteredPhone) {
+            setStatusMsg({ type: 'error', text: 'Name and Phone Number are required for registration.' });
+            return;
+        }
+
+        setIsLoading(true);
+        setStatusMsg({ type: 'idle', text: '' });
+        try {
+            let resolvedUserId = '';
+            const allUsers = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { role: 'parent' } });
+            const matchedUser = allUsers.find((u: any) => phonesMatch(u.phoneNumber || u.phone_number || '', enteredPhone));
+            if (matchedUser) {
+                resolvedUserId = matchedUser.id;
+                if (matchedUser.name !== enteredName || (publicEmail.trim() && matchedUser.email !== publicEmail.trim())) {
+                    await apiService.saveModuleRecord('users', {
+                        ...matchedUser,
+                        name: enteredName,
+                        email: publicEmail.trim() || matchedUser.email || ''
+                    });
+                }
+            } else {
+                const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                const newUser = {
+                    id: newUserId,
+                    name: enteredName,
+                    phoneNumber: enteredPhone,
+                    email: publicEmail.trim() || `parent_${enteredPhone}@eduai.co.ke`,
+                    role: 'parent' as const,
+                    institutionId: eventRecord.institutionId || eventRecord.institution_id || ''
+                };
+                await apiService.saveModuleRecord('users', newUser);
+                resolvedUserId = newUserId;
+            }
+
+            // Find or create pin
+            const pins = await apiService.fetchModuleRecords('event_pins', undefined, undefined, {
+                filter: { eventId: eventRecord.id, userId: resolvedUserId }
+            });
+            let pinRecordToUpdate;
+            if (pins && pins.length > 0) {
+                pinRecordToUpdate = {
+                    ...pins[0],
+                    guests: guests.length > 0 ? JSON.stringify(guests) : null,
+                    vehicleRegistration: vehicleRegistration.trim() || null,
+                    status: 'accepted'
+                };
+            } else {
+                const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+                pinRecordToUpdate = {
+                    id: `pin_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    institutionId: eventRecord.institutionId || eventRecord.institution_id || '',
+                    eventId: eventRecord.id,
+                    userId: resolvedUserId,
+                    pin: pinCode,
+                    status: 'accepted',
+                    guests: guests.length > 0 ? JSON.stringify(guests) : null,
+                    vehicleRegistration: vehicleRegistration.trim() || null,
+                    createdAt: new Date().toISOString()
+                };
+            }
+
+            await apiService.saveModuleRecord('event_pins', pinRecordToUpdate);
+            
+            setPinRecord(pinRecordToUpdate);
+            setUserRecord({ id: resolvedUserId, name: enteredName, phoneNumber: enteredPhone, email: publicEmail });
+            setRsvpStatus('accepted');
+            setStatusMsg({ type: 'success', text: 'Registration confirmed! Your Gatepass Ticket is generated.' });
+        } catch (err: any) {
+            console.error("Failed to submit guest RSVP:", err);
+            setStatusMsg({ type: 'error', text: `Failed to confirm RSVP: ${err.message || 'Error occurred'}` });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handlePrint = () => {
         window.print();
     };
@@ -1084,6 +1314,402 @@ export const PublicEventConfirmation: React.FC = () => {
         );
     }
     // ── End lookup screen ─────────────────────────────────────────────────────
+
+    // ── Combined Public RSVP & Feedback Screen ──
+    if (eventId && !pinRecord) {
+        return (
+            <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col pb-16">
+                {/* Header / Brand */}
+                <div className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-900 px-4 sm:px-6 py-4">
+                    <div className="max-w-xl mx-auto flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-black text-sm">
+                                E
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">
+                                    {institution?.name || 'Academic Portal'}
+                                </span>
+                                <span className="text-xs font-bold text-slate-400">Event RSVP &amp; Feedback Hub</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex-grow flex items-center justify-center px-4 pt-8 sm:pt-12 animate-fade-in">
+                    <div className="max-w-xl w-full space-y-6">
+                        {statusMsg.type !== 'idle' && (
+                            <div className={`p-4 rounded-2xl text-xs font-black uppercase tracking-wider text-center border ${
+                                statusMsg.type === 'success' 
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                    : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                            }`}>
+                                {statusMsg.text}
+                            </div>
+                        )}
+
+                        <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl space-y-6">
+                            {/* Event Details Card */}
+                            <div className="bg-slate-950/40 border border-slate-850 rounded-3xl p-5 space-y-3">
+                                <span className="px-2.5 py-0.5 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-full text-[9px] font-extrabold uppercase tracking-widest inline-flex items-center">
+                                    Public Event Portal
+                                </span>
+                                <h3 className="text-lg font-black text-white leading-tight">{eventRecord?.title || 'Loading Event...'}</h3>
+                                {eventRecord?.description && (
+                                    <p className="text-xs text-slate-400 leading-relaxed">{eventRecord.description}</p>
+                                )}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-400 pt-2 border-t border-slate-900/60">
+                                    <span className="flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                                        {eventRecord?.eventDate || eventRecord?.event_date || 'Date TBD'}
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                                        {eventRecord?.eventTime || 'Time TBD'}
+                                    </span>
+                                    <span className="flex items-center gap-1.5 sm:col-span-2">
+                                        <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                                        {eventRecord?.venue || 'Venue TBD'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Mode Tab Switcher */}
+                            <div className="flex gap-1 p-1 bg-slate-950/60 border border-slate-850 rounded-2xl">
+                                <button
+                                    type="button"
+                                    onClick={() => { setPublicFormMode('feedback'); setStatusMsg({ type: 'idle', text: '' }); }}
+                                    className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                        publicFormMode === 'feedback'
+                                            ? 'bg-amber-600 text-white shadow-lg'
+                                            : 'text-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    ⭐ Submit Feedback
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setPublicFormMode('rsvp'); setStatusMsg({ type: 'idle', text: '' }); }}
+                                    className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                        publicFormMode === 'rsvp'
+                                            ? 'bg-indigo-600 text-white shadow-lg'
+                                            : 'text-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    ✍️ Register / RSVP
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setPublicFormMode('lookup'); setStatusMsg({ type: 'idle', text: '' }); }}
+                                    className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                        publicFormMode === 'lookup'
+                                            ? 'bg-purple-650 text-white shadow-lg'
+                                            : 'text-slate-500 hover:text-slate-300'
+                                    }`}
+                                >
+                                    🔍 Locate Invitation
+                                </button>
+                            </div>
+
+                            {/* FEEDBACK SUBMISSION MODE */}
+                            {publicFormMode === 'feedback' && (
+                                <form onSubmit={handlePublicFeedbackSubmit} className="space-y-4">
+                                    <div className="space-y-3 text-center py-2 bg-slate-950/20 border border-slate-850/60 rounded-3xl p-4">
+                                        <label className="block text-[10px] font-black uppercase text-slate-450 tracking-wider">
+                                            Rate Your Experience
+                                        </label>
+                                        <div className="flex items-center justify-center gap-2">
+                                            {[1, 2, 3, 4, 5].map((star) => {
+                                                const isActive = star <= (hoverRating || parentRating);
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={star}
+                                                        onClick={() => setParentRating(star)}
+                                                        onMouseEnter={() => setHoverRating(star)}
+                                                        onMouseLeave={() => setHoverRating(0)}
+                                                        className="p-1 hover:scale-110 transition-transform focus:outline-none"
+                                                    >
+                                                        <Star
+                                                            className={`w-8 h-8 transition-colors ${
+                                                                isActive 
+                                                                    ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]' 
+                                                                    : 'text-slate-600 hover:text-slate-400'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <label className="block text-[9px] font-black uppercase text-slate-450 tracking-wider">
+                                            Your Thoughts / Comments (Optional)
+                                        </label>
+                                        <textarea
+                                            rows={3}
+                                            placeholder="Help us improve. Tell us what you liked or how we can make it better next time..."
+                                            value={parentFeedback}
+                                            onChange={(e) => setParentFeedback(e.target.value)}
+                                            className="w-full bg-slate-950 border border-slate-855 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650 resize-none font-sans"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1.5">
+                                            <label className="block text-[9px] font-black uppercase text-slate-455 tracking-wider">Your Name (Optional)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. John Doe"
+                                                value={publicName}
+                                                onChange={(e) => setPublicName(e.target.value)}
+                                                className="w-full bg-slate-955 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="block text-[9px] font-black uppercase text-slate-455 tracking-wider">Phone Number (Optional)</label>
+                                            <input
+                                                type="tel"
+                                                placeholder="e.g. 0712 345 678"
+                                                value={publicPhone}
+                                                onChange={(e) => setPublicPhone(e.target.value)}
+                                                className="w-full bg-slate-955 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingFeedback || parentRating === 0}
+                                        className="w-full py-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Send className="w-3.5 h-3.5" />
+                                        {isSubmittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                                    </button>
+                                </form>
+                            )}
+
+                            {/* RSVP / REGISTRATION MODE */}
+                            {publicFormMode === 'rsvp' && (
+                                <form onSubmit={handlePublicRsvpSubmit} className="space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1.5">
+                                            <label className="block text-[9px] font-black uppercase text-slate-450 tracking-wider">Your Full Name</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="Enter your name"
+                                                value={publicName}
+                                                onChange={(e) => setPublicName(e.target.value)}
+                                                className="w-full bg-slate-955 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="block text-[9px] font-black uppercase text-slate-450 tracking-wider">Phone Number</label>
+                                            <input
+                                                type="tel"
+                                                required
+                                                placeholder="e.g. 0712 345 678"
+                                                value={publicPhone}
+                                                onChange={(e) => setPublicPhone(e.target.value)}
+                                                className="w-full bg-slate-955 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <label className="block text-[9px] font-black uppercase text-slate-450 tracking-wider">Email Address (Optional)</label>
+                                        <input
+                                            type="email"
+                                            placeholder="parent@example.com"
+                                            value={publicEmail}
+                                            onChange={(e) => setPublicEmail(e.target.value)}
+                                            className="w-full bg-slate-955 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
+                                        />
+                                    </div>
+
+                                    {/* Guests section */}
+                                    <div className="space-y-3 pt-2 border-t border-slate-950">
+                                        <label className="block text-[9px] font-black uppercase text-slate-450 tracking-wider">Accompanying Guests</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Add guest name"
+                                                value={guestInput}
+                                                onChange={e => setGuestInput(e.target.value)}
+                                                className="flex-grow bg-slate-955 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleAddGuest}
+                                                className="px-4 bg-slate-955 hover:bg-slate-850 border border-slate-850 text-indigo-400 rounded-2xl flex items-center justify-center transition-colors"
+                                            >
+                                                <Plus className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                        {guests.length > 0 && (
+                                            <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                                                {guests.map((g, i) => (
+                                                    <div key={i} className="flex items-center justify-between bg-slate-955 border border-slate-900 rounded-xl px-3 py-1.5 text-xs">
+                                                        <span className="text-slate-300 font-bold flex items-center gap-2">
+                                                            <User className="w-3.5 h-3.5 text-slate-500" />
+                                                            {g}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveGuest(i)}
+                                                            className="text-slate-500 hover:text-rose-400 transition-colors"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Vehicle details */}
+                                    <div className="space-y-3 pt-2 border-t border-slate-950">
+                                        <label className="flex items-center gap-2 px-1 py-1 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={useVehicle}
+                                                onChange={e => {
+                                                    setUseVehicle(e.target.checked);
+                                                    if (!e.target.checked) setVehicleRegistration('');
+                                                }}
+                                                className="rounded bg-slate-950 border-slate-850 text-indigo-650 focus:ring-0 cursor-pointer"
+                                            />
+                                            <span className="text-xs font-bold text-slate-400">I will use a vehicle for entry/parking</span>
+                                        </label>
+                                        {useVehicle && (
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="e.g. KAA 123A"
+                                                value={vehicleRegistration}
+                                                onChange={e => setVehicleRegistration(e.target.value.toUpperCase())}
+                                                className="w-full bg-slate-955 border border-slate-850 rounded-2xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-650"
+                                            />
+                                        )}
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Ticket className="w-3.5 h-3.5" /> Confirm RSVP / Register
+                                    </button>
+                                </form>
+                            )}
+
+                            {/* LOCATE INVITATION MODE */}
+                            {publicFormMode === 'lookup' && (
+                                <div className="space-y-6">
+                                    <div className="text-center space-y-2 border-b border-slate-950 pb-4">
+                                        <p className="text-slate-400 text-xs leading-relaxed max-w-sm mx-auto">
+                                            Enter your phone number or your child's admission number to locate your invitation pass.
+                                        </p>
+                                    </div>
+
+                                    {/* Mode tabs */}
+                                    <div className="flex gap-1 p-1 bg-slate-950/60 border border-slate-850 rounded-2xl">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setLookupMode('phone'); setLookupError(''); }}
+                                            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                lookupMode === 'phone'
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                                    : 'text-slate-500 hover:text-slate-300'
+                                            }`}
+                                        >
+                                            📞 Phone Number
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setLookupMode('admNo'); setLookupError(''); }}
+                                            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                lookupMode === 'admNo'
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                                    : 'text-slate-500 hover:text-slate-300'
+                                            }`}
+                                        >
+                                            🎓 Admission No.
+                                        </button>
+                                    </div>
+
+                                    {/* Phone lookup form */}
+                                    {lookupMode === 'phone' && (
+                                        <form onSubmit={handleLookupByPhone} className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="block text-[10px] font-black uppercase text-slate-455 tracking-wider">
+                                                    Registered Phone Number
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    placeholder="e.g. 0712 345 678"
+                                                    value={lookupPhone}
+                                                    onChange={e => { setLookupPhone(e.target.value); if (lookupError) setLookupError(''); }}
+                                                    className="w-full bg-slate-950 border border-slate-850 rounded-2xl px-4 py-3.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600"
+                                                />
+                                            </div>
+                                            {lookupError && (
+                                                <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[11px] font-bold text-rose-400 flex items-center gap-2">
+                                                    <AlertCircle className="w-4 h-4 shrink-0" />
+                                                    <span>{lookupError}</span>
+                                                </div>
+                                            )}
+                                            <button
+                                                type="submit"
+                                                disabled={isLookingUp}
+                                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                {isLookingUp ? 'Searching...' : 'Find My Invitation'}
+                                            </button>
+                                        </form>
+                                    )}
+
+                                    {/* Admission number lookup form */}
+                                    {lookupMode === 'admNo' && (
+                                        <form onSubmit={handleLookupByAdmNo} className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="block text-[10px] font-black uppercase text-slate-455 tracking-wider">
+                                                    Child's Admission Number
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. ADM/2024/001"
+                                                    value={lookupAdmNo}
+                                                    onChange={e => { setLookupAdmNo(e.target.value); if (lookupError) setLookupError(''); }}
+                                                    className="w-full bg-slate-950 border border-slate-855 rounded-2xl px-4 py-3.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600"
+                                                />
+                                                <p className="text-[10px] text-slate-500">Enter any of your children's admission numbers.</p>
+                                            </div>
+                                            {lookupError && (
+                                                <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[11px] font-bold text-rose-400 flex items-center gap-2">
+                                                    <AlertCircle className="w-4 h-4 shrink-0" />
+                                                    <span>{lookupError}</span>
+                                                </div>
+                                            )}
+                                            <button
+                                                type="submit"
+                                                disabled={isLookingUp}
+                                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                {isLookingUp ? 'Searching...' : 'Find My Invitation'}
+                                            </button>
+                                        </form>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    // ── End combined public RSVP & feedback screen ──
 
     if (isLoading && !pinRecord) {
         return (

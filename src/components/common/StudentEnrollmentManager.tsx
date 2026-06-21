@@ -32,6 +32,7 @@ import {
     Check,
     Key,
     Link,
+    Copy,
     UserRound,
     Edit2,
     RotateCcw,
@@ -261,6 +262,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [analysisTab, setAnalysisTab] = useState<'rsvp' | 'audit' | 'feedback'>('rsvp');
     const [auditViewTab, setAuditViewTab] = useState<'missing' | 'covered'>('missing');
     const [auditCustomMessage, setAuditCustomMessage] = useState('');
+    const [feedbackSearchTerm, setFeedbackSearchTerm] = useState('');
+    const [feedbackStatusFilter, setFeedbackStatusFilter] = useState<'All' | 'Submitted' | 'Pending'>('All');
     
     // PDF Preview Modal States
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
@@ -6662,6 +6665,54 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     </button>
                                 </div>
 
+                                {/* ── Shareable Attendance & Feedback Link ── */}
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                                                <Link className="w-3.5 h-3.5 text-indigo-400" /> Shareable RSVP &amp; Feedback Link
+                                            </h4>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                                                Send this link to anyone (parents, guests) to RSVP or submit post-event feedback directly.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row gap-4 mt-2">
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-[8px] font-black uppercase text-slate-500 block mb-1">Full Public URL</span>
+                                            <div className="flex bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2 items-center justify-between">
+                                                <input
+                                                    type="text"
+                                                    readOnly
+                                                    value={`${window.location.origin}/?view=event-confirm&eventId=${event.id}`}
+                                                    onClick={e => (e.target as HTMLInputElement).select()}
+                                                    className="bg-transparent text-xs font-bold text-slate-300 w-full outline-none select-all truncate"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(`${window.location.origin}/?view=event-confirm&eventId=${event.id}`);
+                                                        setStatusMsg({ type: 'success', message: 'Full link copied to clipboard!' });
+                                                        setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
+                                                    }}
+                                                    className="text-slate-400 hover:text-white px-1 shrink-0 ml-2"
+                                                    title="Copy Full Link"
+                                                >
+                                                    <Copy className="w-3.5 h-3.5 text-indigo-400" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-[8px] font-black uppercase text-slate-500 block mb-1">Shortened URL</span>
+                                            <ShortenedUrlField
+                                                longUrl={`${window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'https://portal.eduai.co.ke' : window.location.origin}/?view=event-confirm&eventId=${event.id}`}
+                                                theme="indigo"
+                                                setStatusMsg={setStatusMsg}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {analysisTab === 'rsvp' && (
                                     <div className="space-y-4">
                                         {/* Search & Filter Bar */}
@@ -6960,6 +7011,25 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         }
                                     });
 
+                                    const feedbackProgressPercent = totalInvited > 0 ? Math.round((totalFeedbackCount / totalInvited) * 100) : 0;
+
+                                    // Filtered guest list for feedback table
+                                    const filteredFeedbackGuests = eventMatchingPins.filter(p => {
+                                        const user = users.find(u => u.id === p.userId);
+                                        const userName = (user?.name || 'Guest / Anon').toLowerCase();
+                                        const userPhone = (user?.phoneNumber || user?.phone_number || '').toLowerCase();
+                                        const userEmail = (user?.email || '').toLowerCase();
+                                        const sQuery = feedbackSearchTerm.toLowerCase();
+                                        
+                                        const matchesSearch = userName.includes(sQuery) || userPhone.includes(sQuery) || userEmail.includes(sQuery);
+                                        if (!matchesSearch) return false;
+
+                                        const hasFeedback = p.rating !== undefined && p.rating !== null;
+                                        if (feedbackStatusFilter === 'Submitted') return hasFeedback;
+                                        if (feedbackStatusFilter === 'Pending') return !hasFeedback;
+                                        return true;
+                                    });
+
                                     return (
                                         <div className="space-y-6 animate-fade-in">
                                             {/* Metrics Panel */}
@@ -6975,7 +7045,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                 <Star
                                                                     key={star}
                                                                     className={`w-3.5 h-3.5 fill-current ${
-                                                                        isFull ? 'text-amber-405' : 'text-slate-700'
+                                                                        isFull ? 'text-amber-455' : 'text-slate-700'
                                                                     }`}
                                                                 />
                                                             );
@@ -6984,13 +7054,25 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     <p className="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Out of 5.0 Stars</p>
                                                 </div>
 
-                                                {/* Total Reviews Card */}
+                                                {/* Feedback Progress Card */}
                                                 <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-center flex flex-col justify-center items-center">
-                                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1">Feedback Submitted</p>
+                                                    <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1">Feedback Progress</p>
                                                     <p className="text-3xl font-black text-indigo-400 font-mono">{totalFeedbackCount}</p>
-                                                    <p className="text-[9px] text-slate-450 font-bold mt-2 uppercase tracking-widest">
-                                                        {eventMatchingPins.filter(p => p.status === 'used').length} checked in
+                                                    <p className="text-[9px] text-slate-450 font-bold mt-1 uppercase tracking-widest">
+                                                        {totalFeedbackCount} of {totalInvited} invited guests
                                                     </p>
+                                                    <div className="w-full mt-3">
+                                                        <div className="flex justify-between text-[8px] text-slate-400 font-black uppercase tracking-wider mb-1">
+                                                            <span>Submission Rate</span>
+                                                            <span>{feedbackProgressPercent}%</span>
+                                                        </div>
+                                                        <div className="h-2 w-full bg-slate-950/50 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className="h-full bg-indigo-500 rounded-full transition-all duration-500" 
+                                                                style={{ width: `${feedbackProgressPercent}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
 
                                                 {/* Distribution Card */}
@@ -7015,50 +7097,118 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 </div>
                                             </div>
 
-                                            {/* Reviews List */}
+                                            {/* Filters & Guest List */}
                                             <div className="space-y-4">
-                                                <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Attendee Comments & Reviews</h4>
+                                                <div className="flex flex-col sm:flex-row gap-3">
+                                                    <div className="relative flex-1">
+                                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                                                            <Search className="w-4 h-4" />
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Search guest feedback..."
+                                                            value={feedbackSearchTerm}
+                                                            onChange={e => setFeedbackSearchTerm(e.target.value)}
+                                                            className="w-full pl-10 pr-4 py-2.5 bg-slate-950/40 border border-white/10 rounded-xl font-bold text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                                                        />
+                                                    </div>
+                                                    <div className="flex gap-1 bg-slate-950/40 border border-white/10 rounded-xl p-1 overflow-x-auto custom-scrollbar-horizontal shrink-0">
+                                                        {(['All', 'Submitted', 'Pending'] as const).map(tab => {
+                                                            let count = 0;
+                                                            if (tab === 'All') count = totalInvited;
+                                                            else if (tab === 'Submitted') count = totalFeedbackCount;
+                                                            else count = totalInvited - totalFeedbackCount;
+
+                                                            return (
+                                                                <button
+                                                                    key={tab}
+                                                                    onClick={() => setFeedbackStatusFilter(tab)}
+                                                                    className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all whitespace-nowrap ${
+                                                                        feedbackStatusFilter === tab
+                                                                            ? 'bg-amber-600 text-white shadow-sm'
+                                                                            : 'text-slate-400 hover:text-slate-200'
+                                                                    }`}
+                                                                >
+                                                                    {tab} ({count})
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
                                                 <div className="border border-white/10 rounded-2xl overflow-hidden bg-slate-950/20 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                                    {feedbackPins.length === 0 ? (
+                                                    {filteredFeedbackGuests.length === 0 ? (
                                                         <div className="text-center py-12 text-slate-500 font-bold text-xs">
-                                                            No feedback reviews submitted yet for this event.
+                                                            No guest records match the active search/filters.
                                                         </div>
                                                     ) : (
-                                                        <div className="divide-y divide-white/5">
-                                                            {feedbackPins.map((pin) => {
-                                                                const parentUser = users.find(u => u.id === pin.userId);
-                                                                const parentName = parentUser?.name || 'Parent/Guardian';
-                                                                const parentPhone = parentUser?.phoneNumber || parentUser?.phone_number || 'No Phone';
-                                                                
-                                                                return (
-                                                                    <div key={pin.id} className="p-4 space-y-2">
-                                                                        <div className="flex items-center justify-between">
-                                                                            <div>
-                                                                                <span className="text-xs font-black text-white">{parentName}</span>
-                                                                                <span className="text-[10px] text-slate-500 block">{parentPhone}</span>
-                                                                            </div>
-                                                                            <div className="flex gap-0.5 text-amber-400">
-                                                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                                                    <Star
-                                                                                        key={star}
-                                                                                        className={`w-3.5 h-3.5 fill-current ${
-                                                                                            star <= Number(pin.rating) ? 'text-amber-400' : 'text-slate-750'
-                                                                                        }`}
-                                                                                    />
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-                                                                        {pin.feedback ? (
-                                                                            <p className="text-xs text-slate-300 bg-white/5 rounded-xl px-3 py-2 border border-white/5 font-medium leading-relaxed">
-                                                                                "{pin.feedback}"
-                                                                            </p>
-                                                                        ) : (
-                                                                            <p className="text-xs text-slate-500 italic font-medium">Left a rating without comment.</p>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="bg-white/5 border-b border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                    <th className="py-3 px-4">Guest Info</th>
+                                                                    <th className="py-3 px-4">Contact</th>
+                                                                    <th className="py-3 px-4">Feedback Status</th>
+                                                                    <th className="py-3 px-4">Rating / Comments</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-white/5 font-bold">
+                                                                {filteredFeedbackGuests.map((pin) => {
+                                                                    const parentUser = users.find(u => u.id === pin.userId);
+                                                                    const parentName = parentUser?.name || 'Guest / Anon';
+                                                                    const parentPhone = parentUser?.phoneNumber || parentUser?.phone_number || 'No Phone';
+                                                                    const hasFeedback = pin.rating !== undefined && pin.rating !== null;
+                                                                    
+                                                                    return (
+                                                                        <tr key={pin.id} className="text-xs hover:bg-white/5 transition-colors">
+                                                                            <td className="py-3 px-4 min-w-[150px]">
+                                                                                <p className="font-black text-slate-100">{parentName}</p>
+                                                                                <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-wider mt-0.5">{parentUser?.role || 'Guest'}</p>
+                                                                            </td>
+                                                                            <td className="py-3 px-4">
+                                                                                <p className="font-semibold text-slate-350">{parentPhone}</p>
+                                                                                {parentUser?.email && <p className="text-[9px] text-slate-500 mt-0.5">{parentUser.email}</p>}
+                                                                            </td>
+                                                                            <td className="py-3 px-4">
+                                                                                {hasFeedback ? (
+                                                                                    <span className="inline-flex items-center text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                                                        Submitted
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="inline-flex items-center text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-500/15 text-slate-400 border border-slate-550/20">
+                                                                                        Pending
+                                                                                    </span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="py-3 px-4 min-w-[200px]">
+                                                                                {hasFeedback ? (
+                                                                                    <div className="space-y-1.5 py-1">
+                                                                                        <div className="flex gap-0.5 text-amber-400">
+                                                                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                                                                <Star
+                                                                                                    key={star}
+                                                                                                    className={`w-3.5 h-3.5 fill-current ${
+                                                                                                        star <= Number(pin.rating) ? 'text-amber-400' : 'text-slate-750'
+                                                                                                    }`}
+                                                                                                />
+                                                                                            ))}
+                                                                                        </div>
+                                                                                        {pin.feedback ? (
+                                                                                            <p className="text-[11px] text-slate-300 bg-white/5 rounded-xl px-2.5 py-1.5 border border-white/5 font-medium leading-relaxed italic max-w-[280px] break-words">
+                                                                                                "{pin.feedback}"
+                                                                                            </p>
+                                                                                        ) : (
+                                                                                            <p className="text-[10px] text-slate-500 italic font-semibold">Left rating only</p>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <span className="text-[11px] text-slate-500 italic font-semibold">No feedback recorded</span>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
                                                     )}
                                                 </div>
                                             </div>
