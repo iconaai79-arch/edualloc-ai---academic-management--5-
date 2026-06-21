@@ -172,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
-    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || action === 'shortenUrl';
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || action === 'shortenUrl' || action === 'checkUrl';
     
     // Logic restored.
 
@@ -435,6 +435,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             // Final fallback: return original URL
             return res.status(200).json({ success: true, shortUrl: longUrl });
+        }
+        
+        if (action === 'checkUrl') {
+            const url = getParam('url');
+            if (!url) {
+                return res.status(400).json({ success: false, message: 'Missing url parameter.' });
+            }
+            try {
+                const checkRes = await fetchWithTimeout(url, {
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+                }, 7000);
+                
+                return res.status(200).json({
+                    success: true,
+                    status: checkRes.status,
+                    finalUrl: checkRes.url,
+                    ok: checkRes.ok
+                });
+            } catch (e: any) {
+                return res.status(200).json({
+                    success: false,
+                    message: e.message || 'Failed to check URL'
+                });
+            }
         }
 
         if (action === 'sendEmail') {

@@ -37,7 +37,8 @@ import {
     Edit2,
     RotateCcw,
     X,
-    Star
+    Star,
+    ExternalLink
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course, CompanyDetails } from '../../types';
@@ -263,6 +264,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [bulkInviteModalEvent, setBulkInviteModalEvent] = useState<any | null>(null);
     const [bulkInviteAddMsg, setBulkInviteAddMsg] = useState<string>('');
     
+    // Bulk feedback configuration state
+    const [bulkFeedbackModalEvent, setBulkFeedbackModalEvent] = useState<any | null>(null);
+    const [bulkFeedbackAddMsg, setBulkFeedbackAddMsg] = useState<string>('');
+
+    // URL shortener preview and checker states
+    const [previewShortUrl, setPreviewShortUrl] = useState<string>('');
+    const [isGeneratingPreviewShortUrl, setIsGeneratingPreviewShortUrl] = useState<boolean>(false);
+    const [urlCheckResult, setUrlCheckResult] = useState<any | null>(null);
+    const [isCheckingUrl, setIsCheckingUrl] = useState<boolean>(false);
+    
     // SMS Delivery Report State
     const [smsDeliveryReport, setSmsDeliveryReport] = useState<{
         recipientName: string;
@@ -285,6 +296,56 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
     const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
     const [pdfFileName, setPdfFileName] = useState('');
+
+    useEffect(() => {
+        if (!bulkFeedbackModalEvent) {
+            setPreviewShortUrl('');
+            setUrlCheckResult(null);
+            return;
+        }
+
+        const genPreviewUrl = async () => {
+            setIsGeneratingPreviewShortUrl(true);
+            try {
+                const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+                    ? 'https://portal.eduai.co.ke'
+                    : window.location.origin;
+                // Use a mock pin ID for preview
+                const mockUrl = `${origin}/?view=event-confirm&pinId=pin_preview_0`;
+                const short = await apiService.shortenUrl(mockUrl);
+                setPreviewShortUrl(short);
+            } catch (e) {
+                console.error("Failed to generate preview short URL:", e);
+            } finally {
+                setIsGeneratingPreviewShortUrl(false);
+            }
+        };
+
+        genPreviewUrl();
+    }, [bulkFeedbackModalEvent]);
+
+    const handleCheckUrl = async () => {
+        if (!previewShortUrl) return;
+        setIsCheckingUrl(true);
+        setUrlCheckResult(null);
+        try {
+            const res = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'checkUrl', url: previewShortUrl })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setUrlCheckResult(data);
+            } else {
+                setUrlCheckResult({ success: false, message: `HTTP error ${res.status}` });
+            }
+        } catch (e: any) {
+            setUrlCheckResult({ success: false, message: e.message || 'Verification failed' });
+        } finally {
+            setIsCheckingUrl(false);
+        }
+    };
     
     // Modal & Form State
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -2699,7 +2760,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     };
 
     // Bulk request feedback from attendees who have checked in (status 'used' or 'accepted') but haven't rated yet
-    const handleSendFeedbackRequests = async (event: any) => {
+    const handleSendFeedbackRequests = async (event: any, additionalMessage: string = '') => {
         const attendeesWithoutFeedback = (eventPins || []).filter(
             (p: any) => p.eventId === event.id && 
                        (p.status === 'used' || p.status === 'accepted') && 
@@ -2750,7 +2811,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     console.error("Shortener failed:", e);
                 }
 
-                const smsMessage = `Thank you for attending "${event.title}". Please take a moment to share your rating and feedback with us: ${shortenedLink}`;
+                const suffix = additionalMessage.trim() ? ` ${additionalMessage.trim()}` : '';
+                const smsMessage = `Thank you for attending "${event.title}". Please take a moment to share your rating and feedback with us:${suffix} ${shortenedLink}`;
                 const emailMessage = smsMessage;
 
                 let smsSuccess = false;
@@ -7306,7 +7368,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <button
                                             type="button"
                                             disabled={isLoading || eventMatchingPins.filter(p => (p.status === 'used' || p.status === 'accepted') && (p.rating === undefined || p.rating === null)).length === 0}
-                                            onClick={() => handleSendFeedbackRequests(event)}
+                                            onClick={() => { setBulkFeedbackModalEvent(event); setBulkFeedbackAddMsg(''); }}
                                             className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-45 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
                                         >
                                             <Send className="w-4 h-4" />
@@ -7519,6 +7581,225 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         setBulkInviteModalEvent(null);
                                     }}
                                     className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/15 flex items-center justify-center gap-2"
+                                >
+                                    <Send className="w-4 h-4" /> Confirm &amp; Send
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })(),
+            document.body
+        )}
+
+        {/* ── Bulk Feedback Invite Configuration & Preview Modal ── */}
+        {bulkFeedbackModalEvent && createPortal(
+            (() => {
+                const event = bulkFeedbackModalEvent;
+                const attendeesWithoutFeedback = (eventPins || []).filter(
+                    (p: any) => p.eventId === event.id && 
+                               (p.status === 'used' || p.status === 'accepted') && 
+                               (p.rating === undefined || p.rating === null)
+                );
+
+                const recipientCount = attendeesWithoutFeedback.length;
+                const previewPins = attendeesWithoutFeedback.slice(0, 3);
+
+                return (
+                    <div
+                        className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4 overflow-y-auto"
+                        onClick={() => setBulkFeedbackModalEvent(null)}
+                    >
+                        <div
+                            className="bg-slate-900 border border-white/10 shadow-2xl rounded-3xl p-6 w-full max-w-2xl my-8 animate-in fade-in zoom-in-95 duration-200"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-5 border-b border-white/5 pb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-450">
+                                        <Send className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-black text-white uppercase tracking-tight">Feedback Request Setup</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                            Event: {event.title} • {recipientCount} {recipientCount === 1 ? 'recipient' : 'recipients'} without feedback
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setBulkFeedbackModalEvent(null)}
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                >
+                                    <XCircle className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Additional Custom Message Input */}
+                            <div className="space-y-2 mb-5">
+                                <label className="block text-[10px] font-black text-slate-355 uppercase tracking-widest">
+                                    Additional Custom Note (Optional)
+                                </label>
+                                <textarea
+                                    value={bulkFeedbackAddMsg}
+                                    onChange={e => setBulkFeedbackAddMsg(e.target.value)}
+                                    placeholder="e.g. Thank you for your continued support! or We appreciate your time."
+                                    rows={2}
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/50 focus:bg-white/[0.07] transition-all resize-none font-sans"
+                                />
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                                    This note will be injected into the feedback invite templates.
+                                </p>
+                            </div>
+
+                            {/* Link Verification Panel */}
+                            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-3 mb-5">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h4 className="text-[10px] font-black text-slate-355 uppercase tracking-widest">
+                                            Short URL Checker
+                                        </h4>
+                                        <p className="text-[9px] text-slate-500 font-medium mt-0.5">
+                                            Confirm that the shortened redirection URL resolves correctly.
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            disabled={isGeneratingPreviewShortUrl || !previewShortUrl}
+                                            onClick={() => window.open(previewShortUrl, '_blank')}
+                                            className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                                            title="Test Link in browser"
+                                        >
+                                            <ExternalLink className="w-3 h-3" /> Test Link
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={isCheckingUrl || !previewShortUrl}
+                                            onClick={handleCheckUrl}
+                                            className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-45 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                                        >
+                                            {isCheckingUrl ? (
+                                                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                <CheckCircle className="w-3 h-3" />
+                                            )}
+                                            {isCheckingUrl ? 'Checking...' : 'Check Redirect'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-950/65 border border-white/5 rounded-xl px-3 py-2 text-[10px] space-y-1 font-mono text-slate-400 select-all">
+                                    <div className="flex justify-between">
+                                        <span>Target (Long URL):</span>
+                                        <span className="text-slate-300 break-all select-all font-bold">
+                                            {window.location.origin}/?view=event-confirm&pinId=pin_preview_0
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between border-t border-white/5 pt-1.5 mt-1.5">
+                                        <span>Shortened URL:</span>
+                                        <span className="text-indigo-400 break-all select-all font-bold">
+                                            {isGeneratingPreviewShortUrl ? 'Generating...' : (previewShortUrl || 'Failed to generate')}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {urlCheckResult && (
+                                    <div className={`p-3 rounded-2xl border text-[10px] space-y-1.5 ${
+                                        urlCheckResult.success && urlCheckResult.status === 200
+                                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-305'
+                                            : 'bg-rose-500/10 border-rose-500/20 text-rose-355'
+                                    }`}>
+                                        <p className="font-black uppercase tracking-wider flex items-center gap-1.5">
+                                            {urlCheckResult.success && urlCheckResult.status === 200 ? (
+                                                <span className="text-emerald-450 font-black">✓ Link Verification Successful</span>
+                                            ) : (
+                                                <span className="text-rose-455 font-black">✗ Link Verification Failed</span>
+                                            )}
+                                        </p>
+                                        <div className="space-y-0.5 font-bold uppercase tracking-wider text-slate-400">
+                                            <p>Short URL: <span className="font-mono text-slate-300 normal-case">{previewShortUrl}</span></p>
+                                            <p>Final Redirect: <span className="font-mono text-slate-300 normal-case">{urlCheckResult.finalUrl || 'Unknown'}</span></p>
+                                            <p>HTTP Response Status: <span className="font-mono text-slate-300">{urlCheckResult.status || 'N/A'}</span></p>
+                                            {urlCheckResult.finalUrl && (
+                                                <p>Verification Check: <span className={urlCheckResult.finalUrl.includes('view=event-confirm') ? 'text-emerald-400' : 'text-amber-400'}>
+                                                    {urlCheckResult.finalUrl.includes('view=event-confirm') ? 'Redirects to RSVP Portal ✓' : 'Incorrect Redirect Target ⚠️'}
+                                                </span></p>
+                                            )}
+                                            {urlCheckResult.message && <p className="text-rose-400">Error: {urlCheckResult.message}</p>}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Recipient Message Previews */}
+                            <div className="space-y-3 mb-6">
+                                <div className="border-t border-white/5 pt-4">
+                                    <h4 className="text-[10px] font-black text-slate-355 uppercase tracking-widest mb-1">
+                                        Recipient Message Previews ({previewPins.length} shown)
+                                    </h4>
+                                    <p className="text-[9px] text-slate-500 font-medium">
+                                        Each attendee receives a unique confirmation link pointing to their ticket.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                                    {previewPins.map((pinRecord, idx) => {
+                                        const targetUser = users.find(u => u.id === pinRecord.userId);
+                                        const targetName = targetUser?.name || 'Parent/Guardian';
+                                        const targetPhone = targetUser?.phoneNumber || 'No Phone';
+                                        
+                                        const shortLinkPreview = previewShortUrl || `https://is.gd/KmF6f2`;
+                                        const suffix = bulkFeedbackAddMsg.trim() ? ` ${bulkFeedbackAddMsg.trim()}` : '';
+                                        const smsMessage = `Thank you for attending "${event.title}". Please take a moment to share your rating and feedback with us:${suffix} ${shortLinkPreview}`;
+
+                                        return (
+                                            <div key={pinRecord.id} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 space-y-3">
+                                                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                                    <div>
+                                                        <span className="text-[10px] font-black text-white">{targetName}</span>
+                                                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider ml-2 bg-white/5 px-2 py-0.5 rounded">
+                                                            Attendee
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[9px] text-slate-500 font-semibold">
+                                                        Phone: {targetPhone}
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider text-slate-400">
+                                                        <MessageSquare className="w-2.5 h-2.5 text-amber-400" /> SMS Message Preview
+                                                    </div>
+                                                    <div className="bg-slate-900 border border-white/5 rounded-2xl p-3 relative text-[10px] text-slate-350 leading-relaxed font-sans select-none font-medium">
+                                                        {smsMessage}
+                                                        <div className="absolute right-3 bottom-1 text-[7px] font-bold text-slate-500 uppercase tracking-widest font-mono">
+                                                            ~{Math.ceil(smsMessage.length / 160)} SMS ({smsMessage.length} chars)
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Footer Buttons */}
+                            <div className="flex gap-3 pt-4 border-t border-white/5">
+                                <button
+                                    type="button"
+                                    onClick={() => setBulkFeedbackModalEvent(null)}
+                                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        handleSendFeedbackRequests(event, bulkFeedbackAddMsg);
+                                        setBulkFeedbackModalEvent(null);
+                                    }}
+                                    className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/15 flex items-center justify-center gap-2"
                                 >
                                     <Send className="w-4 h-4" /> Confirm &amp; Send
                                 </button>
