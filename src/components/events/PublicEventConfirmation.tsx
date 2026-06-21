@@ -181,10 +181,11 @@ export const PublicEventConfirmation: React.FC = () => {
                 if (!pin && pinId && (pinId === 'pin_preview_0' || pinId.startsWith('pin_preview'))) {
                     const eventIdParam = params.get('eventId') || params.get('event_id');
                     const instIdParam = params.get('institutionId') || params.get('institution_id');
+                    const statusParam = params.get('status') || params.get('mode') || params.get('tab') || 'pending';
                     pin = {
                         id: pinId,
                         pin: '123456',
-                        status: 'pending',
+                        status: (statusParam === 'used' || statusParam === 'feedback') ? 'used' : 'pending',
                         eventId: eventIdParam || 'evt_preview',
                         userId: 'usr_preview',
                         institutionId: instIdParam || 'inst_preview',

@@ -311,9 +311,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
                     ? 'https://portal.eduai.co.ke'
                     : window.location.origin;
-                // Use a mock pin ID for preview with eventId and institutionId context
+                // Use a mock pin ID for preview with eventId and institutionId context (status=used for feedback)
                 const instId = currentInstitution?.id || '';
-                const mockUrl = `${origin}/?view=event-confirm&pinId=pin_preview_0&eventId=${bulkFeedbackModalEvent.id}&institutionId=${instId}`;
+                const mockUrl = `${origin}/?view=event-confirm&pinId=pin_preview_0&eventId=${bulkFeedbackModalEvent.id}&institutionId=${instId}&status=used`;
                 const short = await apiService.shortenUrl(mockUrl);
                 setPreviewShortUrl(short);
             } catch (e) {
