@@ -4999,7 +4999,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                         const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
                                                             ? 'https://portal.eduai.co.ke'
                                                             : window.location.origin;
-                                                        const regUrl = `${origin}/?view=event-registration&eventId=${event.id}`;
+                                                        const regUrl = `${origin}/?view=event-confirm&eventId=${event.id}&mode=rsvp`;
                                                         return (
                                                             <div className="pt-1 space-y-1">
                                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
@@ -5064,7 +5064,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                 const origin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
                                                                     ? 'https://portal.eduai.co.ke'
                                                                     : window.location.origin;
-                                                                const regUrl = `${origin}/?view=event-registration&eventId=${event.id}`;
+                                                                const regUrl = `${origin}/?view=event-confirm&eventId=${event.id}&mode=rsvp`;
                                                                 try {
                                                                     await navigator.clipboard.writeText(regUrl);
                                                                     setStatusMsg({ type: 'success', message: 'Public event registration link copied to clipboard!' });

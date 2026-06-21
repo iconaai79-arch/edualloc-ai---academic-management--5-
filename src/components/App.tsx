@@ -4922,11 +4922,35 @@ export const App: React.FC = () => {
         );
     }
 
-    // ── EARLY ESCAPE: Public event registration URL — skip auth & boot entirely ──
-    if (window.location.search.includes('view=event-register') || window.location.search.includes('view=event-registration')) {
+    // ── EARLY ESCAPE: Public event registration/confirm URL — skip auth & boot entirely ──
+    const isPublicEventUrl = (() => {
+        try {
+            const search = window.location.search;
+            return search.includes('view=event-register') || 
+                   search.includes('view=event-registration') || 
+                   search.includes('view=event-confirm');
+        } catch (e) {
+            return false;
+        }
+    })();
+
+    if (isPublicEventUrl) {
+        const isConfirm = (() => {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const view = params.get('view');
+                const eventId = params.get('eventId');
+                if (view === 'event-confirm') return true;
+                if ((view === 'event-registration' || view === 'event-register') && eventId?.startsWith('evt_')) return true;
+                return false;
+            } catch (e) {
+                return false;
+            }
+        })();
+
         return (
             <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
-                <PublicEventRegistration />
+                {isConfirm ? <PublicEventConfirmation /> : <PublicEventRegistration />}
             </Suspense>
         );
     }

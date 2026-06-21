@@ -88,6 +88,13 @@ export const PublicEventConfirmation: React.FC = () => {
             const params = new URLSearchParams(window.location.search);
             const id = params.get('pinId');
             const urlEventId = params.get('eventId');
+            const view = params.get('view');
+            const mode = params.get('mode') || params.get('tab');
+            if (mode === 'rsvp' || mode === 'feedback' || mode === 'lookup') {
+                setPublicFormMode(mode as any);
+            } else if (view === 'event-register' || view === 'event-registration') {
+                setPublicFormMode('rsvp');
+            }
             if (id) {
                 setPinId(id);
             } else if (urlEventId) {
