@@ -1478,6 +1478,63 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     const [studentSearch, setStudentSearch] = useState(initialData?.studentName || '');
     const [isSaving, setIsSaving] = useState(false);
 
+    useEffect(() => {
+        const query = studentSearch.trim().toLowerCase();
+        if (!query) {
+            if (formData.studentId) {
+                if (type === 'payment') {
+                    setFormData((prev: any) => ({
+                        ...prev,
+                        studentId: '',
+                        studentName: '',
+                        invoiceId: '',
+                        amount: 0
+                    }));
+                } else if (type === 'invoice') {
+                    setFormData((prev: any) => ({
+                        ...prev,
+                        studentId: '',
+                        studentName: ''
+                    }));
+                }
+            }
+            return;
+        }
+
+        const allMatched = (students || []).filter(s => 
+            s.fullName.toLowerCase().includes(query) || 
+            (s.admissionNumber || '').toLowerCase().includes(query)
+        );
+
+        // Find exact match first
+        const exactMatch = allMatched.find(s => 
+            s.fullName.toLowerCase() === query || 
+            (s.admissionNumber || '').toLowerCase() === query
+        );
+
+        const matchedStudent = exactMatch || (allMatched.length > 0 ? allMatched[0] : null);
+
+        if (matchedStudent && formData.studentId !== matchedStudent.id) {
+            if (type === 'payment') {
+                const studentInvoices = (invoices || []).filter(inv => inv.studentId === matchedStudent.id && inv.status !== 'Fully Paid' && inv.status !== 'Cancelled');
+                const firstInvoice = studentInvoices[0];
+                setFormData((prev: any) => ({
+                    ...prev,
+                    studentId: matchedStudent.id,
+                    studentName: matchedStudent.fullName,
+                    invoiceId: firstInvoice?.id || '',
+                    amount: firstInvoice?.balance || 0
+                }));
+            } else if (type === 'invoice') {
+                setFormData((prev: any) => ({
+                    ...prev,
+                    studentId: matchedStudent.id,
+                    studentName: matchedStudent.fullName
+                }));
+            }
+        }
+    }, [studentSearch, students, type, invoices]);
+
     // Category & Subcategory logic for Student/Lead enrollment
     const categoryGroups = useMemo(() => {
         if (settings?.licenseGroups && settings.licenseGroups.length > 0) {
@@ -2388,6 +2445,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <select required value={formData.studentId || ''} onChange={e => {
                                         const s = (students || []).find(x => x.id === e.target.value);
                                         setFormData({...formData, studentId: e.target.value, studentName: s?.fullName || ''});
+                                        setStudentSearch(s ? s.fullName : '');
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="">Select Student</option>
                                         {(students || [])
@@ -2691,6 +2749,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                             invoiceId: firstInvoice?.id || '',
                                             amount: firstInvoice?.balance || 0
                                         });
+                                        setStudentSearch(s ? s.fullName : '');
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="">Select Student</option>
                                         {(students || [])
