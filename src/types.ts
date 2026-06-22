@@ -3939,6 +3939,7 @@ export interface DSLead {
     feeStructureId?: string;
     notes?: string;
     broadcastId?: string;
+    licenseCategory?: string;
     createdAt: string;
     updatedAt?: string;
 }

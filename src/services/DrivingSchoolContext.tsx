@@ -698,6 +698,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 phone: data.phone || '',
                 email: data.email || '',
                 licenseTypeInterested: data.licenseTypeInterested || '',
+                licenseCategory: data.licenseCategory || '',
+                broadcastId: data.broadcastId || '',
                 source: data.source || 'Walk-in',
                 status: data.status || 'New Enquiry',
                 quotedAmount: data.quotedAmount || 0,

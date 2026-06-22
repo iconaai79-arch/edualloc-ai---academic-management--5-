@@ -305,8 +305,8 @@ const SmartLeadImporterModal: React.FC<{
     const [rawData, setRawData] = useState<any[]>([]);
     const { error: toastError, success: toastSuccess } = useToast();
 
-    const [campaigns, setCampaigns] = useState<any[]>([]);
-    const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+    const { settings } = useDrivingSchool();
+    const [selectedGroup, setSelectedGroup] = useState<string>('');
 
     const [mappings, setMappings] = useState<Record<string, string>>({
         fullName: '',
@@ -317,18 +317,18 @@ const SmartLeadImporterModal: React.FC<{
         notes: ''
     });
 
-    useEffect(() => {
-        const fetchCampaigns = async () => {
-            try {
-                const records = await apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution?.id || 'inst');
-                const sorted = (records || []).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                setCampaigns(sorted);
-            } catch (err) {
-                console.error("Failed to load campaigns/broadcasts:", err);
-            }
-        };
-        fetchCampaigns();
-    }, [currentInstitution]);
+    const categoryGroups = useMemo(() => {
+        if (settings?.licenseGroups && settings.licenseGroups.length > 0) {
+            return settings.licenseGroups;
+        }
+        if (settings?.licenseCategories && settings.licenseCategories.length > 0) {
+            const parents = settings.licenseCategories
+                .map((c: any) => c.parentCategory || 'Driving')
+                .filter((v, i, a) => a.indexOf(v) === i);
+            return parents;
+        }
+        return ['Driving', 'Computer Classes', 'IELTS'];
+    }, [settings?.licenseGroups, settings?.licenseCategories]);
 
     const handleFileSelect = (selectedFile: File) => {
         setFile(selectedFile);
@@ -419,7 +419,7 @@ const SmartLeadImporterModal: React.FC<{
                     status: 'New Enquiry',
                     quotedAmount,
                     notes,
-                    broadcastId: selectedCampaignId || undefined,
+                    licenseCategory: selectedGroup || undefined,
                     createdAt: new Date().toISOString()
                 };
  
@@ -482,33 +482,33 @@ const SmartLeadImporterModal: React.FC<{
                                 <div className="flex-1">
                                     <h4 className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">{file?.name}</h4>
                                     <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{(file ? file.size / 1024 : 0).toFixed(1)} KB • Mapping Headers</p>
-                                    {selectedCampaignId && (
+                                    {selectedGroup && (
                                         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[8px] font-black bg-indigo-600 text-white uppercase tracking-wider mt-1.5 animate-pulse">
-                                            Linked Campaign Ref
+                                            Linked Group Ref
                                         </span>
                                     )}
                                 </div>
-                                <button onClick={() => { setFile(null); setStep('upload'); setSelectedCampaignId(''); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest">Change</button>
+                                <button onClick={() => { setFile(null); setStep('upload'); setSelectedGroup(''); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest">Change</button>
                             </div>
 
-                            {/* Campaign / Group Selector */}
+                            {/* Group / Category Selector */}
                             <div className="bg-indigo-50/30 dark:bg-indigo-950/20 p-4.5 rounded-2xl border border-indigo-100/40 dark:border-indigo-900/40 flex flex-col gap-2">
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <label className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest">Link to Group / Campaign (Optional)</label>
-                                        <p className="text-[9px] text-slate-400 font-medium mt-0.5">Associate these imported leads with a specific broadcast message or campaign.</p>
+                                        <label className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest">Link to Category Group (Optional)</label>
+                                        <p className="text-[9px] text-slate-400 font-medium mt-0.5">Associate these imported leads with a specific category group (e.g. june campaign, Driving).</p>
                                     </div>
                                 </div>
                                 <div className="relative">
                                     <select
-                                        value={selectedCampaignId}
-                                        onChange={(e) => setSelectedCampaignId(e.target.value)}
+                                        value={selectedGroup}
+                                        onChange={(e) => setSelectedGroup(e.target.value)}
                                         className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs appearance-none cursor-pointer text-slate-700 dark:text-slate-200"
                                     >
-                                        <option value="">-- Do not link to any Campaign --</option>
-                                        {campaigns.map(c => (
-                                            <option key={c.id} value={c.id}>
-                                                {c.subject || 'Institutional Broadcast'} ({new Date(c.createdAt).toLocaleDateString()})
+                                        <option value="">-- Do not link to any Group --</option>
+                                        {categoryGroups.map(group => (
+                                            <option key={group} value={group}>
+                                                {group}
                                             </option>
                                         ))}
                                     </select>
