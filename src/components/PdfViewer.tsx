@@ -6,28 +6,51 @@ interface PdfViewerProps extends React.IframeHTMLAttributes<HTMLIFrameElement> {
 }
 
 // Sub-component to render each individual page
-const PageRenderer: React.FC<{ doc: any; pageNum: number }> = ({ doc, pageNum }) => {
+const PageRenderer: React.FC<{ doc: any; pageNum: number; zoom: number }> = ({ doc, pageNum, zoom }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [isVisible, setIsVisible] = useState(false);
     const [renderError, setRenderError] = useState<string | null>(null);
     const [rendering, setRendering] = useState(true);
 
     useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsVisible(true);
+                    observer.disconnect();
+                }
+            },
+            { rootMargin: '600px 0px' } // Preload pages when within 600px of viewport
+        );
+        if (containerRef.current) {
+            observer.observe(containerRef.current);
+        }
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (!isVisible || !doc) return;
         let active = true;
+        
         const renderPage = async () => {
-            if (!doc || !canvasRef.current) return;
             setRendering(true);
             try {
                 const page = await doc.getPage(pageNum);
                 if (!active) return;
                 const canvas = canvasRef.current;
+                if (!canvas) return;
                 const context = canvas.getContext('2d');
                 if (!context) return;
 
-                // Fit to container width (default to 800 if clientWidth is 0)
-                const containerWidth = canvas.parentElement?.clientWidth || 800;
+                // Determine container width
+                const containerWidth = containerRef.current?.clientWidth || canvas.parentElement?.clientWidth || 800;
                 const unscaledViewport = page.getViewport({ scale: 1.0 });
-                const scale = containerWidth / unscaledViewport.width;
-                const viewport = page.getViewport({ scale: Math.max(scale, 0.5) });
+                
+                // Calculate scale to fit page width into container, multiplied by zoom factor
+                const baseScale = containerWidth / unscaledViewport.width;
+                const scale = baseScale * zoom;
+                const viewport = page.getViewport({ scale: Math.max(scale, 0.25) });
 
                 // Set device pixel ratio for high DPI screens
                 const dpr = window.devicePixelRatio || 1;
@@ -58,19 +81,32 @@ const PageRenderer: React.FC<{ doc: any; pageNum: number }> = ({ doc, pageNum })
         return () => {
             active = false;
         };
-    }, [doc, pageNum]);
+    }, [doc, pageNum, isVisible, zoom]);
 
     return (
-        <div className="relative flex flex-col items-center justify-center p-2 mb-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm max-w-full overflow-hidden min-h-[150px]">
-            {rendering && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 z-10 backdrop-blur-[1px]">
-                    <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+        <div 
+            ref={containerRef}
+            className="relative flex flex-col items-center justify-center p-2 mb-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm max-w-full overflow-hidden"
+            style={{ 
+                minHeight: '200px',
+                aspectRatio: '1 / 1.414' // Standard A4 page ratio
+            }}
+        >
+            {(!isVisible || rendering) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 z-10 backdrop-blur-[1px]">
+                    <Loader2 className="w-6 h-6 text-indigo-500 animate-spin mb-2" />
+                    {!isVisible && (
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Scrolling into view...</p>
+                    )}
                 </div>
             )}
-            <canvas ref={canvasRef} className="max-w-full h-auto rounded-2xl" />
+            
+            {isVisible && (
+                <canvas ref={canvasRef} className="max-w-full h-auto rounded-2xl transition-transform duration-300" />
+            )}
             
             {/* Page Floating Tag */}
-            <span className="absolute top-4 right-4 bg-slate-900/60 text-white text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md backdrop-blur-md">
+            <span className="absolute top-4 right-4 bg-slate-900/60 text-white text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md backdrop-blur-md z-20">
                 Page {pageNum}
             </span>
 
@@ -95,6 +131,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, sty
     const [numPages, setNumPages] = useState<number>(0);
     const [loading, setLoading] = useState(isMobile);
     const [loadingError, setLoadingError] = useState<string | null>(null);
+    const [zoom, setZoom] = useState<number>(1.0);
 
     useEffect(() => {
         if (!isMobile) return;
@@ -105,20 +142,42 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, sty
 
         const loadPdfjsAndDocument = async () => {
             try {
-                // Load PDF.js from CDN dynamically if not available
+                // Load PDF.js dynamically if not available
                 if (!(window as any).pdfjsLib) {
-                    await new Promise<void>((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-                        script.async = true;
-                        script.onload = () => resolve();
-                        script.onerror = () => reject(new Error('PDF Engine network loading failed.'));
-                        document.body.appendChild(script);
-                    });
+                    const loadScript = (url: string) => {
+                        return new Promise<void>((resolve, reject) => {
+                            const script = document.createElement('script');
+                            script.src = url;
+                            script.async = true;
+                            script.onload = () => resolve();
+                            script.onerror = () => reject(new Error(`Failed to load script: ${url}`));
+                            document.body.appendChild(script);
+                        });
+                    };
+
+                    let isLocalLoaded = false;
+                    try {
+                        await loadScript('/pdfjs/pdf.min.js');
+                        isLocalLoaded = true;
+                    } catch (e) {
+                        console.warn("Local PDF.js script not found, falling back to CDN...", e);
+                        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+                    }
+
+                    const pdfjsLib = (window as any).pdfjsLib;
+                    if (isLocalLoaded) {
+                        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+                    } else {
+                        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    }
+                } else {
+                    const pdfjsLib = (window as any).pdfjsLib;
+                    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
+                    }
                 }
 
                 const pdfjsLib = (window as any).pdfjsLib;
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
                 // Load document (handle base64 vs normal url)
                 let pdfData: any;
@@ -199,14 +258,41 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, sty
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col max-w-full">
-                    {/* Header showing pages summary */}
-                    <div className="flex justify-between items-center mb-4 px-2">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                            📑 {numPages} {numPages === 1 ? 'Page' : 'Pages'}
-                        </span>
-                        <span className="text-[8px] font-black text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                            Interactive Canvas Mode
-                        </span>
+                    {/* Header showing pages summary and zoom controls */}
+                    <div className="flex justify-between items-center mb-4 px-2 bg-white dark:bg-slate-900 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                        <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
+                                📑 {numPages} {numPages === 1 ? 'Page' : 'Pages'}
+                            </span>
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                                Canvas Render Mode
+                            </span>
+                        </div>
+                        
+                        {/* Zoom Controls */}
+                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                            <button
+                                onClick={() => setZoom(prev => Math.max(0.5, prev - 0.2))}
+                                title="Zoom Out"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors font-black text-xs select-none"
+                            >
+                                −
+                            </button>
+                            <button
+                                onClick={() => setZoom(1.0)}
+                                title="Reset Zoom"
+                                className="px-2 h-7 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors text-[9px] font-black uppercase tracking-wider select-none"
+                            >
+                                {Math.round(zoom * 100)}%
+                            </button>
+                            <button
+                                onClick={() => setZoom(prev => Math.min(2.5, prev + 0.2))}
+                                title="Zoom In"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors font-black text-xs select-none"
+                            >
+                                +
+                            </button>
+                        </div>
                     </div>
 
                     {/* Scrollable list of pages */}
@@ -216,6 +302,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, sty
                                 key={index}
                                 doc={pdfDoc}
                                 pageNum={index + 1}
+                                zoom={zoom}
                             />
                         ))}
                     </div>
@@ -224,3 +311,4 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, className, title, sty
         </div>
     );
 };
+
