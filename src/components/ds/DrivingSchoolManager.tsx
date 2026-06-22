@@ -3370,6 +3370,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
     const [leadStatusFilter, setLeadStatusFilter] = useState<string>('All');
     const [selectedLeadCategory, setSelectedLeadCategory] = useState<string>('All');
+    const [leadPage, setLeadPage] = useState(1);
     const [studentSubTab, setStudentSubTab] = useState<'enrolled' | 'graduated' | 'dropped' | 'all' | 'preview'>('enrolled');
     const [fleetSubTab, setFleetSubTab] = useState<'directory' | 'maintenance' | 'fuel'>('directory');
     const [studentSortBy, setStudentSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc' | 'progress_desc' | 'progress_asc'>('name_asc');
@@ -5195,6 +5196,13 @@ END $$;
         }),
     [leads, searchTerm, leadStatusFilter, selectedLeadCategory, settings?.licenseCategories]);
 
+    const totalLeadPages = Math.max(1, Math.ceil(filteredLeads.length / itemsPerPage));
+    const activeLeadPage = leadPage > totalLeadPages ? 1 : leadPage;
+    const paginatedLeads = useMemo(() => {
+        const page = leadPage > totalLeadPages ? 1 : leadPage;
+        return filteredLeads.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+    }, [filteredLeads, leadPage, totalLeadPages, itemsPerPage]);
+
     const stats = useMemo(() => ({
         totalStudents: (students || []).length,
         activeInstructors: (instructors || []).filter(i => i.status === 'Active').length,
@@ -6102,7 +6110,10 @@ END $$;
                                             <button 
                                                 type="button"
                                                 key={category} 
-                                                onClick={() => setSelectedLeadCategory(prev => prev === category ? 'All' : category)}
+                                                onClick={() => {
+                                                    setSelectedLeadCategory(prev => prev === category ? 'All' : category);
+                                                    setLeadPage(1);
+                                                }}
                                                 className={`bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border shadow-sm flex items-center gap-5 hover:border-indigo-500 transition-all text-left w-full ${selectedLeadCategory === category ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-slate-100 dark:border-slate-800'}`}
                                             >
                                                 <div className={`p-4 ${scheme.bg} rounded-2xl`}>
@@ -6130,7 +6141,10 @@ END $$;
                                         type="text" 
                                         placeholder="Search walk-in enquiries..." 
                                         value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        onChange={(e) => {
+                                            setSearchTerm(e.target.value);
+                                            setLeadPage(1);
+                                        }}
                                         className="w-full pl-16 pr-8 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm"
                                     />
                                 </div>
@@ -6140,7 +6154,10 @@ END $$;
                                         {['All', 'New Enquiry', 'Quotation Sent', 'Converted'].map((st) => (
                                             <button 
                                                 key={st} 
-                                                onClick={() => setLeadStatusFilter(st)}
+                                                onClick={() => {
+                                                    setLeadStatusFilter(st);
+                                                    setLeadPage(1);
+                                                }}
                                                 className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${leadStatusFilter === st ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-900'}`}
                                             >
                                                 {st}
@@ -6159,7 +6176,8 @@ END $$;
                                     <p className="text-xs text-slate-400 mt-1">Record client visits to auto-dispatch fee quotation structures via SMS & Email.</p>
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto">
+                                <>
+                                    <div className="overflow-x-auto">
                                     <table className="w-full text-left">
                                         <thead>
                                             <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
@@ -6173,7 +6191,7 @@ END $$;
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                            {filteredLeads.map(lead => {
+                                            {paginatedLeads.map(lead => {
                                                 const targetCategory = (settings?.licenseCategories || []).find((c: any) => c.code === lead.licenseTypeInterested || c.name === lead.licenseTypeInterested);
                                                 const baseFeeAmount = (() => {
                                                     if (lead.quotedAmount) return lead.quotedAmount;
@@ -6349,6 +6367,32 @@ END $$;
                                         </tbody>
                                     </table>
                                 </div>
+                                {totalLeadPages > 1 && (
+                                    <div className="p-8 border-t border-slate-50 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            Page {activeLeadPage} of {totalLeadPages} · Showing {paginatedLeads.length} of {filteredLeads.length} enquiries
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setLeadPage(prev => Math.max(1, prev - 1))}
+                                                disabled={activeLeadPage === 1}
+                                                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                            >
+                                                Previous
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLeadPage(prev => Math.min(totalLeadPages, prev + 1))}
+                                                disabled={activeLeadPage === totalLeadPages}
+                                                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                </>
                             )}
                         </div>
                     </div>
