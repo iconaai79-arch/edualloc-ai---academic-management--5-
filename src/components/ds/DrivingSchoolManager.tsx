@@ -3369,6 +3369,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [editingDSGroupForm, setEditingDSGroupForm] = useState('');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
     const [leadStatusFilter, setLeadStatusFilter] = useState<string>('All');
+    const [selectedLeadCategory, setSelectedLeadCategory] = useState<string>('All');
     const [studentSubTab, setStudentSubTab] = useState<'enrolled' | 'graduated' | 'dropped' | 'all' | 'preview'>('enrolled');
     const [fleetSubTab, setFleetSubTab] = useState<'directory' | 'maintenance' | 'fuel'>('directory');
     const [studentSortBy, setStudentSortBy] = useState<'name_asc' | 'name_desc' | 'date_desc' | 'date_asc' | 'progress_desc' | 'progress_asc'>('name_asc');
@@ -5153,15 +5154,46 @@ END $$;
         return filteredPayments.slice((page - 1) * itemsPerPage, page * itemsPerPage);
     }, [filteredPayments, paymentPage, totalPaymentPages]);
 
+    const leadsByCategory = useMemo(() => {
+        const groups: { [key: string]: number } = {};
+        (leads || []).forEach(lead => {
+            let cat = lead.licenseCategory;
+            if (!cat && lead.licenseTypeInterested && settings?.licenseCategories) {
+                const matched = settings.licenseCategories.find((c: any) => c.code === lead.licenseTypeInterested);
+                if (matched && matched.parentCategory) {
+                    cat = matched.parentCategory;
+                }
+            }
+            if (!cat) {
+                cat = 'Driving';
+            }
+            groups[cat] = (groups[cat] || 0) + 1;
+        });
+        return groups;
+    }, [leads, settings?.licenseCategories]);
+
     const filteredLeads = useMemo(() => 
         (leads || []).filter(l => {
             const matchesSearch = (l.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                   (l.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                   (l.licenseTypeInterested || '').toLowerCase().includes(searchTerm.toLowerCase());
             const matchesStatus = leadStatusFilter === 'All' || (l.status || 'New Enquiry').toLowerCase() === leadStatusFilter.toLowerCase();
-            return matchesSearch && matchesStatus;
+            
+            let cat = l.licenseCategory;
+            if (!cat && l.licenseTypeInterested && settings?.licenseCategories) {
+                const matched = settings.licenseCategories.find((c: any) => c.code === l.licenseTypeInterested);
+                if (matched && matched.parentCategory) {
+                    cat = matched.parentCategory;
+                }
+            }
+            if (!cat) {
+                cat = 'Driving';
+            }
+            const matchesCategory = selectedLeadCategory === 'All' || cat.toLowerCase() === selectedLeadCategory.toLowerCase();
+            
+            return matchesSearch && matchesStatus && matchesCategory;
         }),
-    [leads, searchTerm, leadStatusFilter]);
+    [leads, searchTerm, leadStatusFilter, selectedLeadCategory, settings?.licenseCategories]);
 
     const stats = useMemo(() => ({
         totalStudents: (students || []).length,
@@ -6054,7 +6086,43 @@ END $$;
                     )}
 
                     {activeTab === 'leads' && (
-                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Category Summary Cards */}
+                            {Object.keys(leadsByCategory).length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+                                    {Object.entries(leadsByCategory).map(([category, count], i) => {
+                                        const colors = [
+                                            { bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-600 dark:text-indigo-400', border: 'border-indigo-100 dark:border-indigo-800' },
+                                            { bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-100 dark:border-emerald-800' },
+                                            { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-100 dark:border-amber-800' },
+                                            { bg: 'bg-rose-50 dark:bg-rose-900/20', text: 'text-rose-600 dark:text-rose-400', border: 'border-rose-100 dark:border-rose-800' }
+                                        ];
+                                        const scheme = colors[i % colors.length];
+                                        return (
+                                            <button 
+                                                type="button"
+                                                key={category} 
+                                                onClick={() => setSelectedLeadCategory(prev => prev === category ? 'All' : category)}
+                                                className={`bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border shadow-sm flex items-center gap-5 hover:border-indigo-500 transition-all text-left w-full ${selectedLeadCategory === category ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-slate-100 dark:border-slate-800'}`}
+                                            >
+                                                <div className={`p-4 ${scheme.bg} rounded-2xl`}>
+                                                    <SparklesIcon className={`w-6 h-6 ${scheme.text}`} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{category} Enquiries</p>
+                                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{count}</h3>
+                                                </div>
+                                                {selectedLeadCategory === category && (
+                                                    <span className="ml-auto text-[9px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-black px-2 py-1 rounded-md uppercase tracking-wider">Filtered</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Main Enquiries Table */}
+                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                             <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
                                 <div className="relative flex-1 max-w-md">
                                     <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -6283,7 +6351,8 @@ END $$;
                                 </div>
                             )}
                         </div>
-                    )}
+                    </div>
+                )}
 
                     {activeTab === 'lessons' && (
                         <div className="space-y-8 animate-fade-in">
