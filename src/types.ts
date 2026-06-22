@@ -1348,7 +1348,7 @@ export interface Invoice {
     due_date: string;
     items: InvoiceItem[];
     totalAmount: number;
-    status: 'paid' | 'pending' | 'overdue' | 'quote';
+    status: 'paid' | 'pending' | 'overdue' | 'quote' | 'partial' | 'cancelled';
     studentId?: string;
 }
 

@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
-import type { Invoice, Institution, InvoiceItem, CompanyDetails } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import type { Invoice, Institution, InvoiceItem, CompanyDetails, Receipt } from '../types';
 import { PlusIcon } from './icons/PlusIcon';
 import { XIcon } from './icons/XIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
@@ -26,6 +26,7 @@ interface TenantInvoiceManagerProps {
 
 const STATUS_OPTIONS = [
     { value: 'pending', label: 'Pending', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
+    { value: 'partial', label: 'Partial', color: 'bg-orange-100 text-orange-850 dark:bg-orange-900/30 dark:text-orange-300' },
     { value: 'paid', label: 'Paid', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
     { value: 'overdue', label: 'Overdue', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
     { value: 'quote', label: 'Quote', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
@@ -63,6 +64,96 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     const [paymentRef, setPaymentRef] = useState<string>('');
     const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
     const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
+
+    // receipts and view states
+    const [receipts, setReceipts] = useState<Receipt[]>([]);
+    const [activeTabView, setActiveTabView] = useState<'invoices' | 'statements'>('invoices');
+    const [selectedStatementInstId, setSelectedStatementInstId] = useState<string>('');
+
+    const fetchReceipts = async () => {
+        try {
+            const records = await apiService.fetchModuleRecords<Receipt>('receipts');
+            setReceipts(records || []);
+        } catch (err) {
+            console.error("Failed to load receipts:", err);
+        }
+    };
+
+    useEffect(() => {
+        fetchReceipts();
+    }, [invoices]);
+
+    const statementLedger = useMemo(() => {
+        if (!selectedStatementInstId) return [];
+
+        const instInvoices = invoices.filter(
+            inv => inv.institutionId === selectedStatementInstId && inv.status !== 'quote' && inv.status !== 'cancelled'
+        );
+        const instReceipts = receipts.filter(
+            r => r.institutionId === selectedStatementInstId
+        );
+
+        const lines: {
+            date: string;
+            type: 'Invoice' | 'Payment';
+            reference: string;
+            description: string;
+            debit: number;
+            credit: number;
+        }[] = [];
+
+        instInvoices.forEach(inv => {
+            lines.push({
+                date: inv.issueDate,
+                type: 'Invoice',
+                reference: inv.invoiceNumber,
+                description: `Platform Subscription Billing`,
+                debit: inv.totalAmount,
+                credit: 0
+            });
+        });
+
+        instReceipts.forEach(r => {
+            lines.push({
+                date: r.paymentDate,
+                type: 'Payment',
+                reference: r.receiptNumber,
+                description: r.paidFor || `Payment received via ${r.paymentMethod}`,
+                debit: 0,
+                credit: r.amountPaid
+            });
+        });
+
+        lines.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        let runningBal = 0;
+        const processedLines = lines.map(line => {
+            runningBal = runningBal + line.debit - line.credit;
+            return {
+                ...line,
+                runningBalance: runningBal
+            };
+        });
+
+        return processedLines.reverse();
+    }, [invoices, receipts, selectedStatementInstId]);
+
+    const statementSummary = useMemo(() => {
+        if (!selectedStatementInstId) return { totalInvoiced: 0, totalPaid: 0, balance: 0 };
+        const instInvoices = invoices.filter(
+            inv => inv.institutionId === selectedStatementInstId && inv.status !== 'quote' && inv.status !== 'cancelled'
+        );
+        const instReceipts = receipts.filter(
+            r => r.institutionId === selectedStatementInstId
+        );
+        const totalInvoiced = instInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+        const totalPaid = instReceipts.reduce((sum, r) => sum + r.amountPaid, 0);
+        return {
+            totalInvoiced,
+            totalPaid,
+            balance: totalInvoiced - totalPaid
+        };
+    }, [invoices, receipts, selectedStatementInstId]);
 
     const institutionMap = useMemo(() => new Map<string, Institution>(institutions.map(i => [i.id, i])), [institutions]);
 
@@ -163,7 +254,13 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
 
     const startRecordingPayment = (inv: Invoice) => {
         setRecordingPaymentFor(inv);
-        setPaymentAmount(inv.totalAmount);
+        
+        const paidSoFar = receipts
+            .filter(r => r.invoiceId === inv.id)
+            .reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+        const remaining = Math.max(0, inv.totalAmount - paidSoFar);
+
+        setPaymentAmount(remaining);
         setPaymentMethod('MPESA');
         setPaymentRef('');
         setPaymentDate(new Date().toISOString().split('T')[0]);
@@ -187,10 +284,21 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                 invoiceId: recordingPaymentFor.id
             };
             await apiService.saveModuleRecord('receipts', receipt);
+
+            // Re-fetch receipts so status calculation is correct
+            const updatedReceipts = await apiService.fetchModuleRecords<Receipt>('receipts');
+            setReceipts(updatedReceipts || []);
+
+            const paidSoFar = (updatedReceipts || [])
+                .filter(r => r.invoiceId === recordingPaymentFor.id)
+                .reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+
+            const nextStatus = paidSoFar >= recordingPaymentFor.totalAmount ? 'paid' : 'partial';
+
             if (onUpdateInvoiceStatus) {
-                await onUpdateInvoiceStatus(recordingPaymentFor.id, 'paid');
+                await onUpdateInvoiceStatus(recordingPaymentFor.id, nextStatus);
             } else {
-                await apiService.saveModuleRecord('invoices', { ...recordingPaymentFor, status: 'paid' });
+                await apiService.saveModuleRecord('invoices', { ...recordingPaymentFor, status: nextStatus });
             }
 
             // Send payment confirmation receipt email to client
@@ -227,15 +335,44 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <div>
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">Tenant Invoicing</h3>
-                    <p className="text-sm text-slate-500">Generate and manage subscription billing for institutions.</p>
+                    <p className="text-sm text-slate-500">Generate and manage subscription billing and statements for institutions.</p>
                 </div>
+                {activeTabView === 'invoices' && (
+                    <button
+                        onClick={() => setIsCreating(true)}
+                        className="btn-primary flex items-center gap-2 h-11 px-6 shadow-lg shadow-indigo-100"
+                    >
+                        <PlusIcon className="w-5 h-5" /> New Document
+                    </button>
+                )}
+            </div>
+
+            {/* Sub-tab navigation */}
+            <div className="flex bg-slate-100 dark:bg-slate-900/60 p-1.5 rounded-2xl w-fit">
                 <button
-                    onClick={() => setIsCreating(true)}
-                    className="btn-primary flex items-center gap-2 h-11 px-6 shadow-lg shadow-indigo-100"
+                    onClick={() => setActiveTabView('invoices')}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        activeTabView === 'invoices'
+                            ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg'
+                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
                 >
-                    <PlusIcon className="w-5 h-5" /> New Document
+                    Invoices & Quotes
+                </button>
+                <button
+                    onClick={() => setActiveTabView('statements')}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        activeTabView === 'statements'
+                            ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg'
+                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                >
+                    Tenant Statements
                 </button>
             </div>
+
+            {activeTabView === 'invoices' && (
+                <>
 
             {/* Create Form */}
             {isCreating && (
@@ -494,6 +631,122 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                     </tbody>
                 </table>
             </div>
+                </>
+            )}
+
+            {activeTabView === 'statements' && (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
+                        <div className="space-y-1">
+                            <h4 className="text-sm font-black uppercase tracking-widest text-slate-450">Statement of Account</h4>
+                            <p className="text-xs text-slate-500">View running ledgers and outstanding balances for each tenant.</p>
+                        </div>
+                        <div>
+                            <select
+                                value={selectedStatementInstId}
+                                onChange={e => setSelectedStatementInstId(e.target.value)}
+                                className="form-select w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs cursor-pointer text-slate-700 dark:text-slate-200"
+                            >
+                                <option value="">-- Select Tenant --</option>
+                                {institutions.filter(inst => inst.institutionType !== 'Reseller').map(inst => (
+                                    <option key={inst.id} value={inst.id}>{inst.name} ({inst.institutionCode})</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {selectedStatementInstId ? (
+                        <>
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-up">
+                                <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-850">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Invoiced</span>
+                                    <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-2 font-mono">
+                                        KES {statementSummary.totalInvoiced.toLocaleString()}
+                                    </p>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-850">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Received</span>
+                                    <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2 font-mono">
+                                        KES {statementSummary.totalPaid.toLocaleString()}
+                                    </p>
+                                </div>
+                                <div className={`p-6 rounded-3xl border ${
+                                    statementSummary.balance > 0 
+                                        ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-100/50 dark:border-amber-900/20 text-amber-800 dark:text-amber-300'
+                                        : 'bg-green-50/50 dark:bg-green-950/20 border-green-100/50 dark:border-green-900/20 text-green-800 dark:text-green-300'
+                                }`}>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outstanding Balance</span>
+                                    <p className="text-2xl font-black mt-2 font-mono">
+                                        KES {statementSummary.balance.toLocaleString()}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Ledger Table */}
+                            <div className="bg-white dark:bg-slate-800 shadow-sm rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 animate-fade-in-up">
+                                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                        <tr>
+                                            <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Date</th>
+                                            <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Type</th>
+                                            <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Reference</th>
+                                            <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Description</th>
+                                            <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Debit (Inv)</th>
+                                            <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Credit (Paid)</th>
+                                            <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Balance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {statementLedger.map((row, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                    {new Date(row.date).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-xs font-bold">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-black tracking-wider ${
+                                                        row.type === 'Invoice' 
+                                                            ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                                    }`}>
+                                                        {row.type}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                    {row.reference}
+                                                </td>
+                                                <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                    {row.description}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                                    {row.debit > 0 ? `KES ${row.debit.toLocaleString()}` : '—'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                                    {row.credit > 0 ? `KES ${row.credit.toLocaleString()}` : '—'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-mono font-bold text-slate-900 dark:text-white">
+                                                    KES {row.runningBalance.toLocaleString()}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {statementLedger.length === 0 && (
+                                            <tr>
+                                                <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-bold uppercase text-xs tracking-widest opacity-50">
+                                                    No transactions recorded for this tenant.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="text-center py-20 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] bg-slate-50 dark:bg-slate-900/10">
+                            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Select a tenant from the dropdown above to view the financial statement.</p>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Preview Modal */}
             {previewInvoice && (() => {
@@ -681,18 +934,41 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                     className="form-input w-full bg-slate-50 dark:bg-slate-900/50 cursor-not-allowed font-bold" 
                                     disabled 
                                 />
-                            </div>
+                                {(() => {
+                                    const paidSoFar = receipts
+                                        .filter(r => r.invoiceId === recordingPaymentFor.id)
+                                        .reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+                                    const remaining = Math.max(0, recordingPaymentFor.totalAmount - paidSoFar);
+                                    return (
+                                        <>
+                                            <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800 text-xs mt-4">
+                                                <div>
+                                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Invoice Total</span>
+                                                    <p className="font-bold text-slate-800 dark:text-slate-200 mt-1">KES {recordingPaymentFor.totalAmount.toLocaleString()}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Paid So Far</span>
+                                                    <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-1">KES {paidSoFar.toLocaleString()}</p>
+                                                </div>
+                                            </div>
 
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Amount Paid (KES)</label>
-                                <input 
-                                    type="number" 
-                                    value={paymentAmount} 
-                                    onChange={e => setPaymentAmount(Number(e.target.value))}
-                                    className="form-input w-full font-black text-indigo-600 dark:text-indigo-400" 
-                                    required 
-                                    min="1"
-                                />
+                                            <div className="mt-4">
+                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Amount Paid (KES)</label>
+                                                <input 
+                                                    type="number" 
+                                                    value={paymentAmount} 
+                                                    onChange={e => setPaymentAmount(Number(e.target.value))}
+                                                    className="form-input w-full font-black text-indigo-600 dark:text-indigo-400" 
+                                                    required 
+                                                    min="1"
+                                                />
+                                                <p className="text-[10px] text-slate-400 mt-1 font-bold">
+                                                    Remaining balance to pay: <span className="text-indigo-600 dark:text-indigo-400">KES {remaining.toLocaleString()}</span>
+                                                </p>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
