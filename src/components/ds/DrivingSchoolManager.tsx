@@ -300,6 +300,10 @@ const SmartLeadImporterModal: React.FC<{
 }> = ({ onClose, currentInstitution, onRefresh }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [processedCount, setProcessedCount] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
+    const [uploadSpeed, setUploadSpeed] = useState(0);
+    const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
     const [step, setStep] = useState<'upload' | 'map'>('upload');
     const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
     const [rawData, setRawData] = useState<any[]>([]);
@@ -394,9 +398,14 @@ const SmartLeadImporterModal: React.FC<{
             return;
         }
         setIsProcessing(true);
+        setProcessedCount(0);
+        setTotalCount(rawData.length);
+        setUploadSpeed(0);
+        setEtaSeconds(null);
+
         try {
             const institutionId = currentInstitution?.id || 'inst';
-            let importedCount = 0;
+            const payloads: any[] = [];
             
             for (const row of rawData) {
                 const fullName = String(row[mappings.fullName] || '').trim();
@@ -408,8 +417,8 @@ const SmartLeadImporterModal: React.FC<{
                 const quotedAmount = mappings.quotedAmount ? Number(row[mappings.quotedAmount]) || 0 : 0;
                 const notes = mappings.notes ? String(row[mappings.notes] || '').trim() : '';
  
-                const payload = {
-                    id: `lead_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                payloads.push({
+                    id: `lead_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${payloads.length}`,
                     institutionId,
                     fullName,
                     phone,
@@ -421,13 +430,64 @@ const SmartLeadImporterModal: React.FC<{
                     notes,
                     licenseCategory: selectedGroup || undefined,
                     createdAt: new Date().toISOString()
-                };
- 
-                await apiService.saveModuleRecord('ds_leads', payload);
-                importedCount++;
+                });
             }
- 
-            toastSuccess(`${importedCount} marketing leads imported successfully!`);
+
+            const totalToUpload = payloads.length;
+            setTotalCount(totalToUpload);
+            if (totalToUpload === 0) {
+                toastError("No valid rows found to import.");
+                setIsProcessing(false);
+                return;
+            }
+
+            const batchSize = 500;
+            const batches: any[][] = [];
+            for (let i = 0; i < totalToUpload; i += batchSize) {
+                batches.push(payloads.slice(i, i + batchSize));
+            }
+
+            const startTime = Date.now();
+            let uploaded = 0;
+
+            const runBatchQueue = async () => {
+                const queue = [...batches];
+                
+                const worker = async () => {
+                    while (queue.length > 0) {
+                        const batch = queue.shift();
+                        if (!batch) continue;
+
+                        try {
+                            await apiService.saveModuleRecords('ds_leads', batch);
+                            uploaded += batch.length;
+                            setProcessedCount(uploaded);
+
+                            const elapsed = (Date.now() - startTime) / 1000;
+                            const currentSpeed = elapsed > 0 ? uploaded / elapsed : 0;
+                            setUploadSpeed(Math.round(currentSpeed));
+
+                            const remaining = totalToUpload - uploaded;
+                            const eta = currentSpeed > 0 ? Math.ceil(remaining / currentSpeed) : 0;
+                            setEtaSeconds(eta);
+                        } catch (err) {
+                            console.error("Batch upload failed, retrying in smaller groups...", err);
+                            if (batch.length > 1) {
+                                const half = Math.ceil(batch.length / 2);
+                                queue.push(batch.slice(0, half), batch.slice(half));
+                            } else {
+                                throw err;
+                            }
+                        }
+                    }
+                };
+
+                const workers = [worker(), worker(), worker()];
+                await Promise.all(workers);
+            };
+
+            await runBatchQueue();
+            toastSuccess(`${uploaded} marketing leads imported successfully!`);
             await onRefresh();
             onClose();
         } catch (err: any) {
@@ -581,14 +641,41 @@ const SmartLeadImporterModal: React.FC<{
                                 </div>
                             </div>
 
-                            <div className="pt-2">
-                                <button 
-                                    onClick={handleImport}
-                                    disabled={isProcessing || !mappings.fullName || !mappings.phone}
-                                    className="w-full py-4.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
-                                >
-                                    {isProcessing ? 'Processing Mapped Data...' : 'Run Smart Importer'}
-                                </button>
+                            <div className="pt-2 space-y-4">
+                                {isProcessing ? (
+                                    <div className="bg-slate-50 dark:bg-slate-800/60 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col gap-4 animate-fade-in">
+                                        <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            <span>Processing Batches</span>
+                                            <span>{processedCount.toLocaleString()} / {totalCount.toLocaleString()} Leads</span>
+                                        </div>
+                                        
+                                        <div className="w-full bg-slate-200 dark:bg-slate-700 h-3 rounded-full overflow-hidden">
+                                            <div 
+                                                className="bg-indigo-600 h-full transition-all duration-300 rounded-full" 
+                                                style={{ width: `${totalCount > 0 ? (processedCount / totalCount) * 100 : 0}%` }}
+                                            />
+                                        </div>
+
+                                        <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-wider text-slate-400">
+                                            <span>Speed: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{uploadSpeed} recs/sec</span></span>
+                                            <span>
+                                                ETA: <span className="text-slate-700 dark:text-slate-200 font-bold">
+                                                    {etaSeconds !== null 
+                                                        ? `${Math.floor(etaSeconds / 60)}m ${etaSeconds % 60}s` 
+                                                        : 'Calculating...'}
+                                                </span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={handleImport}
+                                        disabled={!mappings.fullName || !mappings.phone}
+                                        className="w-full py-4.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
+                                    >
+                                        Run Smart Importer
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
