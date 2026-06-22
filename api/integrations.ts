@@ -262,27 +262,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 authError = null;
             } else if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
                 let query = supabase.from('users').select('*');
+                const method = getParam('method') || 'email';
 
-                if (action === 'sendSms' && recipient) {
-                    // Normalize Kenyan phone numbers for robust database search
-                    const normalized = normalizePhone(recipient);
-                    const rawDigits = recipient.replace(/[^\d]/g, '');
-                    let searchNumbers: string[] = [recipient, rawDigits, normalized];
-
-                    // Generate common variants for lookup
-                    if (normalized.startsWith('254') && normalized.length === 12) {
-                        const base = normalized.substring(3);
-                        searchNumbers.push('0' + base);
-                        searchNumbers.push(base);
+                if ((action === 'sendSms' || (action === 'forgotPassword' && method === 'phone')) && recipient) {
+                    // Flexible phone number matching: ignore country code prefixes, spaces, formatting
+                    const digits = recipient.replace(/\D/g, '');
+                    if (digits.length >= 9) {
+                        const last9 = digits.substring(digits.length - 9);
+                        const pattern = '%' + last9.split('').join('%') + '%';
+                        query = query.ilike('phone_number', pattern);
+                    } else {
+                        query = query.eq('phone_number', recipient);
                     }
-
-                    // Remove duplicates
-                    const uniqueSearch = Array.from(new Set(searchNumbers.filter(n => n.length > 0)));
-                    const orClauses = uniqueSearch.map(n => `phone_number.eq.${n}`).join(',');
-
-                    query = query.or(orClauses);
                 } else if (recipient) {
-                    query = query.eq('email', recipient);
+                    // Case-insensitive email search
+                    query = query.ilike('email', recipient.trim());
                 }
 
                 const { data: targetUser } = await query.maybeSingle();
@@ -298,7 +292,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     user = { id: 'system', role: 'system', user_metadata: { institutionId: 'SYSTEM' } };
                     authError = null;
                 } else if (action === 'forgotPassword') {
-                    return res.status(404).json({ success: false, message: 'No registered account found with this email address.' });
+                    return res.status(404).json({ 
+                        success: false, 
+                        message: method === 'phone' 
+                            ? 'No registered account found with this phone number.' 
+                            : 'No registered account found with this email address.' 
+                    });
                 }
             }
 
@@ -1073,19 +1072,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const method = getParam('method') || 'email';
             
             if (method === 'phone') {
-                const phoneVariants = getPhoneVariants(recipient);
-                const phone = phoneVariants[0]; // Primary normalized variant
-                const orClauses = phoneVariants.map(v => `phone_number.eq.${v}`).join(',');
+                let query = supabase.from('users').select('*');
+                const digits = recipient.replace(/\D/g, '');
+                if (digits.length >= 9) {
+                    const last9 = digits.substring(digits.length - 9);
+                    const pattern = '%' + last9.split('').join('%') + '%';
+                    query = query.ilike('phone_number', pattern);
+                } else {
+                    query = query.eq('phone_number', recipient);
+                }
                 
-                console.log(`[Forgot Password] Phone lookup for: ${recipient}. Variants: ${phoneVariants.join(', ')}`);
-
-                const { data: targetUser } = await supabase
-                    .from('users')
-                    .select('*')
-                    .or(orClauses)
-                    .maybeSingle();
+                const { data: targetUser } = await query.maybeSingle();
 
                 if (!targetUser) return res.status(404).json({ success: false, message: 'No registered account found with this phone number.' });
+                const phoneVariants = getPhoneVariants(recipient);
+                const phone = phoneVariants[0] || recipient; // Primary normalized variant
 
                 // Generate a 6-digit numeric OTP
                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -1192,7 +1193,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { error: updateError } = await supabase
                 .from('users')
                 .update({ reset_token: token, reset_token_expires: expires })
-                .eq('email', recipient);
+                .eq('email', user.email);
 
             if (updateError) {
                 console.error('[Forgot Password] Failed to store reset token:', updateError);

@@ -5034,15 +5034,21 @@ END $$;
         ),
     [normalizedInstructors, searchTerm]);
 
-    const filteredInvoices = useMemo(() => 
-        (invoices || []).filter(inv => {
+    const filteredInvoices = useMemo(() => {
+        const list = (invoices || []).filter(inv => {
             const student = (normalizedStudents || []).find(s => s.id === inv.studentId);
             const adm = student?.admissionNumber || (student as any)?.admission_number || '';
             return (inv.studentName || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
                    (inv.invoiceNumber || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
                    adm.toLowerCase().includes(invoiceSearch.toLowerCase());
-        }),
-    [invoices, invoiceSearch, normalizedStudents]);
+        });
+
+        return [...list].sort((a, b) => {
+            const timeA = new Date(a.createdAt || (a as any).created_at || a.dueDate || (a as any).due_date || 0).getTime();
+            const timeB = new Date(b.createdAt || (b as any).created_at || b.dueDate || (b as any).due_date || 0).getTime();
+            return timeB - timeA;
+        });
+    }, [invoices, invoiceSearch, normalizedStudents]);
 
     const itemsPerPage = 10;
 
@@ -5060,16 +5066,23 @@ END $$;
         return filteredInvoices.slice((page - 1) * itemsPerPage, page * itemsPerPage);
     }, [filteredInvoices, invoicePage, totalInvoicePages]);
 
-    const filteredPayments = useMemo(() => 
-        (payments || []).filter(pay => {
+    const filteredPayments = useMemo(() => {
+        const list = (payments || []).filter(pay => {
             const student = (normalizedStudents || []).find(s => s.id === pay.studentId);
             const adm = student?.admissionNumber || (student as any)?.admission_number || '';
             return (pay.studentName || student?.fullName || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
                    (pay.receiptNumber || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
                    (pay.paymentMethod || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
                    adm.toLowerCase().includes(paymentSearch.toLowerCase());
-        }),
-    [payments, normalizedStudents, paymentSearch]);
+        });
+
+        // Sort from recent to old (newest first)
+        return [...list].sort((a, b) => {
+            const timeA = new Date(a.createdAt || (a as any).created_at || a.paymentDate || (a as any).payment_date || 0).getTime();
+            const timeB = new Date(b.createdAt || (b as any).created_at || b.paymentDate || (b as any).payment_date || 0).getTime();
+            return timeB - timeA;
+        });
+    }, [payments, normalizedStudents, paymentSearch]);
 
     const totalPaymentPages = Math.max(1, Math.ceil(filteredPayments.length / itemsPerPage));
     const activePaymentPage = paymentPage > totalPaymentPages ? 1 : paymentPage;
@@ -7006,7 +7019,7 @@ END $$;
                                                          </tr>
                                                      </thead>
                                                      <tbody className="divide-y divide-amber-200/30 dark:divide-amber-800/20">
-                                                         {payments.filter(p => p.status === 'Pending Deletion').map(payment => (
+                                                         {[...payments].filter(p => p.status === 'Pending Deletion').sort((a, b) => new Date(b.createdAt || (b as any).created_at || b.paymentDate || (b as any).payment_date || 0).getTime() - new Date(a.createdAt || (a as any).created_at || a.paymentDate || (a as any).payment_date || 0).getTime()).map(payment => (
                                                              <tr key={payment.id} className="hover:bg-amber-100/20">
                                                                  <td className="px-6 py-4 font-bold text-amber-900 dark:text-amber-300">{payment.receiptNumber}</td>
                                                                  <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">{payment.studentName}</td>

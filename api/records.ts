@@ -186,7 +186,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             Object.entries(req.query).forEach(([key, value]) => {
                 if (!reservedParams.includes(key) && value) {
                     const strVal = getStrParam(value);
-                    if (strVal) q = q.eq(key, strVal);
+                    if (strVal) {
+                        const lowerKey = key.toLowerCase();
+                        if (lowerKey.includes('email')) {
+                            // Support case-insensitive email searches
+                            q = q.ilike(key, strVal.trim());
+                        } else if (lowerKey.includes('phone') || lowerKey === 'mobile') {
+                            // Support flexible phone number matching (ignore country code prefixes, spaces, formatting)
+                            const digits = strVal.replace(/\D/g, '');
+                            if (digits.length >= 9) {
+                                const last9 = digits.substring(digits.length - 9);
+                                const pattern = '%' + last9.split('').join('%') + '%';
+                                q = q.ilike(key, pattern);
+                            } else {
+                                q = q.eq(key, strVal);
+                            }
+                        } else {
+                            q = q.eq(key, strVal);
+                        }
+                    }
                 }
             });
 
