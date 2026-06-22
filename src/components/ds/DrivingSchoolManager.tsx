@@ -1414,6 +1414,9 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                 });
             } else {
                 setFormData({ ...initialData });
+                if (initialData?.studentName) {
+                    setStudentSearch(initialData.studentName);
+                }
             }
         }
     }, [initialData, type]);
@@ -1472,7 +1475,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         }
         return base;
     });
-    const [studentSearch, setStudentSearch] = useState('');
+    const [studentSearch, setStudentSearch] = useState(initialData?.studentName || '');
     const [isSaving, setIsSaving] = useState(false);
 
     // Category & Subcategory logic for Student/Lead enrollment
@@ -5180,7 +5183,19 @@ END $$;
                                             settings: 'fee_structure',
                                             broadcaster: 'broadcast'
                                         };
-                                        setActionModal({ type: typeMap[activeTab] || 'student' });
+                                        const modalType = typeMap[activeTab] || 'student';
+                                        let initialData = undefined;
+                                        if (modalType === 'invoice') {
+                                            const query = (financeTab === 'payments' ? paymentSearch : invoiceSearch).trim().toLowerCase();
+                                            const matchedStudent = query ? (normalizedStudents || []).find(s => 
+                                                s.fullName.toLowerCase().includes(query) || 
+                                                (s.admissionNumber || '').toLowerCase().includes(query)
+                                            ) : null;
+                                            if (matchedStudent) {
+                                                initialData = { studentId: matchedStudent.id, studentName: matchedStudent.fullName };
+                                            }
+                                        }
+                                        setActionModal({ type: modalType, initialData });
                                     }} 
                                     className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3"
                                 >
@@ -6853,7 +6868,6 @@ END $$;
                                                     value={feeReminderType}
                                                     onChange={(e) => setFeeReminderType(e.target.value as 'overall' | 'shortfall')}
                                                     className="px-4 py-2.5 bg-amber-50/50 dark:bg-amber-900/10 text-amber-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-100/50 border border-amber-200 dark:border-amber-800/40 transition-all focus:ring-2 focus:ring-amber-500"
-                                                    title="Select balance tracking criteria for bulk SMS reminders"
                                                 >
                                                     <option value="overall" className="bg-white dark:bg-slate-850 text-slate-800 dark:text-slate-200 font-bold">Overall Balance</option>
                                                     <option value="shortfall" className="bg-white dark:bg-slate-850 text-slate-800 dark:text-slate-200 font-bold">Shortfall Balance</option>
@@ -6863,7 +6877,20 @@ END $$;
                                                     {isSendingReminders ? 'Sending...' : feeReminderType === 'shortfall' ? 'Remind Shortfalls' : 'Remind Balances'}
                                                 </button>
 
-                                                <button onClick={() => setActionModal({ type: 'invoice' })} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5">
+                                                <button 
+                                                    onClick={() => {
+                                                        const query = invoiceSearch.trim().toLowerCase();
+                                                        const matchedStudent = query ? (normalizedStudents || []).find(s => 
+                                                            s.fullName.toLowerCase().includes(query) || 
+                                                            (s.admissionNumber || '').toLowerCase().includes(query)
+                                                        ) : null;
+                                                        setActionModal({ 
+                                                            type: 'invoice', 
+                                                            initialData: matchedStudent ? { studentId: matchedStudent.id, studentName: matchedStudent.fullName } : undefined 
+                                                        });
+                                                    }} 
+                                                    className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5"
+                                                >
                                                     <PlusIcon className="w-3.5 h-3.5" />
                                                     Generate Invoice
                                                 </button>
@@ -7102,7 +7129,31 @@ END $$;
                                                         Confirm Selected ({selectedPaymentIds.length})
                                                     </button>
                                                 )}
-                                                <button onClick={() => setActionModal({ type: 'payment' })} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5">
+                                                <button 
+                                                    onClick={() => {
+                                                        const query = paymentSearch.trim().toLowerCase();
+                                                        const matchedStudent = query ? (normalizedStudents || []).find(s => 
+                                                            s.fullName.toLowerCase().includes(query) || 
+                                                            (s.admissionNumber || '').toLowerCase().includes(query)
+                                                        ) : null;
+                                                        let initialData = undefined;
+                                                        if (matchedStudent) {
+                                                            const studentInvoices = (invoices || []).filter(inv => inv.studentId === matchedStudent.id && inv.status !== 'Fully Paid' && inv.status !== 'Cancelled');
+                                                            const firstInvoice = studentInvoices[0];
+                                                            initialData = {
+                                                                studentId: matchedStudent.id,
+                                                                studentName: matchedStudent.fullName,
+                                                                invoiceId: firstInvoice?.id || '',
+                                                                amount: firstInvoice?.balance || 0
+                                                            };
+                                                        }
+                                                        setActionModal({ 
+                                                            type: 'payment', 
+                                                            initialData 
+                                                        });
+                                                    }} 
+                                                    className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5"
+                                                >
                                                     <PlusIcon className="w-3.5 h-3.5" />
                                                     Record Payment
                                                 </button>
