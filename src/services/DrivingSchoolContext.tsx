@@ -135,11 +135,14 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 };
                 let backupVotes: any[] = [];
                 let backupCats: any[] = [];
+                let backupGroups: string[] = [];
                 try {
                     const bv = localStorage.getItem(`ds_votes_backup_${institutionId}`);
                     if (bv) backupVotes = JSON.parse(bv);
                     const bc = localStorage.getItem(`ds_cats_backup_${institutionId}`);
                     if (bc) backupCats = JSON.parse(bc);
+                    const bg = localStorage.getItem(`ds_groups_backup_${institutionId}`);
+                    if (bg) backupGroups = JSON.parse(bg);
                 } catch (storageErr) {}
 
                 if (prev?.votes && Array.isArray(prev.votes)) prev.votes.forEach(addVoteToMap);
@@ -175,12 +178,25 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 if (baseSettings?.licenseCategories && Array.isArray(baseSettings.licenseCategories)) baseSettings.licenseCategories.forEach(addCatToMap);
                 const finalCats = Array.from(catsMap.values());
 
+                // Consolidate groups
+                const groupsSet = new Set<string>();
+                const addGroup = (g: string) => {
+                    if (g && typeof g === 'string' && g.trim()) {
+                        groupsSet.add(g.trim());
+                    }
+                };
+                ['Driving', 'Computer Classes', 'IELTS'].forEach(addGroup);
+                if (prev?.licenseGroups && Array.isArray(prev.licenseGroups)) prev.licenseGroups.forEach(addGroup);
+                if (backupGroups && Array.isArray(backupGroups)) backupGroups.forEach(addGroup);
+                if (baseSettings?.licenseGroups && Array.isArray(baseSettings.licenseGroups)) baseSettings.licenseGroups.forEach(addGroup);
+                const finalGroups = Array.from(groupsSet);
 
                 if (baseSettings) {
                     return {
                         ...baseSettings,
                         votes: finalVotes,
-                        licenseCategories: finalCats
+                        licenseCategories: finalCats,
+                        licenseGroups: finalGroups
                     };
                 } else {
                     return {
@@ -188,7 +204,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                         institutionId,
                         ...prev,
                         votes: finalVotes,
-                        licenseCategories: finalCats
+                        licenseCategories: finalCats,
+                        licenseGroups: finalGroups
                     };
                 }
             });
@@ -760,10 +777,12 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             // Instantly update local React state to guarantee stability even if backend schema caches lag behind
             const finalVotesArray = payload.votes || settings?.votes || [];
             const finalCatsArray = payload.licenseCategories || settings?.licenseCategories || [];
+            const finalGroupsArray = payload.licenseGroups || settings?.licenseGroups || [];
             
             try {
                 localStorage.setItem(`ds_votes_backup_${institutionId}`, JSON.stringify(finalVotesArray));
                 localStorage.setItem(`ds_cats_backup_${institutionId}`, JSON.stringify(finalCatsArray));
+                localStorage.setItem(`ds_groups_backup_${institutionId}`, JSON.stringify(finalGroupsArray));
             } catch (storageErr) {
                 console.warn("[DS Context] Local backup cache unavailable:", storageErr);
             }
@@ -772,7 +791,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 ...prev,
                 ...payload,
                 votes: finalVotesArray,
-                licenseCategories: finalCatsArray
+                licenseCategories: finalCatsArray,
+                licenseGroups: finalGroupsArray
             }));
             
             // Helper for smart upsert mirroring to bypass duplicate key conflicts gracefully
