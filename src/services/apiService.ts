@@ -1949,47 +1949,23 @@ export const apiService = {
     },
     async uploadToGoogleDrive(file: File, folderName: string = 'System_Uploads', options: any = {}) {
         try {
-            const token = await apiService.getAuthToken();
+            const bucketName = 'eduai';
+            const uniquePath = `uploads/${folderName}/${Date.now()}_${file.name}`;
             
-            const reader = new FileReader();
-            const base64Promise = new Promise((resolve) => {
-                reader.onload = (e) => resolve(e.target?.result?.toString().split(',')[1]);
-                reader.readAsDataURL(file);
-            });
-            
-            const base64Data = await base64Promise;
-
-            const response = await fetch('/api/integrations?action=googleDriveUpload', {
-                method: 'POST',
-                headers: { 
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    action: 'googleDriveUpload',
-                    fileName: `${Date.now()}_${file.name}`,
-                    mimeType: file.type,
-                    content: base64Data,
-                    folderName: folderName,
-                    config: options?.config,
-                    institutionId: options?.institutionId,
-                    useGlobalConfig: options?.useGlobalConfig
-                })
-            });
-
-            const data = await response.json();
-            if (!data.success) throw new Error(data.message || 'Upload failed');
-            
-            const directUrl = getGoogleDriveDirectUrl(data.url);
+            // Upload to Supabase instead of Google Drive
+            const publicUrl = await apiService.uploadFile(bucketName, uniquePath, file);
+            if (!publicUrl) {
+                throw new Error("Supabase file upload returned empty URL");
+            }
 
             return {
                 success: true,
-                url: directUrl,
-                fileUrl: directUrl, 
-                fileId: data.fileId
+                url: publicUrl,
+                fileUrl: publicUrl,
+                fileId: uniquePath
             };
         } catch (error: any) {
-            console.error('Google Drive Upload Error:', error);
+            console.error('Supabase Redirect Storage Upload Error:', error);
             return { success: false, error: error.message };
         }
     },

@@ -293,6 +293,264 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
     );
 };
 
+const SmartLeadImporterModal: React.FC<{
+    onClose: () => void;
+    currentInstitution: any;
+    onRefresh: () => Promise<void>;
+}> = ({ onClose, currentInstitution, onRefresh }) => {
+    const [file, setFile] = useState<File | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [step, setStep] = useState<'upload' | 'map'>('upload');
+    const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+    const [rawData, setRawData] = useState<any[]>([]);
+    const { error: toastError, success: toastSuccess } = useToast();
+
+    const [mappings, setMappings] = useState<Record<string, string>>({
+        fullName: '',
+        phone: '',
+        email: '',
+        licenseTypeInterested: '',
+        quotedAmount: '',
+        notes: ''
+    });
+
+    const handleFileSelect = (selectedFile: File) => {
+        setFile(selectedFile);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                const sheetData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                if (sheetData.length === 0) {
+                    toastError("Spreadsheet is empty.");
+                    return;
+                }
+
+                const headers = sheetData[0].filter((h: any) => h !== null && h !== '');
+                setDetectedHeaders(headers);
+
+                const nameCol = headers.find((h: any) => /name|full|client|candidate|lead/i.test(String(h))) || '';
+                const phoneCol = headers.find((h: any) => /phone|mobile|tel|contact/i.test(String(h))) || '';
+                const emailCol = headers.find((h: any) => /email|mail/i.test(String(h))) || '';
+                const classCol = headers.find((h: any) => /class|category|license|type/i.test(String(h))) || '';
+                const quoteCol = headers.find((h: any) => /quote|amount|fee|price|cost/i.test(String(h))) || '';
+                const notesCol = headers.find((h: any) => /note|remark|comment/i.test(String(h))) || '';
+
+                setMappings({
+                    fullName: nameCol,
+                    phone: phoneCol,
+                    email: emailCol,
+                    licenseTypeInterested: classCol,
+                    quotedAmount: quoteCol,
+                    notes: notesCol
+                });
+
+                const rowsJson = XLSX.utils.sheet_to_json(worksheet);
+                setRawData(rowsJson);
+                setStep('map');
+            } catch (err: any) {
+                toastError("Failed to parse sheet: " + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(selectedFile);
+    };
+
+    const previewData = useMemo(() => {
+        return rawData.slice(0, 5).map(row => {
+            return {
+                fullName: row[mappings.fullName] || '—',
+                phone: row[mappings.phone] || '—',
+                email: row[mappings.email] || '—',
+                licenseTypeInterested: row[mappings.licenseTypeInterested] || '—',
+                quotedAmount: row[mappings.quotedAmount] || '—',
+                notes: row[mappings.notes] || '—'
+            };
+        });
+    }, [rawData, mappings]);
+
+    const handleImport = async () => {
+        if (!mappings.fullName || !mappings.phone) {
+            toastError("Full Name and Phone Number mapping are required.");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            const institutionId = currentInstitution?.id || 'inst';
+            let importedCount = 0;
+            
+            for (const row of rawData) {
+                const fullName = String(row[mappings.fullName] || '').trim();
+                const phone = String(row[mappings.phone] || '').trim();
+                if (!fullName || !phone) continue;
+
+                const email = mappings.email ? String(row[mappings.email] || '').trim() : '';
+                const licenseTypeInterested = mappings.licenseTypeInterested ? String(row[mappings.licenseTypeInterested] || '').trim() : '';
+                const quotedAmount = mappings.quotedAmount ? Number(row[mappings.quotedAmount]) || 0 : 0;
+                const notes = mappings.notes ? String(row[mappings.notes] || '').trim() : '';
+
+                const payload = {
+                    id: `lead_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    institutionId,
+                    fullName,
+                    phone,
+                    email,
+                    licenseTypeInterested,
+                    source: 'Excel Import',
+                    status: 'New Enquiry',
+                    quotedAmount,
+                    notes,
+                    createdAt: new Date().toISOString()
+                };
+
+                await apiService.saveModuleRecord('ds_leads', payload);
+                importedCount++;
+            }
+
+            toastSuccess(`${importedCount} marketing leads imported successfully!`);
+            await onRefresh();
+            onClose();
+        } catch (err: any) {
+            console.error("Leads import failed:", err);
+            toastError("Failed to import leads. " + (err.message || ''));
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-scale-in border border-white/20">
+                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Smart Lead Importer</h3>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                            {step === 'upload' ? 'Bulk import enquiries/leads from Excel/CSV' : 'Map fields and columns'}
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 transition-colors">
+                        <XIcon className="w-5 h-5 text-slate-500" />
+                    </button>
+                </div>
+                
+                <div className="p-8">
+                    {step === 'upload' ? (
+                        <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer text-center">
+                            <input 
+                                type="file" 
+                                accept=".xlsx,.xls,.csv" 
+                                className="hidden" 
+                                id="leads-excel-upload"
+                                onChange={(e) => {
+                                    if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                                }}
+                            />
+                            <label htmlFor="leads-excel-upload" className="cursor-pointer">
+                                <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                                    <ArrowUpTrayIcon className="w-10 h-10 text-indigo-600" />
+                                </div>
+                                <h4 className="text-lg font-black text-slate-900 dark:text-white mb-2">Drop your Excel file here</h4>
+                                <p className="text-xs text-slate-500 font-medium uppercase tracking-widest">or click to browse from computer</p>
+                            </label>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-4 text-left bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/60 animate-fade-in">
+                                <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-xl">
+                                    <SparklesIcon className="w-5 h-5 text-green-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">{file?.name}</h4>
+                                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{(file ? file.size / 1024 : 0).toFixed(1)} KB • Mapping Headers</p>
+                                </div>
+                                <button onClick={() => { setFile(null); setStep('upload'); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest">Change</button>
+                            </div>
+
+                            {/* Mapping Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[200px] overflow-y-auto pr-1">
+                                {[
+                                    { key: 'fullName', label: 'Full Name *', desc: 'Prospective lead name' },
+                                    { key: 'phone', label: 'Phone Number *', desc: 'Target phone for campaigns' },
+                                    { key: 'email', label: 'Email Address', desc: 'Optional contact email' },
+                                    { key: 'licenseTypeInterested', label: 'License Class / Course', desc: 'Interested subcategory' },
+                                    { key: 'quotedAmount', label: 'Estimated Quote Amount', desc: 'Assigned fee budget (number)' },
+                                    { key: 'notes', label: 'Remarks / Notes', desc: 'Brief description/source info' }
+                                ].map(field => (
+                                    <div key={field.key} className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/40 flex flex-col gap-2">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">{field.label}</label>
+                                                <p className="text-[9px] text-slate-400 font-medium mt-0.5">{field.desc}</p>
+                                            </div>
+                                        </div>
+                                        <div className="relative">
+                                            <select
+                                                value={mappings[field.key] || ''}
+                                                onChange={(e) => setMappings(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                                className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg focus:ring-1 focus:ring-indigo-500 font-bold text-xs appearance-none cursor-pointer text-slate-700 dark:text-slate-200"
+                                            >
+                                                <option value="">-- Ignore Field --</option>
+                                                {detectedHeaders.map(h => (
+                                                    <option key={h} value={h}>{h}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* real-time preview table */}
+                            <div className="space-y-2">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Real-time Mapped Row Preview</h4>
+                                <div className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50 dark:bg-slate-900">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-100 dark:bg-slate-800/50 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                <th className="p-3">Full Name</th>
+                                                <th className="p-3">Phone</th>
+                                                <th className="p-3">Category</th>
+                                                <th className="p-3">Quote (KES)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {previewData.map((row, idx) => (
+                                                <tr key={idx} className="text-slate-700 dark:text-slate-300">
+                                                    <td className="p-3 font-semibold">{row.fullName}</td>
+                                                    <td className="p-3">{row.phone}</td>
+                                                    <td className="p-3 font-bold text-indigo-600 dark:text-indigo-400">{row.licenseTypeInterested}</td>
+                                                    <td className="p-3">{row.quotedAmount}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="pt-2">
+                                <button 
+                                    onClick={handleImport}
+                                    disabled={isProcessing || !mappings.fullName || !mappings.phone}
+                                    className="w-full py-4.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
+                                >
+                                    {isProcessing ? 'Processing Mapped Data...' : 'Run Smart Importer'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Supported formats: .xlsx, .csv, .xls</p>
+                    <button onClick={onClose} className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 dark:hover:text-slate-100 transition-colors">Cancel</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const SmartStudentBulkUpdaterModal: React.FC<{
     onClose: () => void;
     students: DSStudent[];
@@ -3958,6 +4216,7 @@ END $$;
 
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isLeadImportModalOpen, setIsLeadImportModalOpen] = useState(false);
     const [isOpeningBalanceModalOpen, setIsOpeningBalanceModalOpen] = useState(false);
     const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
@@ -4869,6 +5128,12 @@ END $$;
                                      activeTab === 'finance' ? 'Generate Invoice' :
                                      activeTab === 'settings' ? 'Add Class Fee' :
                                      activeTab === 'broadcaster' ? 'New Broadcast' : 'New Action'}
+                                </button>
+                            )}
+                            {activeTab === 'leads' && (
+                                <button onClick={() => setIsLeadImportModalOpen(true)} className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3">
+                                    <ArrowUpTrayIcon className="w-4 h-4" />
+                                    Import Leads
                                 </button>
                             )}
                             {activeTab === 'students' && (
@@ -9700,6 +9965,14 @@ END $$;
                             </div>
                         </div>
                     </div>
+                )}
+
+                {isLeadImportModalOpen && (
+                    <SmartLeadImporterModal 
+                        onClose={() => setIsLeadImportModalOpen(false)}
+                        currentInstitution={currentInstitution}
+                        onRefresh={refreshData}
+                    />
                 )}
 
                 {isImportModalOpen && (
