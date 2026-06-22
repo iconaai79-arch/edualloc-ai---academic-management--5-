@@ -305,6 +305,9 @@ const SmartLeadImporterModal: React.FC<{
     const [rawData, setRawData] = useState<any[]>([]);
     const { error: toastError, success: toastSuccess } = useToast();
 
+    const [campaigns, setCampaigns] = useState<any[]>([]);
+    const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+
     const [mappings, setMappings] = useState<Record<string, string>>({
         fullName: '',
         phone: '',
@@ -313,6 +316,19 @@ const SmartLeadImporterModal: React.FC<{
         quotedAmount: '',
         notes: ''
     });
+
+    useEffect(() => {
+        const fetchCampaigns = async () => {
+            try {
+                const records = await apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution?.id || 'inst');
+                const sorted = (records || []).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                setCampaigns(sorted);
+            } catch (err) {
+                console.error("Failed to load campaigns/broadcasts:", err);
+            }
+        };
+        fetchCampaigns();
+    }, [currentInstitution]);
 
     const handleFileSelect = (selectedFile: File) => {
         setFile(selectedFile);
@@ -329,17 +345,17 @@ const SmartLeadImporterModal: React.FC<{
                     toastError("Spreadsheet is empty.");
                     return;
                 }
-
+ 
                 const headers = sheetData[0].filter((h: any) => h !== null && h !== '');
                 setDetectedHeaders(headers);
-
+ 
                 const nameCol = headers.find((h: any) => /name|full|client|candidate|lead/i.test(String(h))) || '';
                 const phoneCol = headers.find((h: any) => /phone|mobile|tel|contact/i.test(String(h))) || '';
                 const emailCol = headers.find((h: any) => /email|mail/i.test(String(h))) || '';
                 const classCol = headers.find((h: any) => /class|category|license|type/i.test(String(h))) || '';
                 const quoteCol = headers.find((h: any) => /quote|amount|fee|price|cost/i.test(String(h))) || '';
                 const notesCol = headers.find((h: any) => /note|remark|comment/i.test(String(h))) || '';
-
+ 
                 setMappings({
                     fullName: nameCol,
                     phone: phoneCol,
@@ -348,7 +364,7 @@ const SmartLeadImporterModal: React.FC<{
                     quotedAmount: quoteCol,
                     notes: notesCol
                 });
-
+ 
                 const rowsJson = XLSX.utils.sheet_to_json(worksheet);
                 setRawData(rowsJson);
                 setStep('map');
@@ -358,7 +374,7 @@ const SmartLeadImporterModal: React.FC<{
         };
         reader.readAsArrayBuffer(selectedFile);
     };
-
+ 
     const previewData = useMemo(() => {
         return rawData.slice(0, 5).map(row => {
             return {
@@ -371,7 +387,7 @@ const SmartLeadImporterModal: React.FC<{
             };
         });
     }, [rawData, mappings]);
-
+ 
     const handleImport = async () => {
         if (!mappings.fullName || !mappings.phone) {
             toastError("Full Name and Phone Number mapping are required.");
@@ -386,12 +402,12 @@ const SmartLeadImporterModal: React.FC<{
                 const fullName = String(row[mappings.fullName] || '').trim();
                 const phone = String(row[mappings.phone] || '').trim();
                 if (!fullName || !phone) continue;
-
+ 
                 const email = mappings.email ? String(row[mappings.email] || '').trim() : '';
                 const licenseTypeInterested = mappings.licenseTypeInterested ? String(row[mappings.licenseTypeInterested] || '').trim() : '';
                 const quotedAmount = mappings.quotedAmount ? Number(row[mappings.quotedAmount]) || 0 : 0;
                 const notes = mappings.notes ? String(row[mappings.notes] || '').trim() : '';
-
+ 
                 const payload = {
                     id: `lead_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     institutionId,
@@ -403,13 +419,14 @@ const SmartLeadImporterModal: React.FC<{
                     status: 'New Enquiry',
                     quotedAmount,
                     notes,
+                    broadcastId: selectedCampaignId || undefined,
                     createdAt: new Date().toISOString()
                 };
-
+ 
                 await apiService.saveModuleRecord('ds_leads', payload);
                 importedCount++;
             }
-
+ 
             toastSuccess(`${importedCount} marketing leads imported successfully!`);
             await onRefresh();
             onClose();
@@ -420,7 +437,7 @@ const SmartLeadImporterModal: React.FC<{
             setIsProcessing(false);
         }
     };
-
+ 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
             <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-scale-in border border-white/20">
@@ -465,12 +482,46 @@ const SmartLeadImporterModal: React.FC<{
                                 <div className="flex-1">
                                     <h4 className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">{file?.name}</h4>
                                     <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{(file ? file.size / 1024 : 0).toFixed(1)} KB • Mapping Headers</p>
+                                    {selectedCampaignId && (
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[8px] font-black bg-indigo-600 text-white uppercase tracking-wider mt-1.5 animate-pulse">
+                                            Linked Campaign Ref
+                                        </span>
+                                    )}
                                 </div>
-                                <button onClick={() => { setFile(null); setStep('upload'); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest">Change</button>
+                                <button onClick={() => { setFile(null); setStep('upload'); setSelectedCampaignId(''); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest">Change</button>
+                            </div>
+
+                            {/* Campaign / Group Selector */}
+                            <div className="bg-indigo-50/30 dark:bg-indigo-950/20 p-4.5 rounded-2xl border border-indigo-100/40 dark:border-indigo-900/40 flex flex-col gap-2">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <label className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest">Link to Group / Campaign (Optional)</label>
+                                        <p className="text-[9px] text-slate-400 font-medium mt-0.5">Associate these imported leads with a specific broadcast message or campaign.</p>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <select
+                                        value={selectedCampaignId}
+                                        onChange={(e) => setSelectedCampaignId(e.target.value)}
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs appearance-none cursor-pointer text-slate-700 dark:text-slate-200"
+                                    >
+                                        <option value="">-- Do not link to any Campaign --</option>
+                                        {campaigns.map(c => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.subject || 'Institutional Broadcast'} ({new Date(c.createdAt).toLocaleDateString()})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                            <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                                        </svg>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Mapping Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[200px] overflow-y-auto pr-1">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[180px] overflow-y-auto pr-1">
                                 {[
                                     { key: 'fullName', label: 'Full Name *', desc: 'Prospective lead name' },
                                     { key: 'phone', label: 'Phone Number *', desc: 'Target phone for campaigns' },
@@ -483,6 +534,7 @@ const SmartLeadImporterModal: React.FC<{
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">{field.label}</label>
+
                                                 <p className="text-[9px] text-slate-400 font-medium mt-0.5">{field.desc}</p>
                                             </div>
                                         </div>
