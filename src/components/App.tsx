@@ -4072,7 +4072,7 @@ export const App: React.FC = () => {
         onAddUser: async (userData: any) => {
             const targetInstitutionId = userData.institutionId || (currentUser?.role === 'super_admin' ? (activeInstitution?.id || 'SYSTEM') : currentUser?.institutionId);
             await apiService.registerUser({ ...userData, id: generateUserId(), institutionId: targetInstitutionId }, activeInstitution?.name);
-            loadData();
+            await loadData(false, true);
         },
         onAddAcademicYear: async (data: any) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); },
         onAddSemester: async (data: any) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); },
@@ -4829,7 +4829,7 @@ export const App: React.FC = () => {
         onOnboardStudent: handleOnboardStudent,
         onOffboardStudent: handleOffboardStudent,
         onSwitchPerspective: (role: Role | null) => setImpersonatedRole(role),
-        onAddUser: async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
+        onAddUser: async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); },
         onEditUser,
         onDeleteUser,
         onAddDepartment: handleAddDepartment,
@@ -5198,7 +5198,7 @@ export const App: React.FC = () => {
                                         onAddInstitution: handleAddCountyInstitution,
                                         onLoginAsAdmin,
                                         onImportInstitutions: handleImportCountyInstitutions,
-                                        onAddUser: async (data: any) => { await apiService.registerUser({ ...data, id: `u_county_${Date.now()}` }, 'County Portal'); loadData(); },
+                                        onAddUser: async (data: any) => { await apiService.registerUser({ ...data, id: `u_county_${Date.now()}` }, 'County Portal'); await loadData(false, true); },
                                         onUpdateUser: onEditUser,
                                         onDeleteUser: onDeleteUser,
                                         inventoryItems: countyInventory,
@@ -5660,7 +5660,7 @@ export const App: React.FC = () => {
                                                 currentInstitution: activeInstitution || undefined,
                                                 users,
                                                 payrollRecords: payrollRecords as any,
-                                                onAddUser: async (u: any) => { await apiService.registerUser({ ...u, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
+                                                onAddUser: async (u: any) => { await apiService.registerUser({ ...u, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); },
                                                 onUpdateUser: onEditUser,
                                                 onDeleteUser: onDeleteUser,
                                                 onLogAction: handleLogAction
