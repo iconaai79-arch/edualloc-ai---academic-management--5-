@@ -21,6 +21,7 @@ interface ConstituencyAdminViewProps {
     onLogout: () => void;
     onLogAction?: (action: string) => void;
     onSendSms?: (recipient: string | string[], message: string) => Promise<any>;
+    onAddUser?: (userData: any) => Promise<void>;
 }
 
 export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
@@ -29,7 +30,8 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     users = [],
     onLogout,
     onLogAction,
-    onSendSms
+    onSendSms,
+    onAddUser
 }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [ngCdfFunds, setNgCdfFunds] = useState<NGCdfFund[]>([]);

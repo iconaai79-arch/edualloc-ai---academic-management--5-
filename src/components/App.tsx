@@ -5346,6 +5346,14 @@ export const App: React.FC = () => {
                                         users={users}
                                         onLogout={handleLogout}
                                         onLogAction={handleLogAction}
+                                        onAddUser={async (userData: any) => {
+                                            const constituencyId = currentUser?.institutionId || currentUser?.id || 'constituency';
+                                            await apiService.registerUser(
+                                                { ...userData, id: `u_cdf_${Date.now()}`, institutionId: constituencyId },
+                                                currentUser?.name || 'Constituency Portal'
+                                            );
+                                            await loadData(false, true);
+                                        }}
                                         onSendSms={async (recipient: string | string[], message: string) => {
                                             const targetInstId = activeInstitution?.id || currentUser?.institutionId || 'Kigumo';
                                             const config = activeInstitution?.smsConfig || companyDetails?.smsConfig;
