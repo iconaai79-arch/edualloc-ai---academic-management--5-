@@ -4,4 +4,8 @@
     <string name="title_activity_main">eduai-academic-management</string>
     <string name="package_name">com.eduai.academic</string>
     <string name="custom_url_scheme">com.eduai.academic</string>
+    <string name="shortcut_timetable">Timetable</string>
+    <string name="shortcut_timetable_long">View Academic Timetable</string>
+    <string name="shortcut_scan">Scan Doc</string>
+    <string name="shortcut_scan_long">Scan Academic Document</string>
 </resources>
