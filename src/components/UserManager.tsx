@@ -4,7 +4,8 @@ import type {
     User, Role, SmsConfig, Department, Unavailability, Course,
     CourseLevel, UserMappingField, StaffImportPreviewUser, Institution,
     AllocationRequest, Priority, Subject, UserUpdateData, LetterheadConfig,
-    CompanyDetails, MpesaTransaction, TransactionStatus, InvoiceItem, TimeOffRequest
+    CompanyDetails, MpesaTransaction, TransactionStatus, InvoiceItem, TimeOffRequest,
+    Constituency, County
 } from '../types';
 import { PayNowModal } from './PayNowModal';
 import { RETAIL_SUBTYPES, VALID_STAFF_ROLES } from '../constants';
@@ -903,6 +904,20 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [pendingStudentSave, setPendingStudentSave] = useState<any | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const [constituencies, setConstituencies] = useState<Constituency[]>([]);
+    const [counties, setCounties] = useState<County[]>([]);
+    const [selectedConstituency, setSelectedConstituency] = useState('');
+    const [selectedCounty, setSelectedCounty] = useState('');
+
+    const isSuperAdmin = useMemo(() => currentUser?.role === 'super_admin', [currentUser?.role]);
+
+    useEffect(() => {
+        if (isSuperAdmin) {
+            apiService.fetchModuleRecords<Constituency>('constituencies').then(setConstituencies).catch(console.error);
+            apiService.fetchModuleRecords<County>('counties').then(setCounties).catch(console.error);
+        }
+    }, [isSuperAdmin]);
+
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
 
     const isSchool = isSchoolInstitution(currentInstitution);
@@ -966,6 +981,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         setCourseId(''); setCourseLevelId(''); setDriverType('staff');
         setSendWelcomeSms(false);
         setSendWelcomeEmail(false);
+        setSelectedConstituency('');
+        setSelectedCounty('');
     };
 
     const toggleRole = (r: Role) => {
@@ -997,8 +1014,6 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         ];
         return baseAdminRoles.includes(r) || (currentUser.roles && (currentUser.roles.includes('admin') || currentUser.roles.includes('super_admin')));
     }, [currentUser]);
-
-    const isSuperAdmin = useMemo(() => currentUser?.role === 'super_admin', [currentUser?.role]);
 
     const filteredUsers = useMemo(() => {
         let list = (users || []).filter(u => {
@@ -1115,6 +1130,30 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             }
         }
 
+        if (isSuperAdmin && activeTab === 'staff') {
+            if (roles.some(r => r.startsWith('constituency_')) && !selectedConstituency) {
+                alert('Please select an Assigned Constituency.');
+                return;
+            }
+            if (roles.some(r => r.startsWith('county_')) && !selectedCounty) {
+                alert('Please select an Assigned County.');
+                return;
+            }
+        }
+
+        let finalInstitutionId = currentInstitution?.id || currentUser?.institutionId || '';
+        let finalCountyId = undefined;
+
+        if (isSuperAdmin && activeTab === 'staff') {
+            if (roles.some(r => r.startsWith('constituency_'))) {
+                finalInstitutionId = selectedConstituency;
+                finalCountyId = constituencies.find(c => c.name === selectedConstituency)?.countyId;
+            } else if (roles.some(r => r.startsWith('county_'))) {
+                finalInstitutionId = selectedCounty;
+                finalCountyId = selectedCounty;
+            }
+        }
+
         const userData: any = {
             name,
             email: finalEmail,
@@ -1123,7 +1162,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             gender,
             role: activeTab === 'staff' ? roles[0] : (activeTab === 'customer' ? roles[0] || 'customer' : 'student'),
             roles: activeTab === 'staff' ? roles : (activeTab === 'customer' ? (roles.length > 0 ? roles : ['customer']) : ['student']),
-            institutionId: currentInstitution?.id || currentUser?.institutionId || '',
+            institutionId: finalInstitutionId,
+            countyId: finalCountyId,
             expertise: [],
             driverType: roles.includes('driver') ? driverType : undefined,
             createdAt: new Date().toISOString()
@@ -1224,6 +1264,17 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     }, [courseId, courses]);
 
     const institutionMap = useMemo(() => new Map((institutions || []).filter(i => i && i.id).map(i => [i.id, i.name])), [institutions]);
+
+    const selectableRoles = useMemo(() => {
+        const list = getRolesForInstitution(currentInstitution).filter(r => !['customer', 'lead'].includes(r));
+        if (isSuperAdmin) {
+            const extras: Role[] = ['super_admin', 'reseller', 'county_admin', 'county_staff', 'constituency_admin', 'constituency_staff'];
+            extras.forEach(r => {
+                if (!list.includes(r)) list.push(r);
+            });
+        }
+        return list;
+    }, [currentInstitution, isSuperAdmin]);
 
     return (
         <div className="space-y-6">
@@ -1333,7 +1384,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                     <div className="md:col-span-2 lg:col-span-3">
                                         <label className="block text-sm font-medium mb-2">{activeTab === 'staff' ? 'Assigned Roles' : 'Category'}</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                            {activeTab === 'staff' && getRolesForInstitution(currentInstitution).filter(r => !['customer', 'lead'].includes(r)).map(r => (
+                                            {activeTab === 'staff' && selectableRoles.map(r => (
                                                 <label key={r} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${roles.includes(r) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                                     <input
                                                         type="checkbox"
@@ -1361,6 +1412,38 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             ))}
                                         </div>
                                     </div>
+                                    {isSuperAdmin && activeTab === 'staff' && roles.some(r => r.startsWith('constituency_')) && (
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Assigned Constituency</label>
+                                            <select
+                                                value={selectedConstituency}
+                                                onChange={e => setSelectedConstituency(e.target.value)}
+                                                className="form-select w-full"
+                                                required
+                                            >
+                                                <option value="">-- Select Constituency --</option>
+                                                {(constituencies || []).map(c => (
+                                                    <option key={c.id} value={c.name}>{c.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                    {isSuperAdmin && activeTab === 'staff' && roles.some(r => r.startsWith('county_')) && (
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Assigned County</label>
+                                            <select
+                                                value={selectedCounty}
+                                                onChange={e => setSelectedCounty(e.target.value)}
+                                                className="form-select w-full"
+                                                required
+                                            >
+                                                <option value="">-- Select County --</option>
+                                                {(counties || []).map(c => (
+                                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                     {!isRetailAgency && !isCoop && !isChurch && !isPm && !isDS && isEdu && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Department</label>
@@ -1718,6 +1801,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     currentInstitution={currentInstitution}
                     isCoop={isCoop}
                     fixedDepartmentId={currentUser?.role === 'hod' || currentUser?.role === 'tto' ? currentUser.departmentId : undefined}
+                    isSuperAdmin={isSuperAdmin}
                 />
             )}
 

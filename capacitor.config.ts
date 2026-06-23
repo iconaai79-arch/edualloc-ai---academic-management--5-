@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.eduai.academic',
-  appName: 'EduAi Academic',
+  appName: 'EduAi',
   webDir: 'dist',
   server: {
     url: 'https://portal.eduai.co.ke',

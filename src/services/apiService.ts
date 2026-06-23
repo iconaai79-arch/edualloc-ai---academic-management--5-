@@ -132,6 +132,7 @@ const ls = {
             localStorage.setItem(`eduai_${table}`, JSON.stringify(safeData));
         } catch (e) {
             console.error(`[localStorage helper] Error writing table ${table}:`, e);
+            throw e;
         }
     },
     upsert: (table: string, record: any) => {
@@ -624,6 +625,8 @@ export const apiService = {
             if (type === 'institution') {
                 if (mod === 'institutions') return 'id';
                 if (mod === 'county_inventory') return 'target_institution_id';
+                if (mod === 'ng_cdf_funds') return 'constituency_id';
+                if (mod === 'ng_cdf_bursaries') return 'constituency_name';
                 return 'institution_id';
             } else {
                 if (mod === 'counties') return 'id';
@@ -1061,7 +1064,16 @@ export const apiService = {
         let payload = apiService.sanitizePayload(module, data.map(toSnakeCase));
 
         if (!_supabase) {
-            payload.forEach((item: any) => ls.upsert(module, item));
+            const records = ls.get(module);
+            payload.forEach((item: any) => {
+                const index = records.findIndex((r: any) => r && r.id === item.id);
+                if (index >= 0) {
+                    records[index] = { ...records[index], ...item };
+                } else {
+                    records.push(item);
+                }
+            });
+            ls.set(module, records);
             return data;
         }
 

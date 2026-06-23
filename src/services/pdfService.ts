@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -6731,5 +6731,203 @@ export const generateEventReportPdf = async (
     // Process footers on all pages
     setupPdfFooter(doc, footerImg, footerText);
 
+    return doc.output('datauristring');
+};
+
+export const generateBursaryKitPdf = async (
+    student: User,
+    institution: Institution,
+    invoices: Invoice[],
+    receipts: Receipt[],
+    assessments: Assessment[],
+    assessmentMarks: AssessmentMark[],
+    subjects: Subject[],
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null,
+    footerImageUrl: string | null,
+    courseName: string,
+    levelName: string
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg, stampImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl),
+        loadImage(letterheadConfig?.stampImageUrl)
+    ]);
+
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // PAGE 1: Checklist & Letter of Registration Status
+    let yPos = setupPdfHeader(doc, headerImg);
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("NG-CDF BURSARY APPLICATION SUPPORT KIT", margin, yPos);
+    yPos += 8;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text("PART A: REGISTRATION STATUS CERTIFICATE", margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    yPos += 8;
+
+    const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    doc.text(`Date: ${dateStr}`, margin, yPos);
+    yPos += 10;
+
+    doc.text("TO WHOM IT MAY CONCERN,", margin, yPos);
+    yPos += 8;
+
+    const bodyText = `This is to certify that ${student.name} (Admission Number: ${student.admissionNumber || student.admission_number || 'PENDING'}) is a registered student at ${institution.name}.
+
+The student is currently enrolled in:
+  • Course / Program: ${courseName || 'N/A'}
+  • Current Level / Year: ${levelName || 'N/A'}
+  • Status: Active / In-Good-Standing
+
+We confirm that this student has been vetted by our administration and is recommended to receive financial assistance through the National Government Constituencies Development Fund (NG-CDF) Bursary Program.`;
+
+    const splitBody = doc.splitTextToSize(bodyText, pageWidth - (margin * 2));
+    doc.text(splitBody, margin, yPos);
+    yPos += splitBody.length * 5 + 10;
+
+    if (stampImg) {
+        doc.addImage(stampImg, 'PNG', margin + 5, yPos - 5, 30, 30);
+    }
+    yPos += 20;
+    doc.line(margin, yPos, margin + 60, yPos);
+    yPos += 5;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text("Academic Registrar", margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(institution.name, margin, yPos + 4);
+
+    // PAGE 2: Official Fee Statement
+    doc.addPage();
+    let yPosPage2 = setupPdfHeader(doc, headerImg);
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text("PART B: OFFICIAL FEE STATEMENT", margin, yPosPage2);
+    yPosPage2 += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Student Name: ${student.name}`, margin, yPosPage2);
+    doc.text(`Adm Number  : ${student.admissionNumber || student.admission_number || 'N/A'}`, pageWidth - margin - 70, yPosPage2);
+    yPosPage2 += 10;
+
+    const ledger: Array<{ date: string; ref: string; desc: string; debit: number; credit: number }> = [];
+    let totalInvoiced = 0;
+    let totalPaid = 0;
+
+    invoices.forEach(inv => {
+        ledger.push({
+            date: inv.issueDate ? inv.issueDate.split('T')[0] : '—',
+            ref: inv.invoiceNumber || 'INV',
+            desc: inv.className || 'Academic Fees Billed',
+            debit: inv.totalAmount || 0,
+            credit: 0
+        });
+        totalInvoiced += inv.totalAmount || 0;
+    });
+
+    receipts.forEach(rcpt => {
+        ledger.push({
+            date: rcpt.paymentDate || '—',
+            ref: rcpt.receiptNumber || 'RCPT',
+            desc: rcpt.paidFor || 'Fee Payment',
+            debit: 0,
+            credit: rcpt.amountPaid || 0
+        });
+        totalPaid += rcpt.amountPaid || 0;
+    });
+
+    ledger.sort((a, b) => a.date.localeCompare(b.date));
+
+    const tableHead = [['Date', 'Reference', 'Description', 'Debit (KES)', 'Credit (KES)', 'Balance (KES)']];
+    let balance = 0;
+    const tableBody = ledger.map(item => {
+        balance += (item.debit - item.credit);
+        return [
+            item.date,
+            item.ref,
+            item.desc,
+            item.debit > 0 ? `KES ${item.debit.toLocaleString()}.00` : '—',
+            item.credit > 0 ? `KES ${item.credit.toLocaleString()}.00` : '—',
+            `KES ${balance.toLocaleString()}.00`
+        ];
+    });
+
+    (doc as any).autoTable({
+        startY: yPosPage2,
+        head: tableHead,
+        body: tableBody,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 8 },
+        margin: { left: margin }
+    });
+
+    const finalY2 = (doc as any).lastAutoTable.finalY || (yPosPage2 + 25);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`Total Billed: KES ${totalInvoiced.toLocaleString()}.00`, margin, finalY2 + 10);
+    doc.text(`Total Paid  : KES ${totalPaid.toLocaleString()}.00`, margin, finalY2 + 15);
+    doc.setTextColor(180, 0, 0);
+    doc.text(`Outstanding Balance: KES ${(totalInvoiced - totalPaid).toLocaleString()}.00`, margin, finalY2 + 20);
+    doc.setTextColor(0, 0, 0);
+
+    // PAGE 3: Academic Progress / Report Card
+    doc.addPage();
+    let yPosPage3 = setupPdfHeader(doc, headerImg);
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text("PART C: ACADEMIC PROGRESS REPORT CARD", margin, yPosPage3);
+    yPosPage3 += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Student Name: ${student.name}`, margin, yPosPage3);
+    yPosPage3 += 10;
+
+    const studentMarks = assessmentMarks.filter(m => m.studentId === student.id);
+    const marksBody = studentMarks.map((m, idx) => {
+        const assess = assessments.find(a => a.id === m.assessmentId);
+        const subj = assess ? subjects.find(s => s.id === assess.subjectId) : null;
+        return [
+            idx + 1,
+            subj?.name || subj?.code || 'Unknown Module',
+            assess?.title || 'Continuous Assessment',
+            `${m.score} / ${assess?.maxScore || 100}`,
+            m.grade || '—',
+            m.remarks || 'Satisfactory'
+        ];
+    });
+
+    const marksHead = [['#', 'Module / Subject', 'Assessment Title', 'Score', 'Grade', 'Remarks']];
+
+    if (marksBody.length === 0) {
+        doc.text("No continuous assessment or exam marks recorded for this academic period.", margin, yPosPage3);
+    } else {
+        (doc as any).autoTable({
+            startY: yPosPage3,
+            head: marksHead,
+            body: marksBody,
+            theme: 'striped',
+            headStyles: { fillColor: [45, 55, 72] },
+            styles: { fontSize: 8 },
+            margin: { left: margin }
+        });
+    }
+
+    setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };

@@ -68,6 +68,7 @@ const FinanceOfficerView = safeLazy(() => import('./Finance/FinanceOfficerView')
 const HROfficerView = safeLazy(() => import('./HR/HROfficerView').then(m => ({ default: m.HROfficerView })));
 const LibraryWarRoom = safeLazy(() => import('./Library/LibraryWarRoom').then(m => ({ default: m.LibraryWarRoom })));
 const CountyAdminView = safeLazy(() => import('./CountyAdminView').then(m => ({ default: m.CountyAdminView })));
+const ConstituencyAdminView = safeLazy(() => import('./ConstituencyAdminView').then(m => ({ default: m.ConstituencyAdminView })));
 const ParentView = safeLazy(() => import('./ParentView').then(m => ({ default: m.ParentView })));
 const PracticeTeacherView = safeLazy(() => import('./PracticeTeacherView').then(m => ({ default: m.PracticeTeacherView })));
 const CarWashView = safeLazy(() => import('./CarWashView').then(m => ({ default: m.CarWashView })));
@@ -683,6 +684,7 @@ export const App: React.FC = () => {
             const roleNames: Record<string, string> = {
                 'super_admin': 'Super Admin',
                 'county_admin': 'County Portal',
+                'constituency_admin': 'Constituency Portal',
                 'admin': 'Admin Portal',
                 'head_teacher': 'Principal Portal',
                 'lecturer': 'Lecturer Portal',
@@ -5228,6 +5230,14 @@ export const App: React.FC = () => {
                                         transactionLimit,
                                         setTransactionLimit
                                     } as any}
+                                    />
+                                ) : (activeRole === 'constituency_admin' || activeRole?.startsWith('constituency_')) ? (
+                                    <ConstituencyAdminView
+                                        currentUser={currentUser!}
+                                        institutions={institutions}
+                                        users={users}
+                                        onLogout={handleLogout}
+                                        onLogAction={handleLogAction}
                                     />
                                 ) : activeRole === 'academics_officer' ? (
                                     <ModuleAccessGuard

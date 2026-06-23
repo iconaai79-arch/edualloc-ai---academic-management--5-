@@ -296,8 +296,9 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
 const SmartLeadImporterModal: React.FC<{
     onClose: () => void;
     currentInstitution: any;
+    currentUser: User | undefined;
     onRefresh: () => Promise<void>;
-}> = ({ onClose, currentInstitution, onRefresh }) => {
+}> = ({ onClose, currentInstitution, currentUser, onRefresh }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [processedCount, setProcessedCount] = useState(0);
@@ -404,7 +405,12 @@ const SmartLeadImporterModal: React.FC<{
         setEtaSeconds(null);
 
         try {
-            const institutionId = currentInstitution?.id || 'inst';
+            const institutionId = currentInstitution?.id || currentUser?.institutionId;
+            if (!institutionId || institutionId === 'inst' || institutionId === 'GLOBAL') {
+                toastError("Cannot resolve a valid institution context for import. Please ensure an active institution is selected.");
+                setIsProcessing(false);
+                return;
+            }
             const payloads: any[] = [];
             
             for (const row of rawData) {
@@ -492,7 +498,11 @@ const SmartLeadImporterModal: React.FC<{
             onClose();
         } catch (err: any) {
             console.error("Leads import failed:", err);
-            toastError("Failed to import leads. " + (err.message || ''));
+            let userFriendlyMsg = err.message || '';
+            if (err.name === 'QuotaExceededError' || err.message?.includes('QuotaExceededError') || err.message?.includes('quota exceeded') || err.message?.includes('exceeded the quota')) {
+                userFriendlyMsg = "Web browser storage is full (quota of 5MB exceeded). Please connect to a live Supabase database to store large datasets.";
+            }
+            toastError("Failed to import leads. " + userFriendlyMsg);
         } finally {
             setIsProcessing(false);
         }
@@ -10346,6 +10356,7 @@ END $$;
                     <SmartLeadImporterModal 
                         onClose={() => setIsLeadImportModalOpen(false)}
                         currentInstitution={currentInstitution}
+                        currentUser={currentUser}
                         onRefresh={refreshData}
                     />
                 )}

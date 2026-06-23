@@ -102,12 +102,13 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items', 'hospitality_vehicles', 'events', 'event_categories', 'event_participants', 'event_splits', 'event_pledges', 'ds_students', 'ds_lessons', 'ds_settings', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles', 'ds_skill_mastery', 'ds_votes', 'ds_license_categories', 'ds_leads', 'store_categories', 'integration_logs', 'event_pins', 'institution_events', 'student_enrollments'];
+const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items', 'hospitality_vehicles', 'events', 'event_categories', 'event_participants', 'event_splits', 'event_pledges', 'ds_students', 'ds_lessons', 'ds_settings', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles', 'ds_skill_mastery', 'ds_votes', 'ds_license_categories', 'ds_leads', 'store_categories', 'integration_logs', 'event_pins', 'institution_events', 'student_enrollments', 'county_bursary_funds', 'bursary_applications', 'ng_cdf_funds', 'ng_cdf_bursaries'];
 
 const isTableWithoutInstitutionId = (module: string) => {
   return [
     'counties', 'constituencies', 'wards', 'political_parties',
-    'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs'
+    'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs',
+    'county_bursary_funds', 'ng_cdf_funds'
   ].includes(module);
 };
 
@@ -119,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const { module, id, select, order, limit, institutionId: queryInstitutionId } = req.query;
+    const { module, id, select, order, limit, institutionId: queryInstitutionId, countyId: queryCountyId } = req.query;
     const getStrParam = (p: any): string => (Array.isArray(p) ? p[0] : (p as string) || '');
     const moduleName = getStrParam(module);
     
@@ -160,7 +161,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (isCounty) {
                     if (moduleName === 'counties') q = q.eq('id', user.institutionId);
                     else if (moduleName === 'institutions') q = q.eq('county_id', user.institutionId);
+                    else if (moduleName === 'county_bursary_funds') q = q.eq('county_id', user.institutionId);
                     else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('county_id', user.institutionId);
+                } else if (user.role?.startsWith('constituency_')) {
+                    if (moduleName === 'ng_cdf_funds') {
+                        q = q.or(`constituency_id.eq.${user.institutionId},constituency_name.eq.${user.institutionId}`);
+                    } else if (moduleName === 'ng_cdf_bursaries') {
+                        q = q.eq('constituency_name', user.institutionId);
+                    }
                 } else if (user.role === 'alumna') {
                     if (moduleName === 'alumni_messages') {
                         // Support both recipient_id and receiver_id for legacy/migration compatibility
@@ -180,6 +188,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (getStrParam(id)) q = q.eq('id', getStrParam(id));
             if (getStrParam(queryInstitutionId) && !isTableWithoutInstitutionId(moduleName)) q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', getStrParam(queryInstitutionId));
+            if (getStrParam(queryCountyId)) q = q.eq('county_id', getStrParam(queryCountyId));
 
             // Custom filters from other query params
             const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'institutionId', 'countyId'];

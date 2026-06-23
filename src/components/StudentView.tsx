@@ -24,7 +24,8 @@ import { StudentDashboard } from './StudentDashboard';
 import { StudentAssignmentManager } from './StudentAssignmentManager';
 import { RatingModal } from './RatingModal';
 import { FeedbackForm } from './FeedbackForm';
-import { generateStudentTimetablePdf } from '../services/pdfService';
+import { generateStudentTimetablePdf, generateBursaryKitPdf } from '../services/pdfService';
+import { apiService } from '../services/apiService';
 import { StudentAbsenceRequestModal } from './StudentAbsenceRequestModal';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
 import { TAAssignmentsView } from './TAAssignmentsView';
@@ -241,6 +242,59 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
     const [now, setNow] = useState(new Date());
     const [ratingLesson, setRatingLesson] = useState<TimetableEntry | null>(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [isGeneratingBursaryKit, setIsGeneratingBursaryKit] = useState(false);
+    const [studentInvoices, setStudentInvoices] = useState<Invoice[]>([]);
+    const [studentReceipts, setStudentReceipts] = useState<Receipt[]>([]);
+    const [isLoadingBilling, setIsLoadingBilling] = useState(false);
+
+    useEffect(() => {
+        if (currentInstitution?.id && user.id) {
+            setIsLoadingBilling(true);
+            Promise.all([
+                apiService.fetchModuleRecords<Invoice>('invoices', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<Receipt>('receipts', currentInstitution.id).catch(() => [])
+            ]).then(([invs, rcpts]) => {
+                setStudentInvoices(invs.filter(i => i.studentId === user.id));
+                setStudentReceipts(rcpts.filter(r => r.studentId === user.id));
+            }).catch(err => {
+                console.error("Failed to fetch billing info", err);
+            }).finally(() => {
+                setIsLoadingBilling(false);
+            });
+        }
+    }, [currentInstitution?.id, user.id]);
+
+    const handleDownloadBursaryKit = async () => {
+        if (!currentInstitution) return;
+        setIsGeneratingBursaryKit(true);
+        try {
+            const pdfUrl = await generateBursaryKitPdf(
+                user,
+                currentInstitution,
+                studentInvoices,
+                studentReceipts,
+                props.assessments,
+                props.assessmentMarks,
+                subjects,
+                letterheadConfig,
+                logoUrl,
+                footerImageUrl,
+                course?.name || 'N/A',
+                level?.name || 'N/A'
+            );
+            const link = document.createElement('a');
+            link.href = pdfUrl;
+            link.download = `NG-CDF_Bursary_Kit_${user.name.replace(/\s/g, '_')}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error("Failed to generate Bursary Kit PDF:", error);
+            alert("Could not generate Bursary Kit PDF.");
+        } finally {
+            setIsGeneratingBursaryKit(false);
+        }
+    };
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 5000);
@@ -369,7 +423,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         return null;
     };
 
-    const tabs = ['dashboard', 'my_timetable', 'assignments', 'feedback', 'absences', 'nearby_classes', 'eduflow'];
+    const tabs = ['dashboard', 'my_timetable', 'assignments', 'feedback', 'absences', 'bursary_kit', 'nearby_classes', 'eduflow'];
 
     return (
         <div className="space-y-6">
@@ -541,6 +595,58 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                             courses={courses}
                         />
                     </Suspense>
+                </div>
+            )}
+
+            {activeTab === 'bursary_kit' && (
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-in fade-in duration-300">
+                    <div>
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Govt & NG-CDF Bursary Application Kit</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Download a certified pre-filled package containing your enrollment status, official statement of fees, and academic report card to support your bursary application.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Document A</span>
+                            <h4 className="font-bold text-slate-800 dark:text-slate-200 mt-1">Checklist & Certificate</h4>
+                            <p className="text-xs text-slate-500 mt-1">Official signed letter certifying your active enrollment status.</p>
+                        </div>
+                        <div className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Document B</span>
+                            <h4 className="font-bold text-slate-800 dark:text-slate-200 mt-1">Fee Statement Ledger</h4>
+                            <p className="text-xs text-slate-500 mt-1">Itemized history of fees billed and receipts cleared.</p>
+                        </div>
+                        <div className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Document C</span>
+                            <h4 className="font-bold text-slate-800 dark:text-slate-200 mt-1">Academic Transcript</h4>
+                            <p className="text-xs text-slate-500 mt-1">Summary of grades and continuous assessments marks.</p>
+                        </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center flex-wrap gap-4">
+                        <div>
+                            <p className="text-xs font-bold text-slate-500">Course: <span className="text-slate-800 dark:text-slate-200 font-extrabold">{course?.name || 'N/A'}</span></p>
+                            <p className="text-xs font-bold text-slate-500">Outstanding Balance: <span className="text-rose-600 font-extrabold">KES {((studentInvoices.reduce((s,i) => s + (i.totalAmount || 0), 0) - studentReceipts.reduce((s,r) => s + (r.amountPaid || 0), 0)) || 0).toLocaleString()}</span></p>
+                        </div>
+
+                        <button
+                            onClick={handleDownloadBursaryKit}
+                            disabled={isGeneratingBursaryKit || isLoadingBilling}
+                            className="px-8 py-4 bg-indigo-600 text-white hover:bg-indigo-700 rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-indigo-100 dark:shadow-none"
+                        >
+                            {isGeneratingBursaryKit ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Generating Kit...
+                                </>
+                            ) : (
+                                <>
+                                    <DocumentArrowDownIcon className="w-4 h-4" />
+                                    Download Application Kit
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </div>
             )}
 

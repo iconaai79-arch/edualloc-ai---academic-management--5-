@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails } from '../../types';
+import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
@@ -49,16 +49,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'expenses' | 'audit' | 'requisitions' | 'config'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config'>('overview');
 
     const tabs = [
         { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Billing Engine', icon: ZapIcon },
+        { id: 'bursaries', label: 'Govt & NG-CDF Bursaries', icon: ScaleIcon },
         ...(!isDrivingSchool ? [{ id: 'config', label: 'Fee Configuration', icon: CreditCardIcon }] : []),
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
         { id: 'requisitions', label: 'Requisitions & LPOs', icon: ClipboardListIcon },
         { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
     ] as const;
+
+    // NG-CDF Bursary States
+    const [bursaryStudentSearch, setBursaryStudentSearch] = useState('');
+    const [bursaryStudentId, setBursaryStudentId] = useState('');
+    const [bursaryConstituency, setBursaryConstituency] = useState('');
+    const [bursaryAmount, setBursaryAmount] = useState('');
+    const [bursaryChequeNumber, setBursaryChequeNumber] = useState('');
+    const [bursaryNotes, setBursaryNotes] = useState('');
+    const [bursaryFY, setBursaryFY] = useState('2025/2026');
+    const [bursaryRecords, setBursaryRecords] = useState<NGCdfBursary[]>([]);
+    const [isSavingBursary, setIsSavingBursary] = useState(false);
 
     const [retailStores, setRetailStores] = useState<any[]>([]);
     const [inventory, setInventory] = useState<any[]>([]);
@@ -139,6 +151,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 .catch(err => console.error("Failed to load ds_fee_structures:", err));
         }
     }, [props.institution.id, isDrivingSchool]);
+
+    // Retrieve NG-CDF Bursary records
+    useEffect(() => {
+        const instId = props.institution.id;
+        apiService.fetchModuleRecords<any>('ng_cdf_bursaries', instId)
+            .then(res => setBursaryRecords(res || []))
+            .catch(err => console.error("Failed to load ng_cdf_bursaries:", err));
+    }, [props.institution.id]);
 
     // Pre-populate builder amounts from existing structures
     useEffect(() => {
@@ -429,6 +449,97 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         } catch (err) {
             console.error("Failed to record DS payment:", err);
             alert("Database rejection recording DS payment.");
+        }
+    };
+
+    // Filter students for search dropdown
+    const filteredStudents = useMemo(() => {
+        if (!bursaryStudentSearch || bursaryStudentId) return [];
+        return props.students.filter(s => 
+            s.name?.toLowerCase().includes(bursaryStudentSearch.toLowerCase()) ||
+            s.admissionNumber?.toLowerCase().includes(bursaryStudentSearch.toLowerCase()) ||
+            s.admission_number?.toLowerCase().includes(bursaryStudentSearch.toLowerCase())
+        );
+    }, [bursaryStudentSearch, bursaryStudentId, props.students]);
+
+    // Record NG-CDF Bursary and clear student ledger
+    const handlePostBursaryCheque = async () => {
+        if (!bursaryStudentId || !bursaryConstituency || !bursaryAmount || !bursaryChequeNumber) {
+            alert("Please search and select a student, enter constituency name, cheque reference, and amount.");
+            return;
+        }
+        setIsSavingBursary(true);
+        try {
+            const student = props.students.find(s => s.id === bursaryStudentId);
+            if (!student) {
+                alert("Student not found.");
+                setIsSavingBursary(false);
+                return;
+            }
+
+            const amount = Number(bursaryAmount);
+            const instId = props.institution.id;
+
+            // 1. Save standard receipt to student ledger
+            const receipt = {
+                id: `rcpt_bursary_${Date.now()}`,
+                receiptNumber: `B-RCPT-${Date.now().toString().slice(-6)}`,
+                institutionId: instId,
+                studentId: bursaryStudentId,
+                amountPaid: amount,
+                paymentMethod: 'Cheque',
+                relatedTransactionId: bursaryChequeNumber,
+                paymentDate: new Date().toISOString().split('T')[0],
+                paidFor: `NG-CDF Bursary allocation (${bursaryConstituency})`,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('receipts', receipt);
+
+            // 2. Save NG-CDF Bursary record
+            const bursary = {
+                id: `bursary_${Date.now()}`,
+                studentId: bursaryStudentId,
+                studentName: student.name,
+                institutionId: instId,
+                institutionName: props.institution.name,
+                constituencyName: bursaryConstituency,
+                amountRequested: amount,
+                amountApproved: amount,
+                purpose: 'Academic Tuition Bursary',
+                status: 'disbursed' as const,
+                chequeNumber: bursaryChequeNumber,
+                appliedAt: new Date().toISOString(),
+                vettedAt: new Date().toISOString(),
+                vettedBy: props.currentUser.name || 'Finance Officer',
+                disbursedAt: new Date().toISOString(),
+                notes: bursaryNotes || '',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('ng_cdf_bursaries', bursary);
+
+            // Refresh parent state & local state
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+
+            const updatedList = await apiService.fetchModuleRecords<any>('ng_cdf_bursaries', instId).catch(() => []);
+            setBursaryRecords(updatedList);
+
+            // Clear inputs
+            setBursaryStudentId('');
+            setBursaryStudentSearch('');
+            setBursaryConstituency('');
+            setBursaryAmount('');
+            setBursaryChequeNumber('');
+            setBursaryNotes('');
+
+            alert("Bursary cheque posted and allocated to student ledger successfully!");
+        } catch (e) {
+            console.error("Failed to post bursary cheque:", e);
+            alert("Failed to save bursary cheque.");
+        } finally {
+            setIsSavingBursary(false);
         }
     };
 
@@ -1135,6 +1246,168 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             isEducation={isEduInstitution(props.institution)}
                             allUsers={allUsers}
                         />
+                    </div>
+                )}
+
+                {activeTab === 'bursaries' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Left column: Posting Form */}
+                        <div className="lg:col-span-1 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-6">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Record NG-CDF Cheque</h3>
+                                <p className="text-xs text-slate-400 font-medium">Post government bursary allocations directly to student accounts.</p>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                {/* Student Search */}
+                                <div className="space-y-1 relative">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Search Student</label>
+                                    <input 
+                                        type="text"
+                                        placeholder="Type student name or admission number..."
+                                        value={bursaryStudentSearch}
+                                        onChange={e => {
+                                            setBursaryStudentSearch(e.target.value);
+                                            // Reset selected ID if typing
+                                            if (bursaryStudentId) setBursaryStudentId('');
+                                        }}
+                                        className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
+                                    />
+                                    {bursaryStudentSearch && !bursaryStudentId && (
+                                        <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-150 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                            {filteredStudents.length === 0 ? (
+                                                <div className="p-4 text-xs text-slate-400 font-medium">No students matched.</div>
+                                            ) : (
+                                                filteredStudents.map(student => (
+                                                    <button
+                                                        key={student.id}
+                                                        onClick={() => {
+                                                            setBursaryStudentId(student.id);
+                                                            setBursaryStudentSearch(`${student.name} (${student.admissionNumber || student.admission_number || 'No Adm'})`);
+                                                        }}
+                                                        className="w-full p-4 hover:bg-slate-50 text-left text-xs font-bold text-slate-700 flex flex-col"
+                                                    >
+                                                        <span>{student.name}</span>
+                                                        <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.admissionNumber || student.admission_number || '—'}</span>
+                                                    </button>
+                                                ))
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Constituency */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">NG-CDF / Constituency Name</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. Kigumo NG-CDF"
+                                        value={bursaryConstituency}
+                                        onChange={e => setBursaryConstituency(e.target.value)}
+                                        className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
+                                    />
+                                </div>
+
+                                {/* Financial Year */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Financial Year</label>
+                                    <select 
+                                        value={bursaryFY}
+                                        onChange={e => setBursaryFY(e.target.value)}
+                                        className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
+                                    >
+                                        <option value="2025/2026">2025/2026</option>
+                                        <option value="2026/2027">2026/2027</option>
+                                        <option value="2027/2028">2027/2028</option>
+                                    </select>
+                                </div>
+
+                                {/* Cheque Number */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Cheque / EFT Reference Number</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. CHQ-981273"
+                                        value={bursaryChequeNumber}
+                                        onChange={e => setBursaryChequeNumber(e.target.value)}
+                                        className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
+                                    />
+                                </div>
+
+                                {/* Amount */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Amount (KES)</label>
+                                    <input 
+                                        type="number" 
+                                        placeholder="Amount in KES"
+                                        value={bursaryAmount}
+                                        onChange={e => setBursaryAmount(e.target.value)}
+                                        className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
+                                    />
+                                </div>
+
+                                {/* Notes */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Allocations Remarks / Notes</label>
+                                    <textarea 
+                                        rows={3} 
+                                        placeholder="Brief comments/vouching status..."
+                                        value={bursaryNotes}
+                                        onChange={e => setBursaryNotes(e.target.value)}
+                                        className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm resize-none"
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={handlePostBursaryCheque}
+                                    disabled={isSavingBursary}
+                                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
+                                >
+                                    {isSavingBursary ? "Processing Settlement..." : "Post Bursary Cheque →"}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Right column: Ledger list */}
+                        <div className="lg:col-span-2 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-6">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Postings Ledger</h3>
+                                <p className="text-xs text-slate-400 font-medium">History of allocated government bursary allocations.</p>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-b">
+                                            <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Student</th>
+                                            <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Constituency</th>
+                                            <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Cheque #</th>
+                                            <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Amount</th>
+                                            <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Date posted</th>
+                                            <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Vetted By</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {bursaryRecords.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="py-8 text-center text-xs font-medium text-slate-400">No bursaries recorded in the ledger yet.</td>
+                                            </tr>
+                                        ) : (
+                                            bursaryRecords.map(rec => (
+                                                <tr key={rec.id}>
+                                                    <td className="py-4 text-xs font-bold text-slate-900">{rec.studentName}</td>
+                                                    <td className="py-4 text-xs text-slate-500">{rec.constituencyName}</td>
+                                                    <td className="py-4 text-xs font-mono text-indigo-600">{rec.chequeNumber || '—'}</td>
+                                                    <td className="py-4 text-xs text-right font-black text-slate-800">KES {rec.amountApproved?.toLocaleString() || rec.amountRequested?.toLocaleString()}</td>
+                                                    <td className="py-4 text-xs text-slate-400">{rec.disbursedAt ? new Date(rec.disbursedAt).toLocaleDateString() : '—'}</td>
+                                                    <td className="py-4 text-xs font-medium text-slate-500">{rec.vettedBy || '—'}</td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 )}
 

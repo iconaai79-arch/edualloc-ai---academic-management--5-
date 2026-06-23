@@ -19,8 +19,12 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",
+    "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.4.0",
+    "@capacitor/push-notifications": "^8.1.1",
+    "@capgo/capacitor-native-biometric": "^8.4.11",
     "@google/generative-ai": "^0.21.0",
+    "@pantrist/capacitor-plugin-ml-kit-text-recognition": "^8.0.0",
     "@supabase/supabase-js": "^2.45.4",
     "@vercel/node": "^5.5.16",
     "basic-ftp": "^5.2.0",

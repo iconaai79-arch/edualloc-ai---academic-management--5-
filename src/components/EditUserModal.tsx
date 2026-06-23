@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, Role, Department, UserUpdateData, Institution } from '../types';
+import type { User, Role, Department, UserUpdateData, Institution, Constituency, County } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isDSInstitution } from '../utils/roleUtils';
+import { apiService } from '../services/apiService';
 
 interface EditUserModalProps {
   user: User;
@@ -12,9 +13,10 @@ interface EditUserModalProps {
   currentInstitution?: Institution | null;
   fixedDepartmentId?: string;
   isCoop?: boolean;
+  isSuperAdmin?: boolean;
 }
 
-export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments, onClose, onSave, currentInstitution, fixedDepartmentId, isCoop: isCoopProp }) => {
+export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments, onClose, onSave, currentInstitution, fixedDepartmentId, isCoop: isCoopProp, isSuperAdmin = false }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -24,6 +26,29 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [assignedDepartmentId, setAssignedDepartmentId] = useState('');
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
+
+  const [constituencies, setConstituencies] = useState<Constituency[]>([]);
+  const [counties, setCounties] = useState<County[]>([]);
+  const [selectedConstituency, setSelectedConstituency] = useState('');
+  const [selectedCounty, setSelectedCounty] = useState('');
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      apiService.fetchModuleRecords<Constituency>('constituencies').then(setConstituencies).catch(console.error);
+      apiService.fetchModuleRecords<County>('counties').then(setCounties).catch(console.error);
+    }
+  }, [isSuperAdmin]);
+
+  const selectableRoles = useMemo(() => {
+    const list = getRolesForInstitution(currentInstitution).filter(r => !['customer', 'lead'].includes(r));
+    if (isSuperAdmin) {
+      const extras: Role[] = ['super_admin', 'reseller', 'county_admin', 'county_staff', 'constituency_admin', 'constituency_staff'];
+      extras.forEach(r => {
+        if (!list.includes(r)) list.push(r);
+      });
+    }
+    return list;
+  }, [currentInstitution, isSuperAdmin]);
 
   const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
   const isSchool = isSchoolInstitution(currentInstitution);
@@ -50,11 +75,23 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       setPhoneNumber(user.phoneNumber);
       setStaffId(user.staffId || '');
       setExpertise(user.expertise?.join(', ') || '');
-      setRoles(Array.isArray(user.roles) && user.roles.length > 0 ? user.roles : [user.role]);
+      const userRoles = Array.isArray(user.roles) && user.roles.length > 0 ? user.roles : [user.role];
+      setRoles(userRoles);
       // Use fixed ID if provided, otherwise fallback to user's dept or empty
       setAssignedDepartmentId(fixedDepartmentId || user.departmentId || '');
       setGender(user.gender || 'Male');
       setDriverType(user.driverType || 'staff');
+
+      if (userRoles.some(r => r.startsWith('constituency_'))) {
+        setSelectedConstituency(user.institutionId || '');
+      } else {
+        setSelectedConstituency('');
+      }
+      if (userRoles.some(r => r.startsWith('county_'))) {
+        setSelectedCounty(user.institutionId || '');
+      } else {
+        setSelectedCounty('');
+      }
     }
   }, [user, fixedDepartmentId]);
 
@@ -83,8 +120,33 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       return;
     }
 
+    if (isSuperAdmin) {
+      if (roles.some(r => r.startsWith('constituency_')) && !selectedConstituency) {
+        alert('Please select an Assigned Constituency.');
+        return;
+      }
+      if (roles.some(r => r.startsWith('county_')) && !selectedCounty) {
+        alert('Please select an Assigned County.');
+        return;
+      }
+    }
+
     if (name.trim() && email.trim() && (phoneNumber.trim() || user.phoneNumber) && staffId.trim()) {
       const uniqueRoles = [...new Set(roles)];
+
+      let finalInstitutionId = currentInstitution?.id || user.institutionId || '';
+      let finalCountyId = user.countyId;
+
+      if (isSuperAdmin) {
+        if (roles.some(r => r.startsWith('constituency_'))) {
+          finalInstitutionId = selectedConstituency;
+          finalCountyId = constituencies.find(c => c.name === selectedConstituency)?.countyId;
+        } else if (roles.some(r => r.startsWith('county_'))) {
+          finalInstitutionId = selectedCounty;
+          finalCountyId = selectedCounty;
+        }
+      }
+
       try {
         await onSave(user.id, {
           name,
@@ -96,7 +158,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
           roles: uniqueRoles,
           departmentId: (needsDepartment && !isCoop && !isPm && isEdu && !isDS) ? assignedDepartmentId : undefined,
           gender,
-          driverType: roles.includes('driver') ? driverType : undefined
+          driverType: roles.includes('driver') ? driverType : undefined,
+          institutionId: finalInstitutionId,
+          countyId: finalCountyId
         });
         onClose();
       } catch (err: any) {
@@ -200,7 +264,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   <div className="md:col-span-2">
                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1">Assigned Security Roles</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {getRolesForInstitution(currentInstitution).filter(r => !['customer', 'lead'].includes(r)).map((r) => (
+                      {selectableRoles.map((r) => (
                         <label key={r} className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${roles.includes(r as Role) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800'}`}>
                           <input
                             type="checkbox"
@@ -215,6 +279,30 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                       ))}
                     </div>
                   </div>
+
+                  {isSuperAdmin && roles.some(r => r.startsWith('constituency_')) && (
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Constituency</label>
+                      <select value={selectedConstituency} onChange={e => setSelectedConstituency(e.target.value)} required className="form-select">
+                        <option value="">-- Select Constituency --</option>
+                        {(constituencies || []).map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {isSuperAdmin && roles.some(r => r.startsWith('county_')) && (
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned County</label>
+                      <select value={selectedCounty} onChange={e => setSelectedCounty(e.target.value)} required className="form-select">
+                        <option value="">-- Select County --</option>
+                        {(counties || []).map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && !isDS && !isCoop && !isPm && (
                     <div className="md:col-span-2">

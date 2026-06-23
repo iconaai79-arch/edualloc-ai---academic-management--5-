@@ -278,6 +278,8 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
     }
 
     // Default formatting: replace underscores with spaces and capitalize
+    if (role === 'constituency_admin') return 'Constituency Admin';
+    if (role === 'constituency_staff') return 'Constituency Staff';
     if (role === 'mechanic_admin') return 'Garage Manager';
     if (role === 'carwash_admin') return 'Car Wash Manager';
     if (role === 'managing_director') return 'Managing Director';

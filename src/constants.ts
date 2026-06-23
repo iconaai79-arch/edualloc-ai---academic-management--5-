@@ -329,6 +329,17 @@ export const INITIAL_USERS: User[] = [
         institutionId: INST_DEMO,
         expertise: ['Financial Administration'],
         password: 'password123'
+    },
+    {
+        id: 'u_constituency_admin',
+        name: 'Constituency CDF Officer',
+        email: 'constituency@app.com',
+        phoneNumber: '0722222222',
+        role: 'constituency_admin',
+        roles: ['constituency_admin'],
+        institutionId: 'Kigumo',
+        expertise: ['NG-CDF Management'],
+        password: 'password123'
     }
 ];
 

@@ -1,5 +1,5 @@
 /** HIS Nexus Type Definitions **/
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'nurse' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin' | 'campaign_admin' | 'campaign_agent' | 'fuel_admin' | 'attendant' | 'finance_officer' | 'hr_officer' | 'director' | 'finance' | 'sales' | 'reception' | 'event_manager' | 'managing_director' | 'hoi' | 'cateress';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'constituency_admin' | 'constituency_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'nurse' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin' | 'campaign_admin' | 'campaign_agent' | 'fuel_admin' | 'attendant' | 'finance_officer' | 'hr_officer' | 'director' | 'finance' | 'sales' | 'reception' | 'event_manager' | 'managing_director' | 'hoi' | 'cateress';
 
 export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
 
@@ -1809,6 +1809,8 @@ export interface UserUpdateData {
     expertise?: string[];
     gender?: 'Male' | 'Female' | 'Other';
     driverType?: 'staff' | 'private';
+    institutionId?: string;
+    countyId?: string;
 }
 
 export type UserMappingField = 'name' | 'email' | 'phoneNumber' | 'staffId' | 'role' | 'roles' | 'departmentName' | 'expertise' | 'gender';
@@ -1881,6 +1883,39 @@ export interface CountyBursaryFund {
     allocatedAmount: number;
     remainingAmount: number;
     publicParticipationLink?: string;
+}
+
+export interface NGCdfFund {
+    id: string;
+    constituencyId?: string;
+    constituencyName: string;
+    financialYear: string;
+    totalBudget: number;
+    allocatedAmount: number;
+    remainingAmount: number;
+    publicParticipationLink?: string;
+    createdAt?: string;
+}
+
+export interface NGCdfBursary {
+    id: string;
+    studentId: string;
+    studentName: string;
+    institutionId: string;
+    institutionName: string;
+    constituencyName: string;
+    amountRequested: number;
+    amountApproved?: number;
+    purpose?: string;
+    status: BursaryStatus;
+    chequeNumber?: string;
+    appliedAt: string;
+    vettedAt?: string;
+    vettedBy?: string;
+    disbursedAt?: string;
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 // ============================================
