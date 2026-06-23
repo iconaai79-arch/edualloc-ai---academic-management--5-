@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { User, AppNotification, Institution, Role } from '../types';
 import { NotificationBell } from './NotificationBell';
 import { InstallAppButton } from './InstallAppButton';
+import { OfflineSyncWidget } from './common/OfflineSyncWidget';
 import { getInitials } from '../utils/stringUtils';
 import { formatRoleDisplayName, isEduInstitution } from '../utils/roleUtils';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
@@ -243,6 +244,10 @@ export const Header: React.FC<HeaderProps> = ({
                             primaryColor={primaryColor}
                             androidUrl={androidUrl}
                         />
+
+                        {currentInstitution && (
+                            <OfflineSyncWidget institutionId={currentInstitution.id} />
+                        )}
 
                         <NotificationBell notifications={notifications || []} onMarkAsRead={onMarkAsRead || (() => {})} />
 

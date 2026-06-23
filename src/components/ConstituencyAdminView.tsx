@@ -11,6 +11,8 @@ import {
     User, Institution, Role, NGCdfFund, NGCdfBursary, ActivityLog, SmsLog, SmsOutbox
 } from '../types';
 import { apiService } from '../services/apiService';
+import { localDb } from '../services/localDb';
+import { syncEngine } from '../services/syncEngine';
 
 interface ConstituencyAdminViewProps {
     currentUser: User;
@@ -180,7 +182,15 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     const fetchSmsLogs = async () => {
         setIsLoadingLogs(true);
         try {
-            const logs = await apiService.fetchSmsLogs(myConstituency).catch(() => []);
+            let logs = [];
+            if (!navigator.onLine) {
+                logs = await localDb.getAll('sms_logs').catch(() => []);
+            } else {
+                logs = await apiService.fetchSmsLogs(myConstituency).catch(() => []);
+                for (const log of logs) {
+                    await localDb.put('sms_logs', log);
+                }
+            }
             setSmsLogs(logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         } catch (err) {
             console.error('Failed to fetch SMS logs:', err);
@@ -192,7 +202,15 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     const fetchSmsOutbox = async () => {
         setIsLoadingOutbox(true);
         try {
-            const outbox = await apiService.fetchSmsOutbox(myConstituency).catch(() => []);
+            let outbox = [];
+            if (!navigator.onLine) {
+                outbox = await localDb.getAll('sms_outbox').catch(() => []);
+            } else {
+                outbox = await apiService.fetchSmsOutbox(myConstituency).catch(() => []);
+                for (const item of outbox) {
+                    await localDb.put('sms_outbox', item);
+                }
+            }
             setSmsOutbox(outbox);
         } catch (err) {
             console.error('Failed to fetch SMS outbox:', err);
@@ -314,19 +332,52 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     const handleSendSms = async () => {
         const totalUnitsRequired = resolvedRecipients.length * smsInfo.count;
 
-        if (smsBalance < totalUnitsRequired) {
-            setSmsStatus({
-                type: 'error',
-                message: `Insufficient balance. This send requires ${totalUnitsRequired} units, but you only have ${smsBalance}.`
-            });
-            return;
-        }
         if (resolvedRecipients.length === 0) {
             setSmsStatus({ type: 'error', message: 'No recipients with valid phone numbers found for the selected group.' });
             return;
         }
         if (!smsMessage.trim()) {
             setSmsStatus({ type: 'error', message: 'Message cannot be empty.' });
+            return;
+        }
+
+        // --- OFFLINE PATH: queue locally and return ---
+        if (!navigator.onLine) {
+            setSmsStatus({ type: 'sending', message: `You are offline. Queuing ${resolvedRecipients.length} message(s) locally...` });
+            try {
+                const offlineMessages = resolvedRecipients.map(r => ({
+                    id: `ob_offline_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    institutionId: myConstituency,
+                    recipient: r.phoneNumber,
+                    message: smsMessage,
+                    units: smsInfo.count,
+                    status: 'pending' as const,
+                    createdAt: new Date().toISOString()
+                }));
+                for (const msg of offlineMessages) {
+                    await syncEngine.queueMutation('INSERT', 'sms_outbox', msg);
+                }
+                setSmsOutbox(prev => [...prev, ...offlineMessages]);
+                setSmsStatus({
+                    type: 'success',
+                    message: `You are offline. ${offlineMessages.length} message(s) queued locally and will be sent automatically once connection is restored.`
+                });
+                setSmsMessage('');
+                setCustomRecipients('');
+                setSelectedUserId('');
+            } catch (err: any) {
+                setSmsStatus({ type: 'error', message: err.message || 'Failed to queue messages offline.' });
+            }
+            setTimeout(() => setSmsStatus({ type: 'idle', message: '' }), 8000);
+            return;
+        }
+
+        // --- ONLINE PATH: send immediately ---
+        if (smsBalance < totalUnitsRequired) {
+            setSmsStatus({
+                type: 'error',
+                message: `Insufficient balance. This send requires ${totalUnitsRequired} units, but you only have ${smsBalance}.`
+            });
             return;
         }
 
@@ -346,7 +397,7 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                 throw new Error("SMS sending callback is not configured.");
             }
             const result = await onSendSms(phoneNumbers, smsMessage);
-            
+
             if (result && result.success) {
                 setSmsStatus({ type: 'success', message: `Successfully dispatched message to ${resolvedRecipients.length} recipients.` });
                 setSmsMessage('');
@@ -387,8 +438,25 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                 createdAt: new Date().toISOString()
             }));
 
-            await apiService.saveToSmsOutbox(outboxMessages);
-            setSmsStatus({ type: 'success', message: `Successfully queued ${outboxMessages.length} message(s) to Outbox.` });
+            if (!navigator.onLine) {
+                // Offline: persist locally and enqueue sync mutations
+                for (const msg of outboxMessages) {
+                    await syncEngine.queueMutation('INSERT', 'sms_outbox', msg);
+                }
+                setSmsOutbox(prev => [...prev, ...outboxMessages]);
+                setSmsStatus({
+                    type: 'success',
+                    message: `You are offline. ${outboxMessages.length} message(s) saved locally and will sync to the server once connection is restored.`
+                });
+            } else {
+                // Online: push to Supabase and mirror to local cache
+                await apiService.saveToSmsOutbox(outboxMessages);
+                for (const msg of outboxMessages) {
+                    await localDb.put('sms_outbox', msg);
+                }
+                setSmsStatus({ type: 'success', message: `Successfully queued ${outboxMessages.length} message(s) to Outbox.` });
+            }
+
             setSmsMessage('');
             setCustomRecipients('');
             setSelectedUserId('');
@@ -403,6 +471,10 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     };
 
     const handleRetryOutboxItem = async (item: SmsOutbox) => {
+        if (!navigator.onLine) {
+            alert('You are offline. Please restore your internet connection to retry sending messages. Queued items will be sent automatically once you are back online.');
+            return;
+        }
         if (smsBalance < item.units) {
             alert(`Insufficient balance to retry (${item.units} units needed).`);
             return;
@@ -415,6 +487,8 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
             const result = await onSendSms(item.recipient, item.message);
             if (result && result.success) {
                 await apiService.removeFromSmsOutbox(item.id);
+                // Remove from local cache as well
+                await localDb.delete('sms_outbox', item.id);
                 fetchSmsOutbox();
                 fetchNgCdfData();
             } else {
@@ -427,10 +501,22 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
 
     const handleRetryAllOutbox = async () => {
         if (smsOutbox.length === 0) return;
+
+        if (!navigator.onLine) {
+            // Trigger the sync engine to process any pending mutations when back online
+            setSmsStatus({
+                type: 'error',
+                message: 'You are offline. All queued messages will be sent automatically once your connection is restored. The sync engine will process them in order.'
+            });
+            setTimeout(() => setSmsStatus({ type: 'idle', message: '' }), 8000);
+            return;
+        }
+
         if (!onSendSms) {
             alert("SMS sending service is not active.");
             return;
         }
+
         setSmsStatus({ type: 'sending', message: `Retrying ${smsOutbox.length} pending message(s)...` });
         let successCount = 0;
         try {
@@ -442,6 +528,8 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                 const result = await onSendSms(item.recipient, item.message);
                 if (result && result.success) {
                     await apiService.removeFromSmsOutbox(item.id);
+                    // Mirror removal in local cache
+                    await localDb.delete('sms_outbox', item.id);
                     successCount++;
                 }
             }
@@ -1354,9 +1442,17 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                                                                     <button
                                                                         onClick={async () => {
                                                                             if (window.confirm("Delete this queued message?")) {
-                                                                                await apiService.removeFromSmsOutbox(item.id);
-                                                                                fetchSmsOutbox();
-                                                                                fetchNgCdfData();
+                                                                                if (!navigator.onLine) {
+                                                                                    // Offline: delete locally and queue a sync mutation
+                                                                                    await syncEngine.queueMutation('DELETE', 'sms_outbox', item);
+                                                                                    setSmsOutbox(prev => prev.filter(o => o.id !== item.id));
+                                                                                } else {
+                                                                                    // Online: remove from server and local cache
+                                                                                    await apiService.removeFromSmsOutbox(item.id);
+                                                                                    await localDb.delete('sms_outbox', item.id);
+                                                                                    fetchSmsOutbox();
+                                                                                    fetchNgCdfData();
+                                                                                }
                                                                             }
                                                                         }}
                                                                         className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors"

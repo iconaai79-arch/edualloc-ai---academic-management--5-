@@ -148,6 +148,10 @@ import { ToastProvider, useToast } from '../services/ToastContext';
 import { DrivingSchoolProvider } from '../services/DrivingSchoolContext';
 import { DSStudentPortal } from './ds/DSStudentPortal';
 import { ModuleOnboardingWizard } from './ModuleOnboardingWizard';
+import { localDb } from '../services/localDb';
+import { syncEngine } from '../services/syncEngine';
+import { OfflineSyncWidget } from './common/OfflineSyncWidget';
+
 
 
 
@@ -800,32 +804,65 @@ export const App: React.FC = () => {
             if (!apiService.isConfigured()) initSupabaseClient();
             setIsBootstrapped(true);
 
-            // ── PHASE 1: Health check + identity (blocks UI) ──────────────────
-            if (!silent) setLoadStatus("Connecting...");
-            const health = await apiService.testDatabaseConnection();
-            if (health.status === 'setup_required') {
-                setIsSchemaInitializationRequired(true);
-                setIsApiOnline(true);
-                setAppInitializing(false);
-                return;
+            // ── PHASE 1: Health check + identity (blocks UI or uses offline cache) ──────────────────
+            const isOffline = !navigator.onLine;
+            let insts: any[] = [];
+            let cnts: any[] = [];
+            let sett: any = null;
+            let u: any[] = [];
+            let reg: any[] = [];
+            let imsPhase1: any[] = [];
+            let evts: any[] = [];
+            let consts: any[] = [];
+
+            if (isOffline) {
+                if (!silent) setLoadStatus("Offline Mode Active...");
+                insts = await localDb.getAll('institutions').catch(() => []);
+                cnts = await localDb.getAll('counties').catch(() => []);
+                sett = await localDb.get('settings', 'global_settings').catch(() => null);
+                u = await localDb.getAll('users').catch(() => []);
+                reg = await localDb.getAll('school_registry').catch(() => []);
+                imsPhase1 = await localDb.getAll('institution_module_states').catch(() => []);
+                evts = await localDb.getAll('events').catch(() => []);
+                consts = await localDb.getAll('constituencies').catch(() => []);
+
+                setIsApiOnline(false);
+                setIsSchemaInitializationRequired(false);
+            } else {
+                if (!silent) setLoadStatus("Connecting...");
+                const health = await apiService.testDatabaseConnection().catch(() => ({ status: 'offline' }));
+                if (health.status === 'setup_required') {
+                    setIsSchemaInitializationRequired(true);
+                    setIsApiOnline(true);
+                    setAppInitializing(false);
+                    return;
+                }
+
+                setIsApiOnline(health.status !== 'offline');
+                setIsSchemaInitializationRequired(false);
+
+                if (!silent) setLoadStatus("Synchronizing Identity...");
+                
+                // Critical identity fetch - needed for Phase 2 logic
+                const results = await Promise.all([
+                    apiService.fetchInstitutions().catch(() => []),
+                    (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
+                    apiService.fetchCompanySettings().catch(() => null),
+                    (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers(currentUser?.role === 'super_admin' ? undefined : currentUser?.institutionId).catch(() => []),
+                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchFullRegistry().catch(() => []) : Promise.resolve([]),
+                    !currentUser ? Promise.resolve([]) : apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
+                    apiService.fetchModuleRecords<any>('events').catch(() => []),
+                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchModuleRecords<Constituency>('constituencies').catch(() => []) : Promise.resolve([]),
+                ]);
+                insts = results[0];
+                cnts = results[1];
+                sett = results[2];
+                u = results[3];
+                reg = results[4];
+                imsPhase1 = results[5];
+                evts = results[6];
+                consts = results[7];
             }
-
-            setIsApiOnline(health.status !== 'offline');
-            setIsSchemaInitializationRequired(false);
-
-            if (!silent) setLoadStatus("Synchronizing Identity...");
-            
-            // Critical identity fetch - needed for Phase 2 logic
-            const [insts, cnts, sett, u, reg, imsPhase1, evts, consts] = await Promise.all([
-                apiService.fetchInstitutions().catch(() => []),
-                (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
-                apiService.fetchCompanySettings().catch(() => null),
-                (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers(currentUser?.role === 'super_admin' ? undefined : currentUser?.institutionId).catch(() => []),
-                (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchFullRegistry().catch(() => []) : Promise.resolve([]),
-                !currentUser ? Promise.resolve([]) : apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
-                apiService.fetchModuleRecords<any>('events').catch(() => []),
-                (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchModuleRecords<Constituency>('constituencies').catch(() => []) : Promise.resolve([]),
-            ]);
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
             setUsers(u || []);
@@ -959,10 +996,27 @@ export const App: React.FC = () => {
             if (!silent) setLoadStatus("");
             setAppInitializing(false);
 
-            // ── PHASE 2: Resolve core module data (already in-flight) ─────────
+            // ── PHASE 2: Resolve core module data (already in-flight or offline cache) ─────────
             if (currentUser) {
-                const coreResults = await coreModulePromise;
-                [d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs, notifs] = coreResults;
+                if (isOffline) {
+                    d = await localDb.getAll('departments').catch(() => []);
+                    s = await localDb.getAll('subjects').catch(() => []);
+                    c = await localDb.getAll('courses').catch(() => []);
+                    a = await localDb.getAll('allocation_requests').catch(() => []);
+                    ay = await localDb.getAll('academic_years').catch(() => []);
+                    sem = await localDb.getAll('semesters').catch(() => []);
+                    r = await localDb.getAll('rooms').catch(() => []);
+                    b = await localDb.getAll('buildings').catch(() => []);
+                    al = await localDb.getAll('academic_levels').catch(() => []);
+                    tasks = await localDb.getAll('tasks').catch(() => []);
+                    txns = await localDb.getAll('transactions').catch(() => []);
+                    recs = await localDb.getAll('receipts').catch(() => []);
+                    logs = await localDb.getAll('activity_log').catch(() => []);
+                    notifs = await localDb.getAll('notifications').catch(() => []);
+                } else {
+                    const coreResults = await coreModulePromise;
+                    [d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs, notifs] = coreResults;
+                }
             }
 
             setDepartments(d || []);
