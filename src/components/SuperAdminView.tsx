@@ -43,7 +43,7 @@ import { ShieldIcon } from './icons/ShieldIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
-import { isSchoolInstitution } from '../utils/roleUtils';
+import { isSchoolInstitution, formatRoleDisplayName } from '../utils/roleUtils';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { CreditCardIcon } from './icons/CreditCardIcon';
@@ -573,9 +573,47 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (view === 'showroom' || params.get('showroom')) return 'auto_marketplace';
         return 'dashboard';
     });
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile' | 'invoices'>('list');
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile' | 'invoices' | 'constituencies'>('list');
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable' | 'discipline' | 'insights' | 'reports'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
+
+    // Constituencies management and onboarding progress states
+    const [constituencies, setConstituencies] = useState<Constituency[]>([]);
+    const [fetchedCounties, setFetchedCounties] = useState<County[]>([]);
+    const [ngCdfFunds, setNgCdfFunds] = useState<any[]>([]);
+    const [ngCdfBursaries, setNgCdfBursaries] = useState<any[]>([]);
+    const [loadingConstituencies, setLoadingConstituencies] = useState(false);
+    const [viewingConstituencyUsers, setViewingConstituencyUsers] = useState<Constituency | null>(null);
+    const [isAddingConstituencyUser, setIsAddingConstituencyUser] = useState<Constituency | null>(null);
+    const [constUserForm, setConstUserForm] = useState({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        staffId: '',
+        gender: 'Male' as 'Male' | 'Female' | 'Other',
+        role: 'constituency_admin' as Role
+    });
+    const [constituencySearchQuery, setConstituencySearchQuery] = useState('');
+    const [constituencyStatusFilter, setConstituencyStatusFilter] = useState<'all' | 'fully_onboarded' | 'in_progress' | 'not_started'>('all');
+
+    useEffect(() => {
+        if (activeTab === 'institutions' && institutionsSubTab === 'constituencies') {
+            setLoadingConstituencies(true);
+            Promise.all([
+                apiService.fetchModuleRecords<Constituency>('constituencies'),
+                apiService.fetchModuleRecords<County>('counties'),
+                apiService.fetchModuleRecords('ng_cdf_funds'),
+                apiService.fetchModuleRecords('ng_cdf_bursaries')
+            ]).then(([consts, cunts, funds, bursaries]) => {
+                setConstituencies(consts || []);
+                setFetchedCounties(cunts || []);
+                setNgCdfFunds(funds || []);
+                setNgCdfBursaries(bursaries || []);
+            }).catch(console.error).finally(() => {
+                setLoadingConstituencies(false);
+            });
+        }
+    }, [activeTab, institutionsSubTab]);
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
     const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
@@ -2149,6 +2187,12 @@ Please change it after login.`;
                             >
                                 AI Scout
                             </button>
+                            <button
+                                onClick={() => setInstitutionsSubTab('constituencies')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${institutionsSubTab === 'constituencies' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Constituencies
+                            </button>
                         </div>
 
                         {institutionsSubTab === 'invoices' && (
@@ -3058,6 +3102,226 @@ Please change it after login.`;
                         {institutionsSubTab === 'scouting' && (
                             <div className="animate-fade-in-up">
                                 <LeadScoutManager />
+                            </div>
+                        )}
+                        {institutionsSubTab === 'constituencies' && (
+                            <div className="space-y-6 animate-fade-in-up">
+                                {/* Header Section */}
+                                <div className="flex flex-wrap justify-between items-center gap-4">
+                                    <div>
+                                        <h4 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight">NG-CDF Constituencies Directory</h4>
+                                        <p className="text-xs text-slate-500 uppercase font-black tracking-widest mt-1">Track Mapped Users & Setup Onboarding Metrics</p>
+                                    </div>
+                                </div>
+
+                                {/* Onboarding Metrics Summary Cards */}
+                                {(() => {
+                                    let onboarded = 0;
+                                    let inProgress = 0;
+                                    let notStarted = 0;
+
+                                    constituencies.forEach(c => {
+                                        const cUsers = (users || []).filter(u => u.institutionId === c.name);
+                                        const hasAdm = cUsers.some(u => u.role === 'constituency_admin');
+                                        const cFunds = (ngCdfFunds || []).filter(f => f.constituency_name === c.name);
+                                        const cBursaries = (ngCdfBursaries || []).filter(b => b.constituency_name === c.name);
+
+                                        if (cUsers.length > 0) {
+                                            if (hasAdm && cFunds.length > 0 && cBursaries.length > 0) {
+                                                onboarded++;
+                                            } else {
+                                                inProgress++;
+                                            }
+                                        } else {
+                                            notStarted++;
+                                        }
+                                    });
+
+                                    return (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                            <div className="bg-slate-50 dark:bg-slate-700/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700/50 shadow-sm flex flex-col justify-between">
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total Constituencies</span>
+                                                <span className="text-3xl font-black mt-2 text-slate-800 dark:text-white">{constituencies.length}</span>
+                                            </div>
+                                            <div className="bg-green-50/50 dark:bg-green-950/20 p-6 rounded-3xl border border-green-100/50 dark:border-green-900/30 shadow-sm flex flex-col justify-between">
+                                                <span className="text-[10px] font-black uppercase text-green-600 dark:text-green-400 tracking-widest">Fully Onboarded</span>
+                                                <span className="text-3xl font-black mt-2 text-green-700 dark:text-green-300">{onboarded}</span>
+                                            </div>
+                                            <div className="bg-indigo-50/50 dark:bg-indigo-950/20 p-6 rounded-3xl border border-indigo-100/50 dark:border-indigo-900/30 shadow-sm flex flex-col justify-between">
+                                                <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest">In Onboarding</span>
+                                                <span className="text-3xl font-black mt-2 text-indigo-700 dark:text-indigo-300">{inProgress}</span>
+                                            </div>
+                                            <div className="bg-amber-50/50 dark:bg-amber-950/20 p-6 rounded-3xl border border-amber-100/50 dark:border-amber-900/30 shadow-sm flex flex-col justify-between">
+                                                <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-widest">Not Started</span>
+                                                <span className="text-3xl font-black mt-2 text-amber-700 dark:text-amber-300">{notStarted}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Filters Panel */}
+                                <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-4">
+                                    <div className="flex-1 min-w-[200px]">
+                                        <input
+                                            type="text"
+                                            placeholder="Search by constituency name or code..."
+                                            value={constituencySearchQuery}
+                                            onChange={e => setConstituencySearchQuery(e.target.value)}
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <select
+                                            value={constituencyStatusFilter}
+                                            onChange={e => setConstituencyStatusFilter(e.target.value as any)}
+                                            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500"
+                                        >
+                                            <option value="all">All Onboarding Statuses</option>
+                                            <option value="fully_onboarded">Fully Onboarded (100%)</option>
+                                            <option value="in_progress">In Progress (20% - 80%)</option>
+                                            <option value="not_started">Not Started (0%)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Table Section */}
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
+                                    {loadingConstituencies ? (
+                                        <div className="flex justify-center items-center py-20">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Constituency</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">County</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Administrators / Staff</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Budgets / Funds</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Bursaries</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Onboarding Status</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                                    {(() => {
+                                                        const filtered = constituencies.filter(c => {
+                                                            const matchesSearch = c.name?.toLowerCase().includes(constituencySearchQuery.toLowerCase()) || 
+                                                                                  c.code?.toLowerCase().includes(constituencySearchQuery.toLowerCase());
+                                                            
+                                                            const cUsers = (users || []).filter(u => u.institutionId === c.name);
+                                                            const hasAdm = cUsers.some(u => u.role === 'constituency_admin');
+                                                            const cFunds = (ngCdfFunds || []).filter(f => f.constituency_name === c.name);
+                                                            const cBursaries = (ngCdfBursaries || []).filter(b => b.constituency_name === c.name);
+
+                                                            let progress = 0;
+                                                            if (cUsers.length > 0) {
+                                                                 if (hasAdm) {
+                                                                     if (cFunds.length > 0 && cBursaries.length > 0) progress = 100;
+                                                                     else if (cFunds.length > 0) progress = 80;
+                                                                     else progress = 50;
+                                                                 } else {
+                                                                     progress = 20;
+                                                                 }
+                                                            }
+
+                                                            if (constituencyStatusFilter === 'fully_onboarded' && progress !== 100) return false;
+                                                            if (constituencyStatusFilter === 'in_progress' && (progress === 0 || progress === 100)) return false;
+                                                            if (constituencyStatusFilter === 'not_started' && progress !== 0) return false;
+
+                                                            return matchesSearch;
+                                                        });
+
+                                                        if (filtered.length === 0) {
+                                                            return (
+                                                                <tr>
+                                                                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400 uppercase font-black tracking-widest text-xs">
+                                                                        No constituencies found
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        }
+                                                        return filtered.map(c => {
+                                                            const cUsers = (users || []).filter(u => u && u.institutionId === c.name);
+                                                            const hasAdm = cUsers.some(u => u.role === 'constituency_admin');
+                                                            const cFunds = (ngCdfFunds || []).filter(f => f.constituency_name === c.name);
+                                                            const cBursaries = (ngCdfBursaries || []).filter(b => b.constituency_name === c.name);
+                                                            const countyName = (fetchedCounties.length ? fetchedCounties : counties).find(county => county.id === c.countyId)?.name || 'Unknown County';
+
+                                                            let progress = 0;
+                                                            let statusText = 'Not Started';
+                                                            let statusColor = 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+
+                                                            if (cUsers.length > 0) {
+                                                                if (hasAdm) {
+                                                                    if (cFunds.length > 0 && cBursaries.length > 0) {
+                                                                        progress = 100;
+                                                                        statusText = 'Fully Onboarded';
+                                                                        statusColor = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+                                                                    } else if (cFunds.length > 0) {
+                                                                        progress = 80;
+                                                                        statusText = 'Setup Active';
+                                                                        statusColor = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+                                                                    } else {
+                                                                        progress = 50;
+                                                                        statusText = 'Admin Ready';
+                                                                        statusColor = 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
+                                                                    }
+                                                                } else {
+                                                                    progress = 20;
+                                                                    statusText = 'Staff Registered';
+                                                                    statusColor = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+                                                                }
+                                                            }
+
+                                                            return (
+                                                                <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-all">
+                                                                    <td className="px-6 py-4">
+                                                                        <div className="font-bold text-slate-800 dark:text-white">{c.name}</div>
+                                                                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{c.code || 'NO-CODE'}</div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
+                                                                        {countyName}
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full text-xs font-bold">
+                                                                            {cUsers.length} Users
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                                                                        {cFunds.length} Budgets
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                                                                        {cBursaries.length} Vetted
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <div className="flex flex-col gap-1 w-32">
+                                                                            <span className={`inline-block w-fit px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${statusColor}`}>
+                                                                                {statusText}
+                                                                            </span>
+                                                                            <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                                                                <div className="bg-indigo-600 h-full transition-all" style={{ width: `${progress}%` }}></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-right">
+                                                                        <button 
+                                                                            onClick={() => setViewingConstituencyUsers(c)} 
+                                                                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                        >
+                                                                            View Users
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -7303,6 +7567,190 @@ Please change it after login.`;
                     currentUser={currentUser}
                     payment={selectedPaymentForEdit}
                 />
+            )}
+            {viewingConstituencyUsers && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setViewingConstituencyUsers(null)}>
+                    <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-3xl overflow-hidden border border-slate-200 dark:border-slate-700 animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight">Mapped Users</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Constituency: {viewingConstituencyUsers.name}</p>
+                            </div>
+                            <button onClick={() => setViewingConstituencyUsers(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                <XIcon className="w-6 h-6 text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            {(() => {
+                                const mapped = (users || []).filter(u => u && u.institutionId === viewingConstituencyUsers.name);
+                                if (mapped.length === 0) {
+                                    return (
+                                        <div className="text-center py-10">
+                                            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No users mapped to this constituency yet</p>
+                                        </div>
+                                    );
+                                }
+                                return (
+                                    <div className="overflow-hidden border border-slate-100 dark:border-slate-700 rounded-2xl">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                                    <th className="px-6 py-3">Name</th>
+                                                    <th className="px-6 py-3">Email</th>
+                                                    <th className="px-6 py-3">Phone</th>
+                                                    <th className="px-6 py-3">Role</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-slate-800 dark:text-slate-200 text-xs">
+                                                {mapped.map(u => (
+                                                    <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20">
+                                                        <td className="px-6 py-4 font-bold">{u.name}</td>
+                                                        <td className="px-6 py-4 font-mono">{u.email}</td>
+                                                        <td className="px-6 py-4">{u.phoneNumber || 'N/A'}</td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-full font-black uppercase tracking-wider text-[9px]">
+                                                                {formatRoleDisplayName(u.role, null)}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                            <button 
+                                onClick={() => {
+                                    setIsAddingConstituencyUser(viewingConstituencyUsers);
+                                    setViewingConstituencyUsers(null);
+                                }} 
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100/50 dark:shadow-none transition-all"
+                            >
+                                Register Administrator
+                            </button>
+                            <button onClick={() => setViewingConstituencyUsers(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {isAddingConstituencyUser && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsAddingConstituencyUser(null)}>
+                    <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight">Register Constituency User</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Prefilled for: {isAddingConstituencyUser.name}</p>
+                            </div>
+                            <button onClick={() => setIsAddingConstituencyUser(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                <XIcon className="w-6 h-6 text-slate-400" />
+                            </button>
+                        </div>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const emailVal = constUserForm.email.trim() || `${constUserForm.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@${isAddingConstituencyUser.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.cdf.go.ke`;
+                            const finalStaffId = constUserForm.staffId.trim() || `CDF-${isAddingConstituencyUser.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+
+                            const userData = {
+                                name: constUserForm.name,
+                                email: emailVal,
+                                phoneNumber: constUserForm.phoneNumber,
+                                staffId: finalStaffId,
+                                gender: constUserForm.gender,
+                                role: constUserForm.role,
+                                roles: [constUserForm.role],
+                                institutionId: isAddingConstituencyUser.name,
+                                countyId: isAddingConstituencyUser.countyId,
+                                expertise: [],
+                                createdAt: new Date().toISOString()
+                            };
+
+                            try {
+                                if (props.onAddUser) {
+                                    await props.onAddUser(userData);
+                                    success("Constituency user registered successfully!");
+                                    if (props.onLogAction) {
+                                        props.onLogAction(`Registered user ${userData.name} for constituency ${isAddingConstituencyUser.name}`);
+                                    }
+                                    setIsAddingConstituencyUser(null);
+                                    setConstUserForm({ name: '', email: '', phoneNumber: '', staffId: '', gender: 'Male', role: 'constituency_admin' });
+                                }
+                            } catch (err: any) {
+                                alert("Failed to register constituency user: " + err.message);
+                            }
+                        }} className="p-8 space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Full Name</label>
+                                <input 
+                                    type="text" 
+                                    value={constUserForm.name} 
+                                    onChange={e => setConstUserForm(prev => ({ ...prev, name: e.target.value }))}
+                                    className="form-input w-full"
+                                    required 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Email Address</label>
+                                <input 
+                                    type="email" 
+                                    value={constUserForm.email} 
+                                    onChange={e => setConstUserForm(prev => ({ ...prev, email: e.target.value }))}
+                                    placeholder="If empty, it will auto-generate"
+                                    className="form-input w-full"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Phone Number</label>
+                                <input 
+                                    type="tel" 
+                                    value={constUserForm.phoneNumber} 
+                                    onChange={e => setConstUserForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                                    className="form-input w-full"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Staff ID</label>
+                                <input 
+                                    type="text" 
+                                    value={constUserForm.staffId} 
+                                    onChange={e => setConstUserForm(prev => ({ ...prev, staffId: e.target.value }))}
+                                    placeholder="If empty, it will auto-generate"
+                                    className="form-input w-full"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Gender</label>
+                                    <select 
+                                        value={constUserForm.gender} 
+                                        onChange={e => setConstUserForm(prev => ({ ...prev, gender: e.target.value as any }))}
+                                        className="form-select w-full"
+                                    >
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Role</label>
+                                    <select 
+                                        value={constUserForm.role} 
+                                        onChange={e => setConstUserForm(prev => ({ ...prev, role: e.target.value as any }))}
+                                        className="form-select w-full"
+                                    >
+                                        <option value="constituency_admin">Constituency Admin</option>
+                                        <option value="constituency_staff">Constituency Staff</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="pt-6 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                                <button type="button" onClick={() => setIsAddingConstituencyUser(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100/50 dark:shadow-none transition-all">Register</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
             {pdfPreviewData && (
                 <PdfPreviewModal
