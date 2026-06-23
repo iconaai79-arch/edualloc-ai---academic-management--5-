@@ -242,6 +242,8 @@ export interface SuperAdminViewProps {
     onUpdateLogo?: (logo: string | null) => void;
     onUpdateThemeColor?: (color: string) => void;
     onUpdateInstitution?: (id: string, data: any) => Promise<void>;
+    onUpdateConstituency?: (id: string, data: any) => Promise<void>;
+    onToggleConstituencyStatus?: (id: string) => Promise<void>;
     onAddTask?: (data: any) => Promise<void>;
     onUpdateTask?: (id: string, complete: boolean) => Promise<void>;
     onDeleteTask?: (id: string) => Promise<void>;
@@ -596,24 +598,31 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [constituencySearchQuery, setConstituencySearchQuery] = useState('');
     const [constituencyStatusFilter, setConstituencyStatusFilter] = useState<'all' | 'fully_onboarded' | 'in_progress' | 'not_started'>('all');
 
-    useEffect(() => {
-        if (activeTab === 'institutions' && institutionsSubTab === 'constituencies') {
-            setLoadingConstituencies(true);
-            Promise.all([
+    const fetchConstituenciesData = useCallback(async () => {
+        setLoadingConstituencies(true);
+        try {
+            const [consts, cunts, funds, bursaries] = await Promise.all([
                 apiService.fetchModuleRecords<Constituency>('constituencies'),
                 apiService.fetchModuleRecords<County>('counties'),
                 apiService.fetchModuleRecords('ng_cdf_funds'),
                 apiService.fetchModuleRecords('ng_cdf_bursaries')
-            ]).then(([consts, cunts, funds, bursaries]) => {
-                setConstituencies(consts || []);
-                setFetchedCounties(cunts || []);
-                setNgCdfFunds(funds || []);
-                setNgCdfBursaries(bursaries || []);
-            }).catch(console.error).finally(() => {
-                setLoadingConstituencies(false);
-            });
+            ]);
+            setConstituencies(consts || []);
+            setFetchedCounties(cunts || []);
+            setNgCdfFunds(funds || []);
+            setNgCdfBursaries(bursaries || []);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingConstituencies(false);
         }
-    }, [activeTab, institutionsSubTab]);
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === 'institutions' && institutionsSubTab === 'constituencies') {
+            fetchConstituenciesData();
+        }
+    }, [activeTab, institutionsSubTab, fetchConstituenciesData]);
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
     const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
@@ -1349,7 +1358,38 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     };
 
     const handleExtendSubscription = async () => {
-        if (!extendingInstitution || !props.onUpdateInstitution) return;
+        if (!extendingInstitution) return;
+
+        const ext = extendingInstitution as any;
+        const isConstituency = !('institutionType' in ext);
+        if (isConstituency) {
+            if (!props.onUpdateConstituency) return;
+            try {
+                const currentEnd = ext.subscriptionEndsAt
+                    ? new Date(ext.subscriptionEndsAt)
+                    : new Date();
+
+                const baseDate = Math.max(currentEnd.getTime(), Date.now());
+                const newEndDate = new Date(baseDate + (extensionDays * 24 * 60 * 60 * 1000));
+
+                await props.onUpdateConstituency(ext.id, {
+                    subscriptionEndsAt: newEndDate.toISOString(),
+                    status: 'active'
+                });
+
+                if (props.onLogAction) await props.onLogAction(`Manually extended subscription for constituency ${ext.name} by ${extensionDays} days`);
+
+                alert(`Subscription for constituency ${ext.name} extended until ${newEndDate.toLocaleDateString()}`);
+                setExtendingInstitution(null);
+                setExtensionDays(30);
+                await fetchConstituenciesData();
+            } catch (e) {
+                alert("Failed to extend constituency subscription.");
+            }
+            return;
+        }
+
+        if (!props.onUpdateInstitution) return;
 
         try {
             const currentEnd = extendingInstitution.subscriptionEndsAt
@@ -3112,6 +3152,19 @@ Please change it after login.`;
                                         <h4 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight">NG-CDF Constituencies Directory</h4>
                                         <p className="text-xs text-slate-500 uppercase font-black tracking-widest mt-1">Track Mapped Users & Setup Onboarding Metrics</p>
                                     </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => {
+                                                fetchConstituenciesData();
+                                                props.onRefreshData?.();
+                                            }}
+                                            disabled={loadingConstituencies}
+                                            className="p-2.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-all border border-slate-100 dark:border-slate-700/50 shadow-sm flex items-center justify-center disabled:opacity-50"
+                                            title="Refresh Directory Data"
+                                        >
+                                            <ArrowPathIcon className={`w-4 h-4 ${loadingConstituencies ? 'animate-spin' : ''}`} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Onboarding Metrics Summary Cards */}
@@ -3201,6 +3254,7 @@ Please change it after login.`;
                                                         <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Budgets / Funds</th>
                                                         <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Bursaries</th>
                                                         <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Onboarding Status</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Subscription</th>
                                                         <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Actions</th>
                                                     </tr>
                                                 </thead>
@@ -3305,13 +3359,46 @@ Please change it after login.`;
                                                                             </div>
                                                                         </div>
                                                                     </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                                        <div className="flex flex-col">
+                                                                            <span className={`px-2.5 py-1 inline-flex text-[9px] font-black uppercase rounded-lg w-fit ${c.status === 'suspended' ? 'bg-red-100 text-red-700' :
+                                                                                c.status === 'trial' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                                                                                }`}>
+                                                                                {c.status || 'active'}
+                                                                            </span>
+                                                                            <span className="text-[9px] text-slate-400 font-bold mt-1">
+                                                                                {c.status === 'trial' ? (c.trialEndsAt ? `Ends: ${new Date(c.trialEndsAt).toLocaleDateString()}` : 'No limit') : 
+                                                                                 c.status === 'suspended' ? 'Suspended' : 
+                                                                                 (c.subscriptionEndsAt ? `Ends: ${new Date(c.subscriptionEndsAt).toLocaleDateString()}` : 'Active (Lifetime)')}
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
                                                                     <td className="px-6 py-4 text-right">
-                                                                        <button 
-                                                                            onClick={() => setViewingConstituencyUsers(c)} 
-                                                                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
-                                                                        >
-                                                                            View Users
-                                                                        </button>
+                                                                        <div className="flex justify-end gap-2">
+                                                                            <button 
+                                                                                onClick={() => setViewingConstituencyUsers(c)} 
+                                                                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                            >
+                                                                                View Users
+                                                                            </button>
+                                                                            <button 
+                                                                                onClick={() => setExtendingInstitution(c as any)} 
+                                                                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                            >
+                                                                                Extend
+                                                                            </button>
+                                                                            <button 
+                                                                                onClick={async () => {
+                                                                                    if (props.onToggleConstituencyStatus) {
+                                                                                        await props.onToggleConstituencyStatus(c.id);
+                                                                                        await fetchConstituenciesData();
+                                                                                    }
+                                                                                }} 
+                                                                                className="px-3 py-1.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                            >
+                                                                                {c.status === 'suspended' ? 'Resume' : 'Suspend'}
+                                                                            </button>
+                                                                        </div>
                                                                     </td>
                                                                 </tr>
                                                             );
@@ -7599,6 +7686,7 @@ Please change it after login.`;
                                                     <th className="px-6 py-3">Email</th>
                                                     <th className="px-6 py-3">Phone</th>
                                                     <th className="px-6 py-3">Role</th>
+                                                    <th className="px-6 py-3 text-right">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-slate-800 dark:text-slate-200 text-xs">
@@ -7611,6 +7699,19 @@ Please change it after login.`;
                                                             <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-full font-black uppercase tracking-wider text-[9px]">
                                                                 {formatRoleDisplayName(u.role, null)}
                                                             </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (props.onLoginAsAdmin) {
+                                                                        props.onLoginAsAdmin(viewingConstituencyUsers.name, u.role);
+                                                                        setViewingConstituencyUsers(null);
+                                                                    }
+                                                                }}
+                                                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors"
+                                                            >
+                                                                Impersonate
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 ))}

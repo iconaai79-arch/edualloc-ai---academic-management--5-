@@ -4,6 +4,8 @@ import { RETAIL_SUBTYPES } from '../constants';
 import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isDSInstitution } from '../utils/roleUtils';
 import { apiService } from '../services/apiService';
 
+const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher', 'driving_instructor'];
+
 interface EditUserModalProps {
   user: User;
   departments: Department[];
@@ -31,6 +33,11 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [counties, setCounties] = useState<County[]>([]);
   const [selectedConstituency, setSelectedConstituency] = useState('');
   const [selectedCounty, setSelectedCounty] = useState('');
+
+  const needsDepartment = useMemo(() => {
+    return roles.some(r => ROLES_REQUIRING_DEPARTMENT.includes(r)) && 
+           !roles.some(r => r.startsWith('constituency_') || r.startsWith('county_'));
+  }, [roles]);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -106,14 +113,11 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const expertiseArray = expertise.split(',').map(item => item.trim()).filter(Boolean);
-    const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher', 'driving_instructor'];
 
     if (roles.length === 0) {
       alert("Please select at least one role.");
       return;
     }
-
-    const needsDepartment = roles.some(r => rolesWithDepartment.includes(r));
 
     if (!isSchool && !isCoop && !isPm && needsDepartment && !assignedDepartmentId && isEdu && !isDS) {
       alert("Please assign a department for one of the selected professional roles.");
@@ -172,8 +176,6 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [activeTab, setActiveTab] = useState<'basic' | 'pro' | 'access'>('basic');
 
   if (!user) return null;
-
-  const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
@@ -304,7 +306,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                     </div>
                   )}
 
-                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && !isDS && !isCoop && !isPm && (
+                  {needsDepartment && !isRetailAgency && isEdu && !isDS && !isCoop && !isPm && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
                       <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">

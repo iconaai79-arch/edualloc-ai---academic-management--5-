@@ -361,6 +361,9 @@ export interface Constituency {
     code?: string;
     registered_voters?: number;
     createdAt?: string;
+    status?: 'active' | 'trial' | 'suspended';
+    trialEndsAt?: string;
+    subscriptionEndsAt?: string;
 }
 
 export interface Ward {
@@ -412,7 +415,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency';
     category?: string;
     createdAt?: string;
     businessSubType?: string; // Legacy field, eventually merge with category
@@ -4191,6 +4194,7 @@ export interface SchoolRegistry {
     institutionType?: string;
     slug?: string;
     institutionId?: string; // Links to registered tenant if claimed
+    customSubdomain?: string;
     createdAt: string;
     updatedAt: string;
 }

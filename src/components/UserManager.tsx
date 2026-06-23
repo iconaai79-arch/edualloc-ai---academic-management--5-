@@ -1170,7 +1170,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         };
 
         if (activeTab === 'staff') {
-            userData.departmentId = (isCoop || isRetailAgency || isChurch || isPm || isDS) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
+            userData.departmentId = (isCoop || isRetailAgency || isChurch || isPm || isDS || roles.some(r => r.startsWith('constituency_') || r.startsWith('county_'))) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
         }
         else {
             userData.courseId = courseId;
@@ -1444,7 +1444,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             </select>
                                         </div>
                                     )}
-                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && !isDS && isEdu && (
+                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && !isDS && isEdu && !roles.some(r => r.startsWith('constituency_') || r.startsWith('county_')) && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Department</label>
                                             <select
@@ -1452,7 +1452,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                 onChange={e => setDepartmentId(e.target.value)}
                                                 disabled={currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto'}
                                                 className="form-select w-full disabled:bg-slate-50"
-                                                required={roles.some(r => ROLES_REQUIRING_DEPARTMENT.includes(r))}
+                                                required={roles.some(r => ROLES_REQUIRING_DEPARTMENT.includes(r)) && !roles.some(r => r.startsWith('constituency_') || r.startsWith('county_'))}
                                             >
                                                 <option value="">-- Select Department --</option>
                                                 {(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}

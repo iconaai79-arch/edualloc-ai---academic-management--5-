@@ -121,7 +121,7 @@ import type {
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, Constituency, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
     TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
     RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
@@ -209,6 +209,7 @@ export const App: React.FC = () => {
     const [isHealthSystemOpen, setIsHealthSystemOpen] = useState(false);
     const [isPharmacySystemOpen, setIsPharmacySystemOpen] = useState(false);
     const [counties, setCounties] = useState<County[]>([]);
+    const [constituencies, setConstituencies] = useState<Constituency[]>([]);
     const [companyDetails, setCompanyDetails] = useState<CompanyDetails>(INITIAL_COMPANY_DETAILS);
     const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
     const [departments, setDepartments] = useState<Department[]>([]);
@@ -565,6 +566,33 @@ export const App: React.FC = () => {
             const found = institutions.find(i => i && (i.id === targetId || i.slug === targetId || (i.useSubdomain && i.customSubdomain === targetId)));
             if (found) return mergeModules(found);
 
+            // Check if they are a constituency user
+            const isConstituency = currentUser && (currentUser.role === 'constituency_admin' || currentUser.role === 'constituency_staff' || currentUser.role?.startsWith('constituency_'));
+            if (isConstituency || targetId === 'Kigumo') {
+                const conFound = (constituencies || []).find(c => c && (c.name === targetId || c.id === targetId));
+                if (conFound) {
+                    return mergeModules({
+                        id: conFound.name,
+                        name: conFound.name,
+                        email: '',
+                        phoneNumber: '',
+                        institutionType: 'Constituency' as any,
+                        status: conFound.status || 'active',
+                        trialEndsAt: conFound.trialEndsAt,
+                        subscriptionEndsAt: conFound.subscriptionEndsAt,
+                    } as any);
+                } else if (targetId === 'Kigumo') {
+                    return mergeModules({
+                        id: 'Kigumo',
+                        name: 'Kigumo',
+                        email: '',
+                        phoneNumber: '',
+                        institutionType: 'Constituency' as any,
+                        status: 'active',
+                    } as any);
+                }
+            }
+
             // Fallback to registry if not onboarded
             const registryEntry = schoolRegistry.find(s => s.id === targetId || s.institutionId === targetId || s.slug === targetId || s.customSubdomain === targetId);
             if (registryEntry) {
@@ -585,7 +613,7 @@ export const App: React.FC = () => {
         }
 
         return null;
-    }, [currentUser, institutions, schoolRegistry, activeStoreTenantId, institutionModuleStates]);
+    }, [currentUser, institutions, schoolRegistry, activeStoreTenantId, institutionModuleStates, constituencies]);
 
     const activeRole = useMemo<Role | null>(() => {
         if (impersonatedRole) return impersonatedRole;
@@ -788,7 +816,7 @@ export const App: React.FC = () => {
             if (!silent) setLoadStatus("Synchronizing Identity...");
             
             // Critical identity fetch - needed for Phase 2 logic
-            const [insts, cnts, sett, u, reg, imsPhase1, evts] = await Promise.all([
+            const [insts, cnts, sett, u, reg, imsPhase1, evts, consts] = await Promise.all([
                 apiService.fetchInstitutions().catch(() => []),
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
@@ -796,6 +824,7 @@ export const App: React.FC = () => {
                 (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchFullRegistry().catch(() => []) : Promise.resolve([]),
                 !currentUser ? Promise.resolve([]) : apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
                 apiService.fetchModuleRecords<any>('events').catch(() => []),
+                (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchModuleRecords<Constituency>('constituencies').catch(() => []) : Promise.resolve([]),
             ]);
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
@@ -806,6 +835,7 @@ export const App: React.FC = () => {
             if (reg) setSchoolRegistry(reg);
             if (sett) setCompanyDetails(prev => ({ ...prev, ...sett }));
             if (imsPhase1) setInstitutionModuleStates(imsPhase1);
+            if (consts) setConstituencies(consts);
 
             const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
             const activeInstWithModules = activeInst ? {
@@ -2608,6 +2638,25 @@ export const App: React.FC = () => {
         }
     };
 
+    const onToggleConstituencyStatus = useCallback(async (id: string) => {
+        const con = constituencies.find(c => c.id === id);
+        if (con) {
+            await apiService.saveModuleRecord('constituencies', {
+                ...con,
+                status: con.status === 'suspended' ? 'active' : 'suspended'
+            });
+            loadData();
+        }
+    }, [constituencies, loadData]);
+
+    const onUpdateConstituency = useCallback(async (id: string, data: any) => {
+        const con = constituencies.find(c => c.id === id);
+        if (con) {
+            await apiService.saveModuleRecord('constituencies', { ...con, ...data });
+            loadData();
+        }
+    }, [constituencies, loadData]);
+
     const handleDownloadReceipt = async (receipt: Receipt) => {
         try {
             const institution = institutions.find((i: Institution) => i.id === receipt.institutionId) || institutions[0];
@@ -2640,6 +2689,7 @@ export const App: React.FC = () => {
                 'sacco_officer', 'agrovet_admin', 'his_admin', 'pharmacy_admin', 'carwash_admin',
                 'mechanic_admin', 'fuel_admin', 'legal_admin', 'church_admin', 'pastor', 'elder',
                 'deacon', 'treasurer', 'secretary', 'driving_instructor', 'campaign_admin',
+                'constituency_admin', 'constituency_staff', 'county_admin', 'county_staff',
                 // Staff / Officers
                 'finance', 'finance_officer', 'academics_officer', 'hr_officer', 'transport_admin',
                 'boarding_master', 'librarian', 'store', 'event_manager', 'security', 'info_desk',
@@ -2677,10 +2727,10 @@ export const App: React.FC = () => {
                 const fallbackRole = (targetInstitution?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') ? 'reseller' : (initialRole || 'admin');
 
                 admin = {
-                    id: `temp_admin_${institutionId}_${Date.now()}`,
+                    id: `temp_admin_${institutionId.replace(/\s+/g, '_')}_${Date.now()}`,
                     institutionId: institutionId,
                     role: fallbackRole as Role,
-                    email: `admin@${institutionId.replace('demo_', '')}.eduai.io`,
+                    email: `admin@${institutionId.replace('demo_', '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'cdf'}.eduai.io`,
                     name: registryEntry ? `${registryEntry.name} Admin` : `Demo Administrator`,
                     phoneNumber: '+254700000000',
                     password: 'password123',
@@ -3992,6 +4042,7 @@ export const App: React.FC = () => {
         notifications,
         institutions,
         counties,
+        constituencies,
         users,
         subjects,
         departments,
@@ -4028,6 +4079,8 @@ export const App: React.FC = () => {
         onUpdateInstitution,
         onDeleteInstitution: (id: string) => { if (id) onDeleteInstitution(id); },
         onToggleInstitutionStatus,
+        onToggleConstituencyStatus,
+        onUpdateConstituency,
         onLoginAsAdmin,
         allocations,
         requests,
@@ -4703,7 +4756,7 @@ export const App: React.FC = () => {
             await apiService.saveCarAppraisal({ ...data, id: `appr_${Date.now()}`, institutionId: instId || '' });
             await loadData();
         }
-    }), [currentUser, activeInstitution, notifications, institutions, counties, users, subjects, departments, courses, companyDetails, transactions, demoRequests, receipts, activityLog, allocations, requests, semesters, activeLetterheadConfig, activeBranding, activeFooterImageUrl, rooms, buildings, academicLevels, academicYears, activeAcademicYear, activeSemester, timetableSettings, assessments, assessmentMarks, incidents, schoolRegistry, leaveOutRequests, invoices, extensionRequests, voteHeads, feeStructures, financialPeriods, userTasks, generatedTimetable, timetableConflicts, timeOffRequests, enrollmentRequests, absenceRequests, studentAbsenceRequests, securityAlerts, visitors, requisitions, studentAttendances, studentCheckIns, lessonRatings, feedbackSubmissions, courseSizes, isGeneratingDemoData, demoDataGenerationProgress, demoDataGenerationMessage, vehicles, transportOnboarding, coopFarmers, coopCollections, coopRiders, coopAgrovetSales, saccoAccounts, coopPayouts, coopExpenses, coopIncome, lawClients, lawMatters, lawDocuments, lawTimeEntries, lawInvoices, lawTrustTransactions, lawAgreementTemplates, lawAgreements, carListings, carTestDrives, carAppraisals, carInvoices, carPayments, carBankTransactions, handleAccessAlumnaPortal, handleUpdateCompanyDetails, onImportStudents, onEditUser, onDeleteUser, onUpdateInstitution, handleUpdateRequest, handleWithdrawRequest, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleProcessPayroll, handleUpdateLeaveStatus, handleLogGateAction, handleTeacherLessonCheckIn, handleOnboardStudent, handleOffboardStudent, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleAddSubject, handleUpdateSubject, handleDeleteSubject, handleAddCourse, handleUpdateCourse, handleDeleteCourse, handleImportCourses, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, handleActivateModuleTrial, handleUpdateVoteHeads, loadData]);
+    }), [currentUser, activeInstitution, notifications, institutions, counties, constituencies, users, subjects, departments, courses, companyDetails, transactions, demoRequests, receipts, activityLog, allocations, requests, semesters, activeLetterheadConfig, activeBranding, activeFooterImageUrl, rooms, buildings, academicLevels, academicYears, activeAcademicYear, activeSemester, timetableSettings, assessments, assessmentMarks, incidents, schoolRegistry, leaveOutRequests, invoices, extensionRequests, voteHeads, feeStructures, financialPeriods, userTasks, generatedTimetable, timetableConflicts, timeOffRequests, enrollmentRequests, absenceRequests, studentAbsenceRequests, securityAlerts, visitors, requisitions, studentAttendances, studentCheckIns, lessonRatings, feedbackSubmissions, courseSizes, isGeneratingDemoData, demoDataGenerationProgress, demoDataGenerationMessage, vehicles, transportOnboarding, coopFarmers, coopCollections, coopRiders, coopAgrovetSales, saccoAccounts, coopPayouts, coopExpenses, coopIncome, lawClients, lawMatters, lawDocuments, lawTimeEntries, lawInvoices, lawTrustTransactions, lawAgreementTemplates, lawAgreements, carListings, carTestDrives, carAppraisals, carInvoices, carPayments, carBankTransactions, handleAccessAlumnaPortal, handleUpdateCompanyDetails, onImportStudents, onEditUser, onDeleteUser, onUpdateInstitution, handleUpdateRequest, handleWithdrawRequest, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleProcessPayroll, handleUpdateLeaveStatus, handleLogGateAction, handleTeacherLessonCheckIn, handleOnboardStudent, handleOffboardStudent, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleAddSubject, handleUpdateSubject, handleDeleteSubject, handleAddCourse, handleUpdateCourse, handleDeleteCourse, handleImportCourses, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, handleActivateModuleTrial, handleUpdateVoteHeads, onToggleConstituencyStatus, onUpdateConstituency, loadData]);
 
 
     const countyAdminProps = useMemo<Partial<CountyAdminProps>>(() => ({
@@ -5031,8 +5084,9 @@ export const App: React.FC = () => {
 
 
     if (currentUser && activeRole !== 'super_admin' && !currentUser.isImpersonated) {
-        const inst = institutions.find(i => i.id === currentUser.institutionId);
-        if (inst && inst.status === 'suspended') {
+        const inst = institutions.find(i => i.id === currentUser.institutionId) || (activeInstitution ? activeInstitution : undefined);
+        const subscriptionExpired = inst && inst.status === 'active' && inst.subscriptionEndsAt && new Date(inst.subscriptionEndsAt) < new Date();
+        if (inst && (inst.status === 'suspended' || subscriptionExpired)) {
             return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
                 await apiService.saveModuleRecord('institution_extension_requests', {
                     id: `ext_${Date.now()}`,
@@ -5238,6 +5292,11 @@ export const App: React.FC = () => {
                                         users={users}
                                         onLogout={handleLogout}
                                         onLogAction={handleLogAction}
+                                        onSendSms={async (recipient: string | string[], message: string) => {
+                                            const targetInstId = activeInstitution?.id || currentUser?.institutionId || 'Kigumo';
+                                            const config = activeInstitution?.smsConfig || companyDetails?.smsConfig;
+                                            return apiService.sendSms(recipient, message, config, undefined, targetInstId);
+                                        }}
                                     />
                                 ) : activeRole === 'academics_officer' ? (
                                     <ModuleAccessGuard
