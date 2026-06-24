@@ -59,7 +59,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isPublicTransport = currentInstitution.category === 'Public Transport' || currentInstitution.institutionType === 'Logistics' && currentInstitution.category === 'Cargo & Delivery';
     // Actually, based on user request, let's explicitly detect Public Transport
     const isSACCO = currentInstitution.category === 'Public Transport' || currentInstitution.category?.includes('SACCO');
-    const isEduTransport = currentInstitution.category === 'Educational Transport';
+    const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
     const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips'>(
         isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
