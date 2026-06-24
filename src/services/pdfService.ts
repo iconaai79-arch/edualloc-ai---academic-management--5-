@@ -6902,13 +6902,25 @@ We confirm that this student has been vetted by our administration and is recomm
     const marksBody = studentMarks.map((m, idx) => {
         const assess = assessments.find(a => a.id === m.assessmentId);
         const subj = assess ? subjects.find(s => s.id === assess.subjectId) : null;
+        
+        // Calculate standard grade from percentage if rubric grade isn't present
+        let displayGrade = m.rubricGrade || '—';
+        if (!m.rubricGrade && m.marks !== null && assess?.maxMarks) {
+            const pct = (m.marks / assess.maxMarks) * 100;
+            if (pct >= 80) displayGrade = 'A';
+            else if (pct >= 70) displayGrade = 'B';
+            else if (pct >= 60) displayGrade = 'C';
+            else if (pct >= 50) displayGrade = 'D';
+            else displayGrade = 'E';
+        }
+
         return [
             idx + 1,
             subj?.name || subj?.code || 'Unknown Module',
             assess?.title || 'Continuous Assessment',
-            `${m.score} / ${assess?.maxScore || 100}`,
-            m.grade || '—',
-            m.remarks || 'Satisfactory'
+            `${m.marks ?? '—'} / ${assess?.maxMarks || 100}`,
+            displayGrade,
+            m.comments || 'Satisfactory'
         ];
     });
 

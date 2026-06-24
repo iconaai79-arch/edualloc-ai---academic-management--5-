@@ -5355,10 +5355,24 @@ export const App: React.FC = () => {
                                             await loadData(false, true);
                                         }}
                                         onSaveInstitution={async (data: any) => {
-                                            const newId = data.id || `inst_cdf_${Date.now()}`;
-                                            await apiService.saveInstitution({ ...data, id: newId } as any);
-                                            await loadData(false, true);
-                                        }}
+                                             const newId = data.id || `inst_cdf_${Date.now()}`;
+                                             await apiService.saveInstitution({ ...data, id: newId } as any);
+                                             
+                                             if (data.email) {
+                                                 const adminUserData = {
+                                                     id: `u_sch_${Date.now()}`,
+                                                     name: `${data.name} Administrator`,
+                                                     email: data.email.trim().toLowerCase(),
+                                                     phoneNumber: data.phoneNumber || '',
+                                                     role: 'finance_officer' as Role,
+                                                     roles: ['finance_officer' as Role, 'admin' as Role],
+                                                     institutionId: newId
+                                                 };
+                                                 await apiService.registerUser(adminUserData, data.name);
+                                             }
+                                             
+                                             await loadData(false, true);
+                                         }}
                                         onSendSms={async (recipient: string | string[], message: string) => {
                                             const targetInstId = activeInstitution?.id || currentUser?.institutionId || 'Kigumo';
                                             const config = activeInstitution?.smsConfig || companyDetails?.smsConfig;

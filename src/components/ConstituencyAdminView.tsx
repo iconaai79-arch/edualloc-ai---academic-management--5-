@@ -60,9 +60,13 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
         knecCode: '',
         uic: '',
         accommodationType: 'Day' as 'Day' | 'Boarding' | 'Mixed',
-        genderType: 'Mixed' as 'Boys' | 'Girls' | 'Mixed'
+        genderType: 'Mixed' as 'Boys' | 'Girls' | 'Mixed',
+        registryId: null as string | null
     });
     const [isSavingSchool, setIsSavingSchool] = useState(false);
+    const [linkingSchoolDetails, setLinkingSchoolDetails] = useState<SchoolRegistry | null>(null);
+    const [linkingAdminEmail, setLinkingAdminEmail] = useState('');
+    const [linkingAdminPhone, setLinkingAdminPhone] = useState('');
 
     // SMS states
     const [smsSubTab, setSmsSubTab] = useState<'compose' | 'history' | 'outbox'>('compose');
@@ -128,8 +132,8 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     };
 
     useEffect(() => {
-        if (activeTab === 'institutions') fetchSchoolRegistry();
-    }, [activeTab]);
+        if (activeTab === 'institutions' || showManualAddSchool) fetchSchoolRegistry();
+    }, [activeTab, showManualAddSchool]);
 
     const handleLinkSchool = async (school: SchoolRegistry) => {
         if (schoolLinkingId === school.id) return;
@@ -165,6 +169,44 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
         }
     };
 
+    const handleLinkSchoolConfirm = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!linkingSchoolDetails) return;
+        const school = linkingSchoolDetails;
+        setLinkingSchoolDetails(null);
+        setSchoolLinkingId(school.id);
+        try {
+            const instData = {
+                id: `inst_cdf_${Date.now()}`,
+                name: school.name,
+                institutionType: school.institutionType || 'School',
+                category: school.accommodationType || 'Day',
+                constituency: myConstituency,
+                subCounty: school.subCounty || '',
+                county: school.county || '',
+                institutionCode: school.knecCode || school.uic || '',
+                registryId: school.id,
+                status: 'active',
+                email: linkingAdminEmail.trim(),
+                phoneNumber: linkingAdminPhone.trim(),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            if (onSaveInstitution) {
+                await onSaveInstitution(instData);
+            } else {
+                await apiService.saveModuleRecord('institutions', instData);
+            }
+            if (onLogAction) onLogAction(`Linked registry school "${school.name}" to ${myConstituency} constituency`);
+            alert(`"${school.name}" has been added to your constituency schools.`);
+        } catch (e: any) {
+            console.error('Failed to link school:', e);
+            alert('Error linking school: ' + (e.message || 'Unknown error'));
+        } finally {
+            setSchoolLinkingId(null);
+        }
+    };
+
     const handleManualAddSchool = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!manualSchoolForm.name.trim()) return;
@@ -184,6 +226,7 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                 knecCode: manualSchoolForm.knecCode,
                 genderType: manualSchoolForm.genderType,
                 status: 'active',
+                registryId: manualSchoolForm.registryId || null,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
@@ -194,7 +237,7 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
             }
             if (onLogAction) onLogAction(`Manually added school "${instData.name}" to ${myConstituency} constituency`);
             setShowManualAddSchool(false);
-            setManualSchoolForm({ name: '', institutionType: 'Secondary', subCounty: '', phoneNumber: '', email: '', knecCode: '', uic: '', accommodationType: 'Day', genderType: 'Mixed' });
+            setManualSchoolForm({ name: '', institutionType: 'Secondary', subCounty: '', phoneNumber: '', email: '', knecCode: '', uic: '', accommodationType: 'Day', genderType: 'Mixed', registryId: null });
             alert(`"${instData.name}" has been added to your constituency schools.`);
         } catch (e: any) {
             console.error('Failed to add school:', e);
@@ -250,7 +293,7 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                 const fundToUpdate = matchingFund || ngCdfFunds[0];
 
                 if (fundToUpdate) {
-                    const allocated = (fundToUpdate.allocatedAmount || 0) + (bur.amountApproved || 0);
+                    const allocated = (fundToUpdate.allocatedAmount || 0) + (bur.amountApproved || bur.amountRequested || 0);
                     const remaining = Math.max(0, fundToUpdate.totalBudget - allocated);
                     await apiService.saveModuleRecord('ng_cdf_funds', {
                         ...fundToUpdate,
@@ -258,6 +301,22 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                         remainingAmount: remaining
                     });
                 }
+
+                // Automatically post receipt to student ledger at the school's institution
+                const amount = bur.amountApproved || bur.amountRequested || 0;
+                const receipt = {
+                    id: `rcpt_bursary_approved_${Date.now()}`,
+                    receiptNumber: `B-RCPT-${Date.now().toString().slice(-6)}`,
+                    institutionId: bur.institutionId,
+                    studentId: bur.studentId,
+                    amountPaid: amount,
+                    paymentMethod: 'Cheque',
+                    relatedTransactionId: bur.chequeNumber || `CDF-DISB-${Date.now().toString().slice(-4)}`,
+                    paymentDate: new Date().toISOString().split('T')[0],
+                    paidFor: `Approved NG-CDF Bursary (${bur.constituencyName})`,
+                    createdAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('receipts', receipt);
             }
             
             fetchNgCdfData();
@@ -998,7 +1057,7 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                                                             </span>
                                                         ) : (
                                                             <button
-                                                                onClick={() => handleLinkSchool(school)}
+                                                                onClick={() => { setLinkingSchoolDetails(school); setLinkingAdminEmail(''); setLinkingAdminPhone(''); }}
                                                                 disabled={schoolLinkingId === school.id}
                                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm"
                                                             >
@@ -1099,15 +1158,62 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                                 </button>
                             </div>
                             <form onSubmit={handleManualAddSchool} className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
-                                <div>
+                                <div className="relative">
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">School Name *</label>
                                     <input
                                         type="text" required
                                         value={manualSchoolForm.name}
-                                        onChange={e => setManualSchoolForm(p => ({ ...p, name: e.target.value }))}
+                                        onChange={e => setManualSchoolForm(p => ({ ...p, name: e.target.value, registryId: null }))}
                                         placeholder="e.g. Kigumo High School"
                                         className="form-input w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-bold text-slate-800 text-sm"
                                     />
+                                    {(() => {
+                                        const nameQuery = manualSchoolForm.name.toLowerCase();
+                                        const matchingRegistry = schoolRegistry.filter(s => {
+                                            if (!nameQuery.trim()) return false;
+                                            if (manualSchoolForm.registryId) {
+                                                const selected = schoolRegistry.find(r => r.id === manualSchoolForm.registryId);
+                                                if (selected && selected.name.toLowerCase() === nameQuery) return false;
+                                            }
+                                            return s.name.toLowerCase().includes(nameQuery);
+                                        }).slice(0, 5);
+
+                                        if (matchingRegistry.length === 0) return null;
+
+                                        return (
+                                            <div className="absolute z-[210] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                                <div className="p-2 bg-slate-50 text-[9px] font-black uppercase tracking-wider text-indigo-600">
+                                                    Match Registry School
+                                                </div>
+                                                {matchingRegistry.map(school => (
+                                                    <button
+                                                        key={school.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setManualSchoolForm({
+                                                                name: school.name,
+                                                                institutionType: school.institutionType || 'Secondary',
+                                                                subCounty: school.subCounty || '',
+                                                                phoneNumber: manualSchoolForm.phoneNumber,
+                                                                email: manualSchoolForm.email,
+                                                                knecCode: school.knecCode || '',
+                                                                uic: school.uic || '',
+                                                                accommodationType: school.accommodationType || 'Day',
+                                                                genderType: school.genderType || 'Mixed',
+                                                                registryId: school.id
+                                                            });
+                                                        }}
+                                                        className="w-full p-3 hover:bg-indigo-50 text-left text-xs font-bold text-slate-700 flex flex-col transition-colors"
+                                                    >
+                                                        <span className="text-indigo-600 font-extrabold">{school.name}</span>
+                                                        <span className="text-[9px] text-slate-400 mt-0.5">
+                                                            {school.institutionType || 'School'} • {school.accommodationType || 'Day'} • {school.genderType || 'Mixed'} • Sub-County: {school.subCounty || '—'}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -1168,6 +1274,54 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                                     <button type="submit" disabled={isSavingSchool} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2">
                                         {isSavingSchool && <RefreshCw className="w-3 h-3 animate-spin" />}
                                         Save School
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Link Registry School Contact Details Modal */}
+                {linkingSchoolDetails && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setLinkingSchoolDetails(null)}>
+                        <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 animate-scale-in" onClick={e => e.stopPropagation()}>
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Add School Admin Details</h3>
+                                    <p className="text-[11px] text-slate-400 mt-1">Provide contact details to automatically generate school login credentials.</p>
+                                </div>
+                                <button onClick={() => setLinkingSchoolDetails(null)} className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-400">
+                                    ✕
+                                </button>
+                            </div>
+                            <form onSubmit={handleLinkSchoolConfirm} className="p-8 space-y-4">
+                                <div className="space-y-1">
+                                    <p className="text-xs font-bold text-slate-700">Linking: <span className="text-indigo-600 font-black">{linkingSchoolDetails.name}</span></p>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Admin Email *</label>
+                                    <input
+                                        type="email" required
+                                        value={linkingAdminEmail}
+                                        onChange={e => setLinkingAdminEmail(e.target.value)}
+                                        placeholder="school.admin@email.com"
+                                        className="form-input w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-bold text-slate-800 text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Admin Phone Number</label>
+                                    <input
+                                        type="tel"
+                                        value={linkingAdminPhone}
+                                        onChange={e => setLinkingAdminPhone(e.target.value)}
+                                        placeholder="07xx xxx xxx (Optional)"
+                                        className="form-input w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-medium text-slate-800 text-sm"
+                                    />
+                                </div>
+                                <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                                    <button type="button" onClick={() => setLinkingSchoolDetails(null)} className="px-6 py-2.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                                    <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all">
+                                        Link & Send Credentials
                                     </button>
                                 </div>
                             </form>

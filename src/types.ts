@@ -1353,6 +1353,7 @@ export interface Invoice {
     totalAmount: number;
     status: 'paid' | 'pending' | 'overdue' | 'quote' | 'partial' | 'cancelled';
     studentId?: string;
+    className?: string;
 }
 
 export interface Receipt {

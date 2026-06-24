@@ -424,7 +424,8 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                 { id: 'his', name: 'EduPulse Wellness & Care Hub', description: 'Comprehensive school sickbay registry, student health records, triage logs, clinic visits management, and wellness tracking.' },
                                 { id: 'timetable', name: 'Smart Timetable', description: 'Automated timetable generation, conflict resolution, and teacher schedule management.' },
                                 { id: 'enrollment_manager', name: 'Student Enrollment Manager', description: 'Unified, context-aware student registry and enrollment portal supporting both academic and driving school curriculums with biometric scanner integration.' },
-                                { id: 'events', name: 'Marathon & Event Management', description: 'Track race categories, registrations, timing splits, fundraising pledges, and medical tents.' }
+                                { id: 'events', name: 'Marathon & Event Management', description: 'Track race categories, registrations, timing splits, fundraising pledges, and medical tents.' },
+                                { id: 'ng_cdf', name: 'NG-CDF Bursaries', description: 'Track constituency school-wide block grants and manage individual student bursary applications and support kits independently of core ledger billing.' }
                             ].map(module => {
                                 const state = institution.moduleStates?.find(m => m.moduleId === module.id);
                                 const isInactive = !state || state.status === 'inactive';
