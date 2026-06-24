@@ -365,9 +365,20 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         return isEduInstitution(currentInstitution) && !isDS;
     }, [currentInstitution, isDS]);
 
+    const isEduTransportScope = useMemo(() => {
+        const cat = currentInstitution?.category || '';
+        const type = currentInstitution?.institutionType || '';
+        return (
+            cat === 'Educational Transport' ||
+            type === 'Education' ||
+            type === 'Primary' ||
+            type === 'Secondary'
+        );
+    }, [currentInstitution]);
+
     const [subTab, setSubTab] = useState(() => {
         if (activeScope === 'inventory') return 'inventory_valuation';
-        if (activeScope === 'logistics') return 'distance';
+        if (activeScope === 'logistics') return 'fleet_overview';
         if (activeScope === 'boarding') return 'enrollment_capacity';
         return 'visuals';
     });
@@ -690,12 +701,15 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const subTabs = [
         { key: 'inventory_valuation', label: 'Inventory Stock & Valuation', icon: <ArchiveBoxIcon className="w-5 h-5 mr-3" /> },
         { key: 'store_issuances', label: 'Historical Store Issuances', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
+        { key: 'fleet_overview', label: isEduTransportScope ? 'School Bus Fleet' : 'Fleet Overview', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
+        { key: 'route_analytics', label: isEduTransportScope ? 'Route Analytics' : 'Route Analytics', icon: <ChartPieIcon className="w-5 h-5 mr-3" /> },
+        { key: 'commute_stats', label: isEduTransportScope ? 'Commute Statistics' : 'Transport Statistics', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'visuals', label: 'Graphs & Visuals', icon: <ChartPieIcon className="w-5 h-5 mr-3" /> },
         { key: 'stats', label: (isRetailAgency || isAutoSales) ? 'Personnel & Agent Stats' : 'Workload & Statistics', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
         { key: 'progress', label: 'Course Progress Tracking', icon: <CheckCircleIcon className="w-5 h-5 mr-3" /> },
         { key: 'enrollment_capacity', label: 'Enrollment vs Capacity', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'utilization', label: 'Room Utilization', icon: <BuildingOfficeIcon className="w-5 h-5 mr-3" /> },
-        { key: 'distance', label: 'Travel Distance Report', icon: <DocumentArrowDownIcon className="w-5 h-5 mr-3" /> },
+        { key: 'distance', label: isEduTransportScope ? 'Bus Route Distances' : 'Travel Distance Report', icon: <DocumentArrowDownIcon className="w-5 h-5 mr-3" /> },
         { key: 'advisory', label: 'Room Advisory Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
         { key: 'audit', label: 'Audit Trail of Changes', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'conflicts', label: 'Conflict Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
@@ -756,7 +770,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 return ['enrollment_capacity', 'attendance', 'audit'].includes(tab.key);
             }
             if (activeScope === 'logistics') {
-                return ['distance', 'audit'].includes(tab.key);
+                return ['fleet_overview', 'route_analytics', 'commute_stats', 'distance', 'audit'].includes(tab.key);
             }
         }
         
@@ -1003,6 +1017,246 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 setPreviewPdfFilename(filename);
                             }}
                         />
+                    )}
+
+                    {subTab === 'fleet_overview' && (
+                        <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {[
+                                    { label: isEduTransportScope ? 'School Buses' : 'Total Vehicles', value: '5', color: 'from-indigo-500 to-indigo-600', icon: '🚌' },
+                                    { label: isEduTransportScope ? 'On Active Routes' : 'In Transit', value: '3', color: 'from-emerald-500 to-emerald-600', icon: '🛣️' },
+                                    { label: 'Fleet Utilization', value: '84%', color: 'from-violet-500 to-violet-600', icon: '📊' },
+                                    { label: isEduTransportScope ? 'GPS Tracked' : 'GPS Active', value: '5/5', color: 'from-sky-500 to-sky-600', icon: '📡' },
+                                ].map(stat => (
+                                    <div key={stat.label} className={`bg-gradient-to-br ${stat.color} p-6 rounded-[2rem] shadow-lg text-white`}>
+                                        <div className="text-3xl mb-2">{stat.icon}</div>
+                                        <p className="text-3xl font-black">{stat.value}</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mt-1">{stat.label}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20">
+                                    <h4 className="text-sm font-black uppercase tracking-tight">{isEduTransportScope ? 'School Bus Fleet Registry' : 'Fleet Health Register'}</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Current status of all registered vehicles</p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-50 dark:border-slate-700">
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Vehicle</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Reg. No.</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">{isEduTransportScope ? 'Assigned Route' : 'Last Route'}</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">{isEduTransportScope ? 'Driver / Attendant' : 'Driver'}</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Capacity</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Safety</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                            {[
+                                                { name: isEduTransportScope ? 'Bus 04' : 'Truck Alpha', reg: 'KDC 992P', route: isEduTransportScope ? 'Route A – Kilimani & Hurlingham' : 'Mombasa → Nairobi', driver: isEduTransportScope ? 'Douglas Omwamba / Sarah W.' : 'Douglas Omwamba', capacity: isEduTransportScope ? '30 seats' : '12.5 tons', status: 'active', safety: 'Compliant' },
+                                                { name: isEduTransportScope ? 'Bus 02' : 'Truck Bravo', reg: 'KBB 120Z', route: isEduTransportScope ? 'Route B – Langata & Karen' : 'Nairobi → Kampala', driver: isEduTransportScope ? 'James Kamau / Mercy N.' : 'James Kamau', capacity: isEduTransportScope ? '35 seats' : '4.2 tons', status: 'active', safety: 'Compliant' },
+                                                { name: isEduTransportScope ? 'Bus 07' : 'Truck Charlie', reg: 'KDM 441X', route: isEduTransportScope ? 'Route C – Westlands & Spring Valley' : 'Kisumu → Eldoret', driver: isEduTransportScope ? 'Douglas Omwamba / Sarah W.' : 'Michael Odhiambo', capacity: isEduTransportScope ? '30 seats' : '2.8 tons', status: 'idle', safety: 'Compliant' },
+                                                { name: isEduTransportScope ? 'Bus 09' : 'Truck Delta', reg: 'KCP 338B', route: isEduTransportScope ? 'Route D – South C & Embakasi' : 'Nairobi → Mombasa', driver: isEduTransportScope ? 'Grace Muthoni / Lydia A.' : 'Samuel Njoroge', capacity: isEduTransportScope ? '28 seats' : '10.0 tons', status: 'maintenance', safety: 'Under Review' },
+                                                { name: isEduTransportScope ? 'Bus 11' : 'Truck Echo', reg: 'KDK 771Q', route: isEduTransportScope ? 'Route E – Thika Road' : 'Nairobi → Nakuru', driver: isEduTransportScope ? 'Peter Kimani / Ann W.' : 'Peter Kimani', capacity: isEduTransportScope ? '32 seats' : '8.0 tons', status: 'active', safety: 'Compliant' },
+                                            ].map((v, i) => (
+                                                <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                                                    <td className="p-5 text-xs font-black text-slate-900 dark:text-white">{v.name}</td>
+                                                    <td className="p-5 text-xs font-bold text-indigo-600 dark:text-indigo-400">{v.reg}</td>
+                                                    <td className="p-5 text-xs font-bold text-slate-600 dark:text-slate-300 max-w-[180px]">{v.route}</td>
+                                                    <td className="p-5 text-xs font-bold text-slate-500">{v.driver}</td>
+                                                    <td className="p-5 text-xs font-black text-center text-slate-800 dark:text-slate-200">{v.capacity}</td>
+                                                    <td className="p-5">
+                                                        <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full ${
+                                                            v.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400' :
+                                                            v.status === 'maintenance' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400' :
+                                                            'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                                                        }`}>{v.status}</span>
+                                                    </td>
+                                                    <td className="p-5 text-center">
+                                                        <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full ${
+                                                            v.safety === 'Compliant' ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400' : 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400'
+                                                        }`}>{v.safety}</span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {[
+                                    { label: 'Avg Fuel Efficiency', value: '11.4 km/L', sub: 'vs. 10.8 last month', color: 'text-emerald-600' },
+                                    { label: 'Maintenance Due', value: '1 vehicle', sub: 'Bus 09 — scheduled service', color: 'text-amber-600' },
+                                    { label: isEduTransportScope ? 'Total Routes Covered' : 'Total KMs This Month', value: isEduTransportScope ? '5 active routes' : '8,420 km', sub: isEduTransportScope ? '3 morning · 2 afternoon' : '+12% vs last month', color: 'text-indigo-600' },
+                                ].map(card => (
+                                    <div key={card.label} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{card.label}</p>
+                                        <p className={`text-2xl font-black ${card.color}`}>{card.value}</p>
+                                        <p className="text-xs font-bold text-slate-400 mt-1">{card.sub}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {subTab === 'route_analytics' && (
+                        <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <h4 className="text-sm font-black uppercase tracking-tight mb-6">{isEduTransportScope ? 'Route Performance Breakdown' : 'Route Efficiency Breakdown'}</h4>
+                                    <div className="space-y-5">
+                                        {[
+                                            { route: isEduTransportScope ? 'Route A – Kilimani & Hurlingham' : 'Mombasa → Nairobi ICD', load: 80, trips: isEduTransportScope ? '2/day' : '8', km: isEduTransportScope ? '18 km' : '490 km', color: 'bg-indigo-500' },
+                                            { route: isEduTransportScope ? 'Route B – Langata & Karen' : 'Nairobi → Kampala', load: 94, trips: isEduTransportScope ? '2/day' : '4', km: isEduTransportScope ? '22 km' : '660 km', color: 'bg-emerald-500' },
+                                            { route: isEduTransportScope ? 'Route C – Westlands & Spring Valley' : 'Kisumu → Eldoret', load: 100, trips: isEduTransportScope ? '2/day' : '6', km: isEduTransportScope ? '14 km' : '120 km', color: 'bg-violet-500' },
+                                            { route: isEduTransportScope ? 'Route D – South C & Embakasi' : 'Nairobi → Mombasa', load: 57, trips: isEduTransportScope ? '2/day' : '3', km: isEduTransportScope ? '25 km' : '490 km', color: 'bg-sky-500' },
+                                            { route: isEduTransportScope ? 'Route E – Thika Road' : 'Nairobi → Nakuru', load: 72, trips: isEduTransportScope ? '2/day' : '5', km: isEduTransportScope ? '19 km' : '160 km', color: 'bg-amber-500' },
+                                        ].map(r => (
+                                            <div key={r.route}>
+                                                <div className="flex justify-between text-xs font-bold mb-1">
+                                                    <span className="text-slate-700 dark:text-slate-200 truncate max-w-[60%]">{r.route}</span>
+                                                    <span className="text-slate-400">{r.load}% load · {r.trips} · {r.km}</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2.5">
+                                                    <div className={`${r.color} h-2.5 rounded-full transition-all duration-700`} style={{ width: `${r.load}%` }} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <h4 className="text-sm font-black uppercase tracking-tight mb-6">{isEduTransportScope ? 'Punctuality & Safety Report' : 'On-Time Delivery Record'}</h4>
+                                    <div className="space-y-4">
+                                        {[
+                                            { label: isEduTransportScope ? 'On-Time Arrivals' : 'On-Time Deliveries', value: '94.2%', icon: '✅', color: 'text-emerald-600' },
+                                            { label: isEduTransportScope ? 'Student Boarding Compliance' : 'Cargo Integrity Rate', value: '99.1%', icon: '🛡️', color: 'text-sky-600' },
+                                            { label: isEduTransportScope ? 'Incidents This Term' : 'Incidents This Month', value: '0', icon: '🎯', color: 'text-violet-600' },
+                                            { label: isEduTransportScope ? 'Parent Tracking Sessions' : 'Tracking Requests', value: '312', icon: '📱', color: 'text-indigo-600' },
+                                            { label: 'Fuel Cost (This Month)', value: 'KES 42,800', icon: '⛽', color: 'text-amber-600' },
+                                            { label: isEduTransportScope ? 'Avg Trip Duration' : 'Avg Transit Time', value: isEduTransportScope ? '38 min' : '2.4 days', icon: '⏱️', color: 'text-slate-600 dark:text-slate-300' },
+                                        ].map(item => (
+                                            <div key={item.label} className="flex items-center justify-between py-3 border-b border-slate-50 dark:border-slate-700 last:border-0">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-lg">{item.icon}</span>
+                                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{item.label}</span>
+                                                </div>
+                                                <span className={`text-sm font-black ${item.color}`}>{item.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <h4 className="text-sm font-black uppercase tracking-tight mb-1">{isEduTransportScope ? 'Weekly Route Activity Heatmap' : 'Monthly Trip Volume Heatmap'}</h4>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Trip volume per day this week</p>
+                                <div className="flex gap-2 flex-wrap">
+                                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day, di) => (
+                                        <div key={day} className="flex flex-col gap-2 flex-1 min-w-[40px]">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 text-center">{day}</p>
+                                            {[90, 70, 85, 55, 95, 40, 80].slice(0, 5).map((v, i) => {
+                                                const pct = Math.min(100, Math.max(20, v + (di * 7 + i * 5) % 30 - 10));
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        title={`${pct}% load`}
+                                                        className="rounded-lg h-8 flex items-center justify-center text-[8px] font-black text-white transition-all"
+                                                        style={{ background: `hsl(${220 + pct * 0.5}, 80%, ${70 - pct * 0.25}%)` }}
+                                                    >{pct}%</div>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {subTab === 'commute_stats' && (
+                        <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {[
+                                    { label: isEduTransportScope ? 'Commuting Students' : 'Passengers (This Month)', value: isEduTransportScope ? String(Math.max(lecturers.filter(u => (u as any).role === 'student').length || 184, 5)) : '1,240', color: 'from-indigo-500 to-indigo-700', icon: '👥' },
+                                    { label: isEduTransportScope ? 'Morning Pick-ups' : 'Pickups Completed', value: isEduTransportScope ? '82' : '612', color: 'from-emerald-500 to-emerald-700', icon: '🌅' },
+                                    { label: isEduTransportScope ? 'Afternoon Drop-offs' : 'Deliveries Completed', value: isEduTransportScope ? '80' : '608', color: 'from-violet-500 to-violet-700', icon: '🌆' },
+                                    { label: isEduTransportScope ? 'Safety Score' : 'Safety Rating', value: '99.1%', color: 'from-sky-500 to-sky-700', icon: '🛡️' },
+                                ].map(stat => (
+                                    <div key={stat.label} className={`bg-gradient-to-br ${stat.color} p-6 rounded-[2rem] shadow-lg text-white`}>
+                                        <div className="text-3xl mb-2">{stat.icon}</div>
+                                        <p className="text-3xl font-black">{stat.value}</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mt-1">{stat.label}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20">
+                                    <h4 className="text-sm font-black uppercase tracking-tight">{isEduTransportScope ? 'Route-wise Student Distribution' : 'Route-wise Passenger Load'}</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{isEduTransportScope ? 'Student counts per active bus route this term' : 'Passenger volumes across all active routes'}</p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-50 dark:border-slate-700">
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Route</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">{isEduTransportScope ? 'Students' : 'Passengers'}</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Capacity</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Load %</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">{isEduTransportScope ? 'Bus' : 'Vehicle'}</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Driver</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                            {[
+                                                { route: isEduTransportScope ? 'Route A – Kilimani' : 'Route 001', passengers: 24, capacity: 30, vehicle: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba' },
+                                                { route: isEduTransportScope ? 'Route B – Langata' : 'Route 002', passengers: 33, capacity: 35, vehicle: 'Bus 02 (KBB 120Z)', driver: 'James Kamau' },
+                                                { route: isEduTransportScope ? 'Route C – Westlands' : 'Route 003', passengers: 30, capacity: 30, vehicle: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba' },
+                                                { route: isEduTransportScope ? 'Route D – South C' : 'Route 004', passengers: 16, capacity: 28, vehicle: 'Bus 09 (KCP 338B)', driver: 'Grace Muthoni' },
+                                                { route: isEduTransportScope ? 'Route E – Thika Road' : 'Route 005', passengers: 23, capacity: 32, vehicle: 'Bus 11 (KDK 771Q)', driver: 'Peter Kimani' },
+                                            ].map((row, i) => {
+                                                const pct = Math.round((row.passengers / row.capacity) * 100);
+                                                return (
+                                                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                                                        <td className="p-5 text-xs font-black text-slate-900 dark:text-white">{row.route}</td>
+                                                        <td className="p-5 text-xs font-black text-center text-indigo-600 dark:text-indigo-400">{row.passengers}</td>
+                                                        <td className="p-5 text-xs font-bold text-center text-slate-500">{row.capacity}</td>
+                                                        <td className="p-5">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-2">
+                                                                    <div className={`h-2 rounded-full ${pct >= 90 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
+                                                                </div>
+                                                                <span className="text-[10px] font-black text-slate-500 w-8 text-right">{pct}%</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-5 text-xs font-bold text-slate-600 dark:text-slate-300">{row.vehicle}</td>
+                                                        <td className="p-5 text-xs font-bold text-slate-500">{row.driver}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[2.5rem] text-white shadow-xl">
+                                <div className="flex flex-col md:flex-row justify-between items-start gap-6">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-70">AI Transport Insight</p>
+                                        <h4 className="text-xl font-black mt-1">{isEduTransportScope ? 'Route B is operating at 94% capacity' : 'Route 002 is nearing capacity'}</h4>
+                                        <p className="text-sm opacity-80 mt-2 max-w-md">{isEduTransportScope ? 'Consider splitting Route B or upgrading Bus 02 to a higher-capacity vehicle before next term to prevent overcrowding and maintain safety compliance.' : 'Consider adding a second vehicle on this route to maintain service quality and on-time performance.'}</p>
+                                    </div>
+                                    <div className="flex-shrink-0 bg-white/20 rounded-2xl p-4 text-center">
+                                        <p className="text-4xl font-black">94%</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mt-1">Peak Load</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
                     {subTab === 'visuals' && (
                         <VisualReports
