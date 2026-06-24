@@ -27,9 +27,12 @@ import {
     Receipt,
     Ticket,
     Landmark,
-    Users
+    Users,
+    Bell
 } from 'lucide-react';
 import type { Institution, User as UserType } from '../types';
+import { TransportDisruptionAlert } from './TransportDisruptionAlert';
+import type { TransportDisruption } from './TransportDisruptionAlert';
 
 interface Shipment {
     id: string;
@@ -61,9 +64,30 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isSACCO = currentInstitution.category === 'Public Transport' || currentInstitution.category?.includes('SACCO');
     const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips'>(
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips' | 'alerts'>(
         isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
+
+    // Transport Disruption Alerts state
+    const [transportAlerts, setTransportAlerts] = useState<TransportDisruption[]>([]);
+
+    const handleAddAlert = (alert: TransportDisruption) => {
+        setTransportAlerts(prev => [alert, ...prev]);
+    };
+
+    const handleResolveAlert = (id: string) => {
+        setTransportAlerts(prev => prev.map(a => a.id === id
+            ? { ...a, status: 'resolved', resolvedAt: new Date().toISOString() }
+            : a
+        ));
+    };
+
+    const handleAcknowledgeAlert = (id: string, parentId: string) => {
+        setTransportAlerts(prev => prev.map(a => a.id === id
+            ? { ...a, acknowledgedBy: [...a.acknowledgedBy.filter(p => p !== parentId), parentId] }
+            : a
+        ));
+    };
     const [searchTerm, setSearchTerm] = useState('');
 
     // Commute Sub-Tabs inside manifest view
@@ -1546,6 +1570,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     { id: 'trips', label: 'School Trips', icon: Calendar, show: isEduTransport },
                     { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', icon: Truck, show: true },
                     { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', icon: BarChart3, show: true },
+                    { id: 'alerts', label: 'Disruption Alerts', icon: Bell, show: isEduTransport },
                     { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle && !isSACCO && !isEduTransport }
                 ].filter(t => t.show).map((tab) => (
                     <button
@@ -1583,6 +1608,15 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 : 'Generating optimal routes based on current traffic patterns and vessel arrival times...'}
                         </p>
                     </div>
+                )}
+                {activeTab === 'alerts' && isEduTransport && (
+                    <TransportDisruptionAlert
+                        mode="admin"
+                        alerts={transportAlerts}
+                        onAddAlert={handleAddAlert}
+                        onResolveAlert={handleResolveAlert}
+                        onAcknowledge={handleAcknowledgeAlert}
+                    />
                 )}
             </div>
         </div>

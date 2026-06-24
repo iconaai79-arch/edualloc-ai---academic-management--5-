@@ -7,6 +7,8 @@ import type {
 import { UserIcon } from './icons/UserIcon';
 import { SynergyHub } from './SynergyHub';
 import { Sparkles, Home } from 'lucide-react';
+import { TransportDisruptionAlert } from './TransportDisruptionAlert';
+import type { TransportDisruption } from './TransportDisruptionAlert';
 
 
 interface ParentViewProps {
@@ -32,6 +34,8 @@ interface ParentViewProps {
     onAddAssessment?: (data: any) => Promise<void>;
     onDeleteAssessment?: (id: string) => Promise<void>;
     onAccessAlumnaPortal?: (school: any) => void;
+    transportAlerts?: TransportDisruption[];
+    onAcknowledgeAlert?: (id: string, parentId: string) => void;
 }
 
 import { AttendanceAnalytics } from './AttendanceAnalytics';
@@ -213,6 +217,27 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                     </div>
 
             <div className="space-y-8">
+
+                {/* Transport Disruption Alert Banner */}
+                {props.transportAlerts && props.transportAlerts.filter(a => a.status === 'active').length > 0 && (
+                    <div className="animate-fade-in">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-rose-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                            </span>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-rose-600">Transport Alert — Action Required</p>
+                        </div>
+                        <TransportDisruptionAlert
+                            mode="parent"
+                            alerts={props.transportAlerts}
+                            onAcknowledge={props.onAcknowledgeAlert}
+                            parentId={user?.id || 'parent_user'}
+                            parentChildRoutes={[]}
+                        />
+                    </div>
+                )}
+
                 <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
                     <UserIcon className="w-6 h-6 text-indigo-500" />
                     My Children ({children.length})
