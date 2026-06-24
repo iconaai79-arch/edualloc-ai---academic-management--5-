@@ -6566,7 +6566,7 @@ export const generateStudentIdCardPdf = async (
     doc.setTextColor(17, 24, 39);
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
-    const admissionNo = student.staffId || student.admissionNumber || student.admission_number || student.id.substring(0, 8);
+    const admissionNo = student.admissionNumber || student.admission_number || student.staffId || student.id.substring(0, 8);
     doc.text(admissionNo, detailsX, detailY, { maxWidth: maxNameWidth });
 
     detailY += 4.5;

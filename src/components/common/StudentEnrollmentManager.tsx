@@ -3597,7 +3597,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const logoUrl = (currentInstitution.letterheadConfig as any)?.logoUrl || currentInstitution.logoUrl || '';
 
             const pdfDataUri = await generateStudentIdCardPdf(
-                user,
+                { ...user, admissionNumber: enr.admissionNumber || user.admissionNumber || user.admission_number || user.staffId },
                 currentInstitution,
                 companyDetails || {} as any,
                 logoUrl,
@@ -8127,7 +8127,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         Admission / Student ID
                                     </div>
                                     <div className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 mt-0.5 mb-2 truncate">
-                                        {previewStudent.staffId || previewStudent.admissionNumber || previewStudent.admission_number || previewStudent.id.substring(0, 8)}
+                                        {previewEnrollment?.admissionNumber || previewStudent.admissionNumber || previewStudent.admission_number || previewStudent.staffId || previewStudent.id.substring(0, 8)}
                                     </div>
                                     
                                     <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">

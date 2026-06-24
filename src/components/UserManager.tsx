@@ -1955,7 +1955,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             Admission / Student ID
                                         </div>
                                         <div className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 mt-0.5 mb-2 truncate">
-                                            {previewStudent.staffId || previewStudent.admissionNumber || previewStudent.admission_number || previewStudent.id.substring(0, 8)}
+                                            {previewStudent.admissionNumber || previewStudent.admission_number || previewStudent.staffId || previewStudent.id.substring(0, 8)}
                                         </div>
                                         
                                         <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
