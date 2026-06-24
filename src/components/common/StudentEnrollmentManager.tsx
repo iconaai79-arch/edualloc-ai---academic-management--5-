@@ -3564,6 +3564,26 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     };
 
     const [isGeneratingIdCardId, setIsGeneratingIdCardId] = useState<string | null>(null);
+    const [previewStudent, setPreviewStudent] = useState<User | null>(null);
+    const [previewEnrollment, setPreviewEnrollment] = useState<StudentEnrollment | null>(null);
+    const [previewQrCodeUrl, setPreviewQrCodeUrl] = useState<string>('');
+    const [isPreviewingIdCard, setIsPreviewingIdCard] = useState(false);
+
+    const handleOpenIdCardPreview = async (enr: StudentEnrollment, user: User) => {
+        let qrCodeUrl = '';
+        const admissionNo = enr.admissionNumber || user.staffId || user.admissionNumber || user.id;
+        if ((window as any).QRCode && admissionNo) {
+            try {
+                qrCodeUrl = await (window as any).QRCode.toDataURL(admissionNo, { margin: 1, width: 150 });
+            } catch (e) {
+                console.warn("QR code generation failed", e);
+            }
+        }
+        setPreviewStudent(user);
+        setPreviewEnrollment(enr);
+        setPreviewQrCodeUrl(qrCodeUrl);
+        setIsPreviewingIdCard(true);
+    };
 
     const handleDownloadIdCard = async (enr: StudentEnrollment, user: User) => {
         setIsGeneratingIdCardId(enr.id);
@@ -4166,7 +4186,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 {/* ── Actions ── */}
                                                 <div className="shrink-0 flex items-center gap-1">
                                                     <button
-                                                        onClick={() => handleDownloadIdCard(enr, user || {} as User)}
+                                                        onClick={() => handleOpenIdCardPreview(enr, user || {} as User)}
                                                         disabled={isGeneratingIdCardId === enr.id}
                                                         className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all disabled:opacity-50"
                                                         title="Download Student ID Card"
@@ -8032,6 +8052,153 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
                             Download PDF
                         </a>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {isPreviewingIdCard && previewStudent && createPortal(
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl max-w-[500px] w-full p-6 space-y-6 border border-slate-100 dark:border-slate-700 animate-fade-in-up">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Student ID Card Preview</h4>
+                            <p className="text-xs text-slate-400">On-screen preview of the official digital identity card.</p>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setIsPreviewingIdCard(false);
+                                setPreviewStudent(null);
+                                setPreviewEnrollment(null);
+                                setPreviewQrCodeUrl('');
+                            }}
+                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    {/* ID Card Box Container */}
+                    <div className="flex justify-center p-2 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 overflow-x-auto">
+                        {/* Visual ID Card Mockup */}
+                        <div className="relative w-[428px] h-[270px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-lg font-sans text-slate-800 dark:text-slate-100 flex-shrink-0">
+                            {/* Header */}
+                            <div className="bg-[#1e40af] h-[60px] flex items-center px-4 relative">
+                                {(currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url) && (
+                                    <img src={currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || ''} alt="Logo" className="w-8 h-8 object-contain mr-3 bg-white/10 p-0.5 rounded" />
+                                )}
+                                <div className="flex-grow text-center pr-6">
+                                    <div className="text-[11px] font-black tracking-wider text-white uppercase truncate">
+                                        {currentInstitution?.name || 'Institution Name'}
+                                    </div>
+                                    <div className="text-[7.5px] font-bold tracking-widest text-slate-200 uppercase mt-0.5">
+                                        Official Identification Card
+                                    </div>
+                                </div>
+                            </div>
+                            {/* Accent line */}
+                            <div className="bg-[#f59e0b] h-[5px]"></div>
+                            
+                            {/* Body */}
+                            <div className="flex p-4 gap-3 h-[180px]">
+                                {/* Passport Photo */}
+                                <div className="w-[84px] h-[105px] border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 relative">
+                                    {previewStudent.profilePhotoUrl ? (
+                                        <img src={previewStudent.profilePhotoUrl} alt="Student Photo" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center w-full h-full text-slate-300 dark:text-slate-600">
+                                            <svg className="w-9 h-9" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                            </svg>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* Details */}
+                                <div className="flex-grow flex flex-col justify-start max-w-[190px]">
+                                    <div className="text-[11.5px] font-black text-slate-900 dark:text-white uppercase leading-tight line-clamp-2 mb-2">
+                                        {previewStudent.name || 'Unknown Student'}
+                                    </div>
+                                    
+                                    <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Admission / Student ID
+                                    </div>
+                                    <div className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 mt-0.5 mb-2 truncate">
+                                        {previewStudent.staffId || previewStudent.admissionNumber || previewStudent.admission_number || previewStudent.id.substring(0, 8)}
+                                    </div>
+                                    
+                                    <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Academic Program / Class
+                                    </div>
+                                    <div className="text-[10px] font-black text-slate-700 dark:text-slate-300 mt-0.5 truncate">
+                                        {previewStudent.metadata?.courseCode || 'N/A'}
+                                    </div>
+                                </div>
+                                
+                                {/* QR Code & Signature */}
+                                <div className="w-[84px] flex flex-col items-center justify-start flex-shrink-0">
+                                    <div className="w-[64px] h-[64px] p-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                                        {previewQrCodeUrl ? (
+                                            <img src={previewQrCodeUrl} alt="QR Code" className="w-full h-full" />
+                                        ) : (
+                                            <div className="text-[6.5px] text-slate-300 font-bold">QR CODE</div>
+                                        )}
+                                    </div>
+                                    <div className="text-[6px] font-black text-slate-400 mt-1 uppercase tracking-wider text-center">
+                                        Scan for Attendance
+                                    </div>
+                                    
+                                    <div className="mt-3 w-[74px] text-center border-t border-slate-300 dark:border-slate-600 pt-1">
+                                        <div className="text-[5.5px] font-bold text-slate-400 uppercase tracking-wider">
+                                            Authorized Sig
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Footer */}
+                            <div className="absolute bottom-0 left-0 right-0 bg-slate-100 dark:bg-slate-800 py-1 px-4 text-center border-t border-slate-200 dark:border-slate-700">
+                                <div className="text-[6.5px] font-medium text-slate-400 leading-tight">
+                                    Notice: This card is institutional property. If found, please return to the administration office.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-end gap-3 pt-2">
+                        <button
+                            onClick={() => {
+                                setIsPreviewingIdCard(false);
+                                setPreviewStudent(null);
+                                setPreviewEnrollment(null);
+                                setPreviewQrCodeUrl('');
+                            }}
+                            className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                        >
+                            Close
+                        </button>
+                        <button
+                            onClick={async () => {
+                                if (!previewStudent) return;
+                                try {
+                                    if (previewEnrollment) {
+                                        await handleDownloadIdCard(previewEnrollment, previewStudent);
+                                    }
+                                } catch (err: any) {
+                                    alert(`Failed to download ID card: ${err.message}`);
+                                }
+                            }}
+                            className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                            Download PDF
+                        </button>
                     </div>
                 </div>
             </div>,

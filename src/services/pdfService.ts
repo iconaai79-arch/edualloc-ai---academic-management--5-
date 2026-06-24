@@ -6526,12 +6526,37 @@ export const generateStudentIdCardPdf = async (
     const detailsX = 30;
     let detailY = 22;
 
-    doc.setTextColor(17, 24, 39); // Gray 900
-    doc.setFontSize(8);
+    const qrSize = 15;
+    const qrX = pageWidth - qrSize - 6; // 64.6 mm
+    const maxNameWidth = qrX - detailsX - 2; // ~32.6 mm
+
+    const nameText = (student.name || 'Unknown Student').toUpperCase();
+    let currentFontSize = 8;
     doc.setFont('helvetica', 'bold');
-    doc.text((student.name || 'Unknown Student').toUpperCase(), detailsX, detailY);
+    doc.setFontSize(currentFontSize);
+    let nameLines = doc.splitTextToSize(nameText, maxNameWidth);
+
+    // Shrink font size if name is too long and takes more than 2 lines
+    if (nameLines.length > 2) {
+        currentFontSize = 6.5;
+        doc.setFontSize(currentFontSize);
+        nameLines = doc.splitTextToSize(nameText, maxNameWidth);
+    }
+    // If it's still more than 2 lines, truncate it to 2 lines with ellipsis
+    if (nameLines.length > 2) {
+        nameLines = nameLines.slice(0, 2);
+        if (nameLines[1] && nameLines[1].length > 3) {
+            nameLines[1] = nameLines[1].substring(0, nameLines[1].length - 3) + '...';
+        }
+    }
+
+    doc.setTextColor(17, 24, 39); // Gray 900
+    nameLines.forEach((line: string, index: number) => {
+        doc.text(line, detailsX, detailY + (index * 3));
+    });
     
-    detailY += 4;
+    detailY += (nameLines.length * 3) + 1.5;
+
     doc.setTextColor(107, 114, 128); // Gray 500
     doc.setFontSize(5.5);
     doc.setFont('helvetica', 'normal');
@@ -6542,7 +6567,7 @@ export const generateStudentIdCardPdf = async (
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
     const admissionNo = student.staffId || student.admissionNumber || student.admission_number || student.id.substring(0, 8);
-    doc.text(admissionNo, detailsX, detailY);
+    doc.text(admissionNo, detailsX, detailY, { maxWidth: maxNameWidth });
 
     detailY += 4.5;
     doc.setTextColor(107, 114, 128);
@@ -6556,11 +6581,9 @@ export const generateStudentIdCardPdf = async (
     doc.setFont('helvetica', 'bold');
     
     const courseCode = student.metadata?.courseCode || 'N/A';
-    doc.text(courseCode, detailsX, detailY);
+    doc.text(courseCode, detailsX, detailY, { maxWidth: maxNameWidth });
 
     // QR Code for Attendance (on the right)
-    const qrSize = 15;
-    const qrX = pageWidth - qrSize - 6;
     const qrY = 17;
 
     doc.setDrawColor(229, 231, 235); // Gray 200

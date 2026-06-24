@@ -893,6 +893,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [previewStudent, setPreviewStudent] = useState<User | null>(null);
+    const [previewQrCodeUrl, setPreviewQrCodeUrl] = useState<string>('');
+    const [isPreviewingIdCard, setIsPreviewingIdCard] = useState(false);
     const [managingParentsFor, setManagingParentsFor] = useState<User | null>(null);
     const [managingLessonsFor, setManagingLessonsFor] = useState<User | null>(null);
     const [requestingTimeOffFor, setRequestingTimeOffFor] = useState<User | null>(null);
@@ -917,6 +920,21 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             apiService.fetchModuleRecords<County>('counties').then(setCounties).catch(console.error);
         }
     }, [isSuperAdmin]);
+
+    const handleOpenIdCardPreview = async (studentUser: User) => {
+        let qrCodeUrl = '';
+        const admissionNo = studentUser.staffId || studentUser.admissionNumber || studentUser.admission_number || studentUser.id;
+        if ((window as any).QRCode && admissionNo) {
+            try {
+                qrCodeUrl = await (window as any).QRCode.toDataURL(admissionNo, { margin: 1, width: 150 });
+            } catch (e) {
+                console.warn("QR code generation failed", e);
+            }
+        }
+        setPreviewStudent(studentUser);
+        setPreviewQrCodeUrl(qrCodeUrl);
+        setIsPreviewingIdCard(true);
+    };
 
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
 
@@ -1673,14 +1691,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                         Parents
                                                     </button>
                                                     <button
-                                                        onClick={async () => {
-                                                            const uri = await generateStudentIdCardPdf(u, currentInstitution!);
-                                                            const link = document.createElement('a');
-                                                            link.href = uri;
-                                                            link.download = `ID_${u.name.replace(/\s+/g, '_')}.pdf`;
-                                                            link.click();
-                                                            props.onLogAction?.(`Generated and downloaded Digital ID for student: ${u.name}`);
-                                                        }}
+                                                        onClick={() => handleOpenIdCardPreview(u)}
                                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-50 text-cyan-600 hover:bg-cyan-100 dark:bg-cyan-900/30 dark:text-cyan-300 rounded-md text-xs font-bold transition-all"
                                                     >
                                                         <PrinterIcon className="w-3.5 h-3.5" />
@@ -1876,6 +1887,149 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                         amount: companyDetails.subscriptionConfig?.baseCostPerStudent || 0
                     }]}
                 />
+            )}
+
+            {isPreviewingIdCard && previewStudent && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl max-w-[500px] w-full p-6 space-y-6 border border-slate-105 dark:border-slate-700 animate-fade-in-up">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h4 className="text-lg font-bold text-slate-900 dark:text-white">Student ID Card Preview</h4>
+                                <p className="text-xs text-slate-400">On-screen preview of the official digital identity card.</p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setIsPreviewingIdCard(false);
+                                    setPreviewStudent(null);
+                                    setPreviewQrCodeUrl('');
+                                }}
+                                className="p-2 text-slate-400 hover:text-slate-650 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* ID Card Box Container */}
+                        <div className="flex justify-center p-2 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 overflow-x-auto">
+                            {/* Visual ID Card Mockup */}
+                            <div className="relative w-[428px] h-[270px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-lg font-sans text-slate-800 dark:text-slate-100 flex-shrink-0">
+                                {/* Header */}
+                                <div className="bg-[#1e40af] h-[60px] flex items-center px-4 relative">
+                                    {(currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url) && (
+                                        <img src={currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || ''} alt="Logo" className="w-8 h-8 object-contain mr-3 bg-white/10 p-0.5 rounded" />
+                                    )}
+                                    <div className="flex-grow text-center pr-6">
+                                        <div className="text-[11px] font-black tracking-wider text-white uppercase truncate">
+                                            {currentInstitution?.name || 'Institution Name'}
+                                        </div>
+                                        <div className="text-[7.5px] font-bold tracking-widest text-slate-200 uppercase mt-0.5">
+                                            Official Identification Card
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* Accent line */}
+                                <div className="bg-[#f59e0b] h-[5px]"></div>
+                                
+                                {/* Body */}
+                                <div className="flex p-4 gap-3 h-[180px]">
+                                    {/* Passport Photo */}
+                                    <div className="w-[84px] h-[105px] border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 relative">
+                                        {previewStudent.profilePhotoUrl ? (
+                                            <img src={previewStudent.profilePhotoUrl} alt="Student Photo" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center w-full h-full text-slate-300 dark:text-slate-600">
+                                                <svg className="w-9 h-9" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                                </svg>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Details */}
+                                    <div className="flex-grow flex flex-col justify-start max-w-[190px]">
+                                        <div className="text-[11.5px] font-black text-slate-900 dark:text-white uppercase leading-tight line-clamp-2 mb-2">
+                                            {previewStudent.name || 'Unknown Student'}
+                                        </div>
+                                        
+                                        <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                                            Admission / Student ID
+                                        </div>
+                                        <div className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 mt-0.5 mb-2 truncate">
+                                            {previewStudent.staffId || previewStudent.admissionNumber || previewStudent.admission_number || previewStudent.id.substring(0, 8)}
+                                        </div>
+                                        
+                                        <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                                            Academic Program / Class
+                                        </div>
+                                        <div className="text-[10px] font-black text-slate-700 dark:text-slate-300 mt-0.5 truncate">
+                                            {previewStudent.metadata?.courseCode || 'N/A'}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* QR Code & Signature */}
+                                    <div className="w-[84px] flex flex-col items-center justify-start flex-shrink-0">
+                                        <div className="w-[64px] h-[64px] p-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                                            {previewQrCodeUrl ? (
+                                                <img src={previewQrCodeUrl} alt="QR Code" className="w-full h-full" />
+                                            ) : (
+                                                <div className="text-[6.5px] text-slate-300 font-bold">QR CODE</div>
+                                            )}
+                                        </div>
+                                        <div className="text-[6px] font-black text-slate-400 mt-1 uppercase tracking-wider text-center">
+                                            Scan for Attendance
+                                        </div>
+                                        
+                                        <div className="mt-3 w-[74px] text-center border-t border-slate-300 dark:border-slate-600 pt-1">
+                                            <div className="text-[5.5px] font-bold text-slate-400 uppercase tracking-wider">
+                                                Authorized Sig
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Footer */}
+                                <div className="absolute bottom-0 left-0 right-0 bg-slate-100 dark:bg-slate-800 py-1 px-4 text-center border-t border-slate-200 dark:border-slate-700">
+                                    <div className="text-[6.5px] font-medium text-slate-400 leading-tight">
+                                        Notice: This card is institutional property. If found, please return to the administration office.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button
+                                onClick={() => {
+                                    setIsPreviewingIdCard(false);
+                                    setPreviewStudent(null);
+                                    setPreviewQrCodeUrl('');
+                                }}
+                                className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                            >
+                                Close
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!previewStudent) return;
+                                    try {
+                                        const uri = await generateStudentIdCardPdf(previewStudent, currentInstitution!);
+                                        const link = document.createElement('a');
+                                        link.href = uri;
+                                        link.download = `ID_${previewStudent.name.replace(/\s+/g, '_')}.pdf`;
+                                        link.click();
+                                        props.onLogAction?.(`Generated and downloaded Digital ID for student: ${previewStudent.name}`);
+                                    } catch (err: any) {
+                                        alert(`Failed to download ID card: ${err.message}`);
+                                    }
+                                }}
+                                className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                            >
+                                <PrinterIcon className="w-4 h-4" />
+                                Download PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             <style>{`
