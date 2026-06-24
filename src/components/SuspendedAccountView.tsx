@@ -20,7 +20,13 @@ interface SuspendedAccountViewProps {
 
 export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user, institution, companyDetails, onLogout, onAddTransaction, onAddExtensionRequest }) => {
     const [isPayModalOpen, setIsPayModalOpen] = useState(false);
-    const isAdmin = ['admin', 'head_teacher', 'hod', 'tto', 'dos'].includes(user.role);
+    const isAdmin = !!(user.role && (
+        user.role.includes('admin') || 
+        user.role.includes('director') ||
+        user.role.includes('chairman') ||
+        user.role.includes('manager') ||
+        ['head_teacher', 'hod', 'tto', 'dos', 'pastor', 'treasurer', 'landlord', 'hoi'].includes(user.role)
+    ));
 
     // Support both camelCase (transform) and snake_case (raw) from various backend versions
     const customPrice = institution.customSubscriptionPrice || (institution as any).custom_subscription_price;

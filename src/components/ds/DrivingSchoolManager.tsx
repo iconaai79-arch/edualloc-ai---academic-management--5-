@@ -4028,7 +4028,8 @@ END $$;
                 "ALTER TABLE ds_license_categories ADD COLUMN IF NOT EXISTS daily_program jsonb;",
                 "ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS audited_by text;",
                 "ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS audited_at timestamp with time zone;",
-                "ALTER TABLE ds_leads ADD COLUMN IF NOT EXISTS broadcast_id text;"
+                "ALTER TABLE ds_leads ADD COLUMN IF NOT EXISTS broadcast_id text;",
+                "ALTER TABLE ds_leads ADD COLUMN IF NOT EXISTS license_category text;"
             ];
 
             migrations.forEach(sql => {
