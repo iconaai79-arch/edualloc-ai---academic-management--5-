@@ -43,7 +43,7 @@ import {
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course, CompanyDetails } from '../../types';
 import { apiService } from '../../services/apiService';
-import { generateEventReportPdf } from '../../services/pdfService';
+import { generateEventReportPdf, generateStudentIdCardPdf } from '../../services/pdfService';
 import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
 import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
@@ -1698,7 +1698,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const handleExportEventReportPdf = async (event: any, pins: any[]) => {
         setIsLoading(true);
         try {
-            const logoUrl = currentInstitution.logoUrl || currentInstitution.logo_url || null;
+            const logoUrl = currentInstitution.logoUrl || (currentInstitution as any).logo_url || null;
             const resolvedCompanyDetails = companyDetails || (currentInstitution as any).companyDetails || {
                 name: 'EduAi Automation',
                 address: 'Nairobi, Kenya',
@@ -3563,6 +3563,42 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
+    const [isGeneratingIdCardId, setIsGeneratingIdCardId] = useState<string | null>(null);
+
+    const handleDownloadIdCard = async (enr: StudentEnrollment, user: User) => {
+        setIsGeneratingIdCardId(enr.id);
+        try {
+            let qrCodeUrl = '';
+            const admissionNo = enr.admissionNumber || user.staffId || user.admissionNumber || user.id;
+            if ((window as any).QRCode) {
+                qrCodeUrl = await (window as any).QRCode.toDataURL(admissionNo, { margin: 1, width: 150 });
+            }
+
+            const logoUrl = (currentInstitution.letterheadConfig as any)?.logoUrl || currentInstitution.logoUrl || '';
+
+            const pdfDataUri = await generateStudentIdCardPdf(
+                user,
+                currentInstitution,
+                companyDetails || {} as any,
+                logoUrl,
+                user.profilePhotoUrl || undefined,
+                qrCodeUrl
+            );
+
+            const link = document.createElement('a');
+            link.href = pdfDataUri;
+            link.download = `ID_Card_${(user.name || 'Student').replace(/\s+/g, '_')}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error('Failed to generate student ID card:', error);
+            alert('Failed to generate ID card. Please verify student details and try again.');
+        } finally {
+            setIsGeneratingIdCardId(null);
+        }
+    };
+
     const handleBulkFixUnknownNames = async () => {
         const targets = enrollments.filter(enr => {
             const user = users.find(u => u.id === enr.userId);
@@ -4129,6 +4165,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                                                 {/* ── Actions ── */}
                                                 <div className="shrink-0 flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => handleDownloadIdCard(enr, user || {} as User)}
+                                                        disabled={isGeneratingIdCardId === enr.id}
+                                                        className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all disabled:opacity-50"
+                                                        title="Download Student ID Card"
+                                                    >
+                                                        <CreditCard className="w-4 h-4" />
+                                                    </button>
                                                     <button
                                                         onClick={() => {
                                                             setInviteModalEnrollment(enr);

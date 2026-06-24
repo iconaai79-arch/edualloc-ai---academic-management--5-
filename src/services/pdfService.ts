@@ -6415,64 +6415,195 @@ export const generateDetailedPharmacySalesReportPdf = async (
 };
 
 
-export const generateStudentIdCardPdf = async (student: any, institution: any, logoImgData?: string, photoImgData?: string): Promise<string> => {
+export const generateStudentIdCardPdf = async (
+    student: any,
+    institution: any,
+    companyDetailsOrLogo?: any,
+    logoImgDataOrPhoto?: string,
+    photoImgDataOrQr?: string,
+    qrCodeDataUrl?: string
+): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
+
+    // Standard CR80 dimensions in landscape (85.6mm x 54mm)
     const doc = new lib.jsPDF('l', 'mm', [85.6, 54]);
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 
-    doc.setFillColor(30, 64, 175); // Dark blue header
-    doc.rect(0, 0, pageWidth, 12, 'F');
+    // Map parameters based on caller signature
+    let logoImgData = '';
+    let photoImgData = '';
+    let qrCodeUrl = '';
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(institution.name || 'INSTITUTION', pageWidth / 2, 8, { align: 'center' });
-
-    // Photo area
-    doc.setDrawColor(200, 200, 200);
-    doc.rect(5, 15, 25, 30);
-    if (photoImgData) {
-        try {
-            doc.addImage(photoImgData, 'JPEG', 5, 15, 25, 30);
-        } catch(e) {}
+    if (companyDetailsOrLogo && typeof companyDetailsOrLogo === 'object') {
+        logoImgData = logoImgDataOrPhoto || '';
+        photoImgData = photoImgDataOrQr || '';
+        qrCodeUrl = qrCodeDataUrl || '';
     } else {
-        doc.setTextColor(150, 150, 150);
-        doc.setFontSize(8);
-        doc.text('PHOTO', 17.5, 31, { align: 'center' });
+        logoImgData = companyDetailsOrLogo || '';
+        photoImgData = logoImgDataOrPhoto || '';
+        qrCodeUrl = photoImgDataOrQr || '';
     }
 
-    // Details
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text((student.name || '').toUpperCase(), 35, 22);
+    // Dynamic QR code generation fallback
+    if (!qrCodeUrl && typeof window !== 'undefined' && (window as any).QRCode) {
+        const admissionNo = student.staffId || student.admissionNumber || student.admission_number || student.id || '';
+        if (admissionNo) {
+            try {
+                qrCodeUrl = await (window as any).QRCode.toDataURL(admissionNo, { margin: 1, width: 150 });
+            } catch (e) {
+                console.warn("Dynamic QR generation failed", e);
+            }
+        }
+    }
 
+    // Load logo and passport images asynchronously if they are URLs
+    const logoImg = logoImgData ? await loadImage(logoImgData) : null;
+    const photoImg = photoImgData ? await loadImage(photoImgData) : null;
+
+    // Subtle background
+    doc.setFillColor(250, 250, 250);
+    doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+    // Header bar (Premium Blue theme)
+    doc.setFillColor(30, 64, 175);
+    doc.rect(0, 0, pageWidth, 12, 'F');
+
+    // Accent line (Gold/Amber)
+    doc.setFillColor(245, 158, 11);
+    doc.rect(0, 12, pageWidth, 1.5, 'F');
+
+    // Header Text
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Admission Number:', 35, 28);
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(student.staffId || student.admissionNumber || (student.id ? student.id.substring(0,8) : ''), 35, 33);
-
-    doc.setFontSize(8);
+    doc.text((institution.name || 'INSTITUTION').toUpperCase(), pageWidth / 2, 6, { align: 'center' });
+    doc.setFontSize(5);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Category / Role:', 35, 39);
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(9);
-    doc.text((student.role || 'Student').toUpperCase(), 35, 43);
+    doc.text('OFFICIAL IDENTIFICATION CARD', pageWidth / 2, 9, { align: 'center' });
 
-    // Footer barcode area
+    // Logo image on the left of header
+    if (logoImg) {
+        try {
+            doc.addImage(logoImg, 'PNG', 3, 2, 8, 8);
+        } catch (e) {
+            console.warn("Header logo rendering failed", e);
+        }
+    }
+
+    // Passport Photo Area
+    const photoWidth = 20;
+    const photoHeight = 25;
+    const photoX = 6;
+    const photoY = 17;
+    
+    // Draw photo border
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.rect(photoX, photoY, photoWidth, photoHeight);
+
+    const drawFallbackPhotoLocal = (x: number, y: number, w: number, h: number) => {
+        doc.setFillColor(243, 244, 246);
+        doc.rect(x, y, w, h, 'F');
+        doc.setFillColor(209, 213, 219);
+        doc.ellipse(x + (w / 2), y + 9, 3, 3, 'F');
+        doc.ellipse(x + (w / 2), y + 21, 6, 4, 'F');
+    };
+
+    if (photoImg) {
+        try {
+            doc.addImage(photoImg, 'JPEG', photoX, photoY, photoWidth, photoHeight);
+        } catch (e) {
+            console.warn("Student photo rendering failed", e);
+            drawFallbackPhotoLocal(photoX, photoY, photoWidth, photoHeight);
+        }
+    } else {
+        drawFallbackPhotoLocal(photoX, photoY, photoWidth, photoHeight);
+    }
+
+    // Student Details Area
+    const detailsX = 30;
+    let detailY = 22;
+
+    doc.setTextColor(17, 24, 39); // Gray 900
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text((student.name || 'Unknown Student').toUpperCase(), detailsX, detailY);
+    
+    detailY += 4;
+    doc.setTextColor(107, 114, 128); // Gray 500
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('ADMISSION / STUDENT ID', detailsX, detailY);
+
+    detailY += 3.5;
+    doc.setTextColor(17, 24, 39);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    const admissionNo = student.staffId || student.admissionNumber || student.admission_number || student.id.substring(0, 8);
+    doc.text(admissionNo, detailsX, detailY);
+
+    detailY += 4.5;
+    doc.setTextColor(107, 114, 128);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('ACADEMIC PROGRAM / CLASS', detailsX, detailY);
+
+    detailY += 3.5;
+    doc.setTextColor(17, 24, 39);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    
+    const courseCode = student.metadata?.courseCode || 'N/A';
+    doc.text(courseCode, detailsX, detailY);
+
+    // QR Code for Attendance (on the right)
+    const qrSize = 15;
+    const qrX = pageWidth - qrSize - 6;
+    const qrY = 17;
+
+    doc.setDrawColor(229, 231, 235); // Gray 200
+    doc.setLineWidth(0.2);
+    doc.rect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2); // border
+
+    if (qrCodeUrl) {
+        try {
+            doc.addImage(qrCodeUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+        } catch (e) {
+            console.warn("QR code rendering failed", e);
+        }
+    } else {
+        doc.setFillColor(243, 244, 246);
+        doc.rect(qrX, qrY, qrSize, qrSize, 'F');
+        doc.setFontSize(4);
+        doc.setTextColor(156, 163, 175);
+        doc.text('QR CODE', qrX + (qrSize / 2), qrY + (qrSize / 2), { align: 'center' });
+    }
+
+    // Label under QR Code
+    doc.setFontSize(4.5);
+    doc.setTextColor(75, 85, 99);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SCAN FOR ATTENDANCE', qrX + (qrSize / 2), qrY + qrSize + 2.5, { align: 'center' });
+
+    // Signature placeholder
+    const sigX = qrX - 4;
+    const sigY = pageHeight - 11;
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.15);
+    doc.line(sigX, sigY, sigX + 20, sigY);
+    doc.setFontSize(4);
+    doc.setTextColor(107, 114, 128);
+    doc.text('AUTHORIZED SIGNATURE', sigX + 10, sigY + 2.5, { align: 'center' });
+
+    // Footer Warning
     doc.setFillColor(243, 244, 246);
-    doc.rect(0, pageHeight - 6, pageWidth, 6, 'F');
-    doc.setFontSize(6);
-    doc.setTextColor(100, 100, 100);
+    doc.rect(0, pageHeight - 5, pageWidth, 5, 'F');
+    doc.setFontSize(4.5);
+    doc.setTextColor(107, 114, 128);
     doc.setFont('helvetica', 'normal');
-    doc.text('Official Digital Identification. If found, please return to the institution.', pageWidth / 2, pageHeight - 2.5, { align: 'center' });
+    doc.text('Notice: This card is institutional property. If found, please return to the administration office.', pageWidth / 2, pageHeight - 2, { align: 'center' });
 
     return doc.output('datauristring');
 };
@@ -6943,3 +7074,4 @@ We confirm that this student has been vetted by our administration and is recomm
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+

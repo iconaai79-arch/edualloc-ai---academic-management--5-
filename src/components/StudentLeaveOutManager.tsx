@@ -52,6 +52,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
     onDataChange
 }) => {
     const [requests, setRequests] = useState<LeaveOutWithDetails[]>([]);
+    const [bedAllocations, setBedAllocations] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'requests' | 'boarding' | 'security'>('requests');
     const [searchTerm, setSearchTerm] = useState('');
@@ -62,6 +63,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
     const [form, setForm] = useState({
         studentId: '',
         reason: '',
+        isBoarder: true,
         leaveDate: new Date().toISOString().split('T')[0],
         returnDate: new Date(Date.now() + 86400000).toISOString().split('T')[0]
     });
@@ -73,7 +75,12 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
     const loadRequests = async () => {
         setLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', currentInstitution.id);
+            const [data, allocations] = await Promise.all([
+                apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', currentInstitution.id),
+                apiService.fetchBedAllocations(currentInstitution.id).catch(() => [])
+            ]);
+
+            setBedAllocations(allocations || []);
 
             // Enrich data with names
             const enriched: LeaveOutWithDetails[] = data.map(req => {
@@ -89,14 +96,23 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                 let parentEmail = '';
                 if (student?.parentIds && student.parentIds.length > 0) {
                     const parent = users.find(u => u.id === student.parentIds![0]);
-                    parentPhone = parent?.phoneNumber || '';
-                    parentEmail = parent?.email || '';
+                    if (parent) {
+                        parentPhone = parent.phoneNumber || '';
+                        parentEmail = parent.email || '';
+                    }
+                }
+                if (!parentPhone || !parentEmail) {
+                    const parent = users.find(u => u.role === 'parent' && u.studentIds?.includes(student?.id || ''));
+                    if (parent) {
+                        if (!parentPhone) parentPhone = parent.phoneNumber || '';
+                        if (!parentEmail) parentEmail = parent.email || '';
+                    }
                 }
 
                 return {
                     ...req,
                     studentName: student?.name || 'Unknown Student',
-                    studentClass: `${course?.code || ''} ${level?.name || ''} `.trim() || 'N/A',
+                    studentClass: `${course?.code || ''} ${level?.name || ''}`.trim() || 'N/A',
                     parentPhone,
                     parentEmail,
                     classTeacherName: teacher?.name || 'Unknown',
@@ -111,6 +127,19 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
         } finally {
             setLoading(false);
         }
+    };
+
+    const isStudentBoarder = (studentId: string) => {
+        return bedAllocations.some(a => a.studentId === studentId && a.status === 'Active');
+    };
+
+    const handleStudentChange = (studentId: string) => {
+        const boarder = isStudentBoarder(studentId);
+        setForm(prev => ({
+            ...prev,
+            studentId,
+            isBoarder: boarder
+        }));
     };
 
     const handleCreateRequest = async (e: React.FormEvent) => {
@@ -128,7 +157,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                 reason: form.reason,
                 leaveDate: form.leaveDate,
                 returnDate: form.returnDate,
-                status: 'pending_boarding',
+                status: form.isBoarder ? 'pending_boarding' : 'pending_security',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
@@ -143,6 +172,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
             setForm({
                 studentId: '',
                 reason: '',
+                isBoarder: true,
                 leaveDate: new Date().toISOString().split('T')[0],
                 returnDate: new Date(Date.now() + 86400000).toISOString().split('T')[0]
             });
@@ -158,17 +188,37 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
     };
 
     const handleHouseCheckout = async (request: LeaveOutWithDetails) => {
-        if (!window.confirm(`Confirm student ${request.studentName} has checked out of the house ? `)) return;
+        if (!window.confirm(`Confirm student ${request.studentName} has checked out of the house?`)) return;
 
         try {
-            const updates: Partial<LeaveOutRequest> = {
-                status: 'pending_security',
+            const updates = {
+                status: 'pending_security' as LeaveOutStatus,
                 boardingMasterId: currentUser.id,
                 houseCheckedOutAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
 
-            await apiService.saveModuleRecord('leave_out_requests', { ...request, ...updates });
+            const dbPayload: LeaveOutRequest = {
+                id: request.id,
+                institutionId: request.institutionId,
+                studentId: request.studentId,
+                classTeacherId: request.classTeacherId,
+                boardingMasterId: updates.boardingMasterId,
+                securityId: request.securityId,
+                reason: request.reason,
+                leaveDate: request.leaveDate,
+                returnDate: request.returnDate,
+                status: updates.status,
+                sheetUrl: request.sheetUrl,
+                houseCheckedOutAt: updates.houseCheckedOutAt,
+                gateCheckedOutAt: request.gateCheckedOutAt,
+                homeArrivalAt: request.homeArrivalAt,
+                homeDepartureAt: request.homeDepartureAt,
+                createdAt: request.createdAt,
+                updatedAt: updates.updatedAt
+            };
+
+            await apiService.saveModuleRecord('leave_out_requests', dbPayload);
             await onLogAction(`Boarding checkout confirmed for ${request.studentName}`);
 
             loadRequests();
@@ -179,33 +229,53 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
     };
 
     const handleGateCheckout = async (request: LeaveOutWithDetails) => {
-        if (!window.confirm(`Confirm student ${request.studentName} has checked out of the gate ? This will notify the parent.`)) return;
+        if (!window.confirm(`Confirm student ${request.studentName} has checked out of the gate? This will notify the parent.`)) return;
 
         try {
             const now = new Date().toISOString();
-            const updates: Partial<LeaveOutRequest> = {
-                status: 'checked_out',
+            const updates = {
+                status: 'checked_out' as LeaveOutStatus,
                 securityId: currentUser.id,
                 gateCheckedOutAt: now,
                 updatedAt: now
             };
 
-            await apiService.saveModuleRecord('leave_out_requests', { ...request, ...updates });
+            const dbPayload: LeaveOutRequest = {
+                id: request.id,
+                institutionId: request.institutionId,
+                studentId: request.studentId,
+                classTeacherId: request.classTeacherId,
+                boardingMasterId: request.boardingMasterId,
+                securityId: updates.securityId,
+                reason: request.reason,
+                leaveDate: request.leaveDate,
+                returnDate: request.returnDate,
+                status: updates.status,
+                sheetUrl: request.sheetUrl,
+                houseCheckedOutAt: request.houseCheckedOutAt,
+                gateCheckedOutAt: updates.gateCheckedOutAt,
+                homeArrivalAt: request.homeArrivalAt,
+                homeDepartureAt: request.homeDepartureAt,
+                createdAt: request.createdAt,
+                updatedAt: updates.updatedAt
+            };
+
+            await apiService.saveModuleRecord('leave_out_requests', dbPayload);
             await onLogAction(`Gate checkout confirmed for ${request.studentName}`);
 
             // Send Notifications
             if (request.parentPhone) {
-                const smsMsg = `Dear Parent, your child ${request.studentName} has successfully checked out of ${currentInstitution.name} gate at ${new Date(now).toLocaleTimeString()}. Safe journey.`;
+                const smsMsg = `Dear Parent, your child ${request.studentName} has successfully checked out of ${currentInstitution.name} gate at ${new Date(now).toLocaleTimeString()}. Reason: ${request.reason}. Safe journey.`;
                 await apiService.sendSms(request.parentPhone, smsMsg, currentInstitution.letterheadConfig ? { ...companyDetails.smsConfig } : undefined);
             }
 
             if (request.parentEmail) {
-                const subject = `Student Checkout Notification - ${currentInstitution.name} `;
-                const emailMsg = `Dear Parent, \n\nThis is to notify you that ${request.studentName} has checked out of the school gate at ${new Date(now)?.toLocaleString()} for their scheduled leave out.\n\nPlease find the attached permission sheet for your reference.\n\nRegards, \n${currentInstitution.name} `;
+                const subject = `Student Checkout Notification - ${currentInstitution.name}`;
+                const emailMsg = `Dear Parent,\n\nThis is to notify you that ${request.studentName} has checked out of the school gate at ${new Date(now)?.toLocaleString()} for their scheduled leave out.\n\nDetails:\n- Reason for leave: ${request.reason}\n- Departure Date: ${new Date(request.leaveDate).toLocaleDateString()}\n- Expected Return Date: ${new Date(request.returnDate).toLocaleDateString()}\n- Authorized by Class Teacher: ${request.classTeacherName}\n- Checked out by House Master: ${request.boardingMasterName || 'N/A'}\n- Cleared by Security Gate Officer: ${currentUser.name}\n\nPlease find the attached permission sheet for your reference.\n\nRegards,\n${currentInstitution.name}`;
 
                 // Generate PDF
                 const docUri = await generateLeaveOutSheetPdf(
-                    { ...request, ...updates },
+                    dbPayload,
                     currentInstitution,
                     companyDetails,
                     users,
@@ -247,7 +317,32 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
         req.reason.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const students = users.filter(u => u.role === 'student');
+    const isClassTeacher = useMemo(() => {
+        if (['admin', 'head_teacher', 'dos', 'deputy', 'super_admin'].includes(currentUser.role)) {
+            return true;
+        }
+        return courses.some(c => 
+            c.levels?.some(l => l.classTeacherId === currentUser.id)
+        );
+    }, [currentUser, courses]);
+
+    const students = useMemo(() => {
+        const allStudents = users.filter(u => u.role === 'student');
+        if (['admin', 'head_teacher', 'dos', 'deputy', 'super_admin'].includes(currentUser.role)) {
+            return allStudents;
+        }
+        const myClassLevels = new Set<string>();
+        courses.forEach(c => {
+            c.levels?.forEach(l => {
+                if (l.classTeacherId === currentUser.id) {
+                    myClassLevels.add(`${c.id}-${l.id}`);
+                }
+            });
+        });
+        return allStudents.filter(student => 
+            myClassLevels.has(`${student.courseId}-${student.courseLevelId}`)
+        );
+    }, [users, currentUser, courses]);
 
     const getStatusBadge = (status: LeaveOutStatus) => {
         switch (status) {
@@ -284,7 +379,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                     <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Student Checkout Process</h2>
                     <p className="text-slate-500 text-sm">Automated multi-stage exit management system</p>
                 </div>
-                {(currentUser.role === 'teacher' || currentUser.role === 'lecturer' || currentUser.role === 'admin' || currentUser.role === 'head_teacher') && (
+                {isClassTeacher && (
                     <button
                         onClick={() => setShowAddModal(true)}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl shadow-lg hover:shadow-indigo-200 transition-all flex items-center gap-2 font-bold"
@@ -501,14 +596,29 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                                 <select
                                     required
                                     value={form.studentId}
-                                    onChange={(e) => setForm({ ...form, studentId: e.target.value })}
+                                    onChange={(e) => handleStudentChange(e.target.value)}
                                     className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
                                 >
                                     <option value="">-- Choose Student --</option>
                                     {students.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name} ({s.staffId})</option>
+                                        <option key={s.id} value={s.id}>
+                                            {s.name} ({s.staffId || s.admissionNumber || s.admission_number || 'N/A'}) - {isStudentBoarder(s.id) ? 'Boarder' : 'Day Scholar'}
+                                        </option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl">
+                                <input
+                                    type="checkbox"
+                                    id="isBoarder"
+                                    checked={form.isBoarder}
+                                    onChange={(e) => setForm(prev => ({ ...prev, isBoarder: e.target.checked }))}
+                                    className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                                />
+                                <label htmlFor="isBoarder" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+                                    Boarding Student (Requires House clearance first)
+                                </label>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">

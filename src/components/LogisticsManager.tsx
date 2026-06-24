@@ -59,11 +59,118 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isPublicTransport = currentInstitution.category === 'Public Transport' || currentInstitution.institutionType === 'Logistics' && currentInstitution.category === 'Cargo & Delivery';
     // Actually, based on user request, let's explicitly detect Public Transport
     const isSACCO = currentInstitution.category === 'Public Transport' || currentInstitution.category?.includes('SACCO');
+    const isEduTransport = currentInstitution.category === 'Educational Transport';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco'>(
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips'>(
         isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Commute Sub-Tabs inside manifest view
+    const [commuteSubTab, setCommuteSubTab] = useState<'monitor' | 'routes' | 'students'>('monitor');
+
+    // Security Checkout State: maps run.id to checkout information
+    const [securityCheckouts, setSecurityCheckouts] = useState<Record<string, { cleared: boolean; checkedOutBy?: string; checkedOutAt?: string }>>({
+        'run_1': { cleared: false }, // Let's make the active bus (Bus 04 / run_1) start as NOT cleared so parents/admins see the interactive security prompt!
+        'run_2': { cleared: true, checkedOutBy: 'Officer Joseph W.', checkedOutAt: '06:12 AM' },
+        'run_3': { cleared: true, checkedOutBy: 'Officer Grace M.', checkedOutAt: '03:15 PM' },
+    });
+
+    // School Bus Routes State
+    const [busRoutes, setBusRoutes] = useState([
+        { id: 'route_1', name: 'Route A - Kilimani & Hurlingham', startPoint: 'Hurlingham Shopping Center', endPoint: 'Westlands School Gate', bus: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+        { id: 'route_2', name: 'Route B - Langata & Karen', startPoint: 'Karen Hub', endPoint: 'Westlands School Gate', bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
+        { id: 'route_3', name: 'Route C - Westlands & Spring Valley', startPoint: 'Spring Valley Estate', endPoint: 'Westlands School Gate', bus: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+    ]);
+
+    // Student Commute Preferences: Maps student.id -> routeId & preference
+    const [studentCommutePrefs, setStudentCommutePrefs] = useState<Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }>>({});
+
+    // Route Registration Form Modal States
+    const [isAddRouteModalOpen, setIsAddRouteModalOpen] = useState(false);
+    const [newRouteName, setNewRouteName] = useState('');
+    const [newRouteStart, setNewRouteStart] = useState('');
+    const [newRouteEnd, setNewRouteEnd] = useState('');
+    const [newRouteBus, setNewRouteBus] = useState('Bus 04 (KDC 992P)');
+    const [newRouteDriver, setNewRouteDriver] = useState('');
+    const [newRouteAttendant, setNewRouteAttendant] = useState('');
+
+    const students = useMemo(() => users.filter(u => u.role === 'student'), [users]);
+
+    // Automatically map existing students to demo routes to populate initial dashboard tables
+    React.useEffect(() => {
+        if (!isEduTransport) return;
+        const initialPrefs: typeof studentCommutePrefs = {};
+        students.forEach((student, index) => {
+            const routes = ['route_1', 'route_2', 'route_3'];
+            const prefs: ('round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none')[] = ['round_trip', 'one_way_pickup', 'one_way_drop'];
+            initialPrefs[student.id] = {
+                routeId: routes[index % routes.length],
+                preference: prefs[index % prefs.length]
+            };
+        });
+        // Add a few fallback students if registry is empty so it looks full for demonstration
+        if (students.length === 0 || Object.keys(initialPrefs).length === 0) {
+            const demoStudents = [
+                { id: 'st_1', name: 'Kelvin Kiprop', admissionNumber: 'ADM/8821/24' },
+                { id: 'st_2', name: 'Alisha Wanjiku', admissionNumber: 'ADM/9012/24' },
+                { id: 'st_3', name: 'Liam Otieno', admissionNumber: 'ADM/8774/24' },
+                { id: 'st_4', name: 'Chloe Kamau', admissionNumber: 'ADM/9331/25' },
+                { id: 'st_5', name: 'Ethan Ndwiga', admissionNumber: 'ADM/8109/23' },
+            ];
+            demoStudents.forEach((ds, index) => {
+                initialPrefs[ds.id] = {
+                    routeId: ['route_1', 'route_2', 'route_3'][index % 3],
+                    preference: ['round_trip', 'one_way_pickup', 'one_way_drop'][index % 3] as any
+                };
+            });
+        }
+        setStudentCommutePrefs(initialPrefs);
+    }, [students, isEduTransport]);
+
+    const [schoolTrips, setSchoolTrips] = useState([
+        { id: 'trip_1', name: 'National Museum Geography Tour', destination: 'Nairobi National Museum', date: '2026-06-28', time: '08:30 AM', leadTeacher: 'Mr. Benson Kiprop', vehicle: 'KDC 992P (Bus 04)', passengers: '45 Students', status: 'approved' },
+        { id: 'trip_2', name: 'Inter-School Athletics Competition', destination: 'Kasarani Stadium', date: '2026-07-02', time: '07:00 AM', leadTeacher: 'Mrs. Janet Otieno', vehicle: 'KBB 120Z (Bus 02)', passengers: '38 Athletes', status: 'approved' },
+        { id: 'trip_3', name: 'Primary School Science Field Trip', destination: 'Karura Forest Reserve', date: '2026-07-10', time: '09:00 AM', leadTeacher: 'Miss Emily Muthoni', vehicle: 'KDM 441X (Bus 07)', passengers: '50 Students', status: 'pending' },
+    ]);
+
+    // Modal state for adding a new trip
+    const [isAddTripModalOpen, setIsAddTripModalOpen] = useState(false);
+    const [newTripName, setNewTripName] = useState('');
+    const [newTripDestination, setNewTripDestination] = useState('');
+    const [newTripDate, setNewTripDate] = useState('');
+    const [newTripTime, setNewTripTime] = useState('');
+    const [newTripTeacher, setNewTripTeacher] = useState('');
+    const [newTripVehicle, setNewTripVehicle] = useState('');
+    const [newTripPassengers, setNewTripPassengers] = useState('');
+
+    // GPS Map Simulation State
+    const [simulatedBusPos, setSimulatedBusPos] = useState({ x: 80, y: 140 });
+    const [currentCheckPoint, setCurrentCheckPoint] = useState('Kilimani Sub-Station');
+    const [simulatedSpeed, setSimulatedSpeed] = useState(38);
+    const [parentLinkCopied, setParentLinkCopied] = useState(false);
+
+    React.useEffect(() => {
+        if (!isEduTransport) return;
+        
+        const checkpoints = [
+            { name: 'Kilimani Sub-Station', x: 80, y: 140, speed: 38 },
+            { name: 'Hurlingham Junction', x: 180, y: 120, speed: 45 },
+            { name: 'Valley Arcade Roundabout', x: 260, y: 180, speed: 30 },
+            { name: 'Westlands School Gate', x: 380, y: 90, speed: 0 }
+        ];
+
+        let index = 0;
+        const interval = setInterval(() => {
+            index = (index + 1) % checkpoints.length;
+            const target = checkpoints[index];
+            setSimulatedBusPos({ x: target.x, y: target.y });
+            setCurrentCheckPoint(target.name);
+            setSimulatedSpeed(target.speed);
+        }, 6000);
+
+        return () => clearInterval(interval);
+    }, [isEduTransport]);
 
     const drivers = useMemo(() => users.filter(u => u.role === 'driver'), [users]);
 
@@ -122,12 +229,758 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         { label: 'Active Shuttles', value: '8', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: 'Seat Occupancy', value: '74%', icon: Armchair, color: 'text-green-600', bg: 'bg-green-50' },
         { label: 'Departures (Today)', value: '14', icon: DoorOpen, color: 'text-purple-600', bg: 'bg-purple-50' },
+    ] : isEduTransport ? [
+        { label: 'School Buses on Route', value: '5', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { label: 'Commuting Students', value: '184', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { label: 'GPS Signal Feed', value: 'Active', icon: MapPin, color: 'text-green-600', bg: 'bg-green-50' },
+        { label: 'School Trips Today', value: '2', icon: Calendar, color: 'text-purple-600', bg: 'bg-purple-50' },
     ] : [
         { label: 'Active Shipments', value: '24', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
         { label: 'Idle Fleet', value: '3', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: 'Fuel Efficiency', value: '88%', icon: Fuel, color: 'text-green-600', bg: 'bg-green-50' },
         { label: 'Delayed', value: '2', icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50' },
     ];
+
+    const renderStudentCommute = () => {
+        const schoolRuns = [
+            { id: 'run_1', routeName: 'Route A - Kilimani & Hurlingham', runType: 'Morning Pick-up', driver: 'Douglas Omwamba', vehicle: 'KDC 992P (Bus 04)', attendant: 'Sarah Wanjiku', status: 'boarding', students: '24/30', startTime: '06:15 AM' },
+            { id: 'run_2', routeName: 'Route B - Langata & Karen', runType: 'Morning Pick-up', driver: 'James Kamau', vehicle: 'KBB 120Z (Bus 02)', attendant: 'Mercy Nyambura', status: 'in_transit', students: '28/35', startTime: '06:30 AM' },
+            { id: 'run_3', routeName: 'Route C - Westlands & Spring Valley', runType: 'Afternoon Drop-off', driver: 'Douglas Omwamba', vehicle: 'KDC 992P (Bus 04)', attendant: 'Sarah Wanjiku', status: 'completed', students: '30/30', startTime: '03:30 PM' },
+        ];
+
+        const filteredRuns = schoolRuns.filter(r => 
+            r.routeName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            r.driver.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            r.vehicle.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        const handleCopyLink = () => {
+            setParentLinkCopied(true);
+            navigator.clipboard.writeText("https://edualloc.ai/track/bus-04?auth=live-parent-token");
+            setTimeout(() => setParentLinkCopied(false), 2000);
+        };
+
+        const handleAddRoute = (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!newRouteName || !newRouteStart || !newRouteEnd) {
+                alert('Please fill in Route Name, Start Point, and End Point.');
+                return;
+            }
+            const newRoute = {
+                id: `route_${Date.now()}`,
+                name: newRouteName,
+                startPoint: newRouteStart,
+                endPoint: newRouteEnd,
+                bus: newRouteBus,
+                driver: newRouteDriver || 'TBD',
+                attendant: newRouteAttendant || 'TBD'
+            };
+            setBusRoutes([...busRoutes, newRoute]);
+            setIsAddRouteModalOpen(false);
+            setNewRouteName('');
+            setNewRouteStart('');
+            setNewRouteEnd('');
+            setNewRouteDriver('');
+            setNewRouteAttendant('');
+        };
+
+        const displayStudents = students.length > 0 ? students.map(s => ({
+            id: s.id,
+            name: s.name,
+            admissionNumber: s.admissionNumber || s.admission_number || `ADM/${s.id.substring(0, 4)}`
+        })) : [
+            { id: 'st_1', name: 'Kelvin Kiprop', admissionNumber: 'ADM/8821/24' },
+            { id: 'st_2', name: 'Alisha Wanjiku', admissionNumber: 'ADM/9012/24' },
+            { id: 'st_3', name: 'Liam Otieno', admissionNumber: 'ADM/8774/24' },
+            { id: 'st_4', name: 'Chloe Kamau', admissionNumber: 'ADM/9331/25' },
+            { id: 'st_5', name: 'Ethan Ndwiga', admissionNumber: 'ADM/8109/23' },
+        ];
+
+        const filteredStudents = displayStudents.filter(s => 
+            s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            s.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        return (
+            <div className="animate-fade-in-up space-y-8">
+                {/* Commute Sub-navigation */}
+                <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-800">
+                    <button onClick={() => setCommuteSubTab('monitor')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${commuteSubTab === 'monitor' ? 'bg-white dark:bg-slate-650 text-indigo-650 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Live Monitor</button>
+                    <button onClick={() => setCommuteSubTab('routes')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${commuteSubTab === 'routes' ? 'bg-white dark:bg-slate-650 text-indigo-650 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Register Routes</button>
+                    <button onClick={() => setCommuteSubTab('students')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${commuteSubTab === 'students' ? 'bg-white dark:bg-slate-650 text-indigo-650 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Student Assignment</button>
+                </div>
+
+                {commuteSubTab === 'monitor' && (
+                    <div className="space-y-8 animate-fade-in">
+                        {/* Simulated Geolocation Map & Tablet Telemetry */}
+                        <div className="bg-slate-900 rounded-[3rem] p-8 min-h-[420px] relative overflow-hidden group shadow-2xl border border-white/5">
+                            <div className="absolute inset-0 bg-radial-gradient from-indigo-900/40 via-transparent to-transparent pointer-events-none animate-pulse"></div>
+                            
+                            <div className="relative z-10 flex flex-col lg:flex-row gap-8 h-full">
+                                {/* Map Simulator Panel */}
+                                <div className="flex-1 bg-slate-950/80 rounded-[2.5rem] p-6 border border-white/10 relative overflow-hidden h-[300px] lg:h-[350px]">
+                                    {/* Grid background representing roads */}
+                                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:30px_30px] opacity-20"></div>
+                                    
+                                    {/* Simulated Route Path */}
+                                    <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                                        <path 
+                                            d="M 50 150 Q 150 100 250 150 T 450 100" 
+                                            fill="none" 
+                                            stroke="rgba(99, 102, 241, 0.4)" 
+                                            strokeWidth="6" 
+                                            strokeLinecap="round"
+                                            strokeDasharray="8 6"
+                                        />
+                                        <circle cx="450" cy="100" r="16" fill="rgba(79, 70, 229, 0.2)" />
+                                        <circle cx="450" cy="100" r="8" fill="#4f46e5" />
+                                        <circle cx="80" cy="140" r="6" fill="#f59e0b" className="animate-ping" style={{ transformOrigin: '80px 140px' }} />
+                                        <circle cx="80" cy="140" r="4" fill="#f59e0b" />
+                                        <circle cx="180" cy="120" r="4" fill="#e2e8f0" />
+                                        <circle cx="260" cy="180" r="4" fill="#e2e8f0" />
+                                    </svg>
+
+                                    {/* Simulated Active School Bus Position */}
+                                    <div 
+                                        className="absolute transition-all duration-1000 ease-in-out bg-amber-400 text-slate-950 p-2.5 rounded-full shadow-lg border-2 border-white flex items-center justify-center cursor-pointer"
+                                        style={{ 
+                                            left: `${simulatedBusPos.x}px`, 
+                                            top: `${simulatedBusPos.y}px`,
+                                            transform: 'translate(-50%, -50%)' 
+                                        }}
+                                    >
+                                        <Truck className="w-5 h-5" />
+                                        <span className="absolute -top-8 bg-amber-400 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full border border-white whitespace-nowrap shadow uppercase tracking-wide">
+                                            Bus 04 (Active)
+                                        </span>
+                                    </div>
+
+                                    {/* Geofence Alert Overlay */}
+                                    <div className="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 flex items-center gap-2.5">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+                                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                                            Parent GPS Tracking Active
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Tablet Geolocation / Telemetry Panel */}
+                                <div className="w-full lg:w-[360px] flex flex-col justify-between space-y-6">
+                                    <div className="bg-white/5 border border-white/10 backdrop-blur-xl p-6 rounded-3xl">
+                                        <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-1.5">Realtime Geolocation Feed</p>
+                                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-4 flex items-center gap-2">
+                                            <Smartphone className="w-5 h-5 text-indigo-400" />
+                                            Tablet Telemetry
+                                        </h3>
+
+                                        <div className="space-y-4 text-xs">
+                                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                                <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Active Device</span>
+                                                <span className="text-white font-black">Driver's Tablet (Lenovo Tab M10)</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                                <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">GPS Coordinates</span>
+                                                <span className="text-white font-mono font-bold">1.2921° S, 36.8219° E</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                                <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Current Checkpoint</span>
+                                                <span className="text-amber-400 font-black">{currentCheckPoint}</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                                <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Estimated Speed</span>
+                                                <span className="text-white font-black">{simulatedSpeed} km/h</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Battery / Signal</span>
+                                                <span className="text-green-400 font-black">88% • Excellent 4G</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Share Live Tracking Link with Parents */}
+                                    <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 p-6 rounded-3xl border border-indigo-500/20">
+                                        <h4 className="text-sm font-black text-white uppercase tracking-tight mb-2">Live Parent Tracker</h4>
+                                        <p className="text-slate-300 text-[11px] leading-relaxed mb-4">
+                                            Parents can follow this vehicle in real-time. Share the dynamic boarding link via SMS.
+                                        </p>
+                                        <button 
+                                            onClick={handleCopyLink}
+                                            className="w-full bg-white hover:bg-slate-100 text-indigo-950 py-3.5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md"
+                                        >
+                                            {parentLinkCopied ? (
+                                                <>
+                                                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                                    Tracking Link Copied
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Smartphone className="w-4 h-4 text-indigo-650" />
+                                                    Copy Tracker Link
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* School Runs Tables */}
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Daily Commutes</h3>
+                                    <p className="text-slate-500 font-medium text-xs mt-1">Real-time tracking of morning drop-offs and evening student returns.</p>
+                                </div>
+                                <div className="relative w-full md:w-96">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input 
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        placeholder="Search by Route or Driver..." 
+                                        className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none outline-none font-bold text-sm"
+                                    />
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                        <tr>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Route / Run ID</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Driver & Attendant</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Vehicle & Capacity</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Commuters</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                        {filteredRuns.map(run => (
+                                            <tr key={run.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-all cursor-pointer group">
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`p-3 rounded-2xl ${run.status === 'in_transit' ? 'bg-indigo-100 text-indigo-600' : run.status === 'boarding' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
+                                                            <Navigation className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{run.routeName}</p>
+                                                            <p className="text-[10px] font-black text-slate-400 tracking-widest">{run.runType} • Starts: {run.startTime}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <p className="font-bold text-slate-700 dark:text-slate-200">{run.driver}</p>
+                                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Attendant: {run.attendant}</p>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <p className="font-bold text-slate-650 dark:text-slate-350">{run.vehicle}</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">GPS Enabled Tablet</p>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <span className="font-black text-slate-800 dark:text-white">{run.students}</span>
+                                                    <span className="text-[10px] text-slate-400 block tracking-wider font-bold">Students Checked-in</span>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                                        run.status === 'in_transit' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 
+                                                        run.status === 'boarding' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-green-50 text-green-650 border-green-100'
+                                                    }`}>
+                                                        {run.status.replace('_', ' ')}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {commuteSubTab === 'routes' && (
+                    <div className="space-y-8 animate-fade-in">
+                        {/* Bus Routes Registry */}
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Registered Bus Routes</h3>
+                                    <p className="text-slate-500 font-medium text-xs mt-1">Onboard and configure bus routes, start and terminal landmarks, and assign personnel.</p>
+                                </div>
+                                <button 
+                                    onClick={() => setIsAddRouteModalOpen(true)}
+                                    className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Register Route
+                                </button>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                        <tr>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Route Name</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Starting Point</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">School Terminal</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Bus</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Driver</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Attendant</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                        {busRoutes.map(route => (
+                                            <tr key={route.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                                <td className="px-8 py-6">
+                                                    <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{route.name}</p>
+                                                </td>
+                                                <td className="px-8 py-6 font-bold text-slate-700 dark:text-slate-200">
+                                                    {route.startPoint}
+                                                </td>
+                                                <td className="px-8 py-6 font-bold text-slate-700 dark:text-slate-200">
+                                                    {route.endPoint}
+                                                </td>
+                                                <td className="px-8 py-6 font-black text-indigo-650 dark:text-indigo-400">
+                                                    {route.bus}
+                                                </td>
+                                                <td className="px-8 py-6 font-bold text-slate-700 dark:text-slate-200">
+                                                    {route.driver}
+                                                </td>
+                                                <td className="px-8 py-6 font-bold text-slate-500">
+                                                    {route.attendant}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Add Route Modal */}
+                        {isAddRouteModalOpen && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative animate-fade-in-up">
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Register Bus Route</h3>
+                                    <p className="text-slate-500 text-xs font-medium mb-6">Create school run routes, specify geographic bounds, and assign fleet vehicles.</p>
+                                    
+                                    <form onSubmit={handleAddRoute} className="space-y-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Route Name *</label>
+                                            <input 
+                                                type="text" 
+                                                required
+                                                value={newRouteName}
+                                                onChange={e => setNewRouteName(e.target.value)}
+                                                placeholder="e.g. Route D - Eastlands / Buruburu"
+                                                className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Starting Landmark *</label>
+                                                <input 
+                                                    type="text" 
+                                                    required
+                                                    value={newRouteStart}
+                                                    onChange={e => setNewRouteStart(e.target.value)}
+                                                    placeholder="e.g. Buruburu Shopping Center"
+                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Terminal Landmark *</label>
+                                                <input 
+                                                    type="text" 
+                                                    required
+                                                    value={newRouteEnd}
+                                                    onChange={e => setNewRouteEnd(e.target.value)}
+                                                    placeholder="Westlands School Gate"
+                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs animate-pulse"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Bus</label>
+                                                <select 
+                                                    value={newRouteBus}
+                                                    onChange={e => setNewRouteBus(e.target.value)}
+                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                                >
+                                                    <option value="Bus 04 (KDC 992P)">Bus 04 (KDC 992P)</option>
+                                                    <option value="Bus 02 (KBB 120Z)">Bus 02 (KBB 120Z)</option>
+                                                    <option value="Bus 07 (KDM 441X)">Bus 07 (KDM 441X)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Driver</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={newRouteDriver}
+                                                    onChange={e => setNewRouteDriver(e.target.value)}
+                                                    placeholder="Douglas Omwamba"
+                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Attendant</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={newRouteAttendant}
+                                                    onChange={e => setNewRouteAttendant(e.target.value)}
+                                                    placeholder="Sarah Wanjiku"
+                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex gap-4 pt-4">
+                                            <button 
+                                                type="button"
+                                                onClick={() => setIsAddRouteModalOpen(false)}
+                                                className="flex-1 py-4 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button 
+                                                type="submit"
+                                                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none transition-colors"
+                                            >
+                                                Register
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {commuteSubTab === 'students' && (
+                    <div className="space-y-8 animate-fade-in">
+                        {/* Student Commute Registry */}
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Student Commute Registry</h3>
+                                    <p className="text-slate-500 font-medium text-xs mt-1">Specify student commute preferences (round trip, one-way pick-up, one-way drop-off) and assign routes.</p>
+                                </div>
+                                <div className="relative w-full md:w-96">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input 
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        placeholder="Search by student name or ADM..." 
+                                        className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none outline-none font-bold text-sm"
+                                    />
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                        <tr>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Student</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Admission No.</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Commute Route</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Daily Schedule / Direction</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                        {filteredStudents.map(student => {
+                                            const currentPref = studentCommutePrefs[student.id] || { routeId: 'none', preference: 'none' };
+                                            return (
+                                                <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                                    <td className="px-8 py-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400 rounded-xl flex items-center justify-center font-black">
+                                                                {student.name.charAt(0)}
+                                                            </div>
+                                                            <p className="font-bold text-slate-800 dark:text-white">{student.name}</p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6 font-bold text-slate-650 dark:text-slate-350">
+                                                        {student.admissionNumber}
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <select
+                                                            value={currentPref.routeId}
+                                                            onChange={e => {
+                                                                setStudentCommutePrefs({
+                                                                    ...studentCommutePrefs,
+                                                                    [student.id]: { ...currentPref, routeId: e.target.value }
+                                                                });
+                                                            }}
+                                                            className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-xs"
+                                                        >
+                                                            <option value="none">-- Unassigned --</option>
+                                                            {busRoutes.map(route => (
+                                                                <option key={route.id} value={route.id}>{route.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <select
+                                                            value={currentPref.preference}
+                                                            onChange={e => {
+                                                                setStudentCommutePrefs({
+                                                                    ...studentCommutePrefs,
+                                                                    [student.id]: { ...currentPref, preference: e.target.value as any }
+                                                                });
+                                                            }}
+                                                            className={`px-4 py-2 border rounded-xl font-black uppercase text-[10px] tracking-wider ${
+                                                                currentPref.preference === 'round_trip' ? 'bg-green-50 text-green-700 border-green-200' :
+                                                                currentPref.preference === 'one_way_pickup' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                                currentPref.preference === 'one_way_drop' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                                'bg-slate-50 text-slate-400 border-slate-200'
+                                                            }`}
+                                                        >
+                                                            <option value="round_trip">🔄 Round Trip</option>
+                                                            <option value="one_way_pickup">🌅 One Way - Pickup Only</option>
+                                                            <option value="one_way_drop">🌇 One Way - Drop-off Only</option>
+                                                            <option value="none">❌ Not Commuting</option>
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderSchoolTrips = () => {
+        const filteredTrips = schoolTrips.filter(t => 
+            t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            t.destination.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.leadTeacher.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        const handleAddTrip = (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!newTripName || !newTripDestination || !newTripDate || !newTripTime || !newTripTeacher) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            const newTrip = {
+                id: `trip_${Date.now()}`,
+                name: newTripName,
+                destination: newTripDestination,
+                date: newTripDate,
+                time: newTripTime,
+                leadTeacher: newTripTeacher,
+                vehicle: newTripVehicle || 'TBD',
+                passengers: newTripPassengers || 'TBD',
+                status: 'pending' as const
+            };
+            setSchoolTrips([...schoolTrips, newTrip]);
+            setIsAddTripModalOpen(false);
+            // Reset fields
+            setNewTripName('');
+            setNewTripDestination('');
+            setNewTripDate('');
+            setNewTripTime('');
+            setNewTripTeacher('');
+            setNewTripVehicle('');
+            setNewTripPassengers('');
+        };
+
+        return (
+            <div className="animate-fade-in-up space-y-8">
+                {/* Trip Registry Header & Actions */}
+                <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Academic & School Trips</h3>
+                            <p className="text-slate-500 font-medium text-xs mt-1">Manage educational excursions, field trips, transport logistics and route clearance.</p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+                            <div className="relative w-full sm:w-64">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input 
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    placeholder="Search school trips..." 
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none outline-none font-bold text-xs"
+                                />
+                            </div>
+                            <button 
+                                onClick={() => setIsAddTripModalOpen(true)}
+                                className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Schedule Trip
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                <tr>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Trip / Event Name</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Destination</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Departure Date & Time</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Lead Teacher</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Bus</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Capacity</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Approval</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                {filteredTrips.map(trip => (
+                                    <tr key={trip.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400 rounded-xl">
+                                                    <Calendar className="w-5 h-5" />
+                                                </div>
+                                                <p className="font-bold text-slate-800 dark:text-white tracking-tight">{trip.name}</p>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <p className="font-bold text-slate-700 dark:text-slate-200">{trip.destination}</p>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <p className="font-bold text-slate-650 dark:text-slate-350">{trip.date}</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{trip.time}</p>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <p className="font-bold text-slate-700 dark:text-slate-200">{trip.leadTeacher}</p>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <p className="font-bold text-indigo-600 dark:text-indigo-400">{trip.vehicle}</p>
+                                        </td>
+                                        <td className="px-8 py-6 font-bold text-slate-600 dark:text-slate-300">
+                                            {trip.passengers}
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${
+                                                trip.status === 'approved' 
+                                                    ? 'bg-green-50 text-green-750 border-green-150 dark:bg-green-950/20 dark:text-green-400' 
+                                                    : 'bg-amber-50 text-amber-750 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400'
+                                            }`}>
+                                                {trip.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Add Trip Modal Form */}
+                {isAddTripModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative animate-fade-in-up">
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Schedule School Trip</h3>
+                            <p className="text-slate-500 text-xs font-medium mb-6">Complete trip specifics to assign school buses and notify lead instructors.</p>
+                            
+                            <form onSubmit={handleAddTrip} className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Trip / Event Name *</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={newTripName}
+                                        onChange={e => setNewTripName(e.target.value)}
+                                        placeholder="e.g. Geography Museum Outing"
+                                        className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Destination *</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            value={newTripDestination}
+                                            onChange={e => setNewTripDestination(e.target.value)}
+                                            placeholder="e.g. Karura Forest"
+                                            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lead Teacher *</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            value={newTripTeacher}
+                                            onChange={e => setNewTripTeacher(e.target.value)}
+                                            placeholder="e.g. Mrs. Smith"
+                                            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Departure Date *</label>
+                                        <input 
+                                            type="date" 
+                                            required
+                                            value={newTripDate}
+                                            onChange={e => setNewTripDate(e.target.value)}
+                                            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Departure Time *</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            value={newTripTime}
+                                            onChange={e => setNewTripTime(e.target.value)}
+                                            placeholder="e.g. 08:30 AM"
+                                            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Vehicle</label>
+                                        <input 
+                                            type="text" 
+                                            value={newTripVehicle}
+                                            onChange={e => setNewTripVehicle(e.target.value)}
+                                            placeholder="e.g. KDC 992P (Bus 04)"
+                                            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Capacity / Passengers</label>
+                                        <input 
+                                            type="text" 
+                                            value={newTripPassengers}
+                                            onChange={e => setNewTripPassengers(e.target.value)}
+                                            placeholder="e.g. 45 Students"
+                                            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-4 pt-4">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setIsAddTripModalOpen(false)}
+                                        className="flex-1 py-4 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none transition-colors"
+                                    >
+                                        Save Trip
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const renderManifest = () => (
         <div className="animate-fade-in-up space-y-8">
@@ -255,7 +1108,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     <div className="flex justify-between items-center mb-8">
                         <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
                             <Truck className="w-6 h-6 text-indigo-600" />
-                            Fleet Health
+                            {isEduTransport ? 'School Bus Fleet Health' : 'Fleet Health'}
                         </h3>
                         <button className="bg-slate-50 dark:bg-slate-900 px-4 py-1.5 rounded-full text-[9px] font-black text-slate-400 uppercase tracking-widest border border-slate-100 dark:border-slate-700">
                             Manage All
@@ -263,18 +1116,20 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     </div>
                     <div className="space-y-4">
                         {[
-                            { plate: 'KDC 992P', fuel: 45, status: 'Healthy', health: 92 },
-                            { plate: 'KBB 120Z', fuel: 90, status: 'Maintenance Due', health: 65, alert: true },
-                            { plate: 'KDM 441X', fuel: 12, status: 'Healthy', health: 88, lowFuel: true },
+                            { plate: 'KDC 992P', fuel: 45, status: 'Healthy', health: 92, label: 'Bus 04 (51 Seater)' },
+                            { plate: 'KBB 120Z', fuel: 90, status: 'Maintenance Due', health: 65, alert: true, label: 'Bus 02 (33 Seater)' },
+                            { plate: 'KDM 441X', fuel: 12, status: 'Healthy', health: 88, lowFuel: true, label: 'Bus 07 (25 Seater)' },
                         ].map((v, i) => (
                             <div key={i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-transparent hover:border-indigo-100 transition-all">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
                                         <p className="text-lg font-black text-slate-800 dark:text-white tracking-tight">{v.plate}</p>
+                                        {isEduTransport && <p className="text-xs font-black text-indigo-650 dark:text-indigo-400 mb-1">{v.label}</p>}
                                         <p className={`text-[9px] font-black uppercase tracking-widest ${v.alert ? 'text-red-500' : 'text-slate-400'}`}>{v.status}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-xs font-black text-slate-800 dark:text-white italic">{v.health}% Engine Life</p>
+                                        <p className="text-xs font-black text-slate-800 dark:text-white italic">{isEduTransport ? 'Safety Rating' : 'Engine Life'}</p>
+                                        <p className="text-sm font-black text-slate-950 dark:text-white">{isEduTransport ? 'Compliant' : `${v.health}%`}</p>
                                         <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mt-1">
                                             <div className={`h-full rounded-full ${v.health > 80 ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${v.health}%` }}></div>
                                         </div>
@@ -286,8 +1141,17 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         <span className="text-xs font-black text-slate-600 dark:text-slate-300">{v.fuel}L Left</span>
                                     </div>
                                     <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                        <MapPin className="w-4 h-4 text-slate-400" />
-                                        <span className="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest truncate">Athi River</span>
+                                        {isEduTransport ? (
+                                            <>
+                                                <ShieldCheck className="w-4 h-4 text-green-500" />
+                                                <span className="text-[10px] font-black text-slate-650 dark:text-slate-300 uppercase tracking-wider truncate">Governor Compliant</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <MapPin className="w-4 h-4 text-slate-400" />
+                                                <span className="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest truncate">Athi River</span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -315,7 +1179,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                     <div className="flex gap-4">
                                         <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                                             <Clock className="w-3 h-3" />
-                                            98.2% On Time
+                                            {isEduTransport ? '99.1% Route Safety' : '98.2% On Time'}
                                         </div>
                                         <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                                             <ShieldCheck className="w-3 h-3" />
@@ -627,7 +1491,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             {isSACCO ? <Landmark className="w-6 h-6 text-indigo-400" /> : isShuttle ? <DoorOpen className="w-6 h-6 text-indigo-400" /> : <Truck className="w-6 h-6 text-indigo-400" />}
                         </div>
                         <h1 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">
-                            {isSACCO ? 'Transport SACCO' : isShuttle ? 'Shuttle' : 'Logistics'} <span className="text-indigo-600">{isSACCO ? 'Ledger' : isShuttle ? 'Operations' : 'Control'}</span>
+                            {isSACCO ? 'Transport SACCO' : isShuttle ? 'Shuttle' : isEduTransport ? 'School Commute' : 'Logistics'} <span className="text-indigo-600">{isSACCO ? 'Ledger' : isShuttle ? 'Operations' : isEduTransport ? 'Hub' : 'Control'}</span>
                         </h1>
                     </div>
                     <p className="text-slate-500 font-medium max-w-xl group-hover/logistics:text-slate-600 transition-colors">
@@ -635,13 +1499,22 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             ? 'The cooperative management hub. Onboard individual vehicle owners, manage municipal licenses, track trip commissions, and oversee public online bookings.'
                             : isShuttle 
                             ? 'Corporate & staff mobility management. Track shuttle routes, manage seat reservations, and monitor real-time staff boarding and attendance.' 
+                            : isEduTransport
+                            ? 'Real-time student pick-up and drop-off coordination, live bus tracking for parents, and academic field trip booking and administration.'
                             : 'The mission control for your supply chain. Real-time fleet tracking, automated manifests, and digital proof-of-delivery for modern cargo operations.'}
                     </p>
                 </div>
                 <div className="flex gap-4">
-                    <button className="px-8 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-slate-200 dark:shadow-none hover:translate-y-[-2px] active:translate-y-[1px] transition-all flex items-center gap-3">
+                    <button 
+                        onClick={() => {
+                            if (isEduTransport) {
+                                setIsAddTripModalOpen(true);
+                            }
+                        }}
+                        className="px-8 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-slate-200 dark:shadow-none hover:translate-y-[-2px] active:translate-y-[1px] transition-all flex items-center gap-3"
+                    >
                         <Plus className="w-5 h-5" />
-                        {isSACCO ? 'Register Member' : isShuttle ? 'Add New Route' : 'Plan New Trip'}
+                        {isSACCO ? 'Register Member' : isShuttle ? 'Add New Route' : isEduTransport ? 'Schedule Trip' : 'Plan New Trip'}
                     </button>
                 </div>
             </div>
@@ -665,14 +1538,15 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex items-center gap-4 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-fit border border-slate-200 dark:border-slate-800 shadow-inner">
+            <div className="flex flex-wrap items-center gap-4 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-fit border border-slate-200 dark:border-slate-800 shadow-inner">
                 {[
                     { id: 'sacco', label: 'SACCO Hub', icon: Landmark, show: isSACCO },
                     { id: 'shuttle', label: 'Shuttle Control', icon: DoorOpen, show: isShuttle },
-                    { id: 'manifest', label: isSACCO ? 'Trip Registry' : isShuttle ? 'Route History' : 'Cargo Manifest', icon: Package, show: true },
-                    { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : 'Fleet Control', icon: Truck, show: true },
-                    { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : 'Route Science', icon: BarChart3, show: true },
-                    { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle && !isSACCO }
+                    { id: 'manifest', label: isSACCO ? 'Trip Registry' : isShuttle ? 'Route History' : isEduTransport ? 'Student Commute' : 'Cargo Manifest', icon: isEduTransport ? MapPin : Package, show: true },
+                    { id: 'trips', label: 'School Trips', icon: Calendar, show: isEduTransport },
+                    { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', icon: Truck, show: true },
+                    { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', icon: BarChart3, show: true },
+                    { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle && !isSACCO && !isEduTransport }
                 ].filter(t => t.show).map((tab) => (
                     <button
                         key={tab.id}
@@ -691,16 +1565,23 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
             {/* Main Content Area */}
             <div className="min-h-[60vh]">
-                {activeTab === 'manifest' && renderManifest()}
+                {activeTab === 'manifest' && (isEduTransport ? renderStudentCommute() : renderManifest())}
                 {activeTab === 'fleet' && renderFleet()}
                 {activeTab === 'epod' && renderEPOD()}
                 {activeTab === 'shuttle' && renderShuttleHub()}
                 {activeTab === 'sacco' && renderSACCOHub()}
+                {activeTab === 'trips' && isEduTransport && renderSchoolTrips()}
                 {activeTab === 'analytics' && (
                     <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-4 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
                         <BarChart3 className="w-16 h-16 text-indigo-200 mb-8 animate-pulse" />
-                        <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tighter">AI Route Science Engine</h3>
-                        <p className="text-slate-400 mt-4 max-w-sm">Generating optimal routes based on current traffic patterns and vessel arrival times...</p>
+                        <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tighter">
+                            {isEduTransport ? 'School Transit Safety Engine' : 'AI Route Science Engine'}
+                        </h3>
+                        <p className="text-slate-400 mt-4 max-w-sm">
+                            {isEduTransport 
+                                ? 'Analyzing daily driver speed profiles, fuel efficiency, and route arrival schedules to optimize student safety...'
+                                : 'Generating optimal routes based on current traffic patterns and vessel arrival times...'}
+                        </p>
                     </div>
                 )}
             </div>
