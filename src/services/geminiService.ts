@@ -850,3 +850,133 @@ export const generateReportCardRemarks = async (
     }
 };
 
+/**
+ * AI Academic Insight Translator: Simplifies academic insights for parents in their native language
+ */
+export const translateAcademicInsight = async (text: string, targetLanguage: string): Promise<string> => {
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as an Academic Translation Assistant.
+            Translate and simplify the following student academic comment or report into clear, encouraging, parent-friendly terms.
+            
+            Academic Text: "${text}"
+            Target Language/Dialect: "${targetLanguage}" (e.g. Swahili, French, Simplified English, Sheng)
+            
+            Guidelines:
+            1. Simplify any academic jargon or technical terms.
+            2. Maintain a positive, constructive, and supportive tone.
+            3. Translate accurately to the target language/dialect.
+            4. Return ONLY the translated/simplified text. No extra text or intro/outro.
+        `;
+        const response = await safeGenerateContent(prompt, { temperature: 0.3 }, 'flash');
+        return response.text?.trim() || text;
+    } catch (error) {
+        console.error("AI translation error:", error);
+        return text;
+    }
+};
+
+/**
+ * AI Empathetic Tone Assistant: Refines messages from teachers to parents
+ */
+export const refineTeacherTone = async (text: string): Promise<string> => {
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as an Empathetic Teacher Tone Assistant.
+            Refine the following drafted message from a teacher to a student's parent.
+            Make it highly empathetic, constructive, and encouraging, focusing on a partnership for the child's academic development.
+            
+            Original Text: "${text}"
+            
+            Guidelines:
+            1. Ensure the tone is positive, constructive, and supportive.
+            2. Avoid negative blame and phrase weaknesses as opportunities for growth.
+            3. End with a constructive suggestion or collaborative note.
+            4. Keep it concise.
+            5. Return ONLY the refined text. No introductory remarks.
+        `;
+        const response = await safeGenerateContent(prompt, { temperature: 0.5 }, 'flash');
+        return response.text?.trim() || text;
+    } catch (error) {
+        console.error("AI tone refinement error:", error);
+        return text;
+    }
+};
+
+/**
+ * AI Conference Agenda Generator: Creates customizable parent-teacher agendas
+ */
+export const generateConferenceAgenda = async (studentName: string, performanceData: {
+    subjects: any[];
+    attendanceRate: number;
+    disciplineIncidents: any[];
+}): Promise<string[]> => {
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as an Educational Conference Facilitator.
+            Generate a personalized parent-teacher meeting agenda for the student named ${studentName}.
+            
+            ACADEMIC & CONTEXT DATA:
+            - Attendance Rate: ${performanceData.attendanceRate.toFixed(0)}%
+            - Academic Standing: ${JSON.stringify(performanceData.subjects)}
+            - Discipline Logs: ${JSON.stringify(performanceData.disciplineIncidents)}
+            
+            Guidelines:
+            1. Create a structured agenda consisting of 4 distinct, constructive discussion topics.
+            2. Focus on acknowledging accomplishments, addressing areas requiring growth, outlining collaborative home study strategies, and setting targets.
+            3. Keep each point brief, action-oriented, and professional.
+            4. Return the list as a JSON array of strings: ["topic 1", "topic 2", "topic 3", "topic 4"].
+            
+            Return ONLY the valid JSON array of strings.
+        `;
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json', temperature: 0.4 }, 'flash');
+        const result = sanitizeAndParseJson(response.text || "[]");
+        if (Array.isArray(result) && result.length > 0) return result;
+        return [
+            "1. Celebrate student milestones and strengths in core subjects",
+            "2. Target specific learning gaps and areas needing structured attention",
+            "3. Support student success through home study routines and time-management guidelines",
+            "4. Establish a collaborative channel and clear targets for the upcoming assessment"
+        ];
+    } catch (error) {
+        console.error("AI agenda generation error:", error);
+        return [
+            "1. Celebrate student milestones and strengths in core subjects",
+            "2. Target specific learning gaps and areas needing structured attention",
+            "3. Support student success through home study routines and time-management guidelines",
+            "4. Establish a collaborative channel and clear targets for the upcoming assessment"
+        ];
+    }
+};
+
+/**
+ * Parent's Home-Coach Advice: Customized instructions to help children study at home
+ */
+export const generateHomeCoachingAdvice = async (childName: string, subjectName: string, performanceSummary: string): Promise<string> => {
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as a supportive, expert Home Study Coach for parents.
+            Generate practical, encouraging home coaching guidelines and exercises for a parent to help their child, ${childName}, with the subject: ${subjectName}.
+            
+            CONTEXT/PERFORMANCE SUMMARY:
+            "${performanceSummary}"
+            
+            Guidelines:
+            1. Suggest 2-3 specific, active coaching strategies the parent can do at home (e.g. practical exercises, questioning methods).
+            2. Provide 2 simple review questions aligned with standard syllabus requirements.
+            3. Keep the tone friendly, accessible, and simple. Avoid teacher jargon.
+            4. Present details cleanly with bullet points.
+            5. Keep the response to 3 short paragraphs max.
+        `;
+        const response = await safeGenerateContent(prompt, { temperature: 0.6 }, 'flash');
+        return response.text || "Consistently encourage daily revision, practice active recall, and set aside quiet time for study.";
+    } catch (error) {
+        console.error("AI home coaching error:", error);
+        return "Encourage daily review of notes, practice active recall by asking the child to explain concepts in their own words, and provide structured time for problem-solving tasks.";
+    }
+};
+

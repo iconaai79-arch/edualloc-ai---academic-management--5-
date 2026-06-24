@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type {
     User, Course, StudentAttendance, TimetableEntry,
     Subject, Room, Building, TimetableSettings, LeaveOutRequest, TransportOnboarding, TransportVehicle,
-    Assessment
+    Assessment, AssessmentMark
 } from '../types';
 import { UserIcon } from './icons/UserIcon';
+import { SynergyHub } from './SynergyHub';
+import { Sparkles, Home } from 'lucide-react';
 
 
 interface ParentViewProps {
@@ -26,6 +28,7 @@ interface ParentViewProps {
     vehicles?: TransportVehicle[];
     onConfirmTransport?: (recordId: string) => Promise<void>;
     assessments?: Assessment[];
+    assessmentMarks?: AssessmentMark[];
     onAddAssessment?: (data: any) => Promise<void>;
     onDeleteAssessment?: (id: string) => Promise<void>;
     onAccessAlumnaPortal?: (school: any) => void;
@@ -172,15 +175,42 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
         onAccessAlumnaPortal = () => {}
     } = props;
     const children = users.filter(u => u && user?.studentIds?.includes(u.id));
+    const [activePanel, setActivePanel] = useState<'dashboard' | 'synergy'>('dashboard');
 
     return (
         <div className="space-y-10 py-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Family Dashboard</h2>
-                    <p className="text-slate-500 font-medium">Monitoring academic progress and safety for your children.</p>
-                </div>
+            {/* Contextual Navigation Bar */}
+            <div className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 flex justify-between items-center">
+                <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar">
+                    <button
+                        onClick={() => setActivePanel('dashboard')}
+                        className={`py-4 px-4 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${
+                            activePanel === 'dashboard' ? 'border-indigo-650 text-indigo-650' : 'border-transparent text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <Home className="w-4 h-4 text-indigo-500" />
+                        Family Dashboard
+                    </button>
+                    <button
+                        onClick={() => setActivePanel('synergy')}
+                        className={`py-4 px-4 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${
+                            activePanel === 'synergy' ? 'border-indigo-650 text-indigo-650' : 'border-transparent text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                        EduAI Synergy Hub
+                    </button>
+                </nav>
             </div>
+
+            {activePanel === 'dashboard' ? (
+                <>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Family Dashboard</h2>
+                            <p className="text-slate-500 font-medium">Monitoring academic progress and safety for your children.</p>
+                        </div>
+                    </div>
 
             <div className="space-y-8">
                 <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
@@ -253,6 +283,19 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                     </div>
                 )}
             </div>
+            </>
+            ) : (
+                <SynergyHub
+                    role="parent"
+                    currentUser={user!}
+                    users={users}
+                    subjects={subjects}
+                    courses={courses}
+                    studentAttendances={studentAttendances}
+                    assessments={props.assessments || []}
+                    assessmentMarks={props.assessmentMarks || []}
+                />
+            )}
         </div>
     );
 };

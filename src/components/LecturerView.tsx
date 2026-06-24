@@ -6,6 +6,9 @@ import type {
     Course, LetterheadConfig, AllocationRequestPreferences, UserTask, Institution,
     CountyInventoryItem
 } from '../types';
+import { SynergyHub } from './SynergyHub';
+import { Sparkles } from 'lucide-react';
+
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
 import { DeallocationModal } from './DeallocationModal';
@@ -184,11 +187,12 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     };
 
     const menuTabs = useMemo(() => {
-        const base = ['dashboard', 'academic_hub', 'my_timetable', 'eduflow'];
+        const base = ['dashboard', 'academic_hub', 'my_timetable', 'eduflow', 'synergy_hub'];
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
     }, [useRequests, props.inventoryItems]);
+
 
     const [showIssueModal, setShowIssueModal] = useState(false);
     const [selectedItem, setSelectedItem] = useState<CountyInventoryItem | null>(null);
@@ -229,6 +233,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             {tab === 'academic_hub' && <ChartBarIcon className="w-4 h-4 text-amber-500" />}
                             {tab === 'my_timetable' && <ClockIcon className="w-4 h-4 text-indigo-500" />}
                             {tab === 'eduflow' && <ClipboardListIcon className="w-4 h-4 text-purple-500" />}
+                            {tab === 'synergy_hub' && <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />}
                             {tab === 'my_requests' && <BookOpenIcon className="w-4 h-4 text-emerald-500" />}
                             {tab === 'inventory' && <ArchiveBoxIcon className="w-4 h-4 text-rose-500" />}
                             {tab.replace(/_/g, ' ')}
@@ -552,6 +557,22 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     </Suspense>
                 </div>
             )}
+
+            {activeTab === 'synergy_hub' && (
+                <div className="animate-fade-in-up">
+                    <SynergyHub
+                        role="teacher"
+                        currentUser={user!}
+                        users={props.users || []}
+                        subjects={subjects}
+                        courses={courses}
+                        studentAttendances={props.studentAttendances}
+                        assessments={props.assessments}
+                        assessmentMarks={props.assessmentMarks}
+                    />
+                </div>
+            )}
+
 
 
             {isRequestModalOpen && (

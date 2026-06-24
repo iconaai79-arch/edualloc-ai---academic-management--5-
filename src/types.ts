@@ -5383,5 +5383,51 @@ export interface EduFlowFile {
     createdAt: string;
 }
 
+export interface SynergyPost {
+    id: string;
+    institutionId: string;
+    courseId?: string;
+    courseLevelId?: string;
+    authorId: string;
+    authorName: string;
+    authorRole: string;
+    authorPhotoUrl?: string;
+    title: string;
+    content: string;
+    photoUrl?: string;
+    videoUrl?: string;
+    likes: string[];
+    commentsCount: number;
+    studentIds?: string[];
+    createdAt: string;
+}
 
+export interface SynergyComment {
+    id: string;
+    postId: string;
+    authorId: string;
+    authorName: string;
+    authorRole: string;
+    authorPhotoUrl?: string;
+    content: string;
+    createdAt: string;
+}
 
+export interface SynergyMessage {
+    id: string;
+    senderId: string;
+    recipientId: string;
+    content: string;
+    isRead: boolean;
+    childId?: string;
+    createdAt: string;
+}
+
+export interface SynergyCircle {
+    id: string;
+    name: string;
+    description: string;
+    subjectId: string;
+    courseLevelId: string;
+    institutionId: string;
+}
