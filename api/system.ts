@@ -183,7 +183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (!connectionString) {
                     console.error("[SQL Engine] Missing connection string", getEnvInfo());
-                    return res.status(500).json({
+                    return res.status(200).json({
                         success: false,
                         error: "Database connection string missing.",
                         message: "Please add DATABASE_URL to your environment variables.",
@@ -199,13 +199,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (!Pool) throw new Error("Could not find Pool in pg module");
                 } catch (importErr: any) {
                     console.error("[SQL Engine] pg module load failed:", importErr);
-                    return res.status(500).json({ error: "SQL Support unavailable: pg module load failure", details: importErr.message });
+                    return res.status(200).json({
+                        success: false,
+                        error: "SQL Support unavailable: pg module load failure",
+                        details: importErr.message
+                    });
                 }
 
                 const pool = new Pool({
                     connectionString,
                     ssl: { rejectUnauthorized: false },
-                    connectionTimeoutMillis: 15000 
+                    connectionTimeoutMillis: 5000 
                 });
 
                 let client;
@@ -223,7 +227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                 } catch (err: any) {
                     console.error("[SQL Engine Error]:", err);
-                    return res.status(500).json({
+                    return res.status(200).json({
                         success: false,
                         error: err.message || "SQL Execution Error",
                         detail: err.detail,
