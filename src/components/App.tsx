@@ -5354,6 +5354,11 @@ export const App: React.FC = () => {
                                             );
                                             await loadData(false, true);
                                         }}
+                                        onSaveInstitution={async (data: any) => {
+                                            const newId = data.id || `inst_cdf_${Date.now()}`;
+                                            await apiService.saveInstitution({ ...data, id: newId } as any);
+                                            await loadData(false, true);
+                                        }}
                                         onSendSms={async (recipient: string | string[], message: string) => {
                                             const targetInstId = activeInstitution?.id || currentUser?.institutionId || 'Kigumo';
                                             const config = activeInstitution?.smsConfig || companyDetails?.smsConfig;

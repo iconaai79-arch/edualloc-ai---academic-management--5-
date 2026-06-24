@@ -15,7 +15,95 @@ export default defineConfig(({ mode }) => {
   process.env.GEMINI_API_KEY = env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY || env.API_KEY || "";
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'api-middleware',
+        configureServer(server: any) {
+          const apiMiddleware = async (req: any, res: any, next: any) => {
+            console.log(`[Vite Middleware] Request URL: ${req.url}`);
+            if (req.url?.startsWith('/api/')) {
+              const urlObj = new URL(req.url, `http://${req.headers.host}`);
+              const urlParts = urlObj.pathname.split('/');
+              const endpoint = urlParts[2];
+
+              if (!endpoint || endpoint.includes('..') || endpoint.includes('\\')) {
+                next();
+                return;
+              }
+
+              const handlerPath = `/api/${endpoint}.ts`;
+
+              // Handle CORS for all methods
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+              res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+              if (req.method === 'OPTIONS') {
+                res.statusCode = 200;
+                res.end();
+                return;
+              }
+
+              let body = '';
+              req.on('data', (chunk: any) => body += chunk);
+              req.on('end', async () => {
+                try {
+                  const payload = body ? JSON.parse(body) : {};
+                  
+                  // Mock Vercel Request/Response
+                  const vReq: any = {
+                    method: req.method,
+                    body: payload,
+                    headers: req.headers,
+                    query: Object.fromEntries(urlObj.searchParams.entries()),
+                    url: req.url
+                  };
+
+                  const vRes: any = {
+                    setHeader: (k: string, v: string) => res.setHeader(k, v),
+                    status: (code: number) => {
+                      res.statusCode = code;
+                      return vRes;
+                    },
+                    json: (data: any) => {
+                      res.setHeader('Content-Type', 'application/json');
+                      res.end(JSON.stringify(data));
+                      return vRes;
+                    },
+                    end: () => res.end()
+                  };
+
+                  // Load handler dynamically based on endpoint
+                  const handlerModule = await server.ssrLoadModule(handlerPath);
+                  if (handlerModule && handlerModule.default) {
+                    await handlerModule.default(vReq, vRes);
+                  } else {
+                    res.statusCode = 404;
+                    res.end(JSON.stringify({ error: `Handler not found for ${endpoint}` }));
+                  }
+                } catch (e: any) {
+                  console.error(`API Middleware Error [${endpoint}]:`, e);
+                  if (!res.headersSent) {
+                    res.statusCode = 500;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({
+                      error: "Vite Middleware Crash",
+                      message: e.message,
+                      stack: e.stack
+                    }));
+                  }
+                }
+              });
+            } else {
+              next();
+            }
+          };
+
+          server.middlewares.stack.unshift({ route: '', handle: apiMiddleware });
+        }
+      }
+    ],
     define: {
       'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY),
@@ -25,86 +113,6 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {}
-    },
-    configureServer(server: any) {
-      server.middlewares.use(async (req: any, res: any, next: any) => {
-        if (req.url?.startsWith('/api/')) {
-          const urlObj = new URL(req.url, `http://${req.headers.host}`);
-          const urlParts = urlObj.pathname.split('/');
-          const endpoint = urlParts[2];
-
-          if (!endpoint || endpoint.includes('..') || endpoint.includes('\\')) {
-            next();
-            return;
-          }
-
-          const handlerPath = `/api/${endpoint}.ts`;
-
-          // Handle CORS for all methods
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-          if (req.method === 'OPTIONS') {
-            res.statusCode = 200;
-            res.end();
-            return;
-          }
-
-          let body = '';
-          req.on('data', (chunk: any) => body += chunk);
-          req.on('end', async () => {
-            try {
-              const payload = body ? JSON.parse(body) : {};
-              
-              // Mock Vercel Request/Response
-              const vReq: any = {
-                method: req.method,
-                body: payload,
-                headers: req.headers,
-                query: Object.fromEntries(urlObj.searchParams.entries()),
-                url: req.url
-              };
-
-              const vRes: any = {
-                setHeader: (k: string, v: string) => res.setHeader(k, v),
-                status: (code: number) => {
-                  res.statusCode = code;
-                  return vRes;
-                },
-                json: (data: any) => {
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify(data));
-                  return vRes;
-                },
-                end: () => res.end()
-              };
-
-              // Load handler dynamically based on endpoint
-              const handlerModule = await server.ssrLoadModule(handlerPath);
-              if (handlerModule && handlerModule.default) {
-                await handlerModule.default(vReq, vRes);
-              } else {
-                res.statusCode = 404;
-                res.end(JSON.stringify({ error: `Handler not found for ${endpoint}` }));
-              }
-            } catch (e: any) {
-              console.error(`API Middleware Error [${endpoint}]:`, e);
-              if (!res.headersSent) {
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({
-                  error: "Vite Middleware Crash",
-                  message: e.message,
-                  stack: e.stack
-                }));
-              }
-            }
-          });
-        } else {
-          next();
-        }
-      });
     },
     build: {
       outDir: 'dist',

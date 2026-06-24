@@ -8,7 +8,7 @@ import {
     ArrowPathIcon, ChevronRightIcon, UserIcon, MapPinIcon 
 } from './icons';
 import { 
-    User, Institution, Role, NGCdfFund, NGCdfBursary, ActivityLog, SmsLog, SmsOutbox
+    User, Institution, Role, NGCdfFund, NGCdfBursary, ActivityLog, SmsLog, SmsOutbox, SchoolRegistry
 } from '../types';
 import { apiService } from '../services/apiService';
 import { localDb } from '../services/localDb';
@@ -22,6 +22,7 @@ interface ConstituencyAdminViewProps {
     onLogAction?: (action: string) => void;
     onSendSms?: (recipient: string | string[], message: string) => Promise<any>;
     onAddUser?: (userData: any) => Promise<void>;
+    onSaveInstitution?: (data: any) => Promise<void>;
 }
 
 export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
@@ -31,7 +32,8 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     onLogout,
     onLogAction,
     onSendSms,
-    onAddUser
+    onAddUser,
+    onSaveInstitution
 }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [ngCdfFunds, setNgCdfFunds] = useState<NGCdfFund[]>([]);
@@ -42,6 +44,25 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     const [ngCdfFormFY, setNgCdfFormFY] = useState('2025/2026');
     const [ngCdfFormBudget, setNgCdfFormBudget] = useState('');
     const [filterSearch, setFilterSearch] = useState('');
+
+    // School registry states
+    const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
+    const [isLoadingRegistry, setIsLoadingRegistry] = useState(false);
+    const [schoolSearchQuery, setSchoolSearchQuery] = useState('');
+    const [showManualAddSchool, setShowManualAddSchool] = useState(false);
+    const [schoolLinkingId, setSchoolLinkingId] = useState<string | null>(null);
+    const [manualSchoolForm, setManualSchoolForm] = useState({
+        name: '',
+        institutionType: 'Secondary',
+        subCounty: '',
+        phoneNumber: '',
+        email: '',
+        knecCode: '',
+        uic: '',
+        accommodationType: 'Day' as 'Day' | 'Boarding' | 'Mixed',
+        genderType: 'Mixed' as 'Boys' | 'Girls' | 'Mixed'
+    });
+    const [isSavingSchool, setIsSavingSchool] = useState(false);
 
     // SMS states
     const [smsSubTab, setSmsSubTab] = useState<'compose' | 'history' | 'outbox'>('compose');
@@ -92,6 +113,96 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
     useEffect(() => {
         fetchNgCdfData();
     }, [myConstituency]);
+
+    const fetchSchoolRegistry = async () => {
+        if (schoolRegistry.length > 0) return; // already loaded
+        setIsLoadingRegistry(true);
+        try {
+            const records = await apiService.fetchFullRegistry();
+            setSchoolRegistry(records);
+        } catch (e) {
+            console.error('Failed to fetch school registry:', e);
+        } finally {
+            setIsLoadingRegistry(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'institutions') fetchSchoolRegistry();
+    }, [activeTab]);
+
+    const handleLinkSchool = async (school: SchoolRegistry) => {
+        if (schoolLinkingId === school.id) return;
+        setSchoolLinkingId(school.id);
+        try {
+            const instData = {
+                id: `inst_cdf_${Date.now()}`,
+                name: school.name,
+                institutionType: school.institutionType || 'School',
+                category: school.accommodationType || 'Day',
+                constituency: myConstituency,
+                subCounty: school.subCounty || '',
+                county: school.county || '',
+                institutionCode: school.knecCode || school.uic || '',
+                registryId: school.id,
+                status: 'active',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            if (onSaveInstitution) {
+                await onSaveInstitution(instData);
+            } else {
+                await apiService.saveModuleRecord('institutions', instData);
+            }
+            if (onLogAction) onLogAction(`Linked registry school "${school.name}" to ${myConstituency} constituency`);
+            alert(`"${school.name}" has been added to your constituency schools.`);
+            // Refresh App-level data by triggering a re-load (institutions prop will update)
+        } catch (e: any) {
+            console.error('Failed to link school:', e);
+            alert('Error linking school: ' + (e.message || 'Unknown error'));
+        } finally {
+            setSchoolLinkingId(null);
+        }
+    };
+
+    const handleManualAddSchool = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!manualSchoolForm.name.trim()) return;
+        setIsSavingSchool(true);
+        try {
+            const instData = {
+                id: `inst_cdf_manual_${Date.now()}`,
+                name: manualSchoolForm.name.trim(),
+                institutionType: manualSchoolForm.institutionType,
+                category: manualSchoolForm.accommodationType,
+                constituency: myConstituency,
+                subCounty: manualSchoolForm.subCounty,
+                phoneNumber: manualSchoolForm.phoneNumber,
+                email: manualSchoolForm.email,
+                institutionCode: manualSchoolForm.knecCode || manualSchoolForm.uic || '',
+                uic: manualSchoolForm.uic,
+                knecCode: manualSchoolForm.knecCode,
+                genderType: manualSchoolForm.genderType,
+                status: 'active',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            if (onSaveInstitution) {
+                await onSaveInstitution(instData);
+            } else {
+                await apiService.saveModuleRecord('institutions', instData);
+            }
+            if (onLogAction) onLogAction(`Manually added school "${instData.name}" to ${myConstituency} constituency`);
+            setShowManualAddSchool(false);
+            setManualSchoolForm({ name: '', institutionType: 'Secondary', subCounty: '', phoneNumber: '', email: '', knecCode: '', uic: '', accommodationType: 'Day', genderType: 'Mixed' });
+            alert(`"${instData.name}" has been added to your constituency schools.`);
+        } catch (e: any) {
+            console.error('Failed to add school:', e);
+            alert('Error adding school: ' + (e.message || 'Unknown error'));
+        } finally {
+            setIsSavingSchool(false);
+        }
+    };
 
     const handleSaveNgCdfFund = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -782,52 +893,284 @@ export const ConstituencyAdminView: React.FC<ConstituencyAdminViewProps> = ({
                     </div>
                 )}
 
-                {activeTab === 'institutions' && (
+                {activeTab === 'institutions' && (() => {
+                    const linkedIds = new Set(constituencyInstitutions.map(i => (i as any).registryId).filter(Boolean));
+                    const linkedNames = new Set(constituencyInstitutions.map(i => i.name?.toLowerCase()));
+
+                    const filteredRegistry = schoolRegistry.filter(s => {
+                        if (!schoolSearchQuery.trim()) return false;
+                        const q = schoolSearchQuery.toLowerCase();
+                        return (
+                            s.name?.toLowerCase().includes(q) ||
+                            s.county?.toLowerCase().includes(q) ||
+                            s.subCounty?.toLowerCase().includes(q) ||
+                            s.knecCode?.toLowerCase().includes(q) ||
+                            s.institutionType?.toLowerCase().includes(q)
+                        );
+                    }).slice(0, 30);
+
+                    return (
                     <div className="space-y-6">
-                        <div className="mb-8">
-                            <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">Schools & Institutions</h2>
-                            <p className="text-slate-500 font-medium">Educational centers registered under the {myConstituency} constituency office scope.</p>
+                        {/* Header */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                            <div>
+                                <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">Schools & Institutions</h2>
+                                <p className="text-slate-500 font-medium">Manage educational centers under {myConstituency} constituency. Search the national registry or add manually.</p>
+                            </div>
+                            <button
+                                onClick={() => setShowManualAddSchool(true)}
+                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add School Manually
+                            </button>
                         </div>
 
+                        {/* Registry Search */}
                         <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
+                            <h3 className="text-base font-black uppercase tracking-tight text-slate-800 mb-1">Search National School Registry</h3>
+                            <p className="text-[11px] text-slate-400 font-medium mb-5">Search by school name, county, sub-county, KNEC code, or type. Click "Add to Constituency" to link a school.</p>
+
+                            <div className="relative mb-6">
+                                <Search className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search school name, county, KNEC code..."
+                                    value={schoolSearchQuery}
+                                    onChange={e => setSchoolSearchQuery(e.target.value)}
+                                    onFocus={() => { if (schoolRegistry.length === 0) fetchSchoolRegistry(); }}
+                                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-medium text-sm text-slate-800 transition-all"
+                                />
+                                {isLoadingRegistry && (
+                                    <RefreshCw className="absolute right-4 top-3.5 w-4 h-4 text-indigo-500 animate-spin" />
+                                )}
+                            </div>
+
+                            {/* Search results */}
+                            {schoolSearchQuery.trim() && (
+                                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                                    {filteredRegistry.length === 0 && !isLoadingRegistry ? (
+                                        <div className="text-center py-8 space-y-3">
+                                            <div className="text-3xl">🔍</div>
+                                            <p className="text-sm font-bold text-slate-500">No schools found matching "{schoolSearchQuery}"</p>
+                                            <p className="text-xs text-slate-400">You can add this school manually using the button above.</p>
+                                            <button
+                                                onClick={() => { setManualSchoolForm(p => ({ ...p, name: schoolSearchQuery })); setShowManualAddSchool(true); }}
+                                                className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                                            >
+                                                <Plus className="inline w-3 h-3 mr-1" />
+                                                Add "{schoolSearchQuery}" Manually
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        filteredRegistry.map(school => {
+                                            const alreadyLinked = linkedIds.has(school.id) || linkedNames.has(school.name?.toLowerCase());
+                                            return (
+                                                <div key={school.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                                                    alreadyLinked
+                                                        ? 'bg-emerald-50 border-emerald-200'
+                                                        : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30'
+                                                }`}>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-black uppercase text-slate-900 truncate">{school.name}</span>
+                                                            {school.institutionType && (
+                                                                <span className="shrink-0 text-[9px] px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-black uppercase tracking-wider">{school.institutionType}</span>
+                                                            )}
+                                                            {school.genderType && (
+                                                                <span className="shrink-0 text-[9px] px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-black uppercase tracking-wider">{school.genderType}</span>
+                                                            )}
+                                                            {school.accommodationType && (
+                                                                <span className="shrink-0 text-[9px] px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-black uppercase tracking-wider">{school.accommodationType}</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-3 mt-1">
+                                                            {school.subCounty && <span className="text-[10px] text-slate-500 font-medium">📍 {school.subCounty}</span>}
+                                                            {school.county && <span className="text-[10px] text-slate-400">{school.county} County</span>}
+                                                            {school.knecCode && <span className="text-[10px] font-mono text-slate-400">KNEC: {school.knecCode}</span>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="ml-4 shrink-0">
+                                                        {alreadyLinked ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-wider">
+                                                                <CheckCircle2 className="w-3 h-3" />
+                                                                Added
+                                                            </span>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleLinkSchool(school)}
+                                                                disabled={schoolLinkingId === school.id}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm"
+                                                            >
+                                                                {schoolLinkingId === school.id ? (
+                                                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                                                ) : (
+                                                                    <Plus className="w-3 h-3" />
+                                                                )}
+                                                                Add to Constituency
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            )}
+
+                            {!schoolSearchQuery.trim() && (
+                                <div className="text-center py-8 text-slate-400">
+                                    <School className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                    <p className="text-xs font-bold uppercase tracking-wider">Type a school name to search the national registry</p>
+                                    {schoolRegistry.length > 0 && (
+                                        <p className="text-[10px] mt-1">{schoolRegistry.length.toLocaleString()} schools in registry</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Constituency Schools Table */}
+                        <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tight text-slate-800">{myConstituency} Schools</h3>
+                                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">{constituencyInstitutions.length} schools registered under this constituency</p>
+                                </div>
+                            </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="border-b">
+                                        <tr className="border-b border-slate-100">
                                             <th className="py-3 px-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">School Name</th>
-                                            <th className="py-3 px-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Type / Category</th>
-                                            <th className="py-3 px-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Contact Info</th>
-                                            <th className="py-3 px-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">SubCounty</th>
+                                            <th className="py-3 px-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Type</th>
+                                            <th className="py-3 px-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Contact</th>
+                                            <th className="py-3 px-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Sub-County</th>
+                                            <th className="py-3 px-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Code</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
                                         {constituencyInstitutions.length === 0 ? (
                                             <tr>
-                                                <td colSpan={4} className="py-6 text-center text-xs text-slate-400 font-medium">No schools configured under {myConstituency} yet.</td>
+                                                <td colSpan={5} className="py-10 text-center">
+                                                    <School className="w-8 h-8 mx-auto mb-2 text-slate-200" />
+                                                    <p className="text-xs text-slate-400 font-medium">No schools linked to {myConstituency} yet.</p>
+                                                    <p className="text-[10px] text-slate-300 mt-1">Search the national registry above or add schools manually.</p>
+                                                </td>
                                             </tr>
                                         ) : (
                                             constituencyInstitutions.map(inst => (
                                                 <tr key={inst.id} className="hover:bg-slate-50/50 transition-colors">
                                                     <td className="py-4 px-4">
-                                                        <div className="text-xs font-bold text-slate-900 uppercase">{inst.name}</div>
-                                                        <div className="text-[10px] text-slate-400 mt-0.5">Code: {inst.institutionCode || inst.id}</div>
-                                                    </td>
-                                                    <td className="py-4 px-4 text-xs text-slate-600 font-medium">
-                                                        {inst.institutionType} — {inst.category || 'General'}
+                                                        <div className="text-xs font-bold text-slate-900">{inst.name}</div>
                                                     </td>
                                                     <td className="py-4 px-4">
-                                                        <div className="text-xs text-slate-700 font-semibold">{inst.email}</div>
-                                                        <div className="text-[10px] text-slate-400 mt-0.5">{inst.phoneNumber}</div>
+                                                        <span className="text-[10px] font-black px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full uppercase tracking-wider">
+                                                            {inst.institutionType || 'School'}
+                                                        </span>
                                                     </td>
-                                                    <td className="py-4 px-4 text-xs font-medium text-slate-600">
-                                                        {inst.subCounty || '—'}
+                                                    <td className="py-4 px-4">
+                                                        <div className="text-xs text-slate-700 font-medium">{inst.email || '—'}</div>
+                                                        <div className="text-[10px] text-slate-400">{inst.phoneNumber || ''}</div>
                                                     </td>
+                                                    <td className="py-4 px-4 text-xs font-medium text-slate-600">{inst.subCounty || '—'}</td>
+                                                    <td className="py-4 px-4 text-[10px] font-mono text-slate-500">{inst.institutionCode || '—'}</td>
                                                 </tr>
                                             ))
                                         )}
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                    );
+                })()}
+
+                {/* Manual Add School Modal */}
+                {showManualAddSchool && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowManualAddSchool(false)}>
+                        <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 animate-scale-in" onClick={e => e.stopPropagation()}>
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Add School Manually</h3>
+                                    <p className="text-[11px] text-slate-400 mt-1">School will be added to <span className="font-black text-indigo-600">{myConstituency}</span> constituency</p>
+                                </div>
+                                <button onClick={() => setShowManualAddSchool(false)} className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-400">
+                                    ✕
+                                </button>
+                            </div>
+                            <form onSubmit={handleManualAddSchool} className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">School Name *</label>
+                                    <input
+                                        type="text" required
+                                        value={manualSchoolForm.name}
+                                        onChange={e => setManualSchoolForm(p => ({ ...p, name: e.target.value }))}
+                                        placeholder="e.g. Kigumo High School"
+                                        className="form-input w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-bold text-slate-800 text-sm"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Institution Type</label>
+                                        <select value={manualSchoolForm.institutionType} onChange={e => setManualSchoolForm(p => ({ ...p, institutionType: e.target.value }))} className="form-select w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-bold text-slate-800 text-sm">
+                                            <option>Primary</option>
+                                            <option>Secondary</option>
+                                            <option>TVET</option>
+                                            <option>University</option>
+                                            <option>Special Needs</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Boarding Type</label>
+                                        <select value={manualSchoolForm.accommodationType} onChange={e => setManualSchoolForm(p => ({ ...p, accommodationType: e.target.value as any }))} className="form-select w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-bold text-slate-800 text-sm">
+                                            <option value="Day">Day</option>
+                                            <option value="Boarding">Boarding</option>
+                                            <option value="Mixed">Mixed</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Gender</label>
+                                        <select value={manualSchoolForm.genderType} onChange={e => setManualSchoolForm(p => ({ ...p, genderType: e.target.value as any }))} className="form-select w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-bold text-slate-800 text-sm">
+                                            <option value="Mixed">Mixed</option>
+                                            <option value="Boys">Boys</option>
+                                            <option value="Girls">Girls</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Sub-County</label>
+                                        <input type="text" value={manualSchoolForm.subCounty} onChange={e => setManualSchoolForm(p => ({ ...p, subCounty: e.target.value }))} placeholder="e.g. Kigumo" className="form-input w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-bold text-slate-800 text-sm" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Phone Number</label>
+                                        <input type="tel" value={manualSchoolForm.phoneNumber} onChange={e => setManualSchoolForm(p => ({ ...p, phoneNumber: e.target.value }))} placeholder="07xx xxx xxx" className="form-input w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-medium text-slate-800 text-sm" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Email</label>
+                                        <input type="email" value={manualSchoolForm.email} onChange={e => setManualSchoolForm(p => ({ ...p, email: e.target.value }))} placeholder="school@email.com" className="form-input w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-medium text-slate-800 text-sm" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">KNEC Code</label>
+                                        <input type="text" value={manualSchoolForm.knecCode} onChange={e => setManualSchoolForm(p => ({ ...p, knecCode: e.target.value }))} placeholder="Optional" className="form-input w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-mono text-slate-700 text-sm" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5">UIC</label>
+                                        <input type="text" value={manualSchoolForm.uic} onChange={e => setManualSchoolForm(p => ({ ...p, uic: e.target.value }))} placeholder="Optional" className="form-input w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-xl outline-none font-mono text-slate-700 text-sm" />
+                                    </div>
+                                </div>
+                                <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                                    <button type="button" onClick={() => setShowManualAddSchool(false)} className="px-6 py-2.5 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                                    <button type="submit" disabled={isSavingSchool} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2">
+                                        {isSavingSchool && <RefreshCw className="w-3 h-3 animate-spin" />}
+                                        Save School
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )}
