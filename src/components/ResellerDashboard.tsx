@@ -1024,6 +1024,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                         </div>
                         <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {perspectiveOptions.filter(opt => {
+                                if (!opt) return false;
                                 const instType = selectedTenantForPerspective?.institutionType;
                                 const isEdu = instType === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(instType || '');
                                 if (isEdu) {
@@ -1031,21 +1032,24 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                     return eduAllowed.includes(opt.role);
                                 }
                                 return true;
-                            }).map(opt => (
-                                <button
-                                    key={opt.role}
-                                    onClick={() => {
-                                        onImpersonate(selectedTenantForPerspective.id, opt.role as Role);
-                                        setIsPerspectiveModalOpen(false);
-                                    }}
-                                    className={`flex items-center gap-4 p-5 rounded-3xl border-2 border-transparent transition-all text-left group hover:border-indigo-500 ${opt.color}`}
-                                >
-                                    <div className="p-3 bg-white rounded-2xl shadow-sm transition-transform group-hover:scale-110">
-                                        {opt.icon}
-                                    </div>
-                                    <span className="font-black text-sm uppercase tracking-tight">{opt.label}</span>
-                                </button>
-                            ))}
+                            }).map(opt => {
+                                if (!opt) return null;
+                                return (
+                                    <button
+                                        key={opt.role}
+                                        onClick={() => {
+                                            onImpersonate(selectedTenantForPerspective.id, opt.role as Role);
+                                            setIsPerspectiveModalOpen(false);
+                                        }}
+                                        className={`flex items-center gap-4 p-5 rounded-3xl border-2 border-transparent transition-all text-left group hover:border-indigo-500 ${opt.color || ''}`}
+                                    >
+                                        <div className="p-3 bg-white rounded-2xl shadow-sm transition-transform group-hover:scale-110">
+                                            {opt.icon || null}
+                                        </div>
+                                        <span className="font-black text-sm uppercase tracking-tight">{opt.label}</span>
+                                    </button>
+                                );
+                            })}
                         </div>
                         <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
                             <p className="text-xs text-slate-400 font-medium">Selecting a perspective will instantly launch that module's view for this client.</p>

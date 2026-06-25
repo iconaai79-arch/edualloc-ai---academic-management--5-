@@ -3374,21 +3374,24 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 ref={scrollRef}
                                 className="p-8 flex gap-4 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory"
                             >
-                                {perspectiveOptions.map(opt => (
-                                    <button
-                                        key={opt.role}
-                                        onClick={() => {
-                                            props.onSwitchPerspective?.(opt.role as Role);
-                                            setIsPerspectiveModalOpen(false);
-                                        }}
-                                        className={`flex-none w-[200px] flex flex-col items-center justify-center gap-4 p-8 rounded-[3rem] border-2 border-transparent transition-all group hover:border-indigo-500 snap-center shadow-sm ${opt.color}`}
-                                    >
-                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-sm transition-transform group-hover:scale-110">
-                                            {opt.icon}
-                                        </div>
-                                        <span className="font-black text-[11px] uppercase tracking-widest text-center">{opt.label}</span>
-                                    </button>
-                                ))}
+                                {perspectiveOptions.map(opt => {
+                                    if (!opt) return null;
+                                    return (
+                                        <button
+                                            key={opt.role}
+                                            onClick={() => {
+                                                props.onSwitchPerspective?.(opt.role as Role);
+                                                setIsPerspectiveModalOpen(false);
+                                            }}
+                                            className={`flex-none w-[200px] flex flex-col items-center justify-center gap-4 p-8 rounded-[3rem] border-2 border-transparent transition-all group hover:border-indigo-500 snap-center shadow-sm ${opt.color || ''}`}
+                                        >
+                                            <div className="p-4 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-sm transition-transform group-hover:scale-110">
+                                                {opt.icon || null}
+                                            </div>
+                                            <span className="font-black text-[11px] uppercase tracking-widest text-center">{opt.label}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             <button 
