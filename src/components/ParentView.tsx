@@ -6,7 +6,7 @@ import type {
 } from '../types';
 import { UserIcon } from './icons/UserIcon';
 import { SynergyHub } from './SynergyHub';
-import { Sparkles, Home, Receipt, BadgeCheck, Clock, AlertCircle } from 'lucide-react';
+import { Sparkles, Home, Receipt, BadgeCheck, Clock, AlertCircle, Truck } from 'lucide-react';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
 import type { TransportFeeInvoice } from './TransportBillingManager';
@@ -181,7 +181,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
         leaveOutRequests = [],
         onAccessAlumnaPortal = () => {}
     } = props;
-    const isSimulator = props.isSimulatorMode || user?.id?.startsWith('demo_') || user?.institutionId?.startsWith('demo_') || user?.role === 'super_admin';
+    const isSimulator = props.isSimulatorMode || user?.id?.startsWith('demo_') || user?.id?.startsWith('temp_admin_') || user?.institutionId?.startsWith('demo_') || user?.role === 'super_admin';
 
     const demoChildUser: User = {
         id: 'demo_student_1',
@@ -200,7 +200,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
         ? children 
         : (isSimulator ? [demoChildUser] : []);
 
-    const [activePanel, setActivePanel] = useState<'dashboard' | 'synergy'>('dashboard');
+    const [activePanel, setActivePanel] = useState<'dashboard' | 'synergy' | 'transport'>('dashboard');
 
     // ── Simulator / demo fallback data ────────────────────────────────────────
     // When no real transport data is present (e.g. parent_portal simulator),
@@ -289,6 +289,15 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                     >
                         <Home className="w-4 h-4 text-indigo-500" />
                         Family Dashboard
+                    </button>
+                    <button
+                        onClick={() => setActivePanel('transport')}
+                        className={`py-4 px-4 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${
+                            activePanel === 'transport' ? 'border-indigo-650 text-indigo-650' : 'border-transparent text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <Truck className="w-4 h-4 text-orange-500" />
+                        Transport Tracker
                     </button>
                     <button
                         onClick={() => setActivePanel('synergy')}
@@ -455,6 +464,119 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                 )}
             </div>
             </>
+            ) : activePanel === 'transport' ? (
+                <div className="space-y-8 animate-fade-in">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Transport Tracker</h2>
+                            <p className="text-slate-500 font-medium">Real-time school bus tracking, route alerts, and billing statements.</p>
+                        </div>
+                    </div>
+
+                    {/* Transport Disruption Alert Banner */}
+                    {effectiveTransportAlerts.filter(a => a.status === 'active').length > 0 && (
+                        <div className="animate-fade-in">
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="flex h-2.5 w-2.5">
+                                    <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-rose-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                                </span>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-rose-600">Transport Alert — Action Required</p>
+                            </div>
+                            <TransportDisruptionAlert
+                                mode="parent"
+                                alerts={effectiveTransportAlerts}
+                                onAcknowledge={props.onAcknowledgeAlert}
+                                parentId={user?.id || 'parent_user'}
+                                parentChildRoutes={[]}
+                            />
+                        </div>
+                    )}
+
+                    {/* Transport Fee Invoice Status */}
+                    {effectiveTransportInvoices.length > 0 && (() => {
+                        const childIds = effectiveChildren.map(c => c.id);
+                        const myInvoices = effectiveTransportInvoices.filter(i => childIds.includes(i.studentId) || isSimulator);
+                        if (myInvoices.length === 0) return null;
+                        return (
+                            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                                <div className="p-5 border-b border-slate-50 dark:border-slate-700 flex items-center gap-3">
+                                    <Receipt className="w-5 h-5 text-indigo-500" />
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Transport Fee Invoices</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{myInvoices.length} invoice{myInvoices.length !== 1 ? 's' : ''} for your children</p>
+                                    </div>
+                                </div>
+                                <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                                    {myInvoices.map(inv => {
+                                        const isPaid = inv.status === 'paid';
+                                        const isOverdue = inv.status === 'overdue';
+                                        return (
+                                            <div key={inv.id} className="p-5 flex items-center gap-4">
+                                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                                                    isPaid ? 'bg-emerald-50 dark:bg-emerald-950/30' : isOverdue ? 'bg-rose-50 dark:bg-rose-950/30' : 'bg-amber-50 dark:bg-amber-950/30'
+                                                }`}>
+                                                    {isPaid ? <BadgeCheck className="w-5 h-5 text-emerald-600" /> : isOverdue ? <AlertCircle className="w-5 h-5 text-rose-600" /> : <Clock className="w-5 h-5 text-amber-600" />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{inv.studentName}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{inv.routeName.split('–')[0]?.trim()}</span>
+                                                        <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">{inv.period}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right flex-shrink-0">
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white">KES {inv.finalAmount.toLocaleString()}</p>
+                                                    <span className={`text-[9px] font-black uppercase tracking-widest ${
+                                                        isPaid ? 'text-emerald-600' : isOverdue ? 'text-rose-600' : 'text-amber-600'
+                                                    }`}>{inv.status}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {myInvoices.some(i => i.status === 'pending' || i.status === 'overdue') && (
+                                    <div className="p-5 bg-indigo-50/50 dark:bg-indigo-950/10 border-t border-indigo-100 dark:border-indigo-900">
+                                        <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">Please make payment at the school finance office or via M-Pesa Paybill. Contact the bursar for queries.</p>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
+
+                    {/* Tracker details per child */}
+                    {effectiveChildren.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-8">
+                            {effectiveChildren.map(child => {
+                                const activeRecord = effectiveTransportOnboarding.find(r => r.studentId === child.id && r.status !== 'received');
+                                const vehicle = effectiveVehicles.find(v => v.id === activeRecord?.vehicleId);
+                                const driver = [...users, ...effectiveDrivers].find(u => u.id === vehicle?.driverId);
+                                const assistant = [...users, ...effectiveDrivers].find(u => u.id === vehicle?.assistantId);
+
+                                return (
+                                    <div key={child.id} className="space-y-4">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>
+                                            <h4 className="font-black text-md text-slate-800 dark:text-white uppercase tracking-wider">{child.name}'s Status</h4>
+                                        </div>
+                                        <StudentTransportTracker
+                                            student={child}
+                                            activeOnboarding={activeRecord}
+                                            assignedVehicle={vehicle}
+                                            driver={driver}
+                                            assistant={assistant}
+                                            onConfirmReceipt={props.onConfirmTransport!}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="p-16 text-center bg-white dark:bg-slate-800 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-700">
+                            <p className="text-slate-400 text-xs font-medium">No children linked to retrieve transport tracking details.</p>
+                        </div>
+                    )}
+                </div>
             ) : (
                 <SynergyHub
                     role="parent"

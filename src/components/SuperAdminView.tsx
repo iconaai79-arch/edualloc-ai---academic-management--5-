@@ -6324,21 +6324,24 @@ Please change it after login.`;
                                 ref={scrollRef}
                                 className="p-8 flex gap-4 overflow-x-auto custom-scrollbar-horizontal pb-4 scroll-smooth snap-x snap-mandatory"
                             >
-                                {perspectiveOptions.filter(o => !o.isService).map(opt => (
-                                    <button
-                                        key={opt.role}
-                                        onClick={() => {
-                                            props.onSwitchPerspective?.(opt.role as Role);
-                                            setIsPerspectiveModalOpen(false);
-                                        }}
-                                        className={`flex-none w-[200px] flex flex-col items-center justify-center gap-4 p-8 rounded-[3rem] border-2 border-transparent transition-all group hover:border-indigo-500 snap-center shadow-sm ${opt.color}`}
-                                    >
-                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-sm transition-transform group-hover:scale-110">
-                                            {opt.icon}
-                                        </div>
-                                        <span className="font-black text-[11px] uppercase tracking-widest text-center">{opt.label}</span>
-                                    </button>
-                                ))}
+                                {perspectiveOptions.filter(o => o && !o.isService).map(opt => {
+                                    if (!opt) return null;
+                                    return (
+                                        <button
+                                            key={opt.role}
+                                            onClick={() => {
+                                                props.onSwitchPerspective?.(opt.role as Role);
+                                                setIsPerspectiveModalOpen(false);
+                                            }}
+                                            className={`flex-none w-[200px] flex flex-col items-center justify-center gap-4 p-8 rounded-[3rem] border-2 border-transparent transition-all group hover:border-indigo-500 snap-center shadow-sm ${opt.color || ''}`}
+                                        >
+                                            <div className="p-4 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-sm transition-transform group-hover:scale-110">
+                                                {opt.icon || null}
+                                            </div>
+                                            <span className="font-black text-[11px] uppercase tracking-widest text-center">{opt.label}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             <button 
@@ -7157,11 +7160,13 @@ Please change it after login.`;
                         </div>
                         <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                             <div className="space-y-4">
-                                {perspectiveOptions.map((opt) => (
-                                    <div key={opt.role} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700/50">
-                                        <div className={`w-12 h-12 rounded-2xl ${opt.color} flex items-center justify-center shadow-sm`}>
-                                            {opt.icon}
-                                        </div>
+                                {perspectiveOptions.map((opt) => {
+                                    if (!opt) return null;
+                                    return (
+                                        <div key={opt.role} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                                            <div className={`w-12 h-12 rounded-2xl ${opt.color || ''} flex items-center justify-center shadow-sm`}>
+                                                {opt.icon || null}
+                                            </div>
                                         <div className="flex-1">
                                             <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{opt.label}</p>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pricing for {opt.role}</p>
@@ -7201,7 +7206,8 @@ Please change it after login.`;
                                             </div>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800">
@@ -7421,21 +7427,24 @@ Please change it after login.`;
                             </button>
                         </div>
                         <div className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                            {perspectiveOptions.map(opt => (
-                                <button
-                                    key={opt.role}
-                                    onClick={() => {
-                                        onLoginAsAdmin?.(selectedTenantForPerspective.id, opt.role as Role);
-                                        setIsPerspectiveModalOpen(false);
-                                    }}
-                                    className={`flex flex-col items-center text-center gap-3 p-4 rounded-2xl border-2 border-transparent transition-all group hover:border-indigo-500 hover:shadow-lg ${opt.color}`}
-                                >
-                                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl shadow-sm transition-transform group-hover:scale-110">
-                                        {React.cloneElement(opt.icon as any, { className: 'w-5 h-5' })}
-                                    </div>
-                                    <span className="font-bold text-[10px] uppercase tracking-tight leading-tight">{opt.label}</span>
-                                </button>
-                            ))}
+                            {perspectiveOptions.map(opt => {
+                                if (!opt) return null;
+                                return (
+                                    <button
+                                        key={opt.role}
+                                        onClick={() => {
+                                            onLoginAsAdmin?.(selectedTenantForPerspective.id, opt.role as Role);
+                                            setIsPerspectiveModalOpen(false);
+                                        }}
+                                        className={`flex flex-col items-center text-center gap-3 p-4 rounded-2xl border-2 border-transparent transition-all group hover:border-indigo-500 hover:shadow-lg ${opt.color || ''}`}
+                                    >
+                                        <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl shadow-sm transition-transform group-hover:scale-110">
+                                            {opt.icon && React.isValidElement(opt.icon) && (opt.icon as any).type ? React.cloneElement(opt.icon as any, { className: 'w-5 h-5' }) : (opt.icon || null)}
+                                        </div>
+                                        <span className="font-bold text-[10px] uppercase tracking-tight leading-tight">{opt.label}</span>
+                                    </button>
+                                );
+                            })}
                         </div>
                         <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 text-center">
                             <p className="text-xs text-slate-400 font-medium">Selecting a perspective will instantly launch that module's view for this institution.</p>
