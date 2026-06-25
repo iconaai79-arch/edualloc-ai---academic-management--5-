@@ -6,9 +6,10 @@ import type {
 } from '../types';
 import { UserIcon } from './icons/UserIcon';
 import { SynergyHub } from './SynergyHub';
-import { Sparkles, Home } from 'lucide-react';
+import { Sparkles, Home, Receipt, BadgeCheck, Clock, AlertCircle } from 'lucide-react';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
+import type { TransportFeeInvoice } from './TransportBillingManager';
 
 
 interface ParentViewProps {
@@ -36,6 +37,7 @@ interface ParentViewProps {
     onAccessAlumnaPortal?: (school: any) => void;
     transportAlerts?: TransportDisruption[];
     onAcknowledgeAlert?: (id: string, parentId: string) => void;
+    transportInvoices?: TransportFeeInvoice[];
 }
 
 import { AttendanceAnalytics } from './AttendanceAnalytics';
@@ -237,6 +239,57 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                         />
                     </div>
                 )}
+
+                {/* Transport Fee Invoice Status */}
+                {props.transportInvoices && props.transportInvoices.length > 0 && (() => {
+                    const childIds = children.map(c => c.id);
+                    const myInvoices = props.transportInvoices.filter(i => childIds.includes(i.studentId));
+                    if (myInvoices.length === 0) return null;
+                    return (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="p-5 border-b border-slate-50 dark:border-slate-700 flex items-center gap-3">
+                                <Receipt className="w-5 h-5 text-indigo-500" />
+                                <div>
+                                    <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Transport Fee Invoices</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{myInvoices.length} invoice{myInvoices.length !== 1 ? 's' : ''} for your children</p>
+                                </div>
+                            </div>
+                            <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                                {myInvoices.map(inv => {
+                                    const isPaid = inv.status === 'paid';
+                                    const isOverdue = inv.status === 'overdue';
+                                    return (
+                                        <div key={inv.id} className="p-5 flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                                                isPaid ? 'bg-emerald-50 dark:bg-emerald-950/30' : isOverdue ? 'bg-rose-50 dark:bg-rose-950/30' : 'bg-amber-50 dark:bg-amber-950/30'
+                                            }`}>
+                                                {isPaid ? <BadgeCheck className="w-5 h-5 text-emerald-600" /> : isOverdue ? <AlertCircle className="w-5 h-5 text-rose-600" /> : <Clock className="w-5 h-5 text-amber-600" />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{inv.studentName}</p>
+                                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{inv.routeName.split('–')[0]?.trim()}</span>
+                                                    <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">{inv.period}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <p className="text-sm font-black text-slate-900 dark:text-white">KES {inv.finalAmount.toLocaleString()}</p>
+                                                <span className={`text-[9px] font-black uppercase tracking-widest ${
+                                                    isPaid ? 'text-emerald-600' : isOverdue ? 'text-rose-600' : 'text-amber-600'
+                                                }`}>{inv.status}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {myInvoices.some(i => i.status === 'pending' || i.status === 'overdue') && (
+                                <div className="p-5 bg-indigo-50/50 dark:bg-indigo-950/10 border-t border-indigo-100 dark:border-indigo-900">
+                                    <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">Please make payment at the school finance office or via M-Pesa Paybill. Contact the bursar for queries.</p>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
 
                 <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
                     <UserIcon className="w-6 h-6 text-indigo-500" />

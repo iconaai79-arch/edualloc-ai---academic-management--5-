@@ -33,6 +33,8 @@ import {
 import type { Institution, User as UserType } from '../types';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
+import { TransportBillingManager } from './TransportBillingManager';
+import type { RouteFeeSetting, TransportFeeInvoice, BillingCycle } from './TransportBillingManager';
 
 interface Shipment {
     id: string;
@@ -64,7 +66,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isSACCO = currentInstitution.category === 'Public Transport' || currentInstitution.category?.includes('SACCO');
     const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips' | 'alerts'>(
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips' | 'alerts' | 'billing'>(
         isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
 
@@ -88,7 +90,79 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             : a
         ));
     };
-    const [searchTerm, setSearchTerm] = useState('');
+    // ── TRANSPORT BILLING STATE ────────────────────────────────────────────────
+    const [routeFeeSetting, setRouteFeeSetting] = useState<RouteFeeSetting[]>([
+        { routeId: 'route_1', routeName: 'Route A – Kilimani & Hurlingham', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
+        { routeId: 'route_2', routeName: 'Route B – Langata & Karen',        termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
+        { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
+    ]);
+
+    const [transportInvoices, setTransportInvoices] = useState<TransportFeeInvoice[]>([]);
+
+    const PREF_MULTIPLIER: Record<string, number> = { round_trip: 1.0, one_way_pickup: 0.6, one_way_drop: 0.6, none: 0 };
+
+    const handleUpdateRouteFee = (routeId: string, termFee: number, monthlyFee: number) => {
+        setRouteFeeSetting(prev => prev.map(r => r.routeId === routeId ? { ...r, termFee, monthlyFee } : r));
+    };
+
+    const handleGenerateInvoices = (cycle: BillingCycle, period: string) => {
+        const demoStudents = [
+            { id: 'st_1', name: 'Kelvin Kiprop',  admissionNumber: 'ADM/8821/24' },
+            { id: 'st_2', name: 'Alisha Wanjiku', admissionNumber: 'ADM/9012/24' },
+            { id: 'st_3', name: 'Liam Otieno',    admissionNumber: 'ADM/8774/24' },
+            { id: 'st_4', name: 'Chloe Kamau',    admissionNumber: 'ADM/9331/25' },
+            { id: 'st_5', name: 'Ethan Ndwiga',   admissionNumber: 'ADM/8109/23' },
+        ];
+        const sourceStudents = students.length > 0
+            ? students.map(s => ({ id: s.id, name: s.name, admissionNumber: (s as any).admissionNumber || `ADM/${Math.floor(Math.random()*9000+1000)}/24` }))
+            : demoStudents;
+
+        const newInvoices: TransportFeeInvoice[] = [];
+        const due = new Date(); due.setDate(due.getDate() + 14);
+
+        sourceStudents.forEach((student, idx) => {
+            const pref = studentCommutePrefs[student.id];
+            if (!pref || pref.preference === 'none') return;
+            const route = routeFeeSetting.find(r => r.routeId === (pref?.routeId || ['route_1','route_2','route_3'][idx % 3]));
+            if (!route) return;
+            const multiplier = PREF_MULTIPLIER[pref.preference] ?? 1.0;
+            const base = cycle === 'term' ? route.termFee : route.monthlyFee;
+            const finalAmt = Math.round(base * multiplier);
+            if (finalAmt === 0) return;
+            // avoid duplicates for the same period
+            if (transportInvoices.some(i => i.studentId === student.id && i.period === period)) return;
+            newInvoices.push({
+                id: `tinv_${Date.now()}_${idx}`,
+                studentId: student.id,
+                studentName: student.name,
+                admissionNumber: student.admissionNumber,
+                routeId: route.routeId,
+                routeName: route.routeName,
+                preference: pref.preference,
+                billingCycle: cycle,
+                period,
+                baseAmount: base,
+                discountAmount: 0,
+                finalAmount: finalAmt,
+                status: 'pending',
+                issuedDate: new Date().toISOString(),
+                dueDate: due.toISOString(),
+            });
+        });
+        setTransportInvoices(prev => [...prev, ...newInvoices]);
+    };
+
+    const handleMarkPaid = (invoiceId: string, method: string) => {
+        setTransportInvoices(prev => prev.map(i => i.id === invoiceId
+            ? { ...i, status: 'paid', paidDate: new Date().toISOString(), paymentMethod: method }
+            : i
+        ));
+    };
+
+    const handleWaiveFee = (invoiceId: string, _reason: string) => {
+        setTransportInvoices(prev => prev.map(i => i.id === invoiceId ? { ...i, status: 'waived' } : i));
+    };
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Commute Sub-Tabs inside manifest view
     const [commuteSubTab, setCommuteSubTab] = useState<'monitor' | 'routes' | 'students'>('monitor');
@@ -1570,7 +1644,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     { id: 'trips', label: 'School Trips', icon: Calendar, show: isEduTransport },
                     { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', icon: Truck, show: true },
                     { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', icon: BarChart3, show: true },
-                    { id: 'alerts', label: 'Disruption Alerts', icon: Bell, show: isEduTransport },
+                    { id: 'alerts',  label: 'Disruption Alerts', icon: Bell,    show: isEduTransport },
+                    { id: 'billing', label: 'Transport Billing', icon: Receipt, show: isEduTransport },
                     { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle && !isSACCO && !isEduTransport }
                 ].filter(t => t.show).map((tab) => (
                     <button
@@ -1616,6 +1691,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         onAddAlert={handleAddAlert}
                         onResolveAlert={handleResolveAlert}
                         onAcknowledge={handleAcknowledgeAlert}
+                    />
+                )}
+                {activeTab === 'billing' && isEduTransport && (
+                    <TransportBillingManager
+                        routeSettings={routeFeeSetting}
+                        invoices={transportInvoices}
+                        onUpdateRouteFee={handleUpdateRouteFee}
+                        onGenerateInvoices={handleGenerateInvoices}
+                        onMarkPaid={handleMarkPaid}
+                        onWaive={handleWaiveFee}
                     />
                 )}
             </div>
