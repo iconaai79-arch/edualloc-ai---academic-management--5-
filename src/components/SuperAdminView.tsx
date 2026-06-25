@@ -1793,6 +1793,7 @@ Please change it after login.`;
                     transportInvoices={(props as any).transportInvoices || []}
                     assessments={props.assessments || []}
                     assessmentMarks={props.assessmentMarks || []}
+                    isSimulatorMode={true}
                 />
             </React.Suspense>
         );

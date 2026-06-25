@@ -38,6 +38,7 @@ interface ParentViewProps {
     transportAlerts?: TransportDisruption[];
     onAcknowledgeAlert?: (id: string, parentId: string) => void;
     transportInvoices?: TransportFeeInvoice[];
+    isSimulatorMode?: boolean;
 }
 
 import { AttendanceAnalytics } from './AttendanceAnalytics';
@@ -180,14 +181,31 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
         leaveOutRequests = [],
         onAccessAlumnaPortal = () => {}
     } = props;
+    const isSimulator = props.isSimulatorMode || user?.id?.startsWith('demo_') || user?.institutionId?.startsWith('demo_') || user?.role === 'super_admin';
+
+    const demoChildUser: User = {
+        id: 'demo_student_1',
+        name: 'Alex Mwangi',
+        role: 'student',
+        institutionId: user?.institutionId || 'demo_inst',
+        email: 'alex@demo.edu',
+        studentIds: [],
+        enrolledSubjectIds: ['sub_1', 'sub_2'],
+        courseId: 'course_1',
+        admissionNumber: 'ADM-001',
+    };
+
     const children = users.filter(u => u && user?.studentIds?.includes(u.id));
+    const effectiveChildren = children.length > 0 
+        ? children 
+        : (isSimulator ? [demoChildUser] : []);
+
     const [activePanel, setActivePanel] = useState<'dashboard' | 'synergy'>('dashboard');
 
     // ── Simulator / demo fallback data ────────────────────────────────────────
     // When no real transport data is present (e.g. parent_portal simulator),
     // synthesize demo records so all transport sections render visibly.
-    const isSimulator = user?.id?.startsWith('demo_') || user?.institutionId?.startsWith('demo_');
-    const demoChild = children[0];
+    const demoChild = effectiveChildren[0];
 
     const effectiveTransportOnboarding: TransportOnboarding[] = (props.transportOnboarding && props.transportOnboarding.length > 0)
         ? props.transportOnboarding
@@ -317,7 +335,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
 
                 {/* Transport Fee Invoice Status */}
                 {effectiveTransportInvoices.length > 0 && (() => {
-                    const childIds = children.map(c => c.id);
+                    const childIds = effectiveChildren.map(c => c.id);
                     const myInvoices = effectiveTransportInvoices.filter(i => childIds.includes(i.studentId) || isSimulator);
                     if (myInvoices.length === 0) return null;
                     return (
@@ -368,12 +386,12 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
 
                 <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
                     <UserIcon className="w-6 h-6 text-indigo-500" />
-                    My Children ({children.length})
+                    My Children ({effectiveChildren.length})
                 </h3>
 
-                {children.length > 0 ? (
+                {effectiveChildren.length > 0 ? (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {children.map(child => {
+                        {effectiveChildren.map(child => {
                             const course = courses.find(c => c.id === child.courseId);
                             return (
                                 <div key={child.id} className="space-y-6">
