@@ -1780,6 +1780,19 @@ Please change it after login.`;
                             if (props.onLogAction) await props.onLogAction(`Updated leave out request ${id}`);
                         }
                     }}
+                    transportOnboarding={props.transportOnboarding || []}
+                    vehicles={props.vehicles || []}
+                    onConfirmTransport={async (recordId) => {
+                        await apiService.saveModuleRecord('transport_onboarding', { id: recordId, status: 'received', receivedAt: new Date().toISOString() });
+                        if (props.onLogAction) await props.onLogAction(`Parent confirmed transport receipt for record ${recordId}`);
+                    }}
+                    transportAlerts={(props as any).transportAlerts || []}
+                    onAcknowledgeAlert={(id, parentId) => {
+                        console.log(`[SuperAdmin Parent Sim] Alert ${id} acknowledged by ${parentId}`);
+                    }}
+                    transportInvoices={(props as any).transportInvoices || []}
+                    assessments={props.assessments || []}
+                    assessmentMarks={props.assessmentMarks || []}
                 />
             </React.Suspense>
         );

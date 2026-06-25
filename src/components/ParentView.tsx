@@ -183,6 +183,81 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
     const children = users.filter(u => u && user?.studentIds?.includes(u.id));
     const [activePanel, setActivePanel] = useState<'dashboard' | 'synergy'>('dashboard');
 
+    // ── Simulator / demo fallback data ────────────────────────────────────────
+    // When no real transport data is present (e.g. parent_portal simulator),
+    // synthesize demo records so all transport sections render visibly.
+    const isSimulator = user?.id?.startsWith('demo_') || user?.institutionId?.startsWith('demo_');
+    const demoChild = children[0];
+
+    const effectiveTransportOnboarding: TransportOnboarding[] = (props.transportOnboarding && props.transportOnboarding.length > 0)
+        ? props.transportOnboarding
+        : (isSimulator && demoChild ? [{
+            id: `sim_ton_${demoChild.id}`,
+            studentId: demoChild.id,
+            studentName: demoChild.name,
+            vehicleId: 'sim_vehicle_1',
+            routeId: 'sim_route_1',
+            routeName: 'Nairobi CBD – School Gate',
+            preference: 'round_trip',
+            status: 'boarded',
+            boardedAt: new Date(Date.now() - 30 * 60000).toISOString(),
+            institutionId: user?.institutionId || '',
+            createdAt: new Date().toISOString(),
+        }] : []);
+
+    const effectiveVehicles: TransportVehicle[] = (props.vehicles && props.vehicles.length > 0)
+        ? props.vehicles
+        : (isSimulator ? [{
+            id: 'sim_vehicle_1',
+            plateNumber: 'KBZ 001T',
+            capacity: 45,
+            model: 'Toyota Coaster',
+            institutionId: user?.institutionId || '',
+            driverId: 'sim_driver_1',
+            assistantId: undefined,
+            status: 'active',
+        }] : []);
+
+    const effectiveDrivers: User[] = isSimulator
+        ? [{ id: 'sim_driver_1', name: 'John Mwangi', role: 'driver', institutionId: user?.institutionId || '', phoneNumber: '0712 345 678', email: 'driver@sim.co.ke' }]
+        : [];
+
+    const effectiveTransportAlerts = (props.transportAlerts && props.transportAlerts.length > 0)
+        ? props.transportAlerts
+        : (isSimulator ? [{
+            id: 'sim_alert_1',
+            institutionId: user?.institutionId || '',
+            title: 'Route Change – Route 3 (CBD–Westlands)',
+            message: 'Bus KBZ 001T has been reassigned to cover Route 5 due to a mechanical issue. Students on Route 3 will board Bus KBZ 022Y at the usual stops from 4:00 PM today. Alternative arrangements are in place. Please confirm pickup with the school gate.',
+            incidentType: 'route_change' as any,
+            affectedRoutes: ['Route 3 – CBD to Westlands'],
+            status: 'active' as const,
+            createdAt: new Date(Date.now() - 10 * 60000).toISOString(),
+            createdBy: 'transport_admin',
+            acknowledgedBy: [],
+        }] : []);
+
+    const effectiveTransportInvoices = (props.transportInvoices && props.transportInvoices.length > 0)
+        ? props.transportInvoices
+        : (isSimulator && demoChild ? [{
+            id: 'sim_inv_1',
+            studentId: demoChild.id,
+            studentName: demoChild.name,
+            admissionNumber: demoChild.admissionNumber || 'ADM-001',
+            routeId: 'sim_route_1',
+            routeName: 'Nairobi CBD – School Gate',
+            preference: 'round_trip' as const,
+            billingCycle: 'term' as const,
+            period: 'Term 1 2025',
+            baseAmount: 12000,
+            finalAmount: 12000,
+            dueDate: new Date(Date.now() + 14 * 86400000).toISOString(),
+            status: 'pending' as const,
+            institutionId: user?.institutionId || '',
+            createdAt: new Date().toISOString(),
+        }] : []);
+
+
     return (
         <div className="space-y-10 py-6">
             {/* Contextual Navigation Bar */}
@@ -221,7 +296,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
             <div className="space-y-8">
 
                 {/* Transport Disruption Alert Banner */}
-                {props.transportAlerts && props.transportAlerts.filter(a => a.status === 'active').length > 0 && (
+                {effectiveTransportAlerts.filter(a => a.status === 'active').length > 0 && (
                     <div className="animate-fade-in">
                         <div className="flex items-center gap-2 mb-3">
                             <span className="flex h-2.5 w-2.5">
@@ -232,7 +307,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                         </div>
                         <TransportDisruptionAlert
                             mode="parent"
-                            alerts={props.transportAlerts}
+                            alerts={effectiveTransportAlerts}
                             onAcknowledge={props.onAcknowledgeAlert}
                             parentId={user?.id || 'parent_user'}
                             parentChildRoutes={[]}
@@ -241,9 +316,9 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                 )}
 
                 {/* Transport Fee Invoice Status */}
-                {props.transportInvoices && props.transportInvoices.length > 0 && (() => {
+                {effectiveTransportInvoices.length > 0 && (() => {
                     const childIds = children.map(c => c.id);
-                    const myInvoices = props.transportInvoices.filter(i => childIds.includes(i.studentId));
+                    const myInvoices = effectiveTransportInvoices.filter(i => childIds.includes(i.studentId) || isSimulator);
                     if (myInvoices.length === 0) return null;
                     return (
                         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
@@ -321,13 +396,13 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                                         />
                                     </div>
 
-                                    {props.transportOnboarding && (
+                                    {effectiveTransportOnboarding.length > 0 && (
                                         <div className="mt-6">
                                             {(() => {
-                                                const activeRecord = props.transportOnboarding.find(r => r.studentId === child.id && r.status !== 'received');
-                                                const vehicle = props.vehicles?.find(v => v.id === activeRecord?.vehicleId);
-                                                const driver = props.users?.find(u => u.id === vehicle?.driverId);
-                                                const assistant = props.users?.find(u => u.id === vehicle?.assistantId);
+                                                const activeRecord = effectiveTransportOnboarding.find(r => r.studentId === child.id && r.status !== 'received');
+                                                const vehicle = effectiveVehicles.find(v => v.id === activeRecord?.vehicleId);
+                                                const driver = [...users, ...effectiveDrivers].find(u => u.id === vehicle?.driverId);
+                                                const assistant = [...users, ...effectiveDrivers].find(u => u.id === vehicle?.assistantId);
 
                                                 return (
                                                     <StudentTransportTracker
