@@ -171,7 +171,8 @@ const SIMULATOR_NAMES: Record<string, string> = {
     'edu': 'Academic Management',
     'showroom': 'Car Showroom',
     'tourism': 'Tourism & Hospitality Hub',
-    'community': 'Community & Social Hub'
+    'community': 'Community & Social Hub',
+    'parent_portal': 'Parent Portal'
 };
 
 
@@ -2880,7 +2881,7 @@ export const App: React.FC = () => {
                                   modId === 'showroom' ? 'Business' :
                                    modId === 'tourism' ? 'Hospitality' :
                                    modId === 'community' ? 'Community' :
-                                 modId === 'edu' ? 'Education' : 'Business') as any,
+                                 (modId === 'edu' || modId === 'parent_portal') ? 'Education' : 'Business') as any,
                 category: (modId === 'fuel' ? 'Fuel Station' : 
                            modId === 'retail' ? 'Retail' : 
                            modId === 'showroom' ? 'Automotive Marketplace' : 
@@ -2901,7 +2902,7 @@ export const App: React.FC = () => {
                     {
                         id: `ms_${Date.now()}_1`,
                         institutionId: instId,
-                        moduleId: modId,
+                        moduleId: modId === 'parent_portal' ? 'edu' : modId,
                         status: 'active',
                         subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
                     },
@@ -2917,6 +2918,30 @@ export const App: React.FC = () => {
                             id: `ms_${Date.now()}_3`,
                             institutionId: instId,
                             moduleId: 'enrollment_manager',
+                            status: 'active',
+                            subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
+                        }
+                    ] : []),
+                    // Parent Portal simulator: also enable academics + transport + boarding
+                    ...(modId === 'parent_portal' ? [
+                        {
+                            id: `ms_${Date.now()}_p1`,
+                            institutionId: instId,
+                            moduleId: 'academics',
+                            status: 'active',
+                            subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
+                        },
+                        {
+                            id: `ms_${Date.now()}_p2`,
+                            institutionId: instId,
+                            moduleId: 'transport',
+                            status: 'active',
+                            subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
+                        },
+                        {
+                            id: `ms_${Date.now()}_p3`,
+                            institutionId: instId,
+                            moduleId: 'timetable',
                             status: 'active',
                             subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
                         }

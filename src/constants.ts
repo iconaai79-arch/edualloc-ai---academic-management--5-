@@ -535,5 +535,21 @@ export const MODULES = [
     role: 'admin',
     category: 'Education',
     imageUrl: '/marketing/marketing_alumni.png'
+  },
+  {
+    id: 'parent_portal',
+    title: "Parent Portal",
+    description: "Real-time parental engagement platform giving families live visibility into academics, attendance, transport, and fee statements — all in one place.",
+    advantages: ["Live Attendance Alerts", "Transport Tracker & Disruption Alerts", "Transport Fee Invoices", "Leave-Out Approvals"],
+    role: 'parent',
+    category: 'Education',
+    imageUrl: '/marketing/marketing_edu_1776367280172.png',
+    tutorial: {
+      overview: "Experience the school from a parent's perspective — track your child's academic journey, bus location, fee balances, and more.",
+      steps: [
+        { title: "Children's Dashboard", description: "See all your children's profiles, attendance records, and academic performance in one glance.", image: "/marketing/academic_management_tutorial_ui_1776575351456.png" },
+        { title: "Transport & Billing", description: "Monitor live bus tracking, receive disruption alerts, and view transport fee invoices per child.", image: "/marketing/marketing_edu_1776367280172.png" }
+      ]
+    }
   }
 ];
