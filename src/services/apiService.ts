@@ -952,7 +952,8 @@ export const apiService = {
     async deleteModuleRecord(module: string, id: string): Promise<void> {
         if (!_supabase) {
             const records = ls.get(module);
-            const filtered = records.filter((r: any) => r.id !== id);
+            const idsArray = id.split(',');
+            const filtered = records.filter((r: any) => !idsArray.includes(r.id));
             ls.set(module, filtered);
             return;
         }

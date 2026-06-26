@@ -363,7 +363,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const idVal = getStrParam(id);
             if (!idVal) return res.status(400).json({ success: false, error: 'ID required' });
 
-            let q = supabase.from(moduleName).delete().eq('id', idVal);
+            const idsArray = idVal.split(',');
+            let q = supabase.from(moduleName).delete();
+            if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
+            else q = q.in('id', idsArray);
 
             // Security: Only allow deleting records within own institution
             if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {

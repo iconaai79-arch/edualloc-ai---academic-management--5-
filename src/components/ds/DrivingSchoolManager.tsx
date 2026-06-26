@@ -3310,7 +3310,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         refreshData,
         mpesaTransactions,
         bankTransactions,
-        leads, addLead, updateLead, deleteLead,
+        leads, addLead, updateLead, deleteLead, deleteLeads,
         sendLessonNotification
     } = useDrivingSchool();
     
@@ -3484,6 +3484,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [scoringStudent, setScoringStudent] = useState<DSStudent | null>(null);
     const [pendingAttendanceOverride, setPendingAttendanceOverride] = useState<{ lesson: DSLesson; ms: any } | null>(null);
     const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
+    const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
     const [feeReminderType, setFeeReminderType] = useState<'overall' | 'shortfall'>('overall');
     const [selectedProgramCategory, setSelectedProgramCategory] = useState<any | null>(null);
     const [dailyProgramDraft, setDailyProgramDraft] = useState<Array<{ day: number; topic: string; objective?: string }>>([]);
@@ -3501,6 +3502,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             setNewProgramObjective('');
         }
     }, [selectedProgramCategory]);
+
     
     // Portal states
     const [portalStudentId, setPortalStudentId] = useState<string>('');
@@ -4429,6 +4431,10 @@ END $$;
     const setActiveTab = (tab: any) => setInternalTab(tab);
 
     const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        setSelectedLeadIds([]);
+    }, [searchTerm, leadStatusFilter, selectedLeadCategory, leadPage, activeTab]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isLeadImportModalOpen, setIsLeadImportModalOpen] = useState(false);
     const [isOpeningBalanceModalOpen, setIsOpeningBalanceModalOpen] = useState(false);
@@ -6233,18 +6239,41 @@ END $$;
                             {/* Main Enquiries Table */}
                             <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                             <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <div className="relative flex-1 max-w-md">
-                                    <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search walk-in enquiries..." 
-                                        value={searchTerm}
-                                        onChange={(e) => {
-                                            setSearchTerm(e.target.value);
-                                            setLeadPage(1);
-                                        }}
-                                        className="w-full pl-16 pr-8 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm"
-                                    />
+                                <div className="flex flex-1 items-center gap-4 max-w-2xl">
+                                    <div className="relative flex-1">
+                                        <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search walk-in enquiries..." 
+                                            value={searchTerm}
+                                            onChange={(e) => {
+                                                setSearchTerm(e.target.value);
+                                                setLeadPage(1);
+                                            }}
+                                            className="w-full pl-16 pr-8 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm"
+                                        />
+                                    </div>
+                                    {selectedLeadIds.length > 0 && (
+                                        <button 
+                                            type="button"
+                                            onClick={async () => {
+                                                try {
+                                                    setIsActionLoading(true);
+                                                    await deleteLeads(selectedLeadIds);
+                                                    setSelectedLeadIds([]);
+                                                } catch (err) {
+                                                    console.error("Bulk remove leads failed:", err);
+                                                } finally {
+                                                    setIsActionLoading(false);
+                                                }
+                                            }}
+                                            disabled={isActionLoading}
+                                            className="px-4 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 transition-all flex items-center gap-2 shrink-0"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                            Remove ({selectedLeadIds.length})
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Filter:</span>
@@ -6279,6 +6308,22 @@ END $$;
                                     <table className="w-full text-left">
                                         <thead>
                                             <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                <th className="px-6 py-8 w-12 text-center">
+                                                    <input 
+                                                        type="checkbox"
+                                                        checked={paginatedLeads.length > 0 && paginatedLeads.every(l => selectedLeadIds.includes(l.id))}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                const idsToAdd = paginatedLeads.map(l => l.id);
+                                                                setSelectedLeadIds(prev => Array.from(new Set([...prev, ...idsToAdd])));
+                                                            } else {
+                                                                const idsToRemove = paginatedLeads.map(l => l.id);
+                                                                setSelectedLeadIds(prev => prev.filter(id => !idsToRemove.includes(id)));
+                                                            }
+                                                        }}
+                                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                    />
+                                                </th>
                                                 <th className="px-10 py-8">Client Name</th>
                                                 <th className="px-10 py-8">Contact Info</th>
                                                 <th className="px-10 py-8">Target License</th>
@@ -6313,6 +6358,20 @@ END $$;
                                                 
                                                 return (
                                                     <tr key={lead.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                                                        <td className="px-6 py-8 text-center w-12">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={selectedLeadIds.includes(lead.id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedLeadIds(prev => [...prev, lead.id]);
+                                                                    } else {
+                                                                        setSelectedLeadIds(prev => prev.filter(id => id !== lead.id));
+                                                                    }
+                                                                }}
+                                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                            />
+                                                        </td>
                                                         <td className="px-10 py-8">
                                                             <div className="flex items-center gap-4">
                                                                 <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center font-black text-amber-600">
