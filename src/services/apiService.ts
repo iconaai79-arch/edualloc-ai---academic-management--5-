@@ -947,7 +947,10 @@ export const apiService = {
         } catch (e: any) {
             console.error(`Update API Error [${module}]:`, e);
             throw e;
-        },    async deleteModuleRecord(module: string, id: string): Promise<void> {
+        }
+    },
+
+    async deleteModuleRecord(module: string, id: string): Promise<void> {
         const idsArray = id.split(',').map(s => s.trim()).filter(Boolean);
         if (idsArray.length === 0) return;
 
