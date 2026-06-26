@@ -310,7 +310,7 @@ const SmartLeadImporterModal: React.FC<{
     const [rawData, setRawData] = useState<any[]>([]);
     const { error: toastError, success: toastSuccess } = useToast();
 
-    const { settings } = useDrivingSchool();
+    const { settings, leads } = useDrivingSchool();
     const [selectedGroup, setSelectedGroup] = useState<string>('');
 
     const [mappings, setMappings] = useState<Record<string, string>>({
@@ -411,12 +411,31 @@ const SmartLeadImporterModal: React.FC<{
                 setIsProcessing(false);
                 return;
             }
+            const normalizePhone = (ph: string) => {
+                const digits = String(ph || '').replace(/\D/g, '');
+                return digits.length >= 9 ? digits.slice(-9) : digits.trim();
+            };
+
+            const existingPhones = new Set(
+                (leads || []).map(l => normalizePhone(l.phone)).filter(Boolean)
+            );
+
             const payloads: any[] = [];
+            let skippedCount = 0;
             
             for (const row of rawData) {
                 const fullName = String(row[mappings.fullName] || '').trim();
                 const phone = String(row[mappings.phone] || '').trim();
                 if (!fullName || !phone) continue;
+
+                const normPhone = normalizePhone(phone);
+                if (normPhone && existingPhones.has(normPhone)) {
+                    skippedCount++;
+                    continue;
+                }
+                if (normPhone) {
+                    existingPhones.add(normPhone);
+                }
  
                 const email = mappings.email ? String(row[mappings.email] || '').trim() : '';
                 const licenseTypeInterested = mappings.licenseTypeInterested ? String(row[mappings.licenseTypeInterested] || '').trim() : '';
@@ -493,7 +512,8 @@ const SmartLeadImporterModal: React.FC<{
             };
 
             await runBatchQueue();
-            toastSuccess(`${uploaded} marketing leads imported successfully!`);
+            const skippedMsg = skippedCount > 0 ? ` (${skippedCount} existing leads skipped)` : '';
+            toastSuccess(`${uploaded} marketing leads imported successfully!${skippedMsg}`);
             await onRefresh();
             onClose();
         } catch (err: any) {
@@ -6311,14 +6331,12 @@ END $$;
                                                 <th className="px-6 py-8 w-12 text-center">
                                                     <input 
                                                         type="checkbox"
-                                                        checked={paginatedLeads.length > 0 && paginatedLeads.every(l => selectedLeadIds.includes(l.id))}
+                                                        checked={filteredLeads.length > 0 && filteredLeads.every(l => selectedLeadIds.includes(l.id))}
                                                         onChange={(e) => {
                                                             if (e.target.checked) {
-                                                                const idsToAdd = paginatedLeads.map(l => l.id);
-                                                                setSelectedLeadIds(prev => Array.from(new Set([...prev, ...idsToAdd])));
+                                                                setSelectedLeadIds(filteredLeads.map(l => l.id));
                                                             } else {
-                                                                const idsToRemove = paginatedLeads.map(l => l.id);
-                                                                setSelectedLeadIds(prev => prev.filter(id => !idsToRemove.includes(id)));
+                                                                setSelectedLeadIds([]);
                                                             }
                                                         }}
                                                         className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"

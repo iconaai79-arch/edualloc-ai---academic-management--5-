@@ -360,10 +360,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (req.method === 'DELETE') {
+            const { ids: bodyIds } = req.body || {};
             const idVal = getStrParam(id);
-            if (!idVal) return res.status(400).json({ success: false, error: 'ID required' });
+            
+            const idsArray = Array.isArray(bodyIds) 
+                ? bodyIds 
+                : (idVal ? idVal.split(',') : []);
 
-            const idsArray = idVal.split(',');
+            if (idsArray.length === 0) return res.status(400).json({ success: false, error: 'ID required' });
+
             let q = supabase.from(moduleName).delete();
             if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
             else q = q.in('id', idsArray);
@@ -375,7 +380,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const { error } = await q;
             if (error) return res.status(200).json({ success: false, error: error.message, code: error.code });
-            return res.status(200).json({ success: true, id: idVal, module: moduleName });
+            return res.status(200).json({ success: true, count: idsArray.length, module: moduleName });
         }
 
         return res.status(405).json({ success: false, error: 'Method not allowed' });

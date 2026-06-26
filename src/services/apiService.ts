@@ -948,8 +948,7 @@ export const apiService = {
             console.error(`Update API Error [${module}]:`, e);
             throw e;
         }
-    },
-    async deleteModuleRecord(module: string, id: string): Promise<void> {
+    },    async deleteModuleRecord(module: string, id: string): Promise<void> {
         if (!_supabase) {
             const records = ls.get(module);
             const idsArray = id.split(',');
@@ -960,12 +959,19 @@ export const apiService = {
 
         try {
             const token = await apiService.getAuthToken();
-            const response = await fetch(`/api/records?module=${module}&id=${id}`, {
+            const idsArray = id.split(',');
+            const useBody = idsArray.length > 50;
+            const url = useBody
+                ? `/api/records?module=${module}`
+                : `/api/records?module=${module}&id=${id}`;
+
+            const response = await fetch(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
                     'Content-Type': 'application/json'
-                }
+                },
+                body: useBody ? JSON.stringify({ ids: idsArray }) : undefined
             });
 
             if (!response.ok) {
