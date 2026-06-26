@@ -227,7 +227,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 q = q.order(orderParam, { ascending: true });
             }
             
-            let finalLimit = limit ? parseInt(getStrParam(limit)) : (moduleName === 'school_registry' ? 10000 : 1000);
+            let finalLimit = limit ? parseInt(getStrParam(limit)) : (
+                ['school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'broadcaster_messages'].includes(moduleName)
+                    ? 100000
+                    : 1000
+            );
             if (isNaN(finalLimit)) finalLimit = 1000;
             
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;

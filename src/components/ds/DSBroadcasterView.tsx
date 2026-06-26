@@ -42,7 +42,7 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
         if (!currentInstitution?.id) return;
         setLoadingSent(true);
         try {
-            const res = await apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution.id);
+            const res = await apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution.id, undefined, { limit: 100000 });
             // Sort by created_at descending
             const sorted = (res || []).sort((a: any, b: any) => {
                 const timeA = new Date(a.created_at || a.createdAt || 0).getTime();
