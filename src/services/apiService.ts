@@ -962,9 +962,9 @@ export const apiService = {
 
         try {
             const token = await apiService.getAuthToken();
-            // Use POST with action:'bulk_delete' instead of DELETE.
-            // DELETE request bodies are stripped by Vercel/proxies — POST bodies always work.
-            const url = `/api/records?module=${encodeURIComponent(module)}`;
+            // Use dedicated /api/delete endpoint to avoid any conflict with the
+            // generic POST handler in /api/records (which requires a { data } body).
+            const url = `/api/delete?module=${encodeURIComponent(module)}`;
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -972,7 +972,7 @@ export const apiService = {
                     'Authorization': token ? `Bearer ${token}` : '',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ action: 'bulk_delete', ids: idsArray })
+                body: JSON.stringify({ ids: idsArray })
             });
 
             const contentType = response.headers.get('content-type');
@@ -980,6 +980,8 @@ export const apiService = {
             if (contentType && contentType.includes('application/json')) {
                 resData = await response.json().catch(() => ({}));
             }
+
+            console.log(`[deleteModuleRecord] ${module} ids=${idsArray.length} status=${response.status} result=`, resData);
 
             if (response.status === 503 || (resData.error && resData.error.includes('Supabase keys missing'))) {
                 // Server-side Supabase not configured — fall back to localStorage
