@@ -6,7 +6,7 @@ import type {
 } from '../types';
 import { UserIcon } from './icons/UserIcon';
 import { SynergyHub } from './SynergyHub';
-import { Sparkles, Home, Receipt, BadgeCheck, Clock, AlertCircle, Truck } from 'lucide-react';
+import { Sparkles, Home, Receipt, BadgeCheck, Clock, AlertCircle, Truck, FileText, X, CreditCard, TrendingUp, Wallet, Calendar, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
 import type { TransportFeeInvoice } from './TransportBillingManager';
@@ -193,6 +193,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
         enrolledSubjectIds: ['sub_1', 'sub_2'],
         courseId: 'course_1',
         admissionNumber: 'ADM-001',
+        phoneNumber: '0712345678',
     };
 
     const children = users.filter(u => u && user?.studentIds?.includes(u.id));
@@ -202,10 +203,56 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
 
     const [activePanel, setActivePanel] = useState<'dashboard' | 'synergy' | 'transport'>('dashboard');
 
+    // ── Transport Invoice & Statement States ──────────────────────────────────
+    const [transportInvoices, setTransportInvoices] = useState<TransportFeeInvoice[]>(() => {
+        const saved = localStorage.getItem('eduai_transport_fee_invoices');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                console.error('Error loading transport invoices:', e);
+            }
+        }
+        return [];
+    });
+
+    const [selectedInvoice, setSelectedInvoice] = useState<TransportFeeInvoice | null>(null);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [isStatementModalOpen, setIsStatementModalOpen] = useState(false);
+
+    // Form inputs and status for simulator checkout
+    const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card'>('mpesa');
+    const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '0712345678');
+    const [cardNo, setCardNo] = useState('');
+    const [expiry, setExpiry] = useState('');
+    const [cvv, setCvv] = useState('');
+    const [isPaying, setIsPaying] = useState(false);
+    const [paymentSuccess, setPaymentSuccess] = useState(false);
+    const [receiptNumber, setReceiptNumber] = useState('');
+
     // ── Simulator / demo fallback data ────────────────────────────────────────
     // When no real transport data is present (e.g. parent_portal simulator),
     // synthesize demo records so all transport sections render visibly.
     const demoChild = effectiveChildren[0];
+
+    const demoInvoice: TransportFeeInvoice = {
+        id: 'sim_inv_1',
+        studentId: demoChild?.id || 'demo_student_1',
+        studentName: demoChild?.name || 'Alex Mwangi',
+        admissionNumber: demoChild?.admissionNumber || 'ADM-001',
+        routeId: 'sim_route_1',
+        routeName: 'Nairobi CBD – School Gate',
+        preference: 'round_trip' as const,
+        billingCycle: 'term' as const,
+        period: 'Term 1 2025',
+        baseAmount: 12000,
+        discountAmount: 0,
+        finalAmount: 12000,
+        status: 'pending' as const,
+        issuedDate: new Date(Date.now() - 5 * 86400000).toISOString(),
+        dueDate: new Date(Date.now() + 14 * 86400000).toISOString(),
+    };
 
     const effectiveTransportOnboarding: TransportOnboarding[] = (props.transportOnboarding && props.transportOnboarding.length > 0)
         ? props.transportOnboarding
@@ -221,7 +268,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
             boardedAt: new Date(Date.now() - 30 * 60000).toISOString(),
             institutionId: user?.institutionId || '',
             createdAt: new Date().toISOString(),
-        }] : []);
+        }] as any : []);
 
     const effectiveVehicles: TransportVehicle[] = (props.vehicles && props.vehicles.length > 0)
         ? props.vehicles
@@ -230,10 +277,11 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
             plateNumber: 'KBZ 001T',
             capacity: 45,
             model: 'Toyota Coaster',
+            vehicleType: 'school' as const,
             institutionId: user?.institutionId || '',
             driverId: 'sim_driver_1',
             assistantId: undefined,
-            status: 'active',
+            status: 'active' as const,
         }] : []);
 
     const effectiveDrivers: User[] = isSimulator
@@ -254,28 +302,98 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
             createdAt: new Date(Date.now() - 10 * 60000).toISOString(),
             createdBy: 'transport_admin',
             acknowledgedBy: [],
-        }] : []);
+        }] as any : []);
 
-    const effectiveTransportInvoices = (props.transportInvoices && props.transportInvoices.length > 0)
-        ? props.transportInvoices
-        : (isSimulator && demoChild ? [{
-            id: 'sim_inv_1',
-            studentId: demoChild.id,
-            studentName: demoChild.name,
-            admissionNumber: demoChild.admissionNumber || 'ADM-001',
-            routeId: 'sim_route_1',
-            routeName: 'Nairobi CBD – School Gate',
-            preference: 'round_trip' as const,
-            billingCycle: 'term' as const,
-            period: 'Term 1 2025',
-            baseAmount: 12000,
-            finalAmount: 12000,
-            dueDate: new Date(Date.now() + 14 * 86400000).toISOString(),
-            status: 'pending' as const,
-            institutionId: user?.institutionId || '',
-            createdAt: new Date().toISOString(),
-        }] : []);
+    const effectiveTransportInvoices = transportInvoices.length > 0
+        ? transportInvoices
+        : (props.transportInvoices && props.transportInvoices.length > 0)
+            ? props.transportInvoices
+            : (isSimulator && demoChild ? [demoInvoice] : []);
 
+    const handlePayInvoice = (invoiceId: string, method: string) => {
+        let updated = [...transportInvoices];
+        const index = updated.findIndex(i => i.id === invoiceId);
+        
+        if (index >= 0) {
+            updated[index] = {
+                ...updated[index],
+                status: 'paid',
+                paidDate: new Date().toISOString(),
+                paymentMethod: method
+            };
+        } else {
+            // If paying the fallback demo invoice, instantiate it in local storage as paid
+            const sourceInvoice = effectiveTransportInvoices.find(i => i.id === invoiceId) || demoInvoice;
+            const paidInvoice: TransportFeeInvoice = {
+                ...sourceInvoice,
+                status: 'paid',
+                paidDate: new Date().toISOString(),
+                paymentMethod: method
+            };
+            updated = [paidInvoice, ...updated];
+        }
+        
+        setTransportInvoices(updated);
+        localStorage.setItem('eduai_transport_fee_invoices', JSON.stringify(updated));
+        
+        // Update selectedInvoice in active state if it's the one displayed
+        if (selectedInvoice && selectedInvoice.id === invoiceId) {
+            setSelectedInvoice(prev => prev ? { ...prev, status: 'paid', paidDate: new Date().toISOString(), paymentMethod: method } : null);
+        }
+    };
+
+    const getStatementTransactions = () => {
+        const txs: Array<{
+            date: string;
+            ref: string;
+            type: 'Invoice' | 'Payment';
+            details: string;
+            debit: number;
+            credit: number;
+            balance: number;
+        }> = [];
+
+        // Sort invoices by date
+        const sortedInvoices = [...effectiveTransportInvoices].sort((a, b) => 
+            new Date(a.issuedDate || '').getTime() - new Date(b.issuedDate || '').getTime()
+        );
+
+        let runningBalance = 0;
+
+        sortedInvoices.forEach(inv => {
+            const invDate = inv.issuedDate || new Date().toISOString();
+            
+            // Debit (charge)
+            runningBalance += inv.finalAmount;
+            txs.push({
+                date: invDate,
+                ref: `INV-${inv.id.substring(0, 8).toUpperCase()}`,
+                type: 'Invoice',
+                details: `${inv.period} - Bus Transport (${inv.routeName.split('–')[0]?.trim()})`,
+                debit: inv.finalAmount,
+                credit: 0,
+                balance: runningBalance
+            });
+
+            // Credit (payment)
+            if (inv.status === 'paid') {
+                runningBalance -= inv.finalAmount;
+                const paidDate = inv.paidDate || new Date(new Date(invDate).getTime() + 86400000).toISOString();
+                txs.push({
+                    date: paidDate,
+                    ref: `REC-${inv.id.substring(0, 8).toUpperCase()}`,
+                    type: 'Payment',
+                    details: `Payment via ${inv.paymentMethod || 'M-Pesa'}`,
+                    debit: 0,
+                    credit: inv.finalAmount,
+                    balance: runningBalance
+                });
+            }
+        });
+
+        // Sort all ledger transactions by date ascending
+        return txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    };
 
     return (
         <div className="space-y-10 py-6">
@@ -324,7 +442,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
             <div className="space-y-8">
 
                 {/* Transport Disruption Alert Banner */}
-                {effectiveTransportAlerts.filter(a => a.status === 'active').length > 0 && (
+                {effectiveTransportAlerts.filter((a: any) => a.status === 'active').length > 0 && (
                     <div className="animate-fade-in">
                         <div className="flex items-center gap-2 mb-3">
                             <span className="flex h-2.5 w-2.5">
@@ -350,19 +468,32 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                     if (myInvoices.length === 0) return null;
                     return (
                         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                            <div className="p-5 border-b border-slate-50 dark:border-slate-700 flex items-center gap-3">
-                                <Receipt className="w-5 h-5 text-indigo-500" />
-                                <div>
-                                    <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Transport Fee Invoices</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{myInvoices.length} invoice{myInvoices.length !== 1 ? 's' : ''} for your children</p>
+                            <div className="p-5 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <Receipt className="w-5 h-5 text-indigo-500" />
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Transport Fee Invoices</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{myInvoices.length} invoice{myInvoices.length !== 1 ? 's' : ''} for your children</p>
+                                    </div>
                                 </div>
+                                <button
+                                    onClick={() => setIsStatementModalOpen(true)}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-850 dark:text-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-sm"
+                                >
+                                    <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                                    View Statement
+                                </button>
                             </div>
                             <div className="divide-y divide-slate-50 dark:divide-slate-700">
                                 {myInvoices.map(inv => {
                                     const isPaid = inv.status === 'paid';
                                     const isOverdue = inv.status === 'overdue';
                                     return (
-                                        <div key={inv.id} className="p-5 flex items-center gap-4">
+                                        <div 
+                                            key={inv.id} 
+                                            onClick={() => setSelectedInvoice(inv)}
+                                            className="p-5 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer transition-all"
+                                        >
                                             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${
                                                 isPaid ? 'bg-emerald-50 dark:bg-emerald-950/30' : isOverdue ? 'bg-rose-50 dark:bg-rose-950/30' : 'bg-amber-50 dark:bg-amber-950/30'
                                             }`}>
@@ -475,7 +606,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                     </div>
 
                     {/* Transport Disruption Alert Banner */}
-                    {effectiveTransportAlerts.filter(a => a.status === 'active').length > 0 && (
+                    {effectiveTransportAlerts.filter((a: any) => a.status === 'active').length > 0 && (
                         <div className="animate-fade-in">
                             <div className="flex items-center gap-2 mb-3">
                                 <span className="flex h-2.5 w-2.5">
@@ -501,19 +632,32 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                         if (myInvoices.length === 0) return null;
                         return (
                             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                                <div className="p-5 border-b border-slate-50 dark:border-slate-700 flex items-center gap-3">
-                                    <Receipt className="w-5 h-5 text-indigo-500" />
-                                    <div>
-                                        <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Transport Fee Invoices</h4>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{myInvoices.length} invoice{myInvoices.length !== 1 ? 's' : ''} for your children</p>
+                                <div className="p-5 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <Receipt className="w-5 h-5 text-indigo-500" />
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Transport Fee Invoices</h4>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{myInvoices.length} invoice{myInvoices.length !== 1 ? 's' : ''} for your children</p>
+                                        </div>
                                     </div>
+                                    <button
+                                        onClick={() => setIsStatementModalOpen(true)}
+                                        className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-850 dark:text-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-sm"
+                                    >
+                                        <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                                        View Statement
+                                    </button>
                                 </div>
                                 <div className="divide-y divide-slate-50 dark:divide-slate-700">
                                     {myInvoices.map(inv => {
                                         const isPaid = inv.status === 'paid';
                                         const isOverdue = inv.status === 'overdue';
                                         return (
-                                            <div key={inv.id} className="p-5 flex items-center gap-4">
+                                            <div 
+                                                key={inv.id} 
+                                                onClick={() => setSelectedInvoice(inv)}
+                                                className="p-5 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer transition-all"
+                                            >
                                                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${
                                                     isPaid ? 'bg-emerald-50 dark:bg-emerald-950/30' : isOverdue ? 'bg-rose-50 dark:bg-rose-950/30' : 'bg-amber-50 dark:bg-amber-950/30'
                                                 }`}>
@@ -589,6 +733,448 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                     assessments={props.assessments || []}
                     assessmentMarks={props.assessmentMarks || []}
                 />
+            )}
+
+            {/* ── Transport Invoice Detail Modal ────────────────────────────────────── */}
+            {selectedInvoice && !isPaymentModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl flex items-center justify-center text-indigo-650">
+                                    <Receipt className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Transport Invoice</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">#{selectedInvoice.id.substring(0, 8).toUpperCase()}</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedInvoice(null)}
+                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-400 dark:text-slate-350 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-8 space-y-6">
+                            {/* Institution Branding */}
+                            <div className="flex justify-between items-start gap-4">
+                                <div>
+                                    <h4 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">EDUALLOC TRANSPORT ACADEMY</h4>
+                                    <p className="text-xs text-slate-400 font-medium">Official Student Transportation Billing</p>
+                                </div>
+                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${
+                                    selectedInvoice.status === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/45 dark:text-emerald-300' :
+                                    selectedInvoice.status === 'overdue' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/45 dark:text-rose-300' :
+                                    'bg-amber-100 text-amber-800 dark:bg-amber-950/45 dark:text-amber-305'
+                                }`}>
+                                    {selectedInvoice.status}
+                                </span>
+                            </div>
+
+                            <hr className="border-slate-100 dark:border-slate-700" />
+
+                            {/* Billed To / Invoice Details */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Billed To</p>
+                                    <p className="font-black text-slate-900 dark:text-white uppercase">{selectedInvoice.studentName}</p>
+                                    <p className="text-xs text-slate-500 font-medium font-mono">Adm No: {selectedInvoice.admissionNumber}</p>
+                                    <p className="text-xs text-slate-550 font-medium">Linked Parent Account</p>
+                                </div>
+                                <div className="space-y-1 md:text-right">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Invoice Details</p>
+                                    <p className="text-xs text-slate-500 font-medium">Date Issued: {new Date(selectedInvoice.issuedDate || '').toLocaleDateString()}</p>
+                                    <p className="text-xs text-slate-500 font-medium">Due Date: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
+                                    <p className="text-xs text-slate-500 font-medium">Period: <span className="font-bold text-indigo-500">{selectedInvoice.period}</span></p>
+                                    {selectedInvoice.paidDate && (
+                                        <p className="text-xs text-emerald-600 font-black uppercase mt-1">Paid On: {new Date(selectedInvoice.paidDate).toLocaleDateString()} ({selectedInvoice.paymentMethod})</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Line Items Table */}
+                            <div className="border border-slate-100 dark:border-slate-700 rounded-2xl overflow-hidden mt-6">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-900/40 text-slate-500 uppercase tracking-widest font-black border-b border-slate-100 dark:border-slate-700">
+                                            <th className="p-4">Description</th>
+                                            <th className="p-4 text-right">Base Fare</th>
+                                            <th className="p-4 text-right">Discount</th>
+                                            <th className="p-4 text-right">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-slate-700 dark:text-slate-350">
+                                        <tr>
+                                            <td className="p-4 font-semibold">
+                                                School Bus Transportation Fee
+                                                <div className="text-[10px] font-medium text-slate-400 uppercase mt-0.5">
+                                                    Route: {selectedInvoice.routeName} ({selectedInvoice.preference.replace('_', ' ')})
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-right">KES {selectedInvoice.baseAmount.toLocaleString()}</td>
+                                            <td className="p-4 text-right">KES {selectedInvoice.discountAmount?.toLocaleString() || 0}</td>
+                                            <td className="p-4 text-right font-black text-slate-900 dark:text-white">KES {selectedInvoice.finalAmount.toLocaleString()}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Totals Summary */}
+                            <div className="flex flex-col items-end gap-2 text-sm pt-4 border-t border-slate-100 dark:border-slate-700">
+                                <div className="flex justify-between w-64">
+                                    <span className="text-slate-500 font-medium">Subtotal</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">KES {selectedInvoice.finalAmount.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between w-64 border-t border-slate-50 dark:border-slate-700 pt-2 text-base font-black">
+                                    <span className="text-slate-955 dark:text-white uppercase tracking-tight">Total Amount Due</span>
+                                    <span className="text-indigo-650 dark:text-indigo-400">KES {selectedInvoice.finalAmount.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between w-64 text-xs font-semibold pt-1">
+                                    <span className="text-slate-400">Balance Outstanding</span>
+                                    <span className={selectedInvoice.status === 'paid' ? 'text-emerald-600' : 'text-rose-605'}>
+                                        KES {selectedInvoice.status === 'paid' ? '0' : selectedInvoice.finalAmount.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-6 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20 flex justify-between items-center gap-3">
+                            <button
+                                onClick={() => setSelectedInvoice(null)}
+                                className="px-5 h-11 bg-white hover:bg-slate-100 border border-slate-205 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-650 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                                Close View
+                            </button>
+                            
+                            {selectedInvoice.status !== 'paid' && (
+                                <button
+                                    onClick={() => {
+                                        setPaymentSuccess(false);
+                                        setReceiptNumber('');
+                                        setIsPaymentModalOpen(true);
+                                    }}
+                                    className="px-6 h-11 bg-indigo-600 hover:bg-indigo-705 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-150 transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-95"
+                                >
+                                    <CreditCard className="w-4 h-4" />
+                                    Pay Now (KES {selectedInvoice.finalAmount.toLocaleString()})
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Transport Fee Payment Checkout Modal ───────────────────────────────── */}
+            {isPaymentModalOpen && selectedInvoice && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
+                            <div className="flex items-center gap-2">
+                                <Wallet className="w-5 h-5 text-indigo-500" />
+                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Secure Checkout</h3>
+                            </div>
+                            {!isPaying && (
+                                <button 
+                                    onClick={() => setIsPaymentModalOpen(false)}
+                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-400 dark:text-slate-350 transition-colors"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Content */}
+                        {!paymentSuccess ? (
+                            <div className="p-6 space-y-6">
+                                <div className="text-center">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Payable Amount</p>
+                                    <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">KES {selectedInvoice.finalAmount.toLocaleString()}</p>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Student: <span className="font-bold text-slate-800 dark:text-slate-200">{selectedInvoice.studentName}</span></p>
+                                    <p className="text-[10px] text-slate-404 font-bold uppercase tracking-widest mt-0.5">{selectedInvoice.period} Transport Fee</p>
+                                </div>
+
+                                {/* Payment Method Chooser */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentMethod('mpesa')}
+                                        disabled={isPaying}
+                                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all ${
+                                            paymentMethod === 'mpesa' 
+                                            ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' 
+                                            : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <span className="text-xs font-black uppercase tracking-widest">M-Pesa STK</span>
+                                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">Mobile Money</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentMethod('card')}
+                                        disabled={isPaying}
+                                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all ${
+                                            paymentMethod === 'card' 
+                                            ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-400' 
+                                            : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <span className="text-xs font-black uppercase tracking-widest">Card Pay</span>
+                                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">Visa / Master</span>
+                                    </button>
+                                </div>
+
+                                {paymentMethod === 'mpesa' ? (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">M-Pesa Phone Number</label>
+                                        <input
+                                            type="tel"
+                                            value={phoneNumber}
+                                            onChange={(e) => setPhoneNumber(e.target.value)}
+                                            disabled={isPaying}
+                                            placeholder="e.g. 0712345678"
+                                            className="w-full px-4 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold focus:outline-none focus:border-indigo-500 transition-colors"
+                                        />
+                                        <p className="text-[9px] text-slate-400 font-medium">An STK push PIN request will be sent to this mobile number.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Card Number</label>
+                                            <input
+                                                type="text"
+                                                value={cardNo}
+                                                onChange={(e) => setCardNo(e.target.value.replace(/\s?/g, '').replace(/(\d{4})/g, '$1 ').trim())}
+                                                disabled={isPaying}
+                                                maxLength={19}
+                                                placeholder="4000 1234 5678 9010"
+                                                className="w-full px-4 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono focus:outline-none focus:border-indigo-500 transition-colors"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Expiry (MM/YY)</label>
+                                                <input
+                                                    type="text"
+                                                    value={expiry}
+                                                    onChange={(e) => setExpiry(e.target.value)}
+                                                    disabled={isPaying}
+                                                    maxLength={5}
+                                                    placeholder="12/28"
+                                                    className="w-full px-4 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold focus:outline-none focus:border-indigo-500 transition-colors text-center"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">CVV</label>
+                                                <input
+                                                    type="password"
+                                                    value={cvv}
+                                                    onChange={(e) => setCvv(e.target.value)}
+                                                    disabled={isPaying}
+                                                    maxLength={3}
+                                                    placeholder="***"
+                                                    className="w-full px-4 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold focus:outline-none focus:border-indigo-500 transition-colors text-center"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {isPaying ? (
+                                    <div className="py-4 flex flex-col items-center justify-center gap-3 text-center">
+                                        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-white">Processing Transaction</p>
+                                            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-1">
+                                                {paymentMethod === 'mpesa' ? `Awaiting pin prompt on ${phoneNumber}...` : 'Authorizing with secure gateway...'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            setIsPaying(true);
+                                            await new Promise(r => setTimeout(r, 2200)); // Simulate gateway delay
+                                            setIsPaying(false);
+                                            setPaymentSuccess(true);
+                                            const rec = 'REC-' + Math.floor(Math.random() * 900000 + 100000);
+                                            setReceiptNumber(rec);
+                                            handlePayInvoice(selectedInvoice.id, paymentMethod === 'mpesa' ? 'M-Pesa STK' : 'Card');
+                                        }}
+                                        className="w-full h-12 bg-slate-900 hover:bg-black text-white dark:bg-indigo-600 dark:hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:scale-[1.02]"
+                                    >
+                                        Authorize & Pay KES {selectedInvoice.finalAmount.toLocaleString()}
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="p-8 flex flex-col items-center justify-center text-center space-y-6">
+                                <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 rounded-full flex items-center justify-center animate-bounce">
+                                    <CheckCircle2 className="w-10 h-10" />
+                                </div>
+                                <div>
+                                    <h4 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Payment Successful</h4>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Receipt Number: <span className="font-bold text-slate-800 dark:text-slate-200">{receiptNumber}</span></p>
+                                    <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest mt-1">
+                                        Transport charges settled via {paymentMethod === 'mpesa' ? 'M-Pesa Mobile Money' : 'Credit Card'}.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setIsPaymentModalOpen(false);
+                                        setPaymentSuccess(false);
+                                    }}
+                                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-705 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                >
+                                    Back to Portal
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ── Transport Account Statement History Modal ──────────────────────────── */}
+            {isStatementModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl flex items-center justify-center text-indigo-650">
+                                    <FileText className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Transport Account Statement</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Historical Ledger & Transactions</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsStatementModalOpen(false)}
+                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-400 dark:text-slate-350 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Statement Body */}
+                        <div className="p-8 space-y-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                <div className="space-y-1">
+                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest font-mono">ACCOUNT OWNER</p>
+                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{user?.name || 'Parent Portal'}</h4>
+                                    <p className="text-xs text-slate-500 font-medium">{user?.email}</p>
+                                </div>
+                                <div className="space-y-1 sm:text-right">
+                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">RUNNING TRANSPORT STATUS</p>
+                                    <div className="flex flex-col gap-0.5">
+                                        {effectiveChildren.map(c => {
+                                            const activeOnb = effectiveTransportOnboarding.find(o => o.studentId === c.id) as any;
+                                            return (
+                                                <p key={c.id} className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                    {c.name} (Adm: {c.admissionNumber}) – <span className="text-indigo-500 font-black uppercase tracking-wider">{activeOnb?.preference?.replace('_', ' ') || 'none'}</span>
+                                                </p>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Ledger Table */}
+                            {(() => {
+                                const txs = getStatementTransactions();
+                                const totalBilled = txs.reduce((acc, t) => acc + t.debit, 0);
+                                const totalPaid = txs.reduce((acc, t) => acc + t.credit, 0);
+                                const outstanding = totalBilled - totalPaid;
+
+                                return (
+                                    <>
+                                        <div className="border border-slate-100 dark:border-slate-700 rounded-2xl overflow-hidden mt-6">
+                                            <table className="w-full text-left border-collapse text-xs">
+                                                <thead>
+                                                    <tr className="bg-slate-50 dark:bg-slate-900/40 text-slate-500 uppercase tracking-widest font-black border-b border-slate-100 dark:border-slate-700">
+                                                        <th className="p-4">Date</th>
+                                                        <th className="p-4">Reference</th>
+                                                        <th className="p-4">Type</th>
+                                                        <th className="p-4">Details</th>
+                                                        <th className="p-4 text-right">Debit (Charges)</th>
+                                                        <th className="p-4 text-right">Credit (Payments)</th>
+                                                        <th className="p-4 text-right">Balance</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-slate-700 dark:text-slate-300 font-medium">
+                                                    {txs.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={7} className="p-8 text-center text-slate-400 font-medium uppercase tracking-wider">No transaction history found</td>
+                                                        </tr>
+                                                    ) : (
+                                                        txs.map((tx, idx) => (
+                                                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10">
+                                                                <td className="p-4 whitespace-nowrap">{new Date(tx.date).toLocaleDateString()}</td>
+                                                                <td className="p-4 font-mono font-bold text-slate-900 dark:text-white uppercase">{tx.ref}</td>
+                                                                <td className="p-4">
+                                                                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                                                                        tx.type === 'Invoice' ? 'bg-amber-50 text-amber-700 dark:bg-amber-955/20' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-955/20'
+                                                                    }`}>
+                                                                        {tx.type}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-4">{tx.details}</td>
+                                                                <td className="p-4 text-right text-rose-600 font-semibold">{tx.debit > 0 ? `KES ${tx.debit.toLocaleString()}` : '—'}</td>
+                                                                <td className="p-4 text-right text-emerald-600 font-semibold">{tx.credit > 0 ? `KES ${tx.credit.toLocaleString()}` : '—'}</td>
+                                                                <td className="p-4 text-right font-black text-slate-950 dark:text-white">KES {tx.balance.toLocaleString()}</td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Summaries */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-slate-100 dark:border-slate-700">
+                                            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-750">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Billed Charges</p>
+                                                <p className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {totalBilled.toLocaleString()}</p>
+                                            </div>
+                                            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-750">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Paid Credits</p>
+                                                <p className="text-xl font-black text-emerald-650 dark:text-emerald-400 mt-1">KES {totalPaid.toLocaleString()}</p>
+                                            </div>
+                                            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-750">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Outstanding Balance</p>
+                                                <p className={`text-xl font-black mt-1 ${outstanding > 0 ? 'text-rose-600' : 'text-slate-500'}`}>KES {outstanding.toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Statement Footer */}
+                        <div className="p-6 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20 flex justify-between items-center">
+                            <button
+                                onClick={() => setIsStatementModalOpen(false)}
+                                className="px-5 h-11 bg-white hover:bg-slate-100 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-650 text-slate-750 dark:text-slate-350 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                                Close Statement
+                            </button>
+                            
+                            <button
+                                onClick={() => window.print()}
+                                className="px-5 h-11 bg-slate-900 hover:bg-black dark:bg-indigo-650 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all flex items-center gap-2"
+                            >
+                                <TrendingUp className="w-3.5 h-3.5" />
+                                Export Ledger
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -97,7 +97,22 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
     ]);
 
-    const [transportInvoices, setTransportInvoices] = useState<TransportFeeInvoice[]>([]);
+    const [transportInvoices, setTransportInvoices] = useState<TransportFeeInvoice[]>(() => {
+        const saved = localStorage.getItem('eduai_transport_fee_invoices');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                console.error('Error parsing transport invoices from localStorage:', e);
+            }
+        }
+        return [];
+    });
+
+    React.useEffect(() => {
+        localStorage.setItem('eduai_transport_fee_invoices', JSON.stringify(transportInvoices));
+    }, [transportInvoices]);
 
     const PREF_MULTIPLIER: Record<string, number> = { round_trip: 1.0, one_way_pickup: 0.6, one_way_drop: 0.6, none: 0 };
 
