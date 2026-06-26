@@ -947,12 +947,31 @@ export const apiService = {
         } catch (e: any) {
             console.error(`Update API Error [${module}]:`, e);
             throw e;
-        }    },    async deleteModuleRecord(module: string, id: string): Promise<void> {
+        },    async deleteModuleRecord(module: string, id: string): Promise<void> {
         const idsArray = id.split(',').map(s => s.trim()).filter(Boolean);
         if (idsArray.length === 0) return;
 
-        if (!_supabase) {
-            // Local storage mode — delete directly from localStorage and return
+        // ── Tier 1: Direct Supabase client delete (fastest, no serverless function involved) ──
+        if (_supabase) {
+            try {
+                let q = _supabase.from(module).delete();
+                if (idsArray.length === 1) {
+                    q = q.eq('id', idsArray[0]);
+                } else {
+                    q = q.in('id', idsArray);
+                }
+                const { error: sbErr } = await q;
+                if (!sbErr) {
+                    console.log(`[deleteModuleRecord] Direct Supabase delete OK: ${module} x${idsArray.length}`);
+                    return;
+                }
+                // RLS may block anon deletes — fall through to API
+                console.warn(`[deleteModuleRecord] Direct Supabase delete failed (${sbErr.message}), falling back to API...`);
+            } catch (sbEx: any) {
+                console.warn(`[deleteModuleRecord] Direct Supabase exception (${sbEx.message}), falling back to API...`);
+            }
+        } else {
+            // ── Tier 0: Local storage mode ──
             const records = ls.get(module);
             const idsSet = new Set(idsArray);
             const filtered = records.filter((r: any) => !idsSet.has(r.id));
@@ -960,41 +979,43 @@ export const apiService = {
             return;
         }
 
+        // ── Tier 2: API call — IDs in query string, no body parsing needed ──
         try {
             const token = await apiService.getAuthToken();
-            // Use dedicated /api/delete endpoint to avoid any conflict with the
-            // generic POST handler in /api/records (which requires a { data } body).
-            const url = `/api/delete?module=${encodeURIComponent(module)}`;
+            // Pass IDs as a comma-separated query param on DELETE.
+            // This avoids ALL body parsing issues on Vercel/proxies.
+            const url = `/api/records?module=${encodeURIComponent(module)}&ids=${encodeURIComponent(idsArray.join(','))}`;
 
             const response = await fetch(url, {
-                method: 'POST',
+                method: 'DELETE',
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ ids: idsArray })
+                }
             });
 
             const contentType = response.headers.get('content-type');
             let resData: any = {};
             if (contentType && contentType.includes('application/json')) {
                 resData = await response.json().catch(() => ({}));
+            } else {
+                // Non-JSON response — read text for diagnostics
+                const txt = await response.text().catch(() => '');
+                console.warn(`[deleteModuleRecord] Non-JSON response (${response.status}):`, txt.substring(0, 200));
             }
 
-            console.log(`[deleteModuleRecord] ${module} ids=${idsArray.length} status=${response.status} result=`, resData);
+            console.log(`[deleteModuleRecord] API DELETE ${module} ids=${idsArray.length} status=${response.status}`, resData);
 
             if (response.status === 503 || (resData.error && resData.error.includes('Supabase keys missing'))) {
                 // Server-side Supabase not configured — fall back to localStorage
-                console.warn(`[deleteModuleRecord] API returned 503 for ${module}. Falling back to localStorage.`);
+                console.warn(`[deleteModuleRecord] 503: falling back to localStorage for ${module}`);
                 const records = ls.get(module);
                 const idsSet = new Set(idsArray);
-                const filtered = records.filter((r: any) => !idsSet.has(r.id));
-                ls.set(module, filtered);
+                ls.set(module, records.filter((r: any) => !idsSet.has(r.id)));
                 return;
             }
 
             if (!response.ok || resData.success === false) {
-                throw new Error(resData.error || `Failed to delete ${module} (HTTP ${response.status})`);
+                throw new Error(resData.error || `Failed to delete from ${module} (HTTP ${response.status})`);
             }
         } catch (e: any) {
             console.error(`Delete API Error [${module}]:`, e);
