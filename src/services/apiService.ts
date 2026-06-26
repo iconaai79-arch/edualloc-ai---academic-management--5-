@@ -947,13 +947,12 @@ export const apiService = {
         } catch (e: any) {
             console.error(`Update API Error [${module}]:`, e);
             throw e;
-        }
-    },    async deleteModuleRecord(module: string, id: string): Promise<void> {
+        }    },    async deleteModuleRecord(module: string, id: string): Promise<void> {
         const idsArray = id.split(',').map(s => s.trim()).filter(Boolean);
         if (idsArray.length === 0) return;
 
         if (!_supabase) {
-            // Local storage mode — delete directly and return
+            // Local storage mode — delete directly from localStorage and return
             const records = ls.get(module);
             const idsSet = new Set(idsArray);
             const filtered = records.filter((r: any) => !idsSet.has(r.id));
@@ -963,20 +962,17 @@ export const apiService = {
 
         try {
             const token = await apiService.getAuthToken();
-            // Send IDs in the body AND in the query string for maximum compatibility.
-            // Some environments (Vercel, proxies) strip DELETE request bodies — the
-            // query-string 'ids' param acts as a guaranteed fallback.
-            const useQueryIds = idsArray.length <= 200; // avoid URL limits for very large batches
-            const qParam = useQueryIds ? `&ids=${idsArray.map(encodeURIComponent).join(',')}` : '';
-            const url = `/api/records?module=${encodeURIComponent(module)}${qParam}`;
+            // Use POST with action:'bulk_delete' instead of DELETE.
+            // DELETE request bodies are stripped by Vercel/proxies — POST bodies always work.
+            const url = `/api/records?module=${encodeURIComponent(module)}`;
 
             const response = await fetch(url, {
-                method: 'DELETE',
+                method: 'POST',
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ ids: idsArray })
+                body: JSON.stringify({ action: 'bulk_delete', ids: idsArray })
             });
 
             const contentType = response.headers.get('content-type');
@@ -996,7 +992,7 @@ export const apiService = {
             }
 
             if (!response.ok || resData.success === false) {
-                throw new Error(resData.error || `Failed to delete ${module} (status ${response.status})`);
+                throw new Error(resData.error || `Failed to delete ${module} (HTTP ${response.status})`);
             }
         } catch (e: any) {
             console.error(`Delete API Error [${module}]:`, e);

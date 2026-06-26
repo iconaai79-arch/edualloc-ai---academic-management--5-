@@ -245,6 +245,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (req.method === 'POST') {
+            // ── Bulk delete via POST (avoids DELETE-body stripping on Vercel/proxies) ──
+            if (req.body?.action === 'bulk_delete') {
+                const rawIds = req.body.ids;
+                const idsArray: string[] = Array.isArray(rawIds)
+                    ? rawIds.map(String).filter(Boolean)
+                    : (typeof rawIds === 'string' ? rawIds.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
+
+                if (idsArray.length === 0) {
+                    return res.status(400).json({ success: false, error: 'bulk_delete requires a non-empty ids array' });
+                }
+
+                let q = supabase.from(moduleName).delete();
+                if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
+                else q = q.in('id', idsArray);
+
+                // Security: restrict to own institution unless super_admin or public module
+                if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
+                    q = q.eq('institution_id', user?.institutionId);
+                }
+
+                const { error: delErr } = await q;
+                if (delErr) return res.status(200).json({ success: false, error: delErr.message, code: delErr.code });
+                return res.status(200).json({ success: true, count: idsArray.length, module: moduleName });
+            }
+
             const { data: recordData } = req.body || {};
             if (!recordData) return res.status(400).json({ success: false, error: 'No data' });
             
@@ -289,6 +314,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             return res.status(200).json(data?.[0] || { success: true, id: (recordData as any)?.id || getStrParam(id), module: moduleName });
         }
+
 
         if (req.method === 'PATCH') {
             try {
