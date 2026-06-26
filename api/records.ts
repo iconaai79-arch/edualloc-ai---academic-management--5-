@@ -360,14 +360,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (req.method === 'DELETE') {
-            const { ids: bodyIds } = req.body || {};
-            const idVal = getStrParam(id);
-            
-            const idsArray = Array.isArray(bodyIds) 
-                ? bodyIds 
-                : (idVal ? idVal.split(',') : []);
+            // Robustly extract IDs: body.ids (parsed JSON) → body as raw string → query string 'ids'
+            let bodyIds: string[] | undefined;
+            if (Array.isArray(req.body?.ids)) {
+                bodyIds = req.body.ids;
+            } else if (typeof req.body === 'string') {
+                // Some environments deliver the body as an unparsed string
+                try { bodyIds = JSON.parse(req.body).ids; } catch (_) {}
+            }
 
-            if (idsArray.length === 0) return res.status(400).json({ success: false, error: 'ID required' });
+            const idVal = getStrParam(id);
+            const qIds = getStrParam(req.query.ids as string); // comma-separated fallback from query
+
+            const idsArray: string[] = Array.isArray(bodyIds) && bodyIds.length > 0
+                ? bodyIds
+                : idVal
+                    ? idVal.split(',').map(s => s.trim()).filter(Boolean)
+                    : qIds
+                        ? qIds.split(',').map(s => s.trim()).filter(Boolean)
+                        : [];
+
+            if (idsArray.length === 0) return res.status(400).json({ success: false, error: 'ID required. Pass ids in request body or query string.' });
 
             let q = supabase.from(moduleName).delete();
             if (idsArray.length === 1) q = q.eq('id', idsArray[0]);

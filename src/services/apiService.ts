@@ -963,8 +963,12 @@ export const apiService = {
 
         try {
             const token = await apiService.getAuthToken();
-            // Always send IDs via request body — avoids URL length limits and encoding issues
-            const url = `/api/records?module=${encodeURIComponent(module)}`;
+            // Send IDs in the body AND in the query string for maximum compatibility.
+            // Some environments (Vercel, proxies) strip DELETE request bodies — the
+            // query-string 'ids' param acts as a guaranteed fallback.
+            const useQueryIds = idsArray.length <= 200; // avoid URL limits for very large batches
+            const qParam = useQueryIds ? `&ids=${idsArray.map(encodeURIComponent).join(',')}` : '';
+            const url = `/api/records?module=${encodeURIComponent(module)}${qParam}`;
 
             const response = await fetch(url, {
                 method: 'DELETE',
@@ -992,7 +996,7 @@ export const apiService = {
             }
 
             if (!response.ok || resData.success === false) {
-                throw new Error(resData.error || `Failed to delete ${module}`);
+                throw new Error(resData.error || `Failed to delete ${module} (status ${response.status})`);
             }
         } catch (e: any) {
             console.error(`Delete API Error [${module}]:`, e);
