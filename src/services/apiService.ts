@@ -954,39 +954,34 @@ export const apiService = {
         const idsArray = id.split(',').map(s => s.trim()).filter(Boolean);
         if (idsArray.length === 0) return;
 
-        // ── Tier 1: Direct Supabase client delete (fastest, no serverless function involved) ──
-        if (_supabase) {
-            try {
-                let q = _supabase.from(module).delete();
-                if (idsArray.length === 1) {
-                    q = q.eq('id', idsArray[0]);
-                } else {
-                    q = q.in('id', idsArray);
-                }
-                const { error: sbErr } = await q;
-                if (!sbErr) {
-                    console.log(`[deleteModuleRecord] Direct Supabase delete OK: ${module} x${idsArray.length}`);
-                    return;
-                }
-                // RLS may block anon deletes — fall through to API
-                console.warn(`[deleteModuleRecord] Direct Supabase delete failed (${sbErr.message}), falling back to API...`);
-            } catch (sbEx: any) {
-                console.warn(`[deleteModuleRecord] Direct Supabase exception (${sbEx.message}), falling back to API...`);
-            }
-        } else {
-            // ── Tier 0: Local storage mode ──
+        // ── Tier 0: Local storage mode (no Supabase configured) ──
+        if (!_supabase) {
             const records = ls.get(module);
             const idsSet = new Set(idsArray);
-            const filtered = records.filter((r: any) => !idsSet.has(r.id));
-            ls.set(module, filtered);
+            ls.set(module, records.filter((r: any) => !idsSet.has(r.id)));
             return;
         }
 
-        // ── Tier 2: API call — IDs in query string, no body parsing needed ──
+        // ── Tier 1: Supabase RPC with SECURITY DEFINER (bypasses RLS, no body parsing) ──
+        // Requires migration 241_safe_delete_records_rpc.sql to be applied in Supabase.
+        try {
+            const { data: rpcResult, error: rpcErr } = await _supabase.rpc('safe_delete_records', {
+                p_table: module,
+                p_ids: idsArray
+            });
+            if (!rpcErr) {
+                console.log(`[deleteModuleRecord] RPC OK: ${module} x${idsArray.length} → ${rpcResult} deleted`);
+                return;
+            }
+            // RPC not available (migration not yet applied) — fall through to API
+            console.warn(`[deleteModuleRecord] RPC failed (${rpcErr.message}), falling back to API...`);
+        } catch (rpcEx: any) {
+            console.warn(`[deleteModuleRecord] RPC exception (${rpcEx.message}), falling back to API...`);
+        }
+
+        // ── Tier 2: API call — IDs in query string, no request body needed ──
         try {
             const token = await apiService.getAuthToken();
-            // Pass IDs as a comma-separated query param on DELETE.
-            // This avoids ALL body parsing issues on Vercel/proxies.
             const url = `/api/records?module=${encodeURIComponent(module)}&ids=${encodeURIComponent(idsArray.join(','))}`;
 
             const response = await fetch(url, {
@@ -1001,15 +996,13 @@ export const apiService = {
             if (contentType && contentType.includes('application/json')) {
                 resData = await response.json().catch(() => ({}));
             } else {
-                // Non-JSON response — read text for diagnostics
                 const txt = await response.text().catch(() => '');
-                console.warn(`[deleteModuleRecord] Non-JSON response (${response.status}):`, txt.substring(0, 200));
+                console.warn(`[deleteModuleRecord] Non-JSON API response (${response.status}):`, txt.substring(0, 200));
             }
 
             console.log(`[deleteModuleRecord] API DELETE ${module} ids=${idsArray.length} status=${response.status}`, resData);
 
             if (response.status === 503 || (resData.error && resData.error.includes('Supabase keys missing'))) {
-                // Server-side Supabase not configured — fall back to localStorage
                 console.warn(`[deleteModuleRecord] 503: falling back to localStorage for ${module}`);
                 const records = ls.get(module);
                 const idsSet = new Set(idsArray);
