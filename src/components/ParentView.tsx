@@ -247,6 +247,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
             institutionId: user?.institutionId || '',
             title: 'Route Change – Route 3 (CBD–Westlands)',
             message: 'Bus KBZ 001T has been reassigned to cover Route 5 due to a mechanical issue. Students on Route 3 will board Bus KBZ 022Y at the usual stops from 4:00 PM today. Alternative arrangements are in place. Please confirm pickup with the school gate.',
+            reason: 'reassigned' as const,
             incidentType: 'route_change' as any,
             affectedRoutes: ['Route 3 – CBD to Westlands'],
             status: 'active' as const,

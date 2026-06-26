@@ -286,9 +286,9 @@ export const TransportDisruptionAlert: React.FC<TransportDisruptionAlertProps> =
         return (
             <div className="space-y-4">
                 {relevant.map(alert => {
-                    const meta = REASON_META[alert.reason];
-                    const MetaIcon = meta.icon;
-                    const alreadyAcknowledged = alert.acknowledgedBy.includes(parentId);
+                    const meta = REASON_META[alert.reason] || REASON_META.other;
+                    const MetaIcon = meta.icon || Info;
+                    const alreadyAcknowledged = alert.acknowledgedBy ? alert.acknowledgedBy.includes(parentId) : false;
 
                     return (
                         <div
@@ -440,10 +440,10 @@ export const TransportDisruptionAlert: React.FC<TransportDisruptionAlertProps> =
                     </div>
                     <div className="divide-y divide-slate-50 dark:divide-slate-700">
                         {activeAlerts.map(alert => {
-                            const meta = REASON_META[alert.reason];
-                            const MetaIcon = meta.icon;
+                            const meta = REASON_META[alert.reason] || REASON_META.other;
+                            const MetaIcon = meta.icon || Info;
                             const isResolvingNow = resolvedJustNow.includes(alert.id);
-                            const ackPct = Math.round((alert.acknowledgedBy.length / Math.max(alert.affectedStudentCount, 1)) * 100);
+                            const ackPct = Math.round(((alert.acknowledgedBy || []).length / Math.max(alert.affectedStudentCount, 1)) * 100);
 
                             return (
                                 <div key={alert.id} className={`p-6 transition-all ${isResolvingNow ? 'opacity-40 scale-95' : ''}`}>
@@ -525,8 +525,8 @@ export const TransportDisruptionAlert: React.FC<TransportDisruptionAlertProps> =
                     </div>
                     <div className="divide-y divide-slate-50 dark:divide-slate-700">
                         {resolvedAlerts.map(alert => {
-                            const meta = REASON_META[alert.reason];
-                            const MetaIcon = meta.icon;
+                            const meta = REASON_META[alert.reason] || REASON_META.other;
+                            const MetaIcon = meta.icon || Info;
                             return (
                                 <div key={alert.id} className="p-5 flex items-center gap-4 opacity-60">
                                     <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
