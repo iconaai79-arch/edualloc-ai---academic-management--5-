@@ -949,21 +949,22 @@ export const apiService = {
             throw e;
         }
     },    async deleteModuleRecord(module: string, id: string): Promise<void> {
+        const idsArray = id.split(',').map(s => s.trim()).filter(Boolean);
+        if (idsArray.length === 0) return;
+
         if (!_supabase) {
+            // Local storage mode — delete directly and return
             const records = ls.get(module);
-            const idsArray = id.split(',');
-            const filtered = records.filter((r: any) => !idsArray.includes(r.id));
+            const idsSet = new Set(idsArray);
+            const filtered = records.filter((r: any) => !idsSet.has(r.id));
             ls.set(module, filtered);
             return;
         }
 
         try {
             const token = await apiService.getAuthToken();
-            const idsArray = id.split(',');
-            const useBody = idsArray.length > 50;
-            const url = useBody
-                ? `/api/records?module=${module}`
-                : `/api/records?module=${module}&id=${id}`;
+            // Always send IDs via request body — avoids URL length limits and encoding issues
+            const url = `/api/records?module=${encodeURIComponent(module)}`;
 
             const response = await fetch(url, {
                 method: 'DELETE',
@@ -971,12 +972,27 @@ export const apiService = {
                     'Authorization': token ? `Bearer ${token}` : '',
                     'Content-Type': 'application/json'
                 },
-                body: useBody ? JSON.stringify({ ids: idsArray }) : undefined
+                body: JSON.stringify({ ids: idsArray })
             });
 
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error || `Failed to delete ${module}`);
+            const contentType = response.headers.get('content-type');
+            let resData: any = {};
+            if (contentType && contentType.includes('application/json')) {
+                resData = await response.json().catch(() => ({}));
+            }
+
+            if (response.status === 503 || (resData.error && resData.error.includes('Supabase keys missing'))) {
+                // Server-side Supabase not configured — fall back to localStorage
+                console.warn(`[deleteModuleRecord] API returned 503 for ${module}. Falling back to localStorage.`);
+                const records = ls.get(module);
+                const idsSet = new Set(idsArray);
+                const filtered = records.filter((r: any) => !idsSet.has(r.id));
+                ls.set(module, filtered);
+                return;
+            }
+
+            if (!response.ok || resData.success === false) {
+                throw new Error(resData.error || `Failed to delete ${module}`);
             }
         } catch (e: any) {
             console.error(`Delete API Error [${module}]:`, e);

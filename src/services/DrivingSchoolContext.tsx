@@ -745,13 +745,12 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             await apiService.deleteModuleRecord('ds_leads', id);
             setLeads(prev => prev.filter(l => l.id !== id));
             success("Enquiry lead removed successfully.");
-            await onRefresh();
         } catch (err) {
             console.error("[DSContext] Failed to delete lead:", err);
             error("Failed to delete walk-in enquiry lead.");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, success, error]);
 
     const deleteLeads = useCallback(async (ids: string[]) => {
         if (!institutionId || ids.length === 0) return;
@@ -761,13 +760,13 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const idsSet = new Set(ids);
             setLeads(prev => prev.filter(l => !idsSet.has(l.id)));
             success(`${ids.length} enquiry leads removed successfully.`);
-            await onRefresh();
         } catch (err) {
             console.error("[DSContext] Failed to delete leads:", err);
             error("Failed to delete enquiry leads.");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, success, error]);
+
 
     const updateSettings = useCallback(async (data: any) => {
         if (!institutionId) return;
