@@ -2,6 +2,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import process from 'node:process';
+import fs from 'node:fs';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -32,7 +33,9 @@ export default defineConfig(({ mode }) => {
                 return;
               }
 
-              const handlerPath = `/api/${endpoint}.ts`;
+              const handlerPath = fs.existsSync(`./api/${endpoint}.ts`)
+                ? `/api/${endpoint}.ts`
+                : `/api/${endpoint}.js`;
 
               // Handle CORS for all methods
               res.setHeader('Access-Control-Allow-Origin', '*');

@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from '../lib/auth-server';
 const getSafeKey = () => {
     return process.env.GEMINI_API_KEY ||
         process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+        process.env.VITE_GEMINI_API_KEY ||
         process.env.API_KEY;
 };
 
