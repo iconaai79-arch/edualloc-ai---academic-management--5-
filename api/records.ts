@@ -228,7 +228,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
-                ['school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'broadcaster_messages'].includes(moduleName)
+                ['school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads'].includes(moduleName)
                     ? 100000
                     : 1000
             );
