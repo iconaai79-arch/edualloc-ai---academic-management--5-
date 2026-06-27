@@ -979,6 +979,22 @@ export const apiService = {
             console.warn(`[deleteModuleRecord] RPC exception (${rpcEx.message}), falling back to API...`);
         }
 
+        // ── Tier 1.5: Client-side direct Supabase delete (respects RLS) ──
+        try {
+            let q = _supabase.from(module).delete();
+            if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
+            else q = q.in('id', idsArray);
+
+            const { error: directErr } = await q;
+            if (!directErr) {
+                console.log(`[deleteModuleRecord] Client-side delete OK: ${module} x${idsArray.length}`);
+                return;
+            }
+            console.warn(`[deleteModuleRecord] Client-side delete failed (${directErr.message}), falling back to API...`);
+        } catch (directEx: any) {
+            console.warn(`[deleteModuleRecord] Client-side delete exception (${directEx.message}), falling back to API...`);
+        }
+
         // ── Tier 2: Dedicated Delete API Call ──
         try {
             const token = await apiService.getAuthToken();
