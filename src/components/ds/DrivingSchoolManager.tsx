@@ -10115,6 +10115,9 @@ END $$;
                             else if (type === 'lead') {
                                 if (data.id) await updateLead(data);
                                 else await addLead(data);
+                                // Clear search and reset to page 1 so the new/updated lead is immediately visible
+                                setSearchTerm('');
+                                setLeadPage(1);
                             }
                             else if (type === 'invoice') {
                                 if (data.id) {
