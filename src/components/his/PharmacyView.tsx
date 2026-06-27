@@ -13,6 +13,7 @@ import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { ClockIcon } from '../icons/ClockIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { apiService } from '../../services/apiService';
+import { LinkDrugToInventoryModal } from './LinkDrugToInventoryModal';
 
 import { 
     HISPharmacyInventory, 
@@ -35,6 +36,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
     const [isAddDrugOpen, setIsAddDrugOpen] = useState(false);
     const [showBatchRegistry, setShowBatchRegistry] = useState(false);
     const [selectedPrescription, setSelectedPrescription] = useState<HISPrescription | null>(null);
+    const [linkingDrug, setLinkingDrug] = useState<HISPharmacyInventory | null>(null);
 
     const loadData = async () => {
         if (!institutionId) return;
@@ -140,7 +142,24 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                     stockQuantity: Math.max(0, drug.stockQuantity - item.quantity)
                 });
 
-                // 5. Add to Billing
+                // 4b. If linked to school retail inventory, deduct from there too
+                if (drug.linkedInventoryItemId) {
+                    try {
+                        const retailRecords = await apiService.fetchModuleRecords<any>('retail_inventory_items', institutionId);
+                        const retailItem = retailRecords?.find((r: any) => r.id === drug.linkedInventoryItemId);
+                        if (retailItem) {
+                            await apiService.updateModuleRecord('retail_inventory_items', drug.linkedInventoryItemId, {
+                                quantity: Math.max(0, retailItem.quantity - item.quantity),
+                                lastUpdated: new Date().toISOString()
+                            });
+                        }
+                    } catch (retailErr) {
+                        console.warn('Could not sync retail inventory:', retailErr);
+                    }
+                }
+
+                // 5. Add to Billing (use drug's unit price if set, otherwise prescription item price)
+                const billingUnitPrice = drug.unitPrice > 0 ? drug.unitPrice : (item.unitPrice || 0);
                 await apiService.saveModuleRecord('his_billing_items', {
                     id: `bill_${Date.now()}_${item.id}`,
                     institutionId,
@@ -149,8 +168,8 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                     sourceId: presc.id,
                     itemName: item.drugName,
                     quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    totalAmount: item.totalPrice,
+                    unitPrice: billingUnitPrice,
+                    totalAmount: billingUnitPrice * item.quantity,
                     status: 'pending'
                 });
 
@@ -248,6 +267,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                                             <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Drug Formula</th>
                                             <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Unit Price</th>
                                             <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Quantum</th>
+                                            <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Store Link</th>
                                             <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-right">Health Signal</th>
                                         </tr>
                                     </thead>
@@ -273,6 +293,23 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                                                 </td>
                                                 <td className="px-10 py-8">
                                                     <p className="text-sm font-black text-white">{item.stockQuantity} <span className="text-[10px] text-slate-500 uppercase">{item.unit}s</span></p>
+                                                </td>
+                                                <td className="px-6 py-8">
+                                                    {item.linkedInventoryItemId ? (
+                                                        <button
+                                                            onClick={() => setLinkingDrug(item)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all"
+                                                        >
+                                                            <CheckCircleIcon className="w-3 h-3" /> Linked
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => setLinkingDrug(item)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-slate-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all"
+                                                        >
+                                                            🔗 Link Store
+                                                        </button>
+                                                    )}
                                                 </td>
                                                 <td className="px-10 py-8 text-right">
                                                     <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
@@ -605,7 +642,22 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                     </div>
                 </div>
             )}
+
+            {/* Link Drug to School Inventory Modal */}
+            {linkingDrug && institutionId && (
+                <LinkDrugToInventoryModal
+                    drug={linkingDrug}
+                    institutionId={institutionId}
+                    onClose={() => setLinkingDrug(null)}
+                    onLinked={(drugId, linkedItemId, unitPrice) => {
+                        setInventory(prev => prev.map(d =>
+                            d.id === drugId
+                                ? { ...d, linkedInventoryItemId: linkedItemId || undefined, unitPrice }
+                                : d
+                        ));
+                    }}
+                />
+            )}
         </div>
     );
 };
-

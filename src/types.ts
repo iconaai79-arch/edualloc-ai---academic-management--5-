@@ -3301,6 +3301,8 @@ export interface HISPharmacyInventory {
     interactionCode?: string;
     isNarcotic?: boolean;
     sku?: string;
+    /** Links to retail_inventory_items.id. When set, dispensing deducts from school store inventory too. */
+    linkedInventoryItemId?: string;
     createdAt: string;
     updatedAt: string;
     recordedBy?: string;

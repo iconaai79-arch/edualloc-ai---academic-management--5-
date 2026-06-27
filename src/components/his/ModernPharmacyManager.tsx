@@ -240,7 +240,7 @@ export const ModernPharmacyManager: React.FC<{
                 salesEndDate,
                 currentInstitution,
                 settings,
-                settings.footerImageUrl || null
+                null
             );
             setSelectedReportUrl(reportUrl);
         } catch (e) {
@@ -539,6 +539,22 @@ export const ModernPharmacyManager: React.FC<{
                         updatedAt: new Date().toISOString(),
                         recordedBy: currentUser.id
                     });
+
+                    // Sync to school retail inventory if linked
+                    if (invItem.linkedInventoryItemId) {
+                        try {
+                            const retailRecords = await apiService.fetchModuleRecords<any>('retail_inventory_items', institutionId);
+                            const retailItem = retailRecords?.find((r: any) => r.id === invItem.linkedInventoryItemId);
+                            if (retailItem) {
+                                await apiService.updateModuleRecord('retail_inventory_items', invItem.linkedInventoryItemId, {
+                                    quantity: Math.max(0, retailItem.quantity - item.quantity),
+                                    lastUpdated: new Date().toISOString()
+                                });
+                            }
+                        } catch (retailErr) {
+                            console.warn('[PharmacyManager] Could not sync retail inventory:', retailErr);
+                        }
+                    }
                 }
             }
 
@@ -1509,7 +1525,7 @@ export const ModernPharmacyManager: React.FC<{
                                             const aggregated = new Map<string, { sku: string, name: string, qty: number, total: number }>();
                                             filteredSaleItems.forEach(item => {
                                                 const inv = inventory.find(i => i.id === item.medicationId);
-                                                const key = item.medicationId;
+                                                const key = item.medicationId ?? 'unknown';
                                                 const existing = aggregated.get(key) || { sku: inv?.sku || 'N/A', name: inv?.name || 'Unknown', qty: 0, total: 0 };
                                                 existing.qty += Number(item.quantity);
                                                 existing.total += Number(item.totalPrice);
@@ -1640,7 +1656,7 @@ export const ModernPharmacyManager: React.FC<{
                                         const aggregated = new Map<string, { sku: string, name: string, qty: number, total: number }>();
                                         filteredSaleItems.forEach(item => {
                                             const inv = inventory.find(i => i.id === item.medicationId);
-                                            const key = item.medicationId;
+                                            const key = item.medicationId ?? 'unknown';
                                             const existing = aggregated.get(key) || { sku: inv?.sku || 'N/A', name: inv?.name || 'Unknown', qty: 0, total: 0 };
                                             existing.qty += Number(item.quantity);
                                             existing.total += Number(item.totalPrice);
