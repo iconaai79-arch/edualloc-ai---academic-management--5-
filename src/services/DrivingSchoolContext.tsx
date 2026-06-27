@@ -700,11 +700,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 email: data.email || '',
                 licenseTypeInterested: data.licenseTypeInterested || '',
                 licenseCategory: data.licenseCategory || '',
-                broadcastId: data.broadcastId || '',
+                broadcastId: data.broadcastId || undefined,
                 source: data.source || 'Walk-in',
                 status: data.status || 'New Enquiry',
                 quotedAmount: data.quotedAmount || 0,
-                feeStructureId: data.feeStructureId || '',
+                feeStructureId: data.feeStructureId || undefined,
                 notes: data.notes || '',
                 createdAt: new Date().toISOString()
             };
@@ -725,7 +725,10 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const payload = {
                 ...data,
                 institutionId,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                // Ensure FK fields are null (not empty string) to avoid FK constraint violations
+                broadcastId: data.broadcastId || undefined,
+                feeStructureId: data.feeStructureId || undefined,
             };
             await apiService.saveModuleRecord('ds_leads', payload);
             setLeads(prev => prev.map(l => l.id === data.id ? { ...l, ...payload } as DSLead : l));
