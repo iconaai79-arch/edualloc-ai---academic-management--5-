@@ -982,7 +982,7 @@ export const apiService = {
         // ── Tier 2: API call — IDs in query string, no request body needed ──
         try {
             const token = await apiService.getAuthToken();
-            const url = `/api/records?module=${encodeURIComponent(module)}&ids=${encodeURIComponent(idsArray.join(','))}`;
+            const url = `/api/delete?module=${encodeURIComponent(module)}&ids=${encodeURIComponent(idsArray.join(','))}`;
 
             const response = await fetch(url, {
                 method: 'DELETE',

@@ -386,6 +386,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (req.method === 'DELETE') {
+            console.log("[API DELETE DEBUG] Query:", JSON.stringify(req.query));
+            console.log("[API DELETE DEBUG] Body:", JSON.stringify(req.body));
+            
             // Robustly extract IDs: body.ids (parsed JSON) → body as raw string → query string 'ids'
             let bodyIds: string[] | undefined;
             if (Array.isArray(req.body?.ids)) {
@@ -406,7 +409,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         ? qIds.split(',').map(s => s.trim()).filter(Boolean)
                         : [];
 
-            if (idsArray.length === 0) return res.status(400).json({ success: false, error: 'ID required. Pass ids in request body or query string.' });
+            console.log("[API DELETE DEBUG] Extracted IDs:", idsArray);
+
+            if (idsArray.length === 0) return res.status(400).json({ success: false, error: 'ID required. Pass ids in request body or query string.', debugQuery: req.query });
 
             let q = supabase.from(moduleName).delete();
             if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
