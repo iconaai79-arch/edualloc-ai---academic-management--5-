@@ -184,8 +184,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 shaNumber: '',
                 insuranceProvider: 'School Coverage',
                 bloodGroup: 'Unknown',
-                allergies: '',
-                chronicConditions: '',
+                allergies: [],
+                chronicConditions: [],
                 emergencyContactName: '',
                 emergencyContactPhone: '',
                 status: 'active',
@@ -442,7 +442,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 </div>
             </main>
 
-            <RegisterPatientModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={handleRegisterPatient} />
+            <RegisterPatientModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={handleRegisterPatient} users={users} isEdu={isEdu} />
             <UpdateVitalsModal isOpen={isUpdateVitalsOpen} onClose={() => setIsUpdateVitalsOpen(false)} patientId={activePatientId || ''} patientName={activePatient?.fullName} onUpdate={handleUpdateVitals} />
             <AddWardModal isOpen={isAddWardOpen} onClose={() => setIsAddWardOpen(false)} onAdd={handleAddWard} />
             <AddVisitModal 
