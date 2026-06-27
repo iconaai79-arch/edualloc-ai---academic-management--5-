@@ -50,6 +50,7 @@ import { PdfPreviewModal } from './PdfPreviewModal';
 import { CommunicationsManager } from './CommunicationsManager';
 import PMConfigManager from './PMConfigManager';
 import { UserManager } from './UserManager';
+import * as XLSX from 'xlsx';
 
 const dataUriToBlob = (dataUri: string) => {
     const byteString = atob(dataUri.split(',')[1]);
@@ -127,6 +128,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [showPropertyModal, setShowPropertyModal] = useState(false);
     const [showUnitModal, setShowUnitModal] = useState(false);
     const [showTenantModal, setShowTenantModal] = useState(false);
+    const [showTenantImportModal, setShowTenantImportModal] = useState(false);
     const [showLeaseModal, setShowLeaseModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showTicketModal, setShowTicketModal] = useState(false);
@@ -772,17 +774,36 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const TenantsTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
-                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Active Tenants</h3>
-                <div className="relative group w-full md:w-80">
-                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                    <input
-                        type="text"
-                        placeholder="SEARCH TENANTS..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
-                    />
+            <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-6">
+                <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Tenant Directory</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">
+                        Active Leased Residents ({tenants.length})
+                    </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
+                    <div className="relative group w-full sm:w-64">
+                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                        <input
+                            type="text"
+                            placeholder="SEARCH TENANTS..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
+                        />
+                    </div>
+                    <button
+                        onClick={() => setShowTenantImportModal(true)}
+                        className="btn-primary flex items-center justify-center gap-2 h-12 bg-indigo-600 hover:bg-indigo-700 text-white uppercase tracking-widest text-[10px] font-black px-6 rounded-2xl shadow-lg transition-all"
+                    >
+                        <DownloadIcon className="w-4 h-4 rotate-180" /> Import Tenants
+                    </button>
+                    <button
+                        onClick={() => setShowTenantModal(true)}
+                        className="btn-primary flex items-center justify-center gap-2 h-12 bg-blue-600 hover:bg-blue-700 text-white uppercase tracking-widest text-[10px] font-black px-6 rounded-2xl shadow-lg transition-all"
+                    >
+                        <PlusIcon className="w-4 h-4" /> Onboard Tenant
+                    </button>
                 </div>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
@@ -2481,6 +2502,435 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         </div>
     );
 
+    const SmartTenantImporterModal = () => {
+        const [importFile, setImportFile] = useState<File | null>(null);
+        const [isProcessing, setIsProcessing] = useState(false);
+        const [processedCount, setProcessedCount] = useState(0);
+        const [totalCount, setTotalCount] = useState(0);
+        const [step, setStep] = useState<'upload' | 'map'>('upload');
+        const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+        const [rawData, setRawData] = useState<any[]>([]);
+
+        const [mappings, setMappings] = useState<Record<string, string>>({
+            tenantName: '',
+            phone: '',
+            email: '',
+            idNumber: '',
+            propertyName: '',
+            unitNumber: '',
+            monthlyRent: '',
+            depositPaid: '',
+            openingBalance: '',
+            startDate: ''
+        });
+
+        const handleFileSelect = (selectedFile: File) => {
+            setImportFile(selectedFile);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    const sheetData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    if (sheetData.length === 0) {
+                        alert("Spreadsheet is empty.");
+                        return;
+                    }
+
+                    const headers = (sheetData[0] || []).map((h: any) => String(h || '').trim()).filter((h: string) => h !== '');
+                    setDetectedHeaders(headers);
+
+                    // Auto-mapping heuristics
+                    const nameCol = headers.find((h: string) => /tenant|name|client|customer|full/i.test(h)) || '';
+                    const phoneCol = headers.find((h: string) => /phone|mobile|tel|contact/i.test(h)) || '';
+                    const emailCol = headers.find((h: string) => /email|mail/i.test(h)) || '';
+                    const idCol = headers.find((h: string) => /id|passport|national/i.test(h)) || '';
+                    const propCol = headers.find((h: string) => /property|building|apartment|estate|house/i.test(h)) || '';
+                    const unitCol = headers.find((h: string) => /unit|room|door|shop|office/i.test(h)) || '';
+                    const rentCol = headers.find((h: string) => /rent|monthly|pay|amount|charge/i.test(h)) || '';
+                    const depCol = headers.find((h: string) => /deposit|dep/i.test(h)) || '';
+                    const balCol = headers.find((h: string) => /balance|opening|arrears|debt|credit/i.test(h)) || '';
+                    const startCol = headers.find((h: string) => /start|date|lease|onboard/i.test(h)) || '';
+
+                    setMappings({
+                        tenantName: nameCol,
+                        phone: phoneCol,
+                        email: emailCol,
+                        idNumber: idCol,
+                        propertyName: propCol,
+                        unitNumber: unitCol,
+                        monthlyRent: rentCol,
+                        depositPaid: depCol,
+                        openingBalance: balCol,
+                        startDate: startCol
+                    });
+
+                    const rowsJson = XLSX.utils.sheet_to_json(worksheet);
+                    setRawData(rowsJson);
+                    setStep('map');
+                } catch (err: any) {
+                    alert("Failed to parse sheet: " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(selectedFile);
+        };
+
+        const previewData = useMemo(() => {
+            return rawData.slice(0, 5).map(row => {
+                return {
+                    tenantName: row[mappings.tenantName] || '—',
+                    phone: row[mappings.phone] || '—',
+                    email: row[mappings.email] || '—',
+                    propertyName: row[mappings.propertyName] || '—',
+                    unitNumber: row[mappings.unitNumber] || '—',
+                    monthlyRent: row[mappings.monthlyRent] || '—',
+                    openingBalance: row[mappings.openingBalance] || '—'
+                };
+            });
+        }, [rawData, mappings]);
+
+        const handleImport = async () => {
+            if (!mappings.tenantName || !mappings.phone || !mappings.propertyName || !mappings.unitNumber || !mappings.monthlyRent) {
+                alert("Tenant Name, Phone, Property Name, Unit Number, and Monthly Rent mappings are required.");
+                return;
+            }
+            setIsProcessing(true);
+            setProcessedCount(0);
+            setTotalCount(rawData.length);
+
+            try {
+                const targetInstitutionId = currentInstitution?.id || currentUser?.institutionId;
+                if (!targetInstitutionId) {
+                    alert("Cannot resolve a valid institution context for import.");
+                    setIsProcessing(false);
+                    return;
+                }
+
+                const localProperties = [...properties];
+                const localUnits = [...units];
+                const localTenants = [...tenants];
+
+                const tenantPayloads: any[] = [];
+                const userPayloads: any[] = [];
+                const leasePayloads: any[] = [];
+                const invoicePayloads: any[] = [];
+                const paymentPayloads: any[] = [];
+                const propertyPayloads: any[] = [];
+                const unitPayloads: any[] = [];
+                const unitUpdates: any[] = [];
+
+                for (const row of rawData) {
+                    const tenantName = String(row[mappings.tenantName] || '').trim();
+                    const phone = String(row[mappings.phone] || '').trim();
+                    const propertyName = String(row[mappings.propertyName] || '').trim();
+                    const unitNum = String(row[mappings.unitNumber] || '').trim();
+                    const monthlyRent = parseFloat(row[mappings.monthlyRent]) || 0;
+
+                    if (!tenantName || !phone || !propertyName || !unitNum) continue;
+
+                    // 1. Resolve Property
+                    let property = localProperties.find(p => p.name.toLowerCase() === propertyName.toLowerCase());
+                    if (!property) {
+                        const newPropId = `prop_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        property = {
+                            id: newPropId,
+                            name: propertyName,
+                            address: 'Imported Property',
+                            propertyType: 'Apartment',
+                            totalUnits: 0,
+                            commissionRate: 8,
+                            institutionId: targetInstitutionId,
+                            createdAt: new Date().toISOString()
+                        };
+                        localProperties.push(property);
+                        propertyPayloads.push(property);
+                    }
+
+                    // 2. Resolve Unit
+                    let unit = localUnits.find(u => u.propertyId === property!.id && u.unitNumber.toLowerCase() === unitNum.toLowerCase());
+                    if (!unit) {
+                        const newUnitId = `unit_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        unit = {
+                            id: newUnitId,
+                            propertyId: property!.id,
+                            unitNumber: unitNum,
+                            unitType: '1 Bedroom',
+                            floorNumber: 0,
+                            rentAmount: monthlyRent,
+                            status: 'Occupied',
+                            institutionId: targetInstitutionId,
+                            createdAt: new Date().toISOString()
+                        };
+                        localUnits.push(unit);
+                        unitPayloads.push(unit);
+                    } else {
+                        unit.status = 'Occupied';
+                        unitUpdates.push({ ...unit, status: 'Occupied' });
+                    }
+
+                    // 3. Resolve/Create Tenant
+                    let tenant = localTenants.find(t => t.name.toLowerCase() === tenantName.toLowerCase() || t.phoneNumber === phone);
+                    let tenantId = tenant?.id;
+                    
+                    if (!tenant) {
+                        tenantId = `tenant_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${tenantPayloads.length}`;
+                        const email = mappings.email ? String(row[mappings.email] || '').trim() : '';
+                        const idNumber = mappings.idNumber ? String(row[mappings.idNumber] || '').trim() : '';
+
+                        tenant = {
+                            id: tenantId,
+                            name: tenantName,
+                            phoneNumber: phone,
+                            email: email || undefined,
+                            idNumber: idNumber || undefined,
+                            institutionId: targetInstitutionId,
+                            createdAt: new Date().toISOString()
+                        };
+                        localTenants.push(tenant);
+                        tenantPayloads.push(tenant);
+
+                        // User credentials creation if email exists
+                        if (email) {
+                            const tempPassword = Math.random().toString(36).slice(-8);
+                            userPayloads.push({
+                                id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                name: tenantName,
+                                email,
+                                phoneNumber: phone,
+                                role: 'tenant',
+                                institutionId: targetInstitutionId,
+                                createdAt: new Date().toISOString(),
+                                isActive: true,
+                                mustChangePassword: true,
+                                password: tempPassword
+                            });
+                        }
+                    }
+
+                    // 4. Create Lease
+                    const leaseId = `lease_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${leasePayloads.length}`;
+                    const depositPaid = mappings.depositPaid ? parseFloat(row[mappings.depositPaid]) || 0 : 0;
+                    
+                    let leaseStartDate = new Date().toISOString().split('T')[0];
+                    if (mappings.startDate && row[mappings.startDate]) {
+                        try {
+                            const parsedDate = new Date(row[mappings.startDate]);
+                            if (!isNaN(parsedDate.getTime())) {
+                                leaseStartDate = parsedDate.toISOString().split('T')[0];
+                            }
+                        } catch (_) {}
+                    }
+
+                    const lease = {
+                        id: leaseId,
+                        unitId: unit.id,
+                        tenantId: tenantId,
+                        startDate: leaseStartDate,
+                        rentAmount: monthlyRent,
+                        depositAmount: depositPaid,
+                        billingCycle: 'Monthly',
+                        status: 'Active',
+                        institutionId: targetInstitutionId,
+                        createdAt: new Date().toISOString()
+                    } as PMLease;
+                    leasePayloads.push(lease);
+
+                    // 5. Opening Balance Processing
+                    const openingBalance = mappings.openingBalance ? parseFloat(row[mappings.openingBalance]) || 0 : 0;
+                    if (openingBalance > 0) {
+                        // Outstanding debt
+                        invoicePayloads.push({
+                            id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${invoicePayloads.length}`,
+                            invoiceNumber: `INV-OB-${Date.now().toString().slice(-6)}_${invoicePayloads.length}`,
+                            leaseId: leaseId,
+                            tenantId: tenantId,
+                            unitId: unit.id,
+                            description: 'Opening Balance (Carried Forward)',
+                            amount: openingBalance,
+                            issueDate: new Date().toISOString().split('T')[0],
+                            dueDate: new Date().toISOString().split('T')[0],
+                            status: 'Sent',
+                            institutionId: targetInstitutionId,
+                            createdAt: new Date().toISOString()
+                        } as PMInvoice);
+                    } else if (openingBalance < 0) {
+                        // Prepaid credit
+                        paymentPayloads.push({
+                            id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${paymentPayloads.length}`,
+                            leaseId: leaseId,
+                            amount: Math.abs(openingBalance),
+                            paymentDate: new Date().toISOString(),
+                            paymentMethod: 'Cash',
+                            paymentType: 'Rent',
+                            periodMonth: new Date().getMonth() + 1,
+                            periodYear: new Date().getFullYear(),
+                            status: 'Completed',
+                            notes: 'Opening Balance Credit (Carried Forward)',
+                            institutionId: targetInstitutionId,
+                            createdAt: new Date().toISOString()
+                        } as PMPayment);
+                    }
+                }
+
+                // Batch save the payloads to DB
+                let savedItems = 0;
+                const totalItemsToSave = propertyPayloads.length + unitPayloads.length + tenantPayloads.length + userPayloads.length + leasePayloads.length + invoicePayloads.length + paymentPayloads.length + unitUpdates.length;
+                setTotalCount(totalItemsToSave);
+
+                if (totalItemsToSave === 0) {
+                    alert("No valid new records detected in the sheet.");
+                    setIsProcessing(false);
+                    return;
+                }
+
+                const saveBatch = async (module: string, batch: any[]) => {
+                    if (batch.length === 0) return;
+                    await apiService.saveModuleRecords(module, batch);
+                    savedItems += batch.length;
+                    setProcessedCount(savedItems);
+                };
+
+                await saveBatch('pm_properties', propertyPayloads);
+                await saveBatch('pm_units', unitPayloads);
+                await saveBatch('pm_units', unitUpdates); // occupied updates
+                await saveBatch('pm_tenants', tenantPayloads);
+                await saveBatch('users', userPayloads);
+                await saveBatch('pm_leases', leasePayloads);
+                await saveBatch('pm_invoices', invoicePayloads);
+                await saveBatch('pm_payments', paymentPayloads);
+
+                alert(`Import completed successfully! Registered: ${tenantPayloads.length} tenants, ${propertyPayloads.length} properties, ${unitPayloads.length} units, and ${leasePayloads.length} leases.`);
+                await loadData();
+                setShowTenantImportModal(false);
+            } catch (e: any) {
+                alert("Import failed: " + e.message);
+                console.error(e);
+            } finally {
+                setIsProcessing(false);
+            }
+        };
+
+        return (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-4xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                    {/* Modal Header */}
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-blue-50/50 dark:bg-blue-900/10">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-600/10 rounded-2xl text-blue-600">
+                                <DownloadIcon className="w-6 h-6 rotate-180" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase italic tracking-tight">Import Tenants from Excel</h3>
+                                <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">Onboard properties, units, tenants, and opening balances in one click</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowTenantImportModal(false)} disabled={isProcessing} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-full transition-colors text-slate-400">
+                            <XIcon className="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                        {step === 'upload' ? (
+                            <div className="flex flex-col items-center justify-center border-4 border-dashed border-slate-200 dark:border-slate-700 p-12 rounded-[2rem] hover:border-blue-500 transition-all bg-slate-50/50 dark:bg-slate-900/30">
+                                <DownloadIcon className="w-16 h-16 text-slate-300 mb-4 rotate-180" />
+                                <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase italic mb-1">Drag and drop your spreadsheet here</h4>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-6">Supports .xlsx, .xls, .csv</p>
+                                <label className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl px-8 py-4 font-black uppercase text-[10px] tracking-widest cursor-pointer shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
+                                    Browse File
+                                    <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={(e) => e.target.files && handleFileSelect(e.target.files[0])} />
+                                </label>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {/* Column Mapping Section */}
+                                <div className="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 italic">Configure Column Mappings</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {Object.keys(mappings).map((key) => (
+                                            <div key={key} className="space-y-1">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                                                    {key.replace(/([A-Z])/g, ' $1').trim()} {['tenantName', 'phone', 'propertyName', 'unitNumber', 'monthlyRent'].includes(key) && '*'}
+                                                </label>
+                                                <select
+                                                    value={mappings[key]}
+                                                    onChange={(e) => setMappings(prev => ({ ...prev, [key]: e.target.value }))}
+                                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none text-slate-900 dark:text-white"
+                                                >
+                                                    <option value="">-- Ignore / Skip --</option>
+                                                    {detectedHeaders.map((header) => (
+                                                        <option key={header} value={header}>{header}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Preview Table */}
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1 italic">First 5 Rows Preview</h4>
+                                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-700 rounded-2xl">
+                                        <table className="w-full text-left text-xs">
+                                            <thead className="bg-slate-50 dark:bg-slate-900/50 font-bold border-b border-slate-100 dark:border-slate-700">
+                                                <tr>
+                                                    <th className="p-4 uppercase">Tenant Name</th>
+                                                    <th className="p-4 uppercase">Phone</th>
+                                                    <th className="p-4 uppercase">Property</th>
+                                                    <th className="p-4 uppercase">Unit</th>
+                                                    <th className="p-4 uppercase">Rent</th>
+                                                    <th className="p-4 uppercase">Opening Bal</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {previewData.map((row, idx) => (
+                                                    <tr key={idx} className="border-b border-slate-50 dark:border-slate-800">
+                                                        <td className="p-4 font-bold text-slate-900 dark:text-white">{row.tenantName}</td>
+                                                        <td className="p-4 font-mono">{row.phone}</td>
+                                                        <td className="p-4 font-bold text-blue-600">{row.propertyName}</td>
+                                                        <td className="p-4">{row.unitNumber}</td>
+                                                        <td className="p-4 font-black">KES {parseFloat(row.monthlyRent)?.toLocaleString() || '0'}</td>
+                                                        <td className={`p-4 font-black ${parseFloat(row.openingBalance) > 0 ? 'text-rose-500' : parseFloat(row.openingBalance) < 0 ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                            KES {parseFloat(row.openingBalance)?.toLocaleString() || '0'}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Start Import Button / Progress */}
+                                {isProcessing ? (
+                                    <div className="space-y-3 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                        <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
+                                            <span>Saving and Configuring Records...</span>
+                                            <span>{processedCount} / {totalCount}</span>
+                                        </div>
+                                        <div className="w-full bg-slate-200 dark:bg-slate-700 h-3.5 rounded-full overflow-hidden">
+                                            <div className="bg-blue-600 h-full rounded-full transition-all duration-300" style={{ width: `${(processedCount / totalCount) * 100}%` }}></div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={handleImport}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-4 font-black uppercase tracking-widest italic shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-3"
+                                    >
+                                        <SparklesIcon className="w-5 h-5 animate-pulse" />
+                                        Begin Tenant Onboarding Import
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const Modal = ({ show, onClose, title, children, maxWidth = "max-w-lg" }: { show: boolean, onClose: () => void, title: string, children: React.ReactNode, maxWidth?: string }) => {
         if (!show) return null;
         return (
@@ -3252,6 +3702,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </form>
             </Modal>
 
+            {showTenantImportModal && <SmartTenantImporterModal />}
             {showBankModal && <BankActionModal />}
             {showCoopModal && <CoopBankB2bModal />}
             
