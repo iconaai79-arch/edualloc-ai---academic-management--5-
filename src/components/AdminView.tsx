@@ -3280,7 +3280,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 institutionId={props.currentInstitution?.id || ''}
                                 users={props.users || []}
                             />
-                        ) : isDS ? (
+                        ) : (isDS || activeScope === 'ds') ? (
                             <DSAnalyticsView 
                                 institution={props.currentInstitution!}
                                 letterheadConfig={props.letterheadConfig}
