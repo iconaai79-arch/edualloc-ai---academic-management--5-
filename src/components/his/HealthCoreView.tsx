@@ -36,12 +36,13 @@ import { AddPrescriptionModal } from './AddPrescriptionModal';
 import { EmergencyTransferModal } from './EmergencyTransferModal';
 import { LabDiagnosticsView } from './LabDiagnosticsView';
 import { ModernPharmacyManager } from './ModernPharmacyManager';
+import { PharmacyView } from './PharmacyView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
 import { PdfViewer } from '../PdfViewer';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics' | 'pharmacy';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -412,6 +413,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             { id: 'general', label: 'Patient 360', icon: HeartIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                             { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
                             { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                            { id: 'pharmacy', label: 'Pharmacy/Store', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                             { id: 'dental', label: 'Dental Core', icon: ScissorsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Healthcare'] },
                             { id: 'eye', label: 'Ocular Hub', icon: EyeIcon, categories: ['Hospital', 'Clinic', 'Eye', 'Healthcare'] },
                             { id: 'ear', label: 'ENT Hub', icon: SignalIcon, categories: ['Hospital', 'Clinic', 'Ear', 'Healthcare'] },
@@ -444,6 +446,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             case 'general': return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} onOpenTransferLetter={() => setIsTransferModalOpen(true)} />;
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
                             case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} activePatientId={activePatientId} />;
+                            case 'pharmacy': return <PharmacyView institutionId={institutionId} />;
                             case 'dental': return <DentalView onAddVisit={() => setIsAddVisitOpen(true)} />;
                             case 'eye': return <OphthalmologyView onAddVisit={() => setIsAddVisitOpen(true)} onPrintRx={handlePrintOphthalRx} />;
                             case 'ear': return (
