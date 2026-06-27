@@ -33,11 +33,12 @@ import { UpdateVitalsModal } from './UpdateVitalsModal';
 import { AddWardModal } from './AddWardModal';
 import { AddVisitModal } from './AddVisitModal';
 import { AddPrescriptionModal } from './AddPrescriptionModal';
+import { EmergencyTransferModal } from './EmergencyTransferModal';
 import { LabDiagnosticsView } from './LabDiagnosticsView';
 import { ModernPharmacyManager } from './ModernPharmacyManager';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
-import { generateOphthalPrescriptionPdf } from '../../services/pdfService';
+import { generateOphthalPrescriptionPdf, generateTransferLetterPdf } from '../../services/pdfService';
 import { PdfViewer } from '../PdfViewer';
 
 type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
@@ -64,6 +65,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     const [isAddWardOpen, setIsAddWardOpen] = useState(false);
     const [isAddVisitOpen, setIsAddVisitOpen] = useState(false);
     const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
     const handlePrintOphthalRx = async (od: any, os: any) => {
@@ -83,6 +85,27 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         } catch (error) {
             console.error(error);
             alert("Failed to generate prescription PDF.");
+        }
+    };
+
+    const handleGenerateTransferLetter = async (receivingFacility: string, reasonForTransfer: string, nurseNotes: string) => {
+        if (!activePatient || !institutionData) return;
+        try {
+            const dataUri = await generateTransferLetterPdf(
+                activePatient,
+                activePatientVitals,
+                receivingFacility,
+                reasonForTransfer,
+                nurseNotes,
+                institutionData,
+                institutionData.logoUrl || null,
+                userName || 'Duty Nurse'
+            );
+            setPdfPreviewUrl(dataUri);
+            setIsTransferModalOpen(false);
+        } catch (error) {
+            console.error("Failed to generate transfer letter:", error);
+            alert("Failed to compile transfer document.");
         }
     };
 
@@ -418,7 +441,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
                     {(() => {
                         switch (activeModule) {
-                            case 'general': return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} />;
+                            case 'general': return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} onOpenTransferLetter={() => setIsTransferModalOpen(true)} />;
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
                             case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} activePatientId={activePatientId} />;
                             case 'dental': return <DentalView onAddVisit={() => setIsAddVisitOpen(true)} />;
@@ -436,7 +459,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             case 'config': return <HISConfigView demoStaff={demoData?.hisStaff} />;
                             case 'reports': return <HISReportsView activeRole={activeRole} />;
                             case 'attendance': return <StaffAttendanceView userName={userName} institutionId={institutionId} demoAttendance={demoData?.hisAttendance} />;
-                            default: return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} />;
+                            default: return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} onOpenTransferLetter={() => setIsTransferModalOpen(true)} />;
                         }
                     })()}
                 </div>
@@ -461,6 +484,13 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 patientName={activePatient?.fullName} 
                 institutionId={institutionId || ''} 
                 doctorName={userName}
+            />
+            <EmergencyTransferModal
+                isOpen={isTransferModalOpen}
+                onClose={() => setIsTransferModalOpen(false)}
+                patient={activePatient}
+                vitals={activePatientVitals}
+                onGenerate={handleGenerateTransferLetter}
             />
 
             {pdfPreviewUrl && (
@@ -494,7 +524,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     );
 };
 
-const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOpenRegister, onAddVisit, onAddPrescription }: { activePatient?: HISPatient | null, vitals?: any[], events?: any[], onOpenVitals: () => void, onOpenRegister: () => void, onAddVisit: () => void, onAddPrescription: () => void }) => (
+const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOpenRegister, onAddVisit, onAddPrescription, onOpenTransferLetter }: { activePatient?: HISPatient | null, vitals?: any[], events?: any[], onOpenVitals: () => void, onOpenRegister: () => void, onAddVisit: () => void, onAddPrescription: () => void, onOpenTransferLetter: () => void }) => (
     <div className="animate-fade-in-up">
         <div className="flex justify-between items-end mb-10">
             <div>
@@ -531,6 +561,12 @@ const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOp
                         <div className="flex justify-between items-center mb-8">
                             <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] italic">Clinical Timeline</p>
                             <div className="flex gap-4">
+                                <button 
+                                    onClick={onOpenTransferLetter}
+                                    className="bg-rose-500/10 text-rose-500 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2"
+                                >
+                                    <PlusIcon className="w-3 h-3" /> Emergency Transfer
+                                </button>
                                 <button 
                                     onClick={onAddPrescription}
                                     className="bg-indigo-500/10 text-indigo-400 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-indigo-400/20 hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-2"

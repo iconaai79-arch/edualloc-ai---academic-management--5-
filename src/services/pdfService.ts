@@ -7098,3 +7098,190 @@ We confirm that this student has been vetted by our administration and is recomm
     return doc.output('datauristring');
 };
 
+export const generateTransferLetterPdf = async (
+    patient: HISPatient,
+    vitals: any[],
+    receivingFacility: string,
+    reasonForTransfer: string,
+    nurseNotes: string,
+    institution: Institution,
+    logoUrl: string | null,
+    nurseName: string
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = margin;
+
+    // 1. Header & Logo
+    if (logoImg) {
+        const logoWidth = 25;
+        const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
+        doc.addImage(logoImg, 'PNG', margin, yPos, logoWidth, logoHeight);
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(institution.name || 'EduPulse Wellness Unit', pageWidth - margin, yPos + 5, { align: 'right' });
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Email: ${institution.email || 'N/A'}`, pageWidth - margin, yPos + 11, { align: 'right' });
+    doc.text(`Phone: ${institution.phoneNumber || 'N/A'}`, pageWidth - margin, yPos + 15, { align: 'right' });
+
+    yPos += 35;
+    doc.setDrawColor(200);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    
+    // 2. Title & Date
+    yPos += 15;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(220, 38, 38); // Urgent red for emergencies
+    doc.text("EMERGENCY MEDICAL TRANSFER LETTER", margin, yPos);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - margin, yPos - 5, { align: 'right' });
+    doc.text(`TIME: ${new Date().toLocaleTimeString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    // 3. Recipient
+    yPos += 15;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text("TO:", margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Emergency Dept. / Receiving Officer`, margin + 15, yPos);
+    yPos += 5;
+    doc.setFont('helvetica', 'bold');
+    doc.text("FACILITY:", margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(receivingFacility.toUpperCase(), margin + 20, yPos);
+
+    // 4. Patient Information Table
+    yPos += 10;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text("1. PATIENT DEMOGRAPHICS & CRITICAL HISTORY", margin, yPos);
+    yPos += 5;
+    
+    const infoHead = [['Field', 'Detail', 'Field', 'Detail']];
+    const infoBody = [
+        ['Full Name', patient.fullName.toUpperCase(), 'Date of Birth', patient.dob || 'Not Set'],
+        ['Gender', patient.gender || 'Not Set', 'Blood Group', patient.bloodGroup || 'Unknown'],
+        ['SHA Number', patient.shaNumber || 'Not Registered', 'Insurance Provider', patient.insuranceProvider || 'N/A'],
+        ['Emergency Kin', patient.emergencyContactName || 'N/A', 'Kin Contact', patient.emergencyContactPhone || 'N/A'],
+    ];
+
+    doc.autoTable({
+        head: infoHead,
+        body: infoBody,
+        startY: yPos,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255, halign: 'left' },
+        styles: { fontSize: 9, cellPadding: 6 },
+        columnStyles: { 
+            0: { fontStyle: 'bold', fillColor: [245, 245, 245], width: 35 }, 
+            2: { fontStyle: 'bold', fillColor: [245, 245, 245], width: 35 } 
+        }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 12;
+
+    // 5. Medical History Lists
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text("2. KNOWN MEDICAL CONDITIONS & ALLERGIES", margin, yPos);
+    yPos += 5;
+
+    const medHistoryHead = [['Allergies (Severe / Known)', 'Chronic Medical Conditions']];
+    
+    const allergyList = patient.allergies && patient.allergies.length > 0 
+        ? patient.allergies.map(a => `• ${a.toUpperCase()}`).join('\n') 
+        : '• NO KNOWN ALLERGIES';
+        
+    const chronicList = patient.chronicConditions && patient.chronicConditions.length > 0 
+        ? patient.chronicConditions.map(c => `• ${c.toUpperCase()}`).join('\n') 
+        : '• NO CHRONIC CONDITIONS REGISTERED';
+
+    doc.autoTable({
+        head: medHistoryHead,
+        body: [[allergyList, chronicList]],
+        startY: yPos,
+        theme: 'grid',
+        headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+        styles: { fontSize: 9, cellPadding: 8, valign: 'top' }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 12;
+
+    // 6. Vital Signs Table
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text("3. LATEST VITAL SIGNS RECORDED", margin, yPos);
+    yPos += 5;
+
+    const vitalsHead = [['Vital Parameter', 'Value', 'Status / Remarks']];
+    const vitalsBody = vitals && vitals.length > 0 
+        ? vitals.map(v => [v.label, `${v.value} ${v.unit || ''}`, v.trend || 'Normal'])
+        : [['No vital statistics registered prior to dispatch', '-', '-']];
+
+    doc.autoTable({
+        head: vitalsHead,
+        body: vitalsBody,
+        startY: yPos,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 9, cellPadding: 5 }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 12;
+
+    // 7. Referral Transfer Notes & Status
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text("4. DISPATCH REFERRAL NOTES & OBSERVATIONS", margin, yPos);
+    
+    yPos += 5;
+    const splitNotes = doc.splitTextToSize(`Reason for Transfer:\n${reasonForTransfer || 'N/A'}\n\nClinical Observations:\n${nurseNotes || 'None recorded'}`, pageWidth - (margin * 2) - 10);
+    
+    doc.autoTable({
+        body: [[splitNotes]],
+        startY: yPos,
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 10 }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 25;
+    
+    if (yPos > doc.internal.pageSize.getHeight() - 40) {
+        doc.addPage();
+        yPos = margin + 30;
+    }
+
+    doc.setDrawColor(200);
+    doc.line(margin, yPos, margin + 70, yPos);
+    doc.line(pageWidth - margin - 70, yPos, pageWidth - margin, yPos);
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text("PREPARED BY (SCHOOL NURSE / OFFICER):", margin, yPos + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(nurseName.toUpperCase(), margin, yPos + 10);
+    doc.text("Wellness Department / Sickbay", margin, yPos + 14);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text("RECEIVING MEDICAL OFFICER SIGN-OFF:", pageWidth - margin, yPos + 5, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.text("Signature: __________________________", pageWidth - margin, yPos + 10, { align: 'right' });
+    doc.text("Time of Arrival: ____________________", pageWidth - margin, yPos + 14, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+
