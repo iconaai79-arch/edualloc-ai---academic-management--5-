@@ -214,7 +214,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             setPayments(dsPay || []);
             setMpesaTransactions(dsMpe || []);
             setBankTransactions(dsBnk || []);
-            setLeads(dsLeadsStandalone || []);
+            setLeads(prev => {
+                const fetchedIds = new Set((dsLeadsStandalone || []).map(l => l.id));
+                const localOnly = prev.filter(l => !fetchedIds.has(l.id));
+                return [...(dsLeadsStandalone || []), ...localOnly];
+            });
         } catch (err) {
             console.error("[DSContext] loadDSData: Failed to load DS data:", err);
         } finally {

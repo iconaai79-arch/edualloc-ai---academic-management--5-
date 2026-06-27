@@ -5297,8 +5297,8 @@ END $$;
         return groups;
     }, [leads, settings?.licenseCategories]);
 
-    const filteredLeads = useMemo(() => 
-        (leads || []).filter(l => {
+    const filteredLeads = useMemo(() => {
+        const res = (leads || []).filter(l => {
             const matchesSearch = (l.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                   (l.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                   (l.licenseTypeInterested || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -5317,7 +5317,9 @@ END $$;
             const matchesCategory = selectedLeadCategory === 'All' || cat.toLowerCase() === selectedLeadCategory.toLowerCase();
             
             return matchesSearch && matchesStatus && matchesCategory;
-        }),
+        });
+        return [...res].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    },
     [leads, searchTerm, leadStatusFilter, selectedLeadCategory, settings?.licenseCategories]);
 
     const totalLeadPages = Math.max(1, Math.ceil(filteredLeads.length / itemsPerPage));
