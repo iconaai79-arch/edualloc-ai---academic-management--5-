@@ -310,7 +310,7 @@ const SmartLeadImporterModal: React.FC<{
     const [rawData, setRawData] = useState<any[]>([]);
     const { error: toastError, success: toastSuccess } = useToast();
 
-    const { settings, leads } = useDrivingSchool();
+    const { settings, leads, setLeads } = useDrivingSchool();
     const [selectedGroup, setSelectedGroup] = useState<string>('');
 
     const [mappings, setMappings] = useState<Record<string, string>>({
@@ -485,6 +485,11 @@ const SmartLeadImporterModal: React.FC<{
 
                         try {
                             await apiService.saveModuleRecords('ds_leads', batch);
+                            setLeads(prev => {
+                                const existingIds = new Set(prev.map(l => l.id));
+                                const newItems = batch.filter(l => !existingIds.has(l.id));
+                                return [...prev, ...newItems];
+                            });
                             uploaded += batch.length;
                             setProcessedCount(uploaded);
 
@@ -10437,7 +10442,11 @@ END $$;
 
                 {isLeadImportModalOpen && (
                     <SmartLeadImporterModal 
-                        onClose={() => setIsLeadImportModalOpen(false)}
+                        onClose={() => {
+                            setIsLeadImportModalOpen(false);
+                            setSearchTerm('');
+                            setLeadPage(1);
+                        }}
                         currentInstitution={currentInstitution}
                         currentUser={currentUser}
                         onRefresh={refreshData}
