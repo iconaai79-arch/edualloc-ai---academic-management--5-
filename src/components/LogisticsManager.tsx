@@ -69,6 +69,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips' | 'alerts' | 'billing'>(
         isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Transport Disruption Alerts state
     const [transportAlerts, setTransportAlerts] = useState<TransportDisruption[]>([]);
