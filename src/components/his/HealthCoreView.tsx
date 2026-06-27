@@ -426,7 +426,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         ]
                         .filter(mod => {
                             if (isEdu) {
-                                return ['general', 'inpatient', 'diagnostics', 'pharmacy', 'broadcaster', 'appointments', 'attendance', 'config', 'reports'].includes(mod.id);
+                                return ['general', 'pharmacy', 'broadcaster', 'appointments', 'attendance', 'config', 'reports'].includes(mod.id);
                             }
                             const cat = institutionData?.category || 'Hospital';
                             // Exact match or contains
