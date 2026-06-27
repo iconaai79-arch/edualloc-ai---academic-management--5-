@@ -979,16 +979,18 @@ export const apiService = {
             console.warn(`[deleteModuleRecord] RPC exception (${rpcEx.message}), falling back to API...`);
         }
 
-        // ── Tier 2: API call — IDs in query string, no request body needed ──
+        // ── Tier 2: Dedicated Delete API Call ──
         try {
             const token = await apiService.getAuthToken();
-            const url = `/api/delete?module=${encodeURIComponent(module)}&ids=${encodeURIComponent(idsArray.join(','))}`;
+            const url = `/api/delete?module=${encodeURIComponent(module)}`;
 
             const response = await fetch(url, {
-                method: 'DELETE',
+                method: 'POST',
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
-                }
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ ids: idsArray })
             });
 
             const contentType = response.headers.get('content-type');
