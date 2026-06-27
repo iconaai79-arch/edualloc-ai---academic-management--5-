@@ -425,6 +425,9 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             { id: 'reports', label: 'Intelligence', icon: ChartBarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                         ]
                         .filter(mod => {
+                            if (isEdu) {
+                                return ['general', 'inpatient', 'diagnostics', 'pharmacy', 'broadcaster', 'appointments', 'attendance', 'config', 'reports'].includes(mod.id);
+                            }
                             const cat = institutionData?.category || 'Hospital';
                             // Exact match or contains
                             return mod.categories.some(c => cat.includes(c));
