@@ -755,6 +755,13 @@ export const apiService = {
             return [];
         }
     },
+    async fetchModuleRecord<T = any>(module: string, id: string): Promise<T | null> {
+        const list = await apiService.fetchModuleRecords<T>(module, undefined, undefined, {
+            filter: { id },
+            limit: 1
+        });
+        return list.length > 0 ? list[0] : null;
+    },
 
     async createBedAllocation(payload: {
         id: string; bed_id: string; student_id: string; institution_id: string;

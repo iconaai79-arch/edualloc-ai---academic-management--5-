@@ -104,14 +104,18 @@ class SyncEngine {
                 users,
                 requisitions,
                 smsLogs,
-                smsOutbox
+                smsOutbox,
+                electionEvents,
+                electionCandidates
             ] = await Promise.all([
                 apiService.fetchModuleRecords('institutions', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('constituencies').catch(() => []),
                 apiService.fetchModuleRecords('users', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('requisitions', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('sms_logs', tenantId).catch(() => []),
-                apiService.fetchModuleRecords('sms_outbox', tenantId).catch(() => [])
+                apiService.fetchModuleRecords('sms_outbox', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('election_events', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('election_candidates', tenantId).catch(() => [])
             ]);
 
             update(50);
@@ -123,7 +127,9 @@ class SyncEngine {
                 ...users.map((item: any) => localDb.put('users', item)),
                 ...requisitions.map((item: any) => localDb.put('requisitions', item)),
                 ...smsLogs.map((item: any) => localDb.put('sms_logs', item)),
-                ...smsOutbox.map((item: any) => localDb.put('sms_outbox', item))
+                ...smsOutbox.map((item: any) => localDb.put('sms_outbox', item)),
+                ...electionEvents.map((item: any) => localDb.put('election_events', item)),
+                ...electionCandidates.map((item: any) => localDb.put('election_candidates', item))
             ]);
 
             update(100);

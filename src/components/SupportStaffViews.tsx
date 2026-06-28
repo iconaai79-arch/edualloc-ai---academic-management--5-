@@ -48,6 +48,7 @@ import { TrashIcon } from './icons/TrashIcon';
 import { PencilIcon } from './icons/PencilIcon';
 import { UserPlusIcon } from './icons/UserPlusIcon';
 import { UserManager } from './UserManager';
+import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { DepartmentManager } from './DepartmentManager';
 import { SecurityAlertManager } from './SecurityAlertManager';
 import { LicensePlateScanner } from './LicensePlateScanner';
@@ -76,7 +77,7 @@ export interface SupportStaffViewProps {
     currentInstitution?: Institution | null;
     users?: User[];
     visitors?: Visitor[];
-    onAddVisitor?: (visitor: Omit<Visitor, 'id'>) => Promise<void> | void;
+    onAddVisitor?: (visitor: Omit<Visitor, 'id'>) => Promise<any> | any;
     onCheckoutVisitor?: (id: string) => void;
     onAddAppointment?: (apt: Omit<Appointment, 'id' | 'status' | 'createdAt'>) => void;
     onUpdateVisitor?: (id: string, data: Partial<Visitor>) => void;
@@ -429,7 +430,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 finalHostName = customHostName.trim();
             }
 
-            const visitorPayload = {
+            const visitorPayload: any = {
                 name: walkInForm.name,
                 phoneNumber: walkInForm.phone,
                 purpose: walkInForm.purpose,
@@ -440,14 +441,41 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 idNumber: walkInForm.idNumber,
                 visitDate: new Date().toISOString().split('T')[0],
                 timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                institutionId: user?.institutionId || ''
+                institutionId: user?.institutionId || '',
+                status: 'pending_authorization'
             };
 
-            // Fire-and-forget – don't block the UI on the DB round-trip
-            const addRes = onAddVisitor(visitorPayload);
-            if (addRes instanceof Promise) {
-                addRes.catch(console.error);
-            }
+            // Process saving and host notification asynchronously
+            (async () => {
+                try {
+                    const savedVisitor = onAddVisitor ? await onAddVisitor(visitorPayload) : null;
+                    const visitorId = savedVisitor?.id || `vis_${Date.now()}`;
+                    const matchedHost = (localUsers || users || []).find(u => u.id === finalHostId);
+
+                    if (matchedHost) {
+                        const link = `${window.location.origin}/?view=visitor-auth&id=${visitorId}`;
+
+                        // 1. Dispatch SMS
+                        if (matchedHost.phoneNumber && props.onSendSms) {
+                            const smsMsg = `Hi ${matchedHost.name}, guest ${visitorPayload.name} is at the gate. Purpose: ${visitorPayload.purpose}. Tap here to authorize: ${link}`;
+                            await props.onSendSms(matchedHost.phoneNumber, smsMsg, props.smsConfig, 1, user?.institutionId || '');
+                            console.info('[Security Notification] Sent SMS authorization request to host:', matchedHost.phoneNumber);
+                        }
+
+                        // 2. Dispatch Email
+                        if (matchedHost.email && props.companyDetails?.emailConfig?.username) {
+                            const emailSubject = `Visitor Authorization Request: ${visitorPayload.name}`;
+                            const emailBody = `Dear ${matchedHost.name},\n\nA visitor has registered at the security gate and requested to see you.\n\nVisitor Name: ${visitorPayload.name}\nPurpose of Visit: ${visitorPayload.purpose}\nArrival Time: ${visitorPayload.timeIn}\n\nPlease click the secure link below to review, sign, and authorize or deny entry:\n${link}\n\nBest Regards,\nSecurity Operations`;
+                            
+                            const emailConfig = getInstitutionEmailConfig(props.currentInstitution, props.companyDetails.emailConfig);
+                            await sendEmailNotification(matchedHost.email, emailSubject, emailBody, emailConfig);
+                            console.info('[Security Notification] Sent Email authorization request to host:', matchedHost.email);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Failed to complete visitor registration host notification:", err);
+                }
+            })();
 
             // If visitor is attending a today's event, check them in immediately
             if (selectedEventId) {
@@ -1231,7 +1259,18 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                                             {v.name?.charAt(0) || ''}
                                                         </div>
                                                         <div>
-                                                            <div className="font-black text-slate-800 dark:text-white uppercase text-sm">{v.name || 'Unknown'}</div>
+                                                            <div className="font-black text-slate-800 dark:text-white uppercase text-sm flex items-center gap-2">
+                                                                {v.name || 'Unknown'}
+                                                                {v.status === 'pending_authorization' && (
+                                                                    <span className="px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/25 text-yellow-600 dark:text-yellow-400 font-black text-[8px] rounded-md uppercase tracking-wider shrink-0">Pending Auth</span>
+                                                                )}
+                                                                {v.status === 'authorized' && (
+                                                                    <span className="px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 font-black text-[8px] rounded-md uppercase tracking-wider shrink-0">Authorized</span>
+                                                                )}
+                                                                {v.status === 'declined' && (
+                                                                    <span className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/25 text-red-600 dark:text-red-400 font-black text-[8px] rounded-md uppercase tracking-wider shrink-0">Declined</span>
+                                                                )}
+                                                            </div>
                                                             <div className="flex flex-col gap-0.5 mt-0.5">
                                                                 <div className="text-[10px] text-slate-500 font-bold">{v.phoneNumber}</div>
                                                                 {v.idNumber && (

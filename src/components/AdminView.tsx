@@ -44,6 +44,8 @@ const AlumniManager = lazy(() => import('./AlumniManager').then(m => ({ default:
 const HospitalityManager = lazy(() => import('./HospitalityManager').then(m => ({ default: m.HospitalityManager })));
 const SchoolShowcaseManager = lazy(() => import('./SchoolShowcaseManager').then(m => ({ default: m.SchoolShowcaseManager })));
 const CampaignCommandView = lazy(() => import('./CampaignCommandView').then(m => ({ default: m.CampaignCommandView })));
+const EduVoteAI = lazy(() => import('./EduVoteAI').then(m => ({ default: m.EduVoteAI })));
+const EduVoteProjector = lazy(() => import('./EduVoteProjector').then(m => ({ default: m.EduVoteProjector })));
 const AddCarListingModal = lazy(() => import('./modals/AddCarListingModal').then(m => ({ default: m.AddCarListingModal })));
 const CreateCarInvoiceModal = lazy(() => import('./modals/CreateCarInvoiceModal').then(m => ({ default: m.CreateCarInvoiceModal })));
 const RecordCarPaymentModal = lazy(() => import('./modals/RecordCarPaymentModal').then(m => ({ default: m.RecordCarPaymentModal })));
@@ -474,8 +476,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds'>('console_hub');
+    const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
@@ -783,6 +786,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'enrollment_guests', label: 'Cleared Guests', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'enrollment', label: 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
             { id: 'eduflow', label: 'EduFlow Tasks', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
+            { id: 'eduvote', label: 'EduVote AI', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
         ];
 
 
@@ -3022,6 +3026,38 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     <div className="animate-fade-in">
                         <CampaignCommandView user={props.currentUser!} />
                     </div>
+                )}
+
+                {activeTab === 'eduvote' && (
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center p-20">
+                            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    }>
+                        <EduVoteAI 
+                            user={props.currentUser!} 
+                            onViewProjector={(id) => { 
+                                setProjectorElectionId(id); 
+                                setActiveTab('eduvote_projector'); 
+                            }} 
+                        />
+                    </Suspense>
+                )}
+
+                {activeTab === 'eduvote_projector' && projectorElectionId && (
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center p-20">
+                            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    }>
+                        <EduVoteProjector 
+                            electionId={projectorElectionId} 
+                            onBack={() => { 
+                                setActiveTab('eduvote'); 
+                                setProjectorElectionId(null); 
+                            }} 
+                        />
+                    </Suspense>
                 )}
                  {activeTab === 'law' && (
                     <LawManager 

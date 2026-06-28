@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
-import type { User, Course, CourseLevel, TimetableEntry, Subject, Room, TimetableSettings, EnrollmentRequest, Department, LetterheadConfig, Assignment, Submission, LessonRating, FeedbackSubmission, StudentAbsenceRequest, ExamTimetableEntry, Building, Semester, TaAssignment, UserTask, Institution, Assessment, AssessmentMark, Book } from '../types';
+import type { User, Course, CourseLevel, TimetableEntry, Subject, Room, TimetableSettings, EnrollmentRequest, Department, LetterheadConfig, Assignment, Submission, LessonRating, FeedbackSubmission, StudentAbsenceRequest, ExamTimetableEntry, Building, Semester, TaAssignment, UserTask, Institution, Assessment, AssessmentMark, Book, Invoice, Receipt } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 import { SubjectCard } from './SubjectCard';
 import { ClockIcon } from './icons/ClockIcon';
@@ -19,6 +19,7 @@ import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
 const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
+const EduVoteBallot = lazy(() => import('./EduVoteBallot').then(m => ({ default: m.EduVoteBallot })));
 
 import { StudentDashboard } from './StudentDashboard';
 import { StudentAssignmentManager } from './StudentAssignmentManager';
@@ -423,7 +424,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         return null;
     };
 
-    const tabs = ['dashboard', 'my_timetable', 'assignments', 'feedback', 'absences', 'bursary_kit', 'nearby_classes', 'eduflow'];
+    const tabs = ['dashboard', 'my_timetable', 'assignments', 'feedback', 'absences', 'bursary_kit', 'nearby_classes', 'eduflow', 'eduvote'];
 
     return (
         <div className="space-y-6">
@@ -648,6 +649,16 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                         </button>
                     </div>
                 </div>
+            )}
+
+            {activeTab === 'eduvote' && (
+                <Suspense fallback={
+                    <div className="flex items-center justify-center p-20">
+                        <div className="w-10 h-10 border-4 border-indigo-650 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                }>
+                    <EduVoteBallot user={user} />
+                </Suspense>
             )}
 
             {isRequestModalOpen && <EnrollmentRequestModal subjects={selectedSubjectsForRequest} onClose={() => setIsRequestModalOpen(false)} onSubmit={(signatureUrl) => { onSubmitEnrollmentRequest(Array.from(selectedSubjectIds), signatureUrl); setIsRequestModalOpen(false); setSelectedSubjectIds(new Set()); }} />}

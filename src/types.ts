@@ -1294,6 +1294,7 @@ export interface Visitor {
     vehicleModel?: string;
     idNumber?: string;
     checkIn?: string;
+    status?: string;
 }
 
 export interface Requisition {
@@ -5432,4 +5433,51 @@ export interface SynergyCircle {
     subjectId: string;
     courseLevelId: string;
     institutionId: string;
+}
+
+export interface ElectionEvent {
+    id: string;
+    institutionId: string;
+    title: string;
+    academicYearId?: string;
+    status: 'draft' | 'published' | 'active' | 'paused' | 'closed';
+    votingSystem: 'fptp' | 'ranked_choice';
+    startTime: string;
+    endTime: string;
+    createdAt: string;
+}
+
+export interface ElectionCandidate {
+    id: string;
+    institutionId: string;
+    electionId: string;
+    studentId: string;
+    position: string;
+    tagline?: string;
+    manifesto?: string;
+    posterUrl?: string;
+    status: 'pending' | 'approved' | 'rejected';
+    createdAt: string;
+    studentName?: string;
+    studentPhoto?: string;
+}
+
+export interface ElectionVoterLedger {
+    id: string;
+    institutionId: string;
+    electionId: string;
+    studentId: string;
+    votedAt: string;
+    deviceFingerprint?: string;
+}
+
+export interface ElectionBallot {
+    id: string;
+    institutionId: string;
+    electionId: string;
+    position: string;
+    candidateId?: string;
+    preferenceRank?: number;
+    receiptHash: string;
+    createdAt: string;
 }

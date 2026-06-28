@@ -96,6 +96,7 @@ const CampaignLoginView = safeLazy(() => import('./CampaignLoginView').then(m =>
 const PublicCarInvoicePayment = safeLazy(() => import('./automotive/PublicCarInvoicePayment').then(m => ({ default: m.PublicCarInvoicePayment })));
 const PublicEventRegistration = safeLazy(() => import('./events/PublicEventRegistration').then(m => ({ default: m.PublicEventRegistration })));
 const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfirmation').then(m => ({ default: m.PublicEventConfirmation })));
+const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthorization').then(m => ({ default: m.PublicVisitorAuthorization })));
 const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m.PublicInvoiceView })));
 const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m => ({ default: m.DSInterestPage })));
@@ -172,7 +173,8 @@ const SIMULATOR_NAMES: Record<string, string> = {
     'showroom': 'Car Showroom',
     'tourism': 'Tourism & Hospitality Hub',
     'community': 'Community & Social Hub',
-    'parent_portal': 'Parent Portal'
+    'parent_portal': 'Parent Portal',
+    'eduvote': 'EduVote AI student elections'
 };
 
 
@@ -5047,6 +5049,17 @@ export const App: React.FC = () => {
         onLogAction: handleLogAction,
     }), [currentUser, activeInstitution, handleLogAction]);
 
+    // ── EARLY ESCAPE: Public visitor authorization URL ──
+    if (window.location.search.includes('view=visitor-auth')) {
+        const params = new URLSearchParams(window.location.search);
+        const visitorId = params.get('id') || '';
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <PublicVisitorAuthorization visitorId={visitorId} />
+            </Suspense>
+        );
+    }
+
     // ── EARLY ESCAPE: Public join-campaign URL — skip auth & boot entirely ──
     if (window.location.search.includes('view=join-campaign')) {
         const joinCampaignId = new URLSearchParams(window.location.search).get('id') || '';
@@ -5719,7 +5732,7 @@ export const App: React.FC = () => {
                                             appointments,
                                             onUpdateAppointmentStatus: handleUpdateAppointmentStatus,
                                             users,
-                                            onAddVisitor: async (v: any) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}`, status: 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                            onAddVisitor: async (v: any) => { const newVis = { ...v, id: `vis_${Date.now()}`, status: v.status || 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }; await apiService.saveModuleRecord('visitors', newVis); loadData(); return newVis; },
                                             onUpdateVisitor: async (id: string, data: any) => { const existing = visitors.find(v => v.id === id); if (existing) { await apiService.saveModuleRecord('visitors', { ...existing, ...data }); loadData(); } },
                                             onLogGateAction: handleLogGateAction,
                                             onAddAlert: async (a: any) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alt_${Date.now()}`, status: 'active', timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
