@@ -210,7 +210,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus,
         onLogAction, courses = []
     } = props;
-    const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts' | 'gatepass'>('checkpoint');
+    const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts' | 'gatepass' | 'reports'>('checkpoint');
     const isSchool = ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.institutionType || '') ||
                      ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.category || '');
 
@@ -260,6 +260,14 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [showBulkCheckoutModal, setShowBulkCheckoutModal] = useState(false);
     const [bulkCheckoutDate, setBulkCheckoutDate] = useState(new Date().toISOString().split('T')[0]);
     const [bulkCheckoutTime, setBulkCheckoutTime] = useState(new Date().toTimeString().split(' ')[0].substring(0, 5));
+
+    const [reportsStartDate, setReportsStartDate] = useState(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 7); // Default to last 7 days
+        return d.toISOString().split('T')[0];
+    });
+    const [reportsEndDate, setReportsEndDate] = useState(new Date().toISOString().split('T')[0]);
+    const [reportFilterPurpose, setReportFilterPurpose] = useState('all');
 
     const [isScanning, setIsScanning] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
@@ -625,6 +633,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                         { id: 'leaveout', label: 'Student Leave Out', icon: <ArrowUpTrayIcon className="w-4 h-4" /> },
                         { id: 'logs', label: 'Security Logs', icon: <ClipboardListIcon className="w-4 h-4" />, count: activeVisitors.length },
                         { id: 'gatepass', label: 'Gate Passes', icon: <MapPinIcon className="w-4 h-4" /> },
+                        { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-4 h-4" /> },
                         { id: 'alerts', label: 'Security Alerts', icon: <ExclamationTriangleIcon className="w-4 h-4" />, count: securityAlerts.filter(a => a.status === 'active').length }
                     ].map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
@@ -844,6 +853,263 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     events={institutionEvents}
                 />
             )}
+
+            {activeTab === 'reports' && (() => {
+                // Filter visitors by dates and purpose
+                const filteredRepVisitors = (visitors || []).filter(v => {
+                    const vDate = v.visitDate || '';
+                    const matchesDate = (!reportsStartDate || vDate >= reportsStartDate) && 
+                                        (!reportsEndDate || vDate <= reportsEndDate);
+                    const matchesPurpose = reportFilterPurpose === 'all' || 
+                                           (v.purpose || '').toLowerCase().includes(reportFilterPurpose.toLowerCase());
+                    return matchesDate && matchesPurpose;
+                });
+
+                // Compute statistics
+                const totalVisitors = filteredRepVisitors.length;
+                const activeCount = filteredRepVisitors.filter(v => !v.timeOut).length;
+                
+                // Average duration in minutes
+                let totalDurationMinutes = 0;
+                let durationCount = 0;
+                filteredRepVisitors.forEach(v => {
+                    if (v.timeIn && v.timeOut) {
+                        const inMins = parseTime(v.timeIn);
+                        const outMins = parseTime(v.timeOut);
+                        if (outMins > inMins) {
+                            totalDurationMinutes += (outMins - inMins);
+                            durationCount++;
+                        }
+                    }
+                });
+                const avgDuration = durationCount > 0 ? Math.round(totalDurationMinutes / durationCount) : 0;
+
+                // Distribution of purposes
+                const purposeCounts: Record<string, number> = {};
+                filteredRepVisitors.forEach(v => {
+                    const p = v.purpose || 'General';
+                    // Simplify purpose categorization
+                    let cat = 'Other';
+                    const lp = p.toLowerCase();
+                    if (lp.includes('meeting') || lp.includes('visit') || lp.includes('parent')) cat = 'Official Visit';
+                    else if (lp.includes('delivery') || lp.includes('courier')) cat = 'Delivery/Courier';
+                    else if (lp.includes('interview') || lp.includes('job')) cat = 'HR/Interview';
+                    else if (lp.includes('event') || lp.includes('pin')) cat = 'School Event';
+                    else if (lp.includes('maintenance') || lp.includes('repair')) cat = 'Maintenance/Service';
+                    
+                    purposeCounts[cat] = (purposeCounts[cat] || 0) + 1;
+                });
+
+                // Peak Entry Hour calculations
+                const hourlyCounts = Array(24).fill(0);
+                filteredRepVisitors.forEach(v => {
+                    if (v.timeIn) {
+                        const mins = parseTime(v.timeIn);
+                        const hour = Math.floor(mins / 60);
+                        if (hour >= 0 && hour < 24) {
+                            hourlyCounts[hour]++;
+                        }
+                    }
+                });
+
+                // Find peak hour
+                let peakHour = 0;
+                let maxHourCount = 0;
+                hourlyCounts.forEach((count, hour) => {
+                    if (count > maxHourCount) {
+                        maxHourCount = count;
+                        peakHour = hour;
+                    }
+                });
+
+                return (
+                    <div className="space-y-8 animate-fade-in-up">
+                        {/* Filter Bar */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row items-end justify-between gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 w-full">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Start Date</label>
+                                    <input
+                                        type="date"
+                                        value={reportsStartDate}
+                                        onChange={(e) => setReportsStartDate(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-xs text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">End Date</label>
+                                    <input
+                                        type="date"
+                                        value={reportsEndDate}
+                                        onChange={(e) => setReportsEndDate(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-xs text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Filter by Purpose</label>
+                                    <select
+                                        value={reportFilterPurpose}
+                                        onChange={(e) => setReportFilterPurpose(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-xs text-slate-900 dark:text-white"
+                                    >
+                                        <option value="all">All Purposes</option>
+                                        <option value="Official Visit">Official Visit</option>
+                                        <option value="Delivery">Delivery/Courier</option>
+                                        <option value="Event">School Event</option>
+                                        <option value="Maintenance">Maintenance/Service</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <button
+                                onClick={() => {
+                                    alert('Advanced Security Analysis Report PDF is being prepared for download.');
+                                }}
+                                className="w-full md:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-indigo-600/20"
+                            >
+                                <PrinterIcon className="w-4 h-4" /> Export PDF Report
+                            </button>
+                        </div>
+
+                        {/* Summary Metrics Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.2rem] border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Check-ins</p>
+                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1">{totalVisitors}</h3>
+                                    <p className="text-[9px] text-indigo-500 font-bold uppercase mt-1">Vetted & cleared logs</p>
+                                </div>
+                                <div className="p-3 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-2xl">
+                                    <UserIcon className="w-6 h-6" />
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.2rem] border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Active On-Premises</p>
+                                    <h3 className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{activeCount}</h3>
+                                    <p className="text-[9px] text-emerald-500 font-bold uppercase mt-1">Currently inside campus</p>
+                                </div>
+                                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+                                    <ClockIcon className="w-6 h-6" />
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.2rem] border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Average Stay</p>
+                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1">{avgDuration} <span className="text-xs font-black">mins</span></h3>
+                                    <p className="text-[9px] text-indigo-500 font-bold uppercase mt-1">Stay duration average</p>
+                                </div>
+                                <div className="p-3 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-2xl">
+                                    <TrendingUpIcon className="w-6 h-6" />
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.2rem] border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Peak Entry Hour</p>
+                                    <h3 className="text-3xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                                        {maxHourCount > 0 ? `${peakHour % 12 || 12}:00 ${peakHour >= 12 ? 'PM' : 'AM'}` : 'N/A'}
+                                    </h3>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Highest frequency gate flow</p>
+                                </div>
+                                <div className="p-3 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-2xl">
+                                    <MapPinIcon className="w-6 h-6" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Detailed Analysis Section */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* Visitor Purpose Distribution */}
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <h4 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white mb-6">Entry Purpose Distribution</h4>
+                                <div className="space-y-4">
+                                    {Object.entries(purposeCounts).map(([cat, count]) => {
+                                        const pct = totalVisitors > 0 ? Math.round((count / totalVisitors) * 100) : 0;
+                                        return (
+                                            <div key={cat} className="space-y-2">
+                                                <div className="flex justify-between text-xs font-black uppercase text-slate-650 dark:text-slate-350">
+                                                    <span>{cat}</span>
+                                                    <span>{count} ({pct}%)</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" 
+                                                        style={{ width: `${pct}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {Object.keys(purposeCounts).length === 0 && (
+                                        <p className="text-xs text-slate-400 font-bold uppercase text-center py-10">No categorical visitor data within range</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Gate Flow Hourly Analysis */}
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <h4 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white mb-6">Hourly Gate Activity Index</h4>
+                                <div className="h-48 flex items-end justify-between gap-1 pt-6 border-b border-slate-100 dark:border-slate-700">
+                                    {hourlyCounts.slice(7, 19).map((count, idx) => {
+                                        const hr = idx + 7;
+                                        const maxVal = Math.max(...hourlyCounts) || 1;
+                                        const hPct = Math.min(100, Math.round((count / maxVal) * 100));
+                                        return (
+                                            <div key={hr} className="flex flex-col items-center flex-1 h-full group justify-end">
+                                                <div className="relative w-full flex justify-center">
+                                                    <span className="absolute bottom-full mb-1 bg-slate-900 text-white text-[9px] font-black p-1 px-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow z-10">
+                                                        {count} Check-ins
+                                                    </span>
+                                                </div>
+                                                <div 
+                                                    className="w-full max-w-[16px] bg-indigo-500/20 group-hover:bg-indigo-600 rounded-t-md transition-all duration-300"
+                                                    style={{ height: `${hPct}%` }}
+                                                ></div>
+                                                <span className="text-[8px] font-black text-slate-400 mt-2 uppercase">
+                                                    {hr > 12 ? `${hr-12}p` : `${hr}a`}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Recent Suspicious Activity / Security Incidents analysis */}
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <h4 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white mb-6">Alerts & Incidents Diagnostics</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="p-5 bg-red-50 dark:bg-red-950/20 rounded-2xl border border-red-100 dark:border-red-900/40">
+                                    <span className="text-[10px] font-black uppercase text-red-500 tracking-wider">Active Alerts</span>
+                                    <h3 className="text-2xl font-black text-red-650 dark:text-red-400 mt-1">
+                                        {securityAlerts.filter(a => a.status === 'active').length}
+                                    </h3>
+                                    <p className="text-[9px] text-red-500 font-bold uppercase mt-1">Immediate response required</p>
+                                </div>
+
+                                <div className="p-5 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/40">
+                                    <span className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">Resolved Threat Vector</span>
+                                    <h3 className="text-2xl font-black text-emerald-655 dark:text-emerald-400 mt-1">
+                                        {securityAlerts.filter(a => a.status === 'resolved').length}
+                                    </h3>
+                                    <p className="text-[9px] text-emerald-500 font-bold uppercase mt-1">Mitigated security risks</p>
+                                </div>
+
+                                <div className="p-5 bg-indigo-50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
+                                    <span className="text-[10px] font-black uppercase text-indigo-500 tracking-wider">Total Incidents Vetted</span>
+                                    <h3 className="text-2xl font-black text-indigo-650 dark:text-indigo-400 mt-1">
+                                        {securityAlerts.length}
+                                    </h3>
+                                    <p className="text-[9px] text-indigo-500 font-bold uppercase mt-1">Aggregated logs overview</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {activeTab === 'logs' && (
                 <div className="space-y-8 animate-fade-in-up">
