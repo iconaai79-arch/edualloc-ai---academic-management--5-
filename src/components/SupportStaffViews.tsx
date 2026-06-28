@@ -59,7 +59,7 @@ import { SecurityGatePassView, printEposGatePass, printEposWalkInGatePass } from
 import { apiService } from '../services/apiService';
 import { TransportOnboardingView } from './TransportOnboardingView';
 import { SupplierForm } from './retail/SupplierForm';
-import { downloadInvoicePdf, downloadReceiptPdf, generateInventoryRegistryPdfDataUri, generateIssuanceReportPdfDataUri, generateInventoryStatementPdfDataUri, generateInventoryAnalyticsPdfDataUri, generateInventorySummaryPdfDataUri } from '../services/pdfService';
+import { downloadInvoicePdf, downloadReceiptPdf, generateInventoryRegistryPdfDataUri, generateIssuanceReportPdfDataUri, generateInventoryStatementPdfDataUri, generateInventoryAnalyticsPdfDataUri, generateInventorySummaryPdfDataUri, generateVisitorHistoryPdf } from '../services/pdfService';
 import { TimetableGrid } from './TimetableGrid';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
@@ -260,6 +260,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [showBulkCheckoutModal, setShowBulkCheckoutModal] = useState(false);
     const [bulkCheckoutDate, setBulkCheckoutDate] = useState(new Date().toISOString().split('T')[0]);
     const [bulkCheckoutTime, setBulkCheckoutTime] = useState(new Date().toTimeString().split(' ')[0].substring(0, 5));
+    const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
     const [reportsStartDate, setReportsStartDate] = useState(() => {
         const d = new Date();
@@ -962,8 +963,22 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                             </div>
                             
                             <button
-                                onClick={() => {
-                                    alert('Advanced Security Analysis Report PDF is being prepared for download.');
+                                onClick={async () => {
+                                    try {
+                                        const titleText = `${props.currentInstitution?.name || 'Security Registry'} - Visitor History`;
+                                        const uri = await generateVisitorHistoryPdf(
+                                            filteredRepVisitors,
+                                            titleText,
+                                            props.currentInstitution?.letterheadConfig,
+                                            props.currentInstitution?.logoUrl || null,
+                                            props.currentInstitution?.footerImageUrl || null,
+                                            localUsers,
+                                            props.currentInstitution!
+                                        );
+                                        setPdfUrl(uri);
+                                    } catch (err: any) {
+                                        alert(err.message || 'Error generating visitor history PDF');
+                                    }
                                 }}
                                 className="w-full md:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-indigo-600/20"
                             >
@@ -1849,6 +1864,13 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 />
             )}
 
+            {pdfUrl && (
+                <PdfPreviewModal
+                    url={pdfUrl}
+                    onClose={() => setPdfUrl(null)}
+                    filename={`Security_Report_${Date.now()}.pdf`}
+                />
+            )}
             <style>{`
                 .form-input, .form-select { display: block; width: 100%; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; }
                 .dark .form-input { border-color: #334155; background-color: #0f172a; color: #fff; }

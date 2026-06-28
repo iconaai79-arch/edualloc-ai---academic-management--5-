@@ -1508,6 +1508,61 @@ export const generateUserListPdf = async (
     return doc.output('datauristring');
 };
 
+export const generateVisitorHistoryPdf = async (
+    visitors: Visitor[],
+    title: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null,
+    footerImageUrl: string | null,
+    users: User[],
+    institution: Institution
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    doc.text(title, margin, yPos);
+    yPos += 10;
+
+    const head = [['Name', 'Contact Info', 'Purpose', 'Host / Destination', 'Assets (Plate)', 'Date / Time In', 'Checkout Time']];
+    const body = (visitors || []).map(v => {
+        const host = (users || []).find(u => u.id === v.hostId);
+        const hostName = v.hostName ? `${v.hostName} (Reception)` : (host ? host.name : 'N/A');
+        const assets = v.vehiclePlate ? `${v.vehiclePlate} (${v.vehicleModel || ''})` : 'Pedestrian';
+        return [
+            v.name || v.fullName || 'Unknown',
+            `${v.phoneNumber || ''}${v.idNumber ? ` (ID: ${v.idNumber})` : ''}`,
+            v.purpose || 'General',
+            hostName,
+            assets,
+            `${v.visitDate || ''} ${v.timeIn || ''}`,
+            v.timeOut || 'Active'
+        ];
+    });
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 8 },
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
 export const generateCourseListPdf = async (
     courses: Course[],
     title: string,
