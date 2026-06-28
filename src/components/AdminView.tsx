@@ -876,7 +876,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     const academicsTabs = ['settings', 'reports'];
                     if (isModuleActive('timetable')) academicsTabs.push('timetable');
                     if (isModuleActive('academics')) academicsTabs.push('courses');
-                    academicsTabs.push('enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests', 'eduflow');
+                    academicsTabs.push('enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests', 'eduflow', 'eduvote');
                     return academicsTabs.includes(tab.id);
                 }
                 if (activeScope === 'inventory') {
@@ -989,6 +989,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 'enrollment_guests',
                 'timetable',
                 'courses',
+                'eduflow',
+                'eduvote',
                 'reports',
                 'settings'
             ];
