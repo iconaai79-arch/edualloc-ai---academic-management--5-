@@ -1260,7 +1260,12 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             resetForm();
         } catch (error: any) {
             console.error("Manual registration error:", error);
-            alert(`Failed to register user: ${error.message || 'Unknown database error'}`);
+            const rawMsg = error.message || String(error);
+            let userMsg = rawMsg;
+            if (rawMsg.includes('Registry Conflict') || rawMsg.includes('23505') || rawMsg.toLowerCase().includes('already registered')) {
+                userMsg = "This email address is already registered in the central system. Please use a unique email address.";
+            }
+            alert(`Failed to register user: ${userMsg}`);
         } finally {
             setIsSaving(false);
         }

@@ -72,6 +72,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (req.method === 'GET') {
+            if (action === 'checkEmail') {
+                const { email } = req.query;
+                if (!email) return res.status(400).json({ error: 'Email parameter required' });
+                const { data, error } = await supabase.from('users').select('id').eq('email', String(email).toLowerCase()).limit(1);
+                if (error) {
+                    return res.status(500).json({ error: error.message });
+                }
+                return res.status(200).json({ exists: data && data.length > 0 });
+            }
+
             if (action === 'getSettings') {
                 const { data, error } = await supabase.from('system_settings').select('data').eq('id', 1).single();
                 if (error && error.code !== 'PGRST116') {
