@@ -256,6 +256,11 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         }
     }, [users]);
 
+    const [selectedVisitorIds, setSelectedVisitorIds] = useState<string[]>([]);
+    const [showBulkCheckoutModal, setShowBulkCheckoutModal] = useState(false);
+    const [bulkCheckoutDate, setBulkCheckoutDate] = useState(new Date().toISOString().split('T')[0]);
+    const [bulkCheckoutTime, setBulkCheckoutTime] = useState(new Date().toTimeString().split(' ')[0].substring(0, 5));
+
     const [isScanning, setIsScanning] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'none'>('idle');
@@ -869,12 +874,50 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     placeholder="Search by name, phone, plate, host..."
                                 />
                             </div>
+                            {selectedVisitorIds.length > 0 && (
+                                <div className="flex items-center gap-4 bg-indigo-50 dark:bg-indigo-950/40 p-3 px-6 rounded-2xl border border-indigo-100 dark:border-indigo-900 animate-fade-in">
+                                    <span className="text-xs font-black uppercase text-indigo-600 dark:text-indigo-400">
+                                        {selectedVisitorIds.length} Guest{selectedVisitorIds.length > 1 ? 's' : ''} Selected
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setBulkCheckoutDate(new Date().toISOString().split('T')[0]);
+                                            setBulkCheckoutTime(new Date().toTimeString().split(' ')[0].substring(0, 5));
+                                            setShowBulkCheckoutModal(true);
+                                        }}
+                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md shadow-indigo-600/20"
+                                    >
+                                        Bulk Checkout
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
                                 <thead>
                                     <tr>
+                                        <th className="w-10 px-4 py-3 text-left">
+                                            <input 
+                                                type="checkbox"
+                                                className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                                                checked={paginatedActiveVisitors.length > 0 && paginatedActiveVisitors.every(v => selectedVisitorIds.includes(v.id))}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        const newSelections = [...selectedVisitorIds];
+                                                        paginatedActiveVisitors.forEach(v => {
+                                                            if (!newSelections.includes(v.id)) {
+                                                                newSelections.push(v.id);
+                                                            }
+                                                        });
+                                                        setSelectedVisitorIds(newSelections);
+                                                    } else {
+                                                        setSelectedVisitorIds(prev => prev.filter(id => !paginatedActiveVisitors.some(v => v.id === id)));
+                                                    }
+                                                }}
+                                            />
+                                        </th>
                                         <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Visitor / Name</th>
                                         <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Access Time</th>
                                         <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Host / Destination</th>
@@ -887,6 +930,20 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                         const host = users.find(u => u.id === v.hostId);
                                         return (
                                             <tr key={v.id} className={`group hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20 transition-colors ${exitingVisitorIds.includes(v.id) ? 'visitor-checkout-exit' : ''}`}>
+                                                <td className="w-10 px-4 py-4">
+                                                    <input 
+                                                        type="checkbox"
+                                                        className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                                                        checked={selectedVisitorIds.includes(v.id)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedVisitorIds(prev => [...prev, v.id]);
+                                                            } else {
+                                                                setSelectedVisitorIds(prev => prev.filter(id => id !== v.id));
+                                                            }
+                                                        }}
+                                                    />
+                                                </td>
                                                 <td className="px-4 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-9 h-9 rounded-2xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 font-black text-xs shadow-inner">
@@ -954,7 +1011,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     })}
                                     {filteredActiveVisitors.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="px-4 py-20 text-center">
+                                            <td colSpan={6} className="px-4 py-20 text-center">
                                                 <div className="flex flex-col items-center">
                                                     <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full mb-3 opacity-50">
                                                         <ClipboardListIcon className="w-8 h-8 text-slate-300" />
@@ -1128,6 +1185,83 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+
+            {showBulkCheckoutModal && (
+                <div className="fixed inset-0 bg-slate-900/80 z-[200] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 p-8 animate-zoom-in text-slate-900 dark:text-white">
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight">Bulk Guest Checkout</h3>
+                                <p className="text-xs text-slate-400 font-bold uppercase mt-1">Configure exit date & time for {selectedVisitorIds.length} guests</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowBulkCheckoutModal(false)}
+                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Checkout Date</label>
+                                <input
+                                    type="date"
+                                    value={bulkCheckoutDate}
+                                    onChange={(e) => setBulkCheckoutDate(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-xs text-slate-900 dark:text-white"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Checkout Time</label>
+                                <input
+                                    type="time"
+                                    value={bulkCheckoutTime}
+                                    onChange={(e) => setBulkCheckoutTime(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-xs text-slate-900 dark:text-white"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button
+                                type="button"
+                                onClick={() => setShowBulkCheckoutModal(false)}
+                                className="px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-650 dark:text-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    setExitingVisitorIds(prev => [...prev, ...selectedVisitorIds]);
+                                    setTimeout(async () => {
+                                        for (const id of selectedVisitorIds) {
+                                            const v = visitors.find(x => x.id === id);
+                                            if (v) {
+                                                await props.onUpdateVisitor?.(id, {
+                                                    timeOut: bulkCheckoutTime,
+                                                    visitDate: bulkCheckoutDate
+                                                });
+                                                await onLogAction?.(`Bulk checked out visitor: ${v.name} at ${bulkCheckoutTime} on ${bulkCheckoutDate}`);
+                                            }
+                                        }
+                                        setExitingVisitorIds(prev => prev.filter(id => !selectedVisitorIds.includes(id)));
+                                        setSelectedVisitorIds([]);
+                                        setShowBulkCheckoutModal(false);
+                                        alert('Successfully checked out selected visitors in bulk!');
+                                    }, 400);
+                                }}
+                                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20"
+                            >
+                                Confirm Checkout
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
