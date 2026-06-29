@@ -34,6 +34,7 @@ import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { AttendanceAnalytics } from './AttendanceAnalytics';
 import { isEduInstitution } from '../utils/roleUtils';
 import { timeToMinutes, minutesToTime } from '../utils/timeUtils';
+import { ShieldIcon } from './icons/ShieldIcon';
 
 const UserManager = React.lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 
@@ -81,6 +82,7 @@ interface ReportsDashboardProps {
     companyDetails?: CompanyDetails;
     onAddTransaction?: (data: any, items: any[]) => Promise<any>;
     onRefreshData?: () => void;
+    onLogAction?: (action: string, entityId?: string, changes?: any) => Promise<void>;
 }
 
 const ProgressBar: React.FC<{ value: number; max: number }> = ({ value, max }) => {
@@ -380,6 +382,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         if (activeScope === 'inventory') return 'inventory_valuation';
         if (activeScope === 'logistics') return 'fleet_overview';
         if (activeScope === 'boarding') return 'enrollment_capacity';
+        if (activeScope === 'eduvote') return 'turnout';
         return 'visuals';
     });
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');
@@ -412,6 +415,62 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
             fetchInventoryData();
         }
     }, [activeScope, currentInstitution?.id]);
+
+    const [elections, setElections] = useState<any[]>([]);
+    const [candidates, setCandidates] = useState<any[]>([]);
+    const [ballots, setBallots] = useState<any[]>([]);
+    const [loadingElections, setLoadingElections] = useState(false);
+
+    useEffect(() => {
+        if (activeScope === 'eduvote' && currentInstitution?.id) {
+            const fetchElectionData = async () => {
+                setLoadingElections(true);
+                try {
+                    const [eventsData, candData, ballotsData] = await Promise.all([
+                        apiService.fetchModuleRecords('election_events', currentInstitution.id).catch(() => []),
+                        apiService.fetchModuleRecords('election_candidates', currentInstitution.id).catch(() => []),
+                        apiService.fetchModuleRecords('election_ballots', currentInstitution.id).catch(() => [])
+                    ]);
+                    setElections(eventsData || []);
+                    setCandidates(candData || []);
+                    setBallots(ballotsData || []);
+                } catch (error) {
+                    console.error('Failed to load election reports data:', error);
+                } finally {
+                    setLoadingElections(false);
+                }
+            };
+            fetchElectionData();
+        }
+    }, [activeScope, currentInstitution?.id]);
+
+    const totalStudentsCount = useMemo(() => {
+        return (lecturers || []).filter(u => u && u.role === 'student').length;
+    }, [lecturers]);
+
+    const getCandidateName = (studentId: string) => {
+        const user = (lecturers || []).find(u => u && u.id === studentId);
+        return user ? user.name : studentId;
+    };
+
+    const getElectionTitle = (electionId: string) => {
+        const elec = elections.find(e => e.id === electionId);
+        return elec ? elec.title : electionId;
+    };
+
+    const getElectionVotersCount = (electionId: string) => {
+        const electionBallots = ballots.filter(b => b.electionId === electionId);
+        return new Set(electionBallots.map(b => b.receiptHash)).size;
+    };
+
+    const getCandidateVotes = (candidateId: string) => {
+        return ballots.filter(b => b.candidateId === candidateId).length;
+    };
+
+    const isElectionClosed = (electionId: string) => {
+        const elec = elections.find(e => e.id === electionId);
+        return elec ? (elec.status === 'closed' || elec.status === 'completed') : false;
+    };
 
     const calculateTotalPeriods = (structure: LessonStructure[] | undefined): number => {
         if (!structure || !Array.isArray(structure)) return 0;
@@ -699,6 +758,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     };
 
     const subTabs = [
+        { key: 'turnout', label: 'Electoral Turnout & Ballots', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
+        { key: 'candidates', label: 'Candidate Standing Reports', icon: <CheckCircleIcon className="w-5 h-5 mr-3" /> },
         { key: 'inventory_valuation', label: 'Inventory Stock & Valuation', icon: <ArchiveBoxIcon className="w-5 h-5 mr-3" /> },
         { key: 'store_issuances', label: 'Historical Store Issuances', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'fleet_overview', label: isEduTransportScope ? 'School Bus Fleet' : 'Fleet Overview', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
@@ -772,6 +833,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
             if (activeScope === 'logistics') {
                 return ['fleet_overview', 'route_analytics', 'commute_stats', 'distance', 'audit'].includes(tab.key);
             }
+            if (activeScope === 'eduvote') {
+                return ['turnout', 'candidates'].includes(tab.key);
+            }
         }
         
         return true;
@@ -798,6 +862,168 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 </aside>
 
                 <main className="flex-1 min-w-0">
+                    {subTab === 'turnout' && (
+                        <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Elections</span>
+                                    <h4 className="text-3xl font-black text-slate-900 dark:text-white mt-2">{elections.length}</h4>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Active Balloting</span>
+                                    <h4 className="text-3xl font-black text-emerald-600 mt-2">
+                                        {elections.filter(e => e.status === 'active').length}
+                                    </h4>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Completed Audited Elections</span>
+                                    <h4 className="text-3xl font-black text-indigo-600 dark:text-indigo-400 mt-2">
+                                        {elections.filter(e => e.status === 'completed' || e.status === 'closed').length}
+                                    </h4>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20">
+                                    <h4 className="text-sm font-black uppercase tracking-tight">Electoral Registry & Ballot Audits</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Status of live and completed institutional voting events</p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/10">
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Election Event</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Voting Mechanism</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Total Eligible Voters</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Ballots Cast</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Turnout Rate</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                            {loadingElections ? (
+                                                <tr>
+                                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                                        Loading electoral events...
+                                                    </td>
+                                                </tr>
+                                            ) : elections.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                                        No electoral events registered
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                elections.map(elec => {
+                                                    const castVotes = getElectionVotersCount(elec.id);
+                                                    const turnoutPct = totalStudentsCount > 0 ? Math.round((castVotes / totalStudentsCount) * 100) : 0;
+                                                    return (
+                                                        <tr key={elec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                                                            <td className="p-5 text-xs font-black text-slate-900 dark:text-white">{elec.title}</td>
+                                                            <td className="p-5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                                                {elec.votingSystem === 'ranked_choice' ? 'Ranked Choice' : 'First-Past-The-Post (FPTP)'}
+                                                            </td>
+                                                            <td className="p-5 text-xs text-slate-500">{totalStudentsCount}</td>
+                                                            <td className="p-5 text-xs font-bold text-slate-700 dark:text-slate-300">{castVotes}</td>
+                                                            <td className="p-5 text-xs">
+                                                                <div className="flex items-center">
+                                                                    <span className="font-black text-indigo-600 dark:text-indigo-400 mr-2">{turnoutPct}%</span>
+                                                                    <div className="w-16 bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                                                        <div className="bg-indigo-600 h-1.5 rounded-full" style={{ width: `${Math.min(turnoutPct, 100)}%` }}></div>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-5">
+                                                                <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full ${
+                                                                    elec.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 animate-pulse' :
+                                                                    elec.status === 'completed' || elec.status === 'closed' ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400' :
+                                                                    'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                                                                }`}>{elec.status}</span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {subTab === 'candidates' && (
+                        <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20">
+                                    <h4 className="text-sm font-black uppercase tracking-tight">Nominated Candidates Ledger</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Audit profile status, positions, and approval records of all candidates</p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/10">
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Candidate</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Election Event</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Position Contested</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Tagline / Motto</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Votes Received</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                            {loadingElections ? (
+                                                <tr>
+                                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                                        Loading candidates...
+                                                    </td>
+                                                </tr>
+                                            ) : candidates.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                                        No nominated candidates recorded
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                candidates.map(cand => {
+                                                    const closed = isElectionClosed(cand.electionId);
+                                                    const votes = getCandidateVotes(cand.id);
+                                                    return (
+                                                        <tr key={cand.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                                                            <td className="p-5 text-xs font-black text-slate-900 dark:text-white">
+                                                                {getCandidateName(cand.studentId)}
+                                                                <div className="text-[10px] font-normal text-slate-400">{cand.studentId}</div>
+                                                            </td>
+                                                            <td className="p-5 text-xs text-slate-500">{getElectionTitle(cand.electionId)}</td>
+                                                            <td className="p-5 text-xs font-bold text-indigo-600 dark:text-indigo-400">{cand.position}</td>
+                                                            <td className="p-5 text-xs font-medium text-slate-500 italic">"{cand.tagline || 'No tagline registered'}"</td>
+                                                            <td className="p-5 text-xs font-black text-slate-900 dark:text-white">
+                                                                {closed ? (
+                                                                    <span className="text-emerald-600 dark:text-emerald-400">{votes} votes</span>
+                                                                ) : (
+                                                                    <span className="text-slate-400 italic font-medium flex items-center">
+                                                                        <ShieldIcon className="w-3.5 h-3.5 mr-1 text-indigo-500" />
+                                                                        Masked (Live)
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-5">
+                                                                <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full ${
+                                                                    cand.status === 'approved' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400' :
+                                                                    cand.status === 'rejected' ? 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400' :
+                                                                    'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                                                                }`}>{cand.status}</span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {subTab === 'inventory_valuation' && (
                         <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">

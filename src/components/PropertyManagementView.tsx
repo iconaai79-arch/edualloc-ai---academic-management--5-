@@ -260,6 +260,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 idNumber: data.idNumber,
                 taxPin: data.taxPin,
                 bankDetails: data.bankDetails,
+                preferredPaymentMethod: data.preferredPaymentMethod,
                 institutionId,
                 createdAt: new Date().toISOString()
             };
@@ -457,6 +458,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                     <UserIcon className="w-3 h-3 text-slate-400" /> {landlord.email}
                                                 </div>
                                             )}
+                                            {landlord.preferredPaymentMethod && (
+                                                <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 uppercase tracking-tight flex items-center gap-2">
+                                                    <BanknotesIcon className="w-3 h-3 text-emerald-500" /> Method: {landlord.preferredPaymentMethod}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="p-6">
                                             <div className="text-xs font-black text-purple-600">{ownedProperties.length} Properties</div>
@@ -518,6 +524,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 {landlord.email && (
                                     <div className="mt-4 text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
                                         <UserIcon className="w-3 h-3 text-slate-400" /> {landlord.email}
+                                    </div>
+                                )}
+                                {landlord.preferredPaymentMethod && (
+                                    <div className="mt-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase flex items-center gap-2">
+                                        <BanknotesIcon className="w-3 h-3 text-emerald-500" /> Method: {landlord.preferredPaymentMethod}
                                     </div>
                                 )}
                             </div>
@@ -1496,6 +1507,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const InvoicesTab = () => {
         const [search, setSearch] = useState('');
+        const [sendingBulk, setSendingBulk] = useState(false);
+
         const filteredInvoices = invoices.filter(inv => {
             const tenant = tenants.find(t => t.id === inv.tenantId);
             return inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -1507,9 +1520,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             const unit = units.find(u => u.id === inv.unitId);
             if (!tenant || !unit) return alert("Tenant or Unit data missing.");
 
+            const property = properties.find(p => p.id === unit.propertyId);
+            const landlord = property?.landlordId ? landlords.find(l => l.id === property.landlordId) : undefined;
+
             try {
                 const dataUri = await pdfService.generatePMInvoicePdfDataUri(
-                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null
+                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord
                 );
                 const link = document.createElement('a');
                 link.href = dataUri;
@@ -1523,9 +1539,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             const unit = units.find(u => u.id === inv.unitId);
             if (!tenant || !unit) return alert("Tenant data missing.");
 
+            const property = properties.find(p => p.id === unit.propertyId);
+            const landlord = property?.landlordId ? landlords.find(l => l.id === property.landlordId) : undefined;
+
             try {
                 const dataUri = await pdfService.generatePMInvoicePdfDataUri(
-                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null
+                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord
                 );
                 const blob = dataURItoBlob(dataUri);
                 const fileName = `pm/invoices/${inv.invoiceNumber}.pdf`;
@@ -1539,17 +1558,79 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             } catch (err) { alert("Failed to send invoice."); }
         };
 
+        const handleBulkSendInvoices = async () => {
+            const unsentInvoices = filteredInvoices.filter(inv => inv.status !== 'Paid');
+            if (unsentInvoices.length === 0) {
+                return alert("No unpaid invoices found in the current list to send.");
+            }
+
+            if (!confirm(`Are you sure you want to generate and send ${unsentInvoices.length} invoices via SMS?`)) return;
+
+            setSendingBulk(true);
+            let successCount = 0;
+            let failCount = 0;
+
+            try {
+                for (const inv of unsentInvoices) {
+                    const tenant = tenants.find(t => t.id === inv.tenantId);
+                    const unit = units.find(u => u.id === inv.unitId);
+                    if (!tenant || !unit || !tenant.phoneNumber) {
+                        failCount++;
+                        continue;
+                    }
+
+                    const property = properties.find(p => p.id === unit.propertyId);
+                    const landlord = property?.landlordId ? landlords.find(l => l.id === property.landlordId) : undefined;
+
+                    try {
+                        const dataUri = await pdfService.generatePMInvoicePdfDataUri(
+                            inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord
+                        );
+                        const blob = dataURItoBlob(dataUri);
+                        const fileName = `pm/invoices/${inv.invoiceNumber}.pdf`;
+                        const publicUrl = await apiService.uploadBlob(fileName, blob);
+                        
+                        const msg = `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${publicUrl}`;
+                        await apiService.sendSms(tenant.phoneNumber, msg, currentInstitution.smsConfig, 1, institutionId);
+                        successCount++;
+                    } catch (err) {
+                        console.error(`Failed to send invoice #${inv.invoiceNumber} to ${tenant.name}:`, err);
+                        failCount++;
+                    }
+                }
+                alert(`Bulk invoice send complete!\nSuccessfully sent: ${successCount}\nFailed: ${failCount}`);
+                loadData();
+            } catch (error) {
+                console.error("Error in bulk invoice dispatch:", error);
+                alert("Bulk invoice send encountered an error.");
+            } finally {
+                setSendingBulk(false);
+            }
+        };
+
         return (
             <div className="space-y-6 animate-in fade-in duration-500">
-                <div className="flex bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm gap-4 items-center">
-                    <SearchIcon className="w-5 h-5 text-slate-400 ml-2" />
-                    <input 
-                        type="search" 
-                        placeholder="Search invoices by number or tenant name..."
-                        className="flex-1 bg-transparent font-bold outline-none text-sm dark:text-white"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
+                <div className="flex bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm gap-4 items-center flex-wrap sm:flex-nowrap">
+                    <div className="flex flex-1 items-center gap-4 min-w-[200px]">
+                        <SearchIcon className="w-5 h-5 text-slate-400 ml-2" />
+                        <input 
+                            type="search" 
+                            placeholder="Search invoices by number or tenant name..."
+                            className="flex-1 bg-transparent font-bold outline-none text-sm dark:text-white"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                    {filteredInvoices.length > 0 && (
+                        <button
+                            onClick={handleBulkSendInvoices}
+                            disabled={sendingBulk}
+                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black uppercase tracking-widest text-[10px] py-3.5 px-6 rounded-2xl flex items-center gap-2 transition-all shadow-md shadow-emerald-600/10 shrink-0 ml-auto"
+                        >
+                            <PaperAirplaneIcon className="w-4.5 h-4.5" />
+                            {sendingBulk ? "Sending..." : "Bulk Send via SMS"}
+                        </button>
+                    )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredInvoices.map(inv => {
@@ -3121,7 +3202,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
                     <UserManager 
                         currentInstitution={currentInstitution} 
-                        currentUser={currentUser} 
+                        currentUser={currentUser as User} 
                         users={users} 
                         showOnly="staff"
                         onAddUser={onAddUser}
@@ -3289,6 +3370,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         idNumber: formData.get('idNumber') as string,
                         taxPin: formData.get('taxPin') as string,
                         bankDetails: formData.get('bankDetails') as string,
+                        preferredPaymentMethod: formData.get('preferredPaymentMethod') as string,
                     });
                 }} className="space-y-6">
                     <div className="space-y-2">
@@ -3316,8 +3398,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Bank Details</label>
-                        <textarea name="bankDetails" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all h-24" placeholder="Bank Name, Branch, Account Number..." />
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Preferred Payment Method</label>
+                        <select name="preferredPaymentMethod" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                            <option value="Bank">Bank Transfer</option>
+                            <option value="M-Pesa">M-Pesa</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Other">Other / Multiple</option>
+                        </select>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Bank / Payment Details</label>
+                        <textarea name="bankDetails" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all h-24" placeholder="Bank name & details, or M-Pesa Till/Paybill details..." />
                     </div>
                     <button type="submit" className="w-full bg-purple-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-500/20 mt-4">Save Landlord Profile</button>
                 </form>

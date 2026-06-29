@@ -3191,6 +3191,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         <option value="Students">Driving Students Only</option>
                                         <option value="Instructors">Instructors Only</option>
                                         <option value="Staff">Administrative Staff</option>
+                                        <option value="Leads">Enquiry Leads Only ({(leads || []).length})</option>
                                     </select>
                                 </div>
                                 {formData.target === 'Students' && (
@@ -8637,6 +8638,8 @@ END $$;
                                 onNewBroadcast={() => setActionModal({ type: 'broadcast' })} 
                                 currentInstitution={currentInstitution}
                                 leads={leads}
+                                students={normalizedStudents}
+                                instructors={normalizedInstructors}
                             />
                         </div>
                     )}
@@ -10201,6 +10204,7 @@ END $$;
                                      let targetUsers: any[] = data.target === 'Students' ? (students || []) : 
                                                        data.target === 'Instructors' ? (instructors || []) : 
                                                        data.target === 'Staff' ? (users || []).filter((u: User) => u.role !== 'student') : 
+                                                       data.target === 'Leads' ? (leads || []) :
                                                        [...(students || []), ...(instructors || [])];
 
                                      if (data.target === 'Students') {

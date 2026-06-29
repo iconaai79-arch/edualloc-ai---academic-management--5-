@@ -4976,7 +4976,8 @@ export const generatePMInvoicePdfDataUri = async (
     unit: PMUnit,
     institution: Institution,
     companyDetails: CompanyDetails,
-    logoUrl: string | null
+    logoUrl: string | null,
+    landlord?: PMLandlord
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -5023,6 +5024,19 @@ export const generatePMInvoicePdfDataUri = async (
             doc.setFont('helvetica', 'bold');
             doc.text('TOTAL AMOUNT DUE:', pageWidth - margin - 60, finalY + 15);
             doc.text(`KES ${invoice.amount?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+
+            if (landlord) {
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.text('PAYMENT INSTRUCTIONS:', margin, finalY + 35);
+                doc.setFont('helvetica', 'normal');
+                const method = landlord.preferredPaymentMethod || 'Not Specified';
+                doc.text(`Preferred Payment Method: ${method}`, margin, finalY + 42);
+                if (landlord.bankDetails) {
+                    const lines = doc.splitTextToSize(`Details: ${landlord.bankDetails}`, pageWidth - (margin * 2));
+                    doc.text(lines, margin, finalY + 49);
+                }
+            }
         }
     });
 

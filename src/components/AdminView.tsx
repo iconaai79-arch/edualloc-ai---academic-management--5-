@@ -477,7 +477,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector'>('dashboard');
-    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds'>('console_hub');
+    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'eduvote'>('console_hub');
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
@@ -871,6 +871,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (isEdu || isSchool) {
                 if (activeScope === 'console_hub') {
                     return false; // Hide sidebar navigation entirely when in the console gateway!
+                }
+                if (activeScope === 'eduvote') {
+                    return ['eduvote', 'reports'].includes(tab.id);
                 }
                 if (activeScope === 'academics') {
                     const academicsTabs = ['settings', 'reports'];
@@ -1754,7 +1757,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 alert("The EduVote AI Student Elections module is currently inactive. Please activate it under Config -> Subscription to access these features.");
                                                 return;
                                             }
-                                            setActiveScope('academics');
+                                            setActiveScope('eduvote');
                                             setActiveTab('eduvote');
                                         }}
                                         className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}

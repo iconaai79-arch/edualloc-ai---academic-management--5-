@@ -24,6 +24,8 @@ interface DSBroadcasterViewProps {
     onNewBroadcast?: () => void;
     currentInstitution?: any;
     leads?: DSLead[];
+    students?: any[];
+    instructors?: any[];
 }
 
 const MOCK_MESSAGES: Broadcast[] = [
@@ -33,7 +35,7 @@ const MOCK_MESSAGES: Broadcast[] = [
     { id: 'b4', title: 'Theory Session', message: 'Defensive Driving theory session for Group B starts in 20 mins at Room 2.', type: 'Info', priority: 'Medium', timestamp: '1 hour ago' },
 ];
 
-export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroadcast, currentInstitution, leads = [] }) => {
+export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroadcast, currentInstitution, leads = [], students = [], instructors = [] }) => {
     const [activeTab, setActiveTab] = useState<'Live Feed' | 'Sent' | 'Outbox'>('Live Feed');
     const [sentBroadcasts, setSentBroadcasts] = useState<any[]>([]);
     const [loadingSent, setLoadingSent] = useState(false);
@@ -248,6 +250,42 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroad
                             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 italic">Broadcaster active</p>
                             <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl">
                                 <MegaphoneIcon className="w-8 h-8 text-indigo-600" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <h3 className="text-xl font-black uppercase tracking-tighter mb-8 italic text-slate-900 dark:text-white">Audience <span className="text-indigo-600">Reach</span></h3>
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl">
+                                <div className="flex items-center gap-3">
+                                    <UsersIcon className="w-5 h-5 text-indigo-600" />
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Driving Students</p>
+                                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-450 mt-0.5">Active Learners</p>
+                                    </div>
+                                </div>
+                                <span className="text-sm font-black text-slate-900 dark:text-white">{students.length}</span>
+                            </div>
+                            <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl">
+                                <div className="flex items-center gap-3">
+                                    <UsersIcon className="w-5 h-5 text-purple-600" />
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Instructors</p>
+                                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-450 mt-0.5">Active Trainers</p>
+                                    </div>
+                                </div>
+                                <span className="text-sm font-black text-slate-900 dark:text-white">{instructors.length}</span>
+                            </div>
+                            <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
+                                <div className="flex items-center gap-3">
+                                    <SparklesIcon className="w-5 h-5 text-rose-600 animate-pulse" />
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Enquiry Leads</p>
+                                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-450 mt-0.5">Marketing Prospects</p>
+                                    </div>
+                                </div>
+                                <span className="text-sm font-black text-rose-600 animate-pulse">{leads.length}</span>
                             </div>
                         </div>
                     </div>

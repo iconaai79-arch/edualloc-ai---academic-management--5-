@@ -2670,6 +2670,7 @@ export interface PMLandlord {
     idNumber?: string;
     taxPin?: string;
     bankDetails?: string;
+    preferredPaymentMethod?: string;
     institutionId: string;
     createdAt: string;
 }
