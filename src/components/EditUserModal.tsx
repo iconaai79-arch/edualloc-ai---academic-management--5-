@@ -83,7 +83,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       setStaffId(user.staffId || '');
       setExpertise(user.expertise?.join(', ') || '');
       const userRoles = Array.isArray(user.roles) && user.roles.length > 0 ? user.roles : [user.role];
-      setRoles(userRoles);
+      const validRoles = userRoles.filter(r => r && selectableRoles.includes(r as Role));
+      setRoles(validRoles);
       // Use fixed ID if provided, otherwise fallback to user's dept or empty
       setAssignedDepartmentId(fixedDepartmentId || user.departmentId || '');
       setGender(user.gender || 'Male');
@@ -100,7 +101,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         setSelectedCounty('');
       }
     }
-  }, [user, fixedDepartmentId]);
+  }, [user, fixedDepartmentId, selectableRoles]);
 
   const toggleRole = (r: Role) => {
     setRoles(prev =>

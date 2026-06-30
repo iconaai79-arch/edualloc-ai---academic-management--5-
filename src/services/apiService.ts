@@ -332,6 +332,21 @@ export const apiService = {
         // 4. Final fallback: return the original normalized URL unchanged
         return normalizedUrl;
     },
+    async checkUrl(url: string): Promise<{ success: boolean; status?: number; finalUrl?: string; ok?: boolean; message?: string }> {
+        try {
+            const res = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'checkUrl', url })
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+            return { success: false, message: 'Server responded with error status: ' + res.status };
+        } catch (err: any) {
+            return { success: false, message: err.message || 'Failed to check URL' };
+        }
+    },
     async incrementCount(table: string, id: string, field: 'view_count' | 'inquiry_count'): Promise<void> {
         if (!_supabase) {
             const records = ls.get(table);
