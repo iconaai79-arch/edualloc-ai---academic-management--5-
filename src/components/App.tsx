@@ -6409,11 +6409,12 @@ export const App: React.FC = () => {
                                 };
 
                                 const normE = normalizePhoneForCheck(e);
+                                let discovered: any[] = [];
 
                                 // Discovery Phase: Search for user directly in DB if not in local cache
                                 let matchedUsers = (users || []).filter(u => {
                                     if (!u) return false;
-                                    const emailMatch = u.email?.toLowerCase() === e.toLowerCase();
+                                    const emailMatch = u.email?.trim().toLowerCase() === e.trim().toLowerCase();
                                     const phoneMatch = u.phoneNumber && normE && normalizePhoneForCheck(u.phoneNumber) === normE;
                                     const passMatch = u.password === p || (!u.password && p === 'password123');
                                     return (emailMatch || phoneMatch) && passMatch;
@@ -6421,7 +6422,6 @@ export const App: React.FC = () => {
                                 
                                 if (matchedUsers.length === 0) {
                                     console.log(`[Login Discovery] No local match for "${e}". Attempting API discovery...`);
-                                    let discovered: any[] = [];
                                     
                                     if (e.includes('@')) {
                                         try {
@@ -6447,11 +6447,16 @@ export const App: React.FC = () => {
                                     }
                                     
                                     if (discovered.length > 0) {
+                                        // Sync discovered users to state to prevent future discovery hits (even on password mismatch)
+                                        setUsers(prev => {
+                                            const existingIds = new Set((prev || []).map(u => u?.id));
+                                            const newUsers = discovered.filter(u => u && !existingIds.has(u.id));
+                                            return [...(prev || []), ...newUsers];
+                                        });
+
                                         matchedUsers = discovered.filter(u => u.password === p || (!u.password && p === 'password123'));
                                         if (matchedUsers.length > 0) {
                                             console.log(`[Login Discovery] Found ${matchedUsers.length} matches via API.`);
-                                            // Sync discovered users to state to prevent future discovery hits
-                                            setUsers(prev => [...(prev || []), ...matchedUsers]);
                                         }
                                     }
                                 }
@@ -6542,9 +6547,10 @@ export const App: React.FC = () => {
 
                                 // Debugging Login Failures
                                 const debugNormE = normalizePhoneForCheck(e);
-                                const accountExists = (users || []).some(user => 
+                                const allCheckedUsers = [...(users || []), ...discovered];
+                                const accountExists = allCheckedUsers.some(user => 
                                     user && (
-                                        user.email?.toLowerCase() === e.toLowerCase() || 
+                                        user.email?.toLowerCase().trim() === e.toLowerCase().trim() || 
                                         (user.phoneNumber && debugNormE && normalizePhoneForCheck(user.phoneNumber) === debugNormE)
                                     )
                                 );
