@@ -981,7 +981,32 @@ export const apiService = {
             const records = ls.get(module);
             const idsSet = new Set(idsArray);
             ls.set(module, records.filter((r: any) => !idsSet.has(r.id)));
+
+            if (module === 'users') {
+                // Delete linked ds_students
+                const dsStudents = ls.get('ds_students');
+                ls.set('ds_students', (dsStudents || []).filter((s: any) => s && !idsSet.has(s.userId) && !idsSet.has(s.user_id)));
+                
+                // Delete linked ds_instructors
+                const dsInstructors = ls.get('ds_instructors');
+                ls.set('ds_instructors', (dsInstructors || []).filter((i: any) => i && !idsSet.has(i.userId) && !idsSet.has(i.user_id)));
+            }
             return;
+        }
+
+        // Delete linked DS records first (client side direct delete)
+        if (module === 'users' && _supabase) {
+            try {
+                if (idsArray.length === 1) {
+                    await _supabase.from('ds_students').delete().eq('user_id', idsArray[0]);
+                    await _supabase.from('ds_instructors').delete().eq('user_id', idsArray[0]);
+                } else {
+                    await _supabase.from('ds_students').delete().in('user_id', idsArray);
+                    await _supabase.from('ds_instructors').delete().in('user_id', idsArray);
+                }
+            } catch (err) {
+                console.warn('[deleteModuleRecord] Client-side linked DS delete failed:', err);
+            }
         }
 
         // ── Tier 1: Supabase RPC with SECURITY DEFINER (bypasses RLS, no body parsing) ──

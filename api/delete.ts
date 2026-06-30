@@ -98,6 +98,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ success: false, error: 'No ids provided. Send { ids: [...] } in body.' });
     }
 
+    if (moduleName === 'users') {
+      try {
+        if (idsArray.length === 1) {
+          await supabase.from('ds_students').delete().eq('user_id', idsArray[0]);
+          await supabase.from('ds_instructors').delete().eq('user_id', idsArray[0]);
+        } else {
+          await supabase.from('ds_students').delete().in('user_id', idsArray);
+          await supabase.from('ds_instructors').delete().in('user_id', idsArray);
+        }
+      } catch (err) {
+        console.error('[/api/delete] Failed to delete linked DS records:', err);
+      }
+    }
+
     let q = supabase.from(moduleName).delete();
     if (idsArray.length === 1) {
       q = q.eq('id', idsArray[0]);
