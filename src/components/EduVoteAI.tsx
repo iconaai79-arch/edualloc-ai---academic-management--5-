@@ -7,6 +7,7 @@ import {
 import { apiService } from '../services/apiService';
 import { localDb } from '../services/localDb';
 import { syncEngine } from '../services/syncEngine';
+import { generateStudentVotersCardsPdf } from '../services/pdfService';
 import type { User, ElectionEvent, ElectionCandidate } from '../types';
 
 interface EduVoteAIProps {
@@ -39,6 +40,7 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
     const [generatedPasscodes, setGeneratedPasscodes] = useState<string[]>([]);
     const [showPasscodeModal, setShowPasscodeModal] = useState(false);
     const [passcodeQty, setPasscodeQty] = useState(10);
+    const [generatingCards, setGeneratingCards] = useState<string | null>(null);
 
     // Fetch Initial Data
     const fetchData = useCallback(async () => {
@@ -187,6 +189,32 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
         setShowPasscodeModal(true);
     };
 
+    const handlePrintVoterPasses = async (election: ElectionEvent) => {
+        setGeneratingCards(election.id);
+        try {
+            const instId = user.institutionId || 'GLOBAL';
+            const instData = await apiService.fetchModuleRecord('institutions', instId).catch(() => null);
+            const institution = instData || { name: 'My School' };
+
+            // Fetch active branding logo if any
+            const logoUrl = institution.logoUrl || institution.logo_url || '';
+
+            const pdfDataUri = await generateStudentVotersCardsPdf(election, students, institution, logoUrl);
+
+            const link = document.createElement('a');
+            link.href = pdfDataUri;
+            link.download = `Voter_Passes_${election.title.replace(/\s+/g, '_')}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error('[EduVoteAI] Failed to generate voter cards:', error);
+            alert('Failed to generate voter cards. Please verify that QRCode library is loaded.');
+        } finally {
+            setGeneratingCards(null);
+        }
+    };
+
     // Map candidate names using users database list
     const candidatesWithProfiles = useMemo(() => {
         return candidates.map(c => {
@@ -298,6 +326,20 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
                                                     <BarChart2 className="w-5 h-5" />
                                                 </button>
                                             )}
+
+                                            {/* Print Voter Passes */}
+                                            <button
+                                                onClick={() => handlePrintVoterPasses(election)}
+                                                className="p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl transition-all flex items-center justify-center"
+                                                title="Print Voter Passes"
+                                                disabled={generatingCards === election.id}
+                                            >
+                                                {generatingCards === election.id ? (
+                                                    <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                                ) : (
+                                                    <FileText className="w-5 h-5" />
+                                                )}
+                                            </button>
 
                                             {/* Status Switchers */}
                                             {election.status === 'draft' && (

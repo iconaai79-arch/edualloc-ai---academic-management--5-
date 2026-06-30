@@ -7354,3 +7354,174 @@ export const generateTransferLetterPdf = async (
     return doc.output('datauristring');
 };
 
+export const generateStudentVotersCardsPdf = async (
+    election: any,
+    voters: any[],
+    institution: any,
+    logoUrl?: string
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+
+    // Standard CR80 dimensions in landscape (85.6mm x 54mm)
+    const doc = new lib.jsPDF('l', 'mm', [85.6, 54]);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const logoImg = logoUrl ? await loadImage(logoUrl) : null;
+
+    for (let i = 0; i < voters.length; i++) {
+        const voter = voters[i];
+        if (i > 0) {
+            doc.addPage([85.6, 54], 'l');
+        }
+
+        // Background card fill
+        doc.setFillColor(253, 254, 255);
+        doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+        // Header panel: Dark indigo/violet color theme (Admin/EduVote design accent)
+        doc.setFillColor(79, 70, 229);
+        doc.rect(0, 0, pageWidth, 12, 'F');
+
+        // Thin Gold accent line
+        doc.setFillColor(245, 158, 11);
+        doc.rect(0, 12, pageWidth, 1.2, 'F');
+
+        // Header text elements
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text((institution.name || 'INSTITUTION').toUpperCase(), pageWidth / 2, 5.5, { align: 'center' });
+        doc.setFontSize(5);
+        doc.setFont('helvetica', 'normal');
+        doc.text('OFFICIAL STUDENT COUNCIL VOTER PASS', pageWidth / 2, 9, { align: 'center' });
+
+        if (logoImg) {
+            try {
+                doc.addImage(logoImg, 'PNG', 3, 2, 8, 8);
+            } catch (_) {}
+        }
+
+        // Details Panel on the left side
+        const leftMargin = 6;
+        let detailY = 19;
+
+        // Election title (smaller accent print)
+        doc.setTextColor(79, 70, 229);
+        doc.setFontSize(5.5);
+        doc.setFont('helvetica', 'bold');
+        const elecTitle = (election.title || 'General Election').toUpperCase();
+        doc.text(`ELECTION: ${elecTitle}`, leftMargin, detailY);
+
+        detailY += 4.5;
+
+        // Voter's Full Name
+        doc.setTextColor(17, 24, 39); // Gray 900
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        const nameText = (voter.name || 'Unknown Student').toUpperCase();
+        doc.text(nameText, leftMargin, detailY);
+
+        detailY += 4.5;
+
+        // Admission Number
+        doc.setTextColor(107, 114, 128); // Gray 500
+        doc.setFontSize(5);
+        doc.setFont('helvetica', 'normal');
+        doc.text('VOTER REGISTRATION NO.', leftMargin, detailY);
+
+        detailY += 3;
+        doc.setTextColor(17, 24, 39);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'bold');
+        const admissionNo = voter.admissionNumber || voter.admission_number || voter.staffId || voter.id.substring(0, 8);
+        doc.text(admissionNo, leftMargin, detailY);
+
+        detailY += 4.5;
+
+        // Voter ID / Email
+        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(5);
+        doc.setFont('helvetica', 'normal');
+        doc.text('PORTAL LOGIN / VOTER EMAIL', leftMargin, detailY);
+
+        detailY += 3;
+        doc.setTextColor(17, 24, 39);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'bold');
+        const emailText = voter.email || 'N/A';
+        doc.text(emailText, leftMargin, detailY);
+
+        detailY += 4.5;
+
+        // Default password instructions
+        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(5);
+        doc.setFont('helvetica', 'normal');
+        doc.text('PORTAL ACCESS PASSWORD', leftMargin, detailY);
+
+        detailY += 3;
+        doc.setTextColor(17, 24, 39);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Your Portal Password (or password123)', leftMargin, detailY);
+
+        // QR Code on the right side
+        const qrSize = 25;
+        const qrX = pageWidth - qrSize - 6; // 85.6 - 25 - 6 = 54.6 mm
+        const qrY = 17;
+
+        // Draw dynamic QR Code
+        const voterLoginUrl = `${window.location.origin}/?email=${encodeURIComponent(voter.email || '')}&view=student&tab=eduvote`;
+        let qrCodeUrl = '';
+        if (typeof window !== 'undefined' && (window as any).QRCode) {
+            try {
+                qrCodeUrl = await (window as any).QRCode.toDataURL(voterLoginUrl, { margin: 1, width: 150 });
+            } catch (e) {
+                console.warn("QR generation failed for student voter card", e);
+            }
+        }
+
+        if (qrCodeUrl) {
+            try {
+                const qrImg = await loadImage(qrCodeUrl);
+                if (qrImg) {
+                    doc.addImage(qrImg, 'PNG', qrX, qrY, qrSize, qrSize);
+                }
+            } catch (_) {
+                // Draw fallback border
+                doc.setDrawColor(200);
+                doc.rect(qrX, qrY, qrSize, qrSize);
+            }
+        } else {
+            // Draw QR box placeholder with text in center
+            doc.setDrawColor(220);
+            doc.setFillColor(243, 244, 246);
+            doc.rect(qrX, qrY, qrSize, qrSize, 'F');
+            doc.rect(qrX, qrY, qrSize, qrSize);
+            doc.setTextColor(150);
+            doc.setFontSize(5);
+            doc.setFont('helvetica', 'normal');
+            doc.text('SCAN QR', qrX + (qrSize / 2), qrY + (qrSize / 2) - 1, { align: 'center' });
+            doc.text('TO VOTE', qrX + (qrSize / 2), qrY + (qrSize / 2) + 2, { align: 'center' });
+        }
+
+        // Subtext below the QR Code
+        doc.setTextColor(156, 163, 175); // Gray 400
+        doc.setFontSize(4.2);
+        doc.setFont('helvetica', 'bold');
+        doc.text('SCAN TO LOG IN & VOTE', qrX + (qrSize / 2), qrY + qrSize + 2.5, { align: 'center' });
+
+        // Card Footer: Security Banner
+        doc.setFillColor(243, 244, 246);
+        doc.rect(0, pageHeight - 4.5, pageWidth, 4.5, 'F');
+        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(4.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DOUBLE-BLIND CRYPTOGRAPHIC SYSTEM  •  1 BALLOT PER CATEGORY', pageWidth / 2, pageHeight - 1.5, { align: 'center' });
+    }
+
+    return doc.output('datauristring');
+};
+
