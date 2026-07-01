@@ -1406,7 +1406,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             };
             await apiService.saveModuleRecord('pm_payments', p);
 
-            // Automated Receipt Generation and Instant Email Delivery
+            // Automated Receipt Generation and Instant Delivery (Email & SMS)
             const lease = leases.find(l => l.id === p.leaseId);
             const tenant = tenants.find(t => t.id === lease?.tenantId);
             const unit = units.find(u => u.id === lease?.unitId);
@@ -1438,6 +1438,32 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         }).catch(emailErr => {
                             console.error("Failed to send receipt email to tenant:", emailErr);
                         });
+                    }
+
+                    // Instantly send SMS receipt to tenant if phone exists
+                    if (tenant.phoneNumber) {
+                        try {
+                            const blob = dataUriToBlob(dataUri);
+                            const fileName = `receipts/Receipt_${p.id.trim()}.pdf`;
+                            const publicUrl = await apiService.uploadBlob(fileName, blob);
+                            const shortUrl = await apiService.shortenUrl(publicUrl);
+                            
+                            const smsMessage = `Dear ${tenant.name}, payment of KES ${amount.toLocaleString()} for Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. Download receipt here: ${shortUrl}`;
+                            
+                            apiService.sendSms(
+                                tenant.phoneNumber, 
+                                smsMessage, 
+                                currentInstitution.smsConfig, 
+                                1, 
+                                currentInstitution.id!
+                            ).then(() => {
+                                console.log(`Receipt SMS sent successfully to ${tenant.phoneNumber}`);
+                            }).catch(smsErr => {
+                                console.error("Failed to send receipt SMS:", smsErr);
+                            });
+                        } catch (smsErr) {
+                            console.warn("SMS processing failed:", smsErr);
+                        }
                     }
                 } catch (pdfErr) {
                     console.error("PDF Receipt Generation/Delivery Fail:", pdfErr);
