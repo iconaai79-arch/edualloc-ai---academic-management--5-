@@ -19,6 +19,8 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
     const [elections, setElections] = useState<ElectionEvent[]>([]);
     const [candidates, setCandidates] = useState<ElectionCandidate[]>([]);
     const [students, setStudents] = useState<User[]>([]);
+    const [courses, setCourses] = useState<any[]>([]);
+    const [courseLevels, setCourseLevels] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     
     // Form States
@@ -42,21 +44,32 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
     const [passcodeQty, setPasscodeQty] = useState(10);
     const [generatingCards, setGeneratingCards] = useState<string | null>(null);
 
+    // Voters Card Print & Preview Modal States
+    const [showPrintModal, setShowPrintModal] = useState<ElectionEvent | null>(null);
+    const [selectedGrade, setSelectedGrade] = useState<string>('');
+    const [selectedStream, setSelectedStream] = useState<string>('');
+    const [selectedVoters, setSelectedVoters] = useState<Set<string>>(new Set());
+    const [qrUrls, setQrUrls] = useState<Record<string, string>>({});
+
     // Fetch Initial Data
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const instId = user.institutionId || 'GLOBAL';
             
-            // Fetch events, candidates, and users for the tenant
-            const [eventsData, candData, usersData] = await Promise.all([
+            // Fetch events, candidates, users, courses, and levels for the tenant
+            const [eventsData, candData, usersData, coursesData, levelsData] = await Promise.all([
                 apiService.fetchModuleRecords('election_events', instId).catch(() => []),
                 apiService.fetchModuleRecords('election_candidates', instId).catch(() => []),
-                apiService.fetchModuleRecords('users', instId).catch(() => [])
+                apiService.fetchModuleRecords('users', instId).catch(() => []),
+                apiService.fetchModuleRecords('courses', instId).catch(() => []),
+                apiService.fetchModuleRecords('course_levels', instId).catch(() => [])
             ]);
 
             setElections(eventsData || []);
             setCandidates(candData || []);
+            setCourses(coursesData || []);
+            setCourseLevels(levelsData || []);
             
             // Only keep students in nominee list
             const studentUsers = (usersData || []).filter((u: any) => u.role === 'student');
@@ -189,7 +202,77 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
         setShowPasscodeModal(true);
     };
 
-    const handlePrintVoterPasses = async (election: ElectionEvent) => {
+    const handlePrintVoterPasses = (election: ElectionEvent) => {
+        setShowPrintModal(election);
+        setSelectedGrade('');
+        setSelectedStream('');
+    };
+
+    // Filtered voters for card preview
+    const filteredVoters = useMemo(() => {
+        if (!showPrintModal) return [];
+        return students.filter(std => {
+            const matchesGrade = !selectedGrade || std.courseId === selectedGrade;
+            const matchesStream = !selectedStream || std.courseLevelId === selectedStream;
+            return matchesGrade && matchesStream;
+        });
+    }, [showPrintModal, students, selectedGrade, selectedStream]);
+
+    // Update selected voters set automatically when filtered list changes
+    useEffect(() => {
+        if (showPrintModal) {
+            setSelectedVoters(new Set(filteredVoters.map(v => v.id)));
+        }
+    }, [filteredVoters, showPrintModal]);
+
+    // Pre-generate QR codes sequentially for filtered voters when they change
+    useEffect(() => {
+        let isCurrent = true;
+        
+        const generateQrs = async () => {
+            if (!showPrintModal || filteredVoters.length === 0) return;
+            const urls: Record<string, string> = {};
+            
+            for (const voter of filteredVoters) {
+                if (!isCurrent) break;
+                if (qrUrls[voter.id]) {
+                    urls[voter.id] = qrUrls[voter.id];
+                    continue;
+                }
+                
+                const voterLoginUrl = `${window.location.origin}/?email=${encodeURIComponent(voter.email || '')}&view=student&tab=eduvote`;
+                if (typeof window !== 'undefined' && (window as any).QRCode) {
+                    try {
+                        const url = await (window as any).QRCode.toDataURL(voterLoginUrl, { margin: 1, width: 120 });
+                        urls[voter.id] = url;
+                    } catch (e) {
+                        console.warn("QR pre-generation failed for voter card", e);
+                    }
+                }
+            }
+            if (isCurrent) {
+                setQrUrls(prev => ({ ...prev, ...urls }));
+            }
+        };
+
+        generateQrs();
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [filteredVoters, showPrintModal]);
+
+    const handleDownloadVoterPasses = async () => {
+        if (!showPrintModal) return;
+        const election = showPrintModal;
+        
+        // Filter students list to only include selected voters
+        const targetVoters = filteredVoters.filter(v => selectedVoters.has(v.id));
+        if (targetVoters.length === 0) {
+            alert("Please select at least one voter to print passes.");
+            return;
+        }
+
         setGeneratingCards(election.id);
         try {
             const instId = user.institutionId || 'GLOBAL';
@@ -199,7 +282,7 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
             // Fetch active branding logo if any
             const logoUrl = institution.logoUrl || institution.logo_url || '';
 
-            const pdfDataUri = await generateStudentVotersCardsPdf(election, students, institution, logoUrl);
+            const pdfDataUri = await generateStudentVotersCardsPdf(election, targetVoters, institution, logoUrl);
 
             const link = document.createElement('a');
             link.href = pdfDataUri;
@@ -672,6 +755,199 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
                             >
                                 Regenerate
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* VOTER PASS PREVIEW & FILTER MODAL */}
+            {showPrintModal && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[1000] animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-5xl h-[85vh] rounded-[3rem] p-10 border border-slate-100 dark:border-slate-700 shadow-2xl flex flex-col justify-between">
+                        {/* Modal Header */}
+                        <div className="flex justify-between items-center pb-6 border-b border-slate-100 dark:border-slate-700/60">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight">Print & Preview Voter Passes</h3>
+                                <p className="text-xs text-slate-400 mt-1">Configure filters, preview cards on-screen, and print official voter credentials.</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowPrintModal(null)}
+                                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-950 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        {/* Filters Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-6 bg-slate-50 dark:bg-slate-900/30 px-6 rounded-3xl mt-4">
+                            <div>
+                                <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-2">Filter by Grade/Course</label>
+                                <select 
+                                    value={selectedGrade} 
+                                    onChange={(e) => {
+                                        setSelectedGrade(e.target.value);
+                                        setSelectedStream('');
+                                    }}
+                                    className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs focus:outline-none"
+                                >
+                                    <option value="">All Grades / Courses</option>
+                                    {courses.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-2">Filter by Stream/Level</label>
+                                <select 
+                                    value={selectedStream} 
+                                    onChange={(e) => setSelectedStream(e.target.value)}
+                                    className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs focus:outline-none"
+                                    disabled={!selectedGrade}
+                                >
+                                    <option value="">All Streams</option>
+                                    {courseLevels
+                                        .filter(l => l.courseId === selectedGrade)
+                                        .map(l => (
+                                            <option key={l.id} value={l.id}>{l.name}</option>
+                                        ))
+                                    }
+                                </select>
+                            </div>
+                            <div className="flex items-end justify-between md:justify-end gap-3 h-full pb-1">
+                                <button
+                                    onClick={() => setSelectedVoters(new Set(filteredVoters.map(v => v.id)))}
+                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 text-slate-500 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                >
+                                    Select All
+                                </button>
+                                <button
+                                    onClick={() => setSelectedVoters(new Set())}
+                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 text-slate-500 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                >
+                                    Deselect All
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Cards Preview Grid */}
+                        <div className="flex-1 overflow-y-auto my-6 pr-2">
+                            {filteredVoters.length === 0 ? (
+                                <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/10 rounded-[2.5rem] border border-dashed">
+                                    <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+                                    <p className="text-slate-400 text-xs italic">No registered student voters found matching the active filters.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-1">
+                                    {filteredVoters.map(voter => {
+                                        const isChecked = selectedVoters.has(voter.id);
+                                        const regNo = voter.admissionNumber || voter.admission_number || voter.staffId || voter.id.substring(0, 8);
+                                        const instData = localDb.getInstitution?.(user.institutionId || 'GLOBAL') || {};
+                                        
+                                        return (
+                                            <div 
+                                                key={voter.id}
+                                                onClick={() => {
+                                                    setSelectedVoters(prev => {
+                                                        const next = new Set(prev);
+                                                        if (next.has(voter.id)) next.delete(voter.id);
+                                                        else next.add(voter.id);
+                                                        return next;
+                                                    });
+                                                }}
+                                                className={`relative rounded-3xl border-2 transition-all cursor-pointer overflow-hidden bg-white dark:bg-slate-800 flex flex-col justify-between h-[180px] shadow-sm select-none ${
+                                                    isChecked 
+                                                        ? 'border-indigo-600 bg-indigo-50/5 dark:bg-indigo-950/5 shadow-md shadow-indigo-500/5' 
+                                                        : 'border-slate-150 dark:border-slate-700 hover:border-slate-300'
+                                                }`}
+                                            >
+                                                {/* Card Header */}
+                                                <div className="bg-indigo-600 text-white px-5 py-2.5 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Award className="w-4 h-4 text-white animate-pulse" />
+                                                        <div>
+                                                            <div className="text-[7.5px] font-black uppercase tracking-wider">{instData.name || 'Institution'}</div>
+                                                            <div className="text-[5px] opacity-80 uppercase tracking-widest font-black">Official Voter Pass</div>
+                                                        </div>
+                                                    </div>
+                                                    <input 
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => {}} // handled by div click
+                                                        className="w-4 h-4 rounded border-indigo-400 text-indigo-600 focus:ring-0 cursor-pointer pointer-events-none"
+                                                    />
+                                                </div>
+
+                                                {/* Card Body */}
+                                                <div className="p-4 flex justify-between items-center h-full gap-4">
+                                                    <div className="space-y-1.5 text-left max-w-[170px] overflow-hidden">
+                                                        <div className="text-[6.5px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider truncate">
+                                                            Election: {showPrintModal.title}
+                                                        </div>
+                                                        <div className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight truncate">
+                                                            {voter.name || 'Unknown Voter'}
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-[5px] text-slate-400 font-black uppercase tracking-wider">Voter Reg No.</div>
+                                                            <div className="text-[8px] font-bold text-slate-800 dark:text-slate-200">{regNo}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-[5px] text-slate-400 font-black uppercase tracking-wider">Voter Email / ID</div>
+                                                            <div className="text-[8px] font-bold text-slate-850 dark:text-slate-200 truncate max-w-[150px]">{voter.email}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Right QR */}
+                                                    <div className="flex flex-col items-center gap-1.5 shrink-0">
+                                                        {qrUrls[voter.id] ? (
+                                                            <img src={qrUrls[voter.id]} alt="Voter QR" className="w-[60px] h-[60px] border border-slate-100 rounded p-0.5 bg-white shrink-0" />
+                                                        ) : (
+                                                            <div className="w-[60px] h-[60px] bg-slate-100 dark:bg-slate-900 animate-pulse rounded border shrink-0" />
+                                                        )}
+                                                        <span className="text-[5.5px] font-black text-slate-400 uppercase tracking-widest">Scan to Vote</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card Footer */}
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 px-4 py-1.5 text-center border-t border-slate-150/50 dark:border-slate-700/50">
+                                                    <span className="text-[5.5px] font-black text-slate-400 uppercase tracking-widest">Double-Blind Cryptographic Voting Pass</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Actions */}
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-100 dark:border-slate-700/60 mt-auto">
+                            <span className="text-xs font-bold text-slate-400">
+                                Selected: <span className="text-indigo-600 font-black">{selectedVoters.size}</span> of {filteredVoters.length} matching students
+                            </span>
+                            <div className="flex gap-4 w-full sm:w-auto">
+                                <button
+                                    onClick={() => setShowPrintModal(null)}
+                                    className="flex-1 sm:flex-none px-6 py-4 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-3xl font-black text-[10px] uppercase tracking-widest transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDownloadVoterPasses}
+                                    disabled={generatingCards === showPrintModal.id || selectedVoters.size === 0}
+                                    className="flex-1 sm:flex-none px-8 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-3xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {generatingCards === showPrintModal.id ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Compiling passes...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FileText className="w-4 h-4" />
+                                            Download PDF Passes
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
