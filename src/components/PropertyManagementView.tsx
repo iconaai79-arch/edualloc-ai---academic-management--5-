@@ -131,6 +131,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [showTenantImportModal, setShowTenantImportModal] = useState(false);
     const [showLeaseModal, setShowLeaseModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [tenantSearchQuery, setTenantSearchQuery] = useState('');
+    const [selectedLeaseId, setSelectedLeaseId] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [showListingModal, setShowListingModal] = useState(false);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -212,6 +215,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     };
 
     useEffect(() => { loadData(); }, [institutionId]);
+
+    useEffect(() => {
+        if (!showPaymentModal) {
+            setTenantSearchQuery('');
+            setSelectedLeaseId('');
+            setIsDropdownOpen(false);
+        }
+    }, [showPaymentModal]);
 
     // Derived Stats
     const totalRentCollected = payments.filter(p => p.paymentType === 'Rent').reduce((sum, p) => sum + p.amount, 0);
@@ -3682,8 +3693,140 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             )}
 
             <Modal show={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Record Transaction">
-                <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.currentTarget); handleSavePayment({ leaseId: formData.get('leaseId') as string, amount: parseFloat(formData.get('amount') as string) || 0, paymentType: formData.get('paymentType') as PMPaymentType }); }} className="space-y-6">
-                    <select name="leaseId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{leases.filter(l => l.status === 'Active').map(l => <option key={l.id} value={l.id}>{tenants.find(t => t.id === l.tenantId)?.name} - Unit {units.find(u => u.id === l.unitId)?.unitNumber}</option>)}</select>
+                <form onSubmit={(e) => { 
+                    e.preventDefault(); 
+                    if (!selectedLeaseId) {
+                        alert("Please search and select a tenant lease.");
+                        return;
+                    }
+                    const formData = new FormData(e.currentTarget); 
+                    handleSavePayment({ 
+                        leaseId: selectedLeaseId, 
+                        amount: parseFloat(formData.get('amount') as string) || 0, 
+                        paymentType: formData.get('paymentType') as PMPaymentType,
+                        paymentDate: formData.get('paymentDate') as string,
+                        paymentMethod: formData.get('paymentMethod') as PMPaymentMethod
+                    }); 
+                }} className="space-y-6">
+                    {/* Tenant Search & Select Dropdown */}
+                    <div className="relative">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Search Tenant</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                placeholder="Type tenant name or unit number to search..."
+                                value={tenantSearchQuery}
+                                onChange={(e) => {
+                                    setTenantSearchQuery(e.target.value);
+                                    setIsDropdownOpen(true);
+                                }}
+                                onFocus={() => setIsDropdownOpen(true)}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm"
+                            />
+                            {selectedLeaseId && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedLeaseId('');
+                                        setTenantSearchQuery('');
+                                    }}
+                                    className="px-4 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-2xl font-bold text-xs"
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Selected Lease Indicator */}
+                        {selectedLeaseId ? (() => {
+                            const lease = leases.find(l => l.id === selectedLeaseId);
+                            const tenant = tenants.find(t => t.id === lease?.tenantId);
+                            const unit = units.find(u => u.id === lease?.unitId);
+                            return (
+                                <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-100 dark:border-indigo-900/50 flex justify-between items-center">
+                                    <span>Selected: {tenant?.name || 'Unknown'} (Unit {unit?.unitNumber || 'N/A'})</span>
+                                    <span className="text-[9px] bg-indigo-200 dark:bg-indigo-900 text-indigo-850 px-2 py-0.5 rounded-full uppercase tracking-wider">Active Lease</span>
+                                </div>
+                            );
+                        })() : (
+                            <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold border border-amber-100 dark:border-amber-900/50">
+                                ⚠ Please search and select a tenant from the matches list.
+                            </div>
+                        )}
+
+                        {/* Dropdown Options */}
+                        {isDropdownOpen && (
+                            <div className="absolute z-[1100] left-0 right-0 mt-2 max-h-60 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 space-y-1">
+                                {(() => {
+                                    const filtered = leases.filter(l => {
+                                        if (l.status !== 'Active') return false;
+                                        const tenant = tenants.find(t => t.id === l.tenantId);
+                                        const unit = units.find(u => u.id === l.unitId);
+                                        const query = tenantSearchQuery.toLowerCase();
+                                        return (tenant?.name || '').toLowerCase().includes(query) ||
+                                               (unit?.unitNumber || '').toLowerCase().includes(query);
+                                    });
+
+                                    if (filtered.length === 0) {
+                                        return <div className="text-center p-4 text-xs text-slate-400">No active tenants match your search.</div>;
+                                    }
+
+                                    return filtered.map(l => {
+                                        const tenant = tenants.find(t => t.id === l.tenantId);
+                                        const unit = units.find(u => u.id === l.unitId);
+                                        return (
+                                            <div
+                                                key={l.id}
+                                                onClick={() => {
+                                                    setSelectedLeaseId(l.id);
+                                                    setTenantSearchQuery(`${tenant?.name} - Unit ${unit?.unitNumber}`);
+                                                    setIsDropdownOpen(false);
+                                                }}
+                                                className={`p-3 rounded-xl text-xs font-bold cursor-pointer transition-colors text-left flex justify-between items-center ${
+                                                    selectedLeaseId === l.id 
+                                                        ? 'bg-indigo-600 text-white' 
+                                                        : 'hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                                                }`}
+                                            >
+                                                <span>{tenant?.name}</span>
+                                                <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${
+                                                    selectedLeaseId === l.id ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-900 text-slate-400'
+                                                }`}>Unit {unit?.unitNumber}</span>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Payment Date</label>
+                            <input 
+                                type="date" 
+                                name="paymentDate" 
+                                required 
+                                defaultValue={new Date().toISOString().split('T')[0]} 
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Payment Method</label>
+                            <select 
+                                name="paymentMethod" 
+                                required
+                                defaultValue="M-Pesa"
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm"
+                            >
+                                <option value="M-Pesa">M-Pesa</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Cheque">Cheque</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <select name="paymentType" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"><option value="Rent">Rent</option><option value="Utility">Utility Bill</option><option value="Deposit">Deposit</option></select>
                     <input name="amount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Amount Paid" />
                     <button type="submit" className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Finalize Payment</button>
