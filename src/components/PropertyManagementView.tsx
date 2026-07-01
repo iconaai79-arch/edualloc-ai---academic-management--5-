@@ -1413,7 +1413,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             if (tenant && unit) {
                 try {
                     const dataUri = await pdfService.generatePMReceiptPdfDataUri(
-                        p, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null
+                        p, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                        pmSettings?.branding?.letterheadUrl || null
                     );
                     setPreviewPdfUrl(dataUri);
                     setPreviewPdfTitle(`Receipt - ${tenant.name}`);
@@ -1615,7 +1616,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             try {
                 const dataUri = await pdfService.generatePMInvoicePdfDataUri(
-                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord
+                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord,
+                    pmSettings?.branding?.letterheadUrl || null
                 );
                 const link = document.createElement('a');
                 link.href = dataUri;
@@ -1634,7 +1636,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             try {
                 const dataUri = await pdfService.generatePMInvoicePdfDataUri(
-                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord
+                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord,
+                    pmSettings?.branding?.letterheadUrl || null
                 );
                 const blob = dataURItoBlob(dataUri);
                 const fileName = `pm/invoices/${inv.invoiceNumber}.pdf`;
@@ -1674,7 +1677,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                     try {
                         const dataUri = await pdfService.generatePMInvoicePdfDataUri(
-                            inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord
+                            inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord,
+                            pmSettings?.branding?.letterheadUrl || null
                         );
                         const blob = dataURItoBlob(dataUri);
                         const fileName = `pm/invoices/${inv.invoiceNumber}.pdf`;

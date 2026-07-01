@@ -2846,6 +2846,7 @@ export interface PMSettings {
         companyName?: string;
         primaryColor?: string;
         footerText?: string;
+        letterheadUrl?: string;
     };
     rentReminders?: {
         enabled: boolean;

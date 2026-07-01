@@ -23,6 +23,7 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [uploadingLogo, setUploadingLogo] = useState(false);
+    const [uploadingLetterhead, setUploadingLetterhead] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showSuccess, setShowSuccess] = useState(false);
 
@@ -105,6 +106,29 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
             setError("Failed to upload logo. Please check your connection.");
         } finally {
             setUploadingLogo(false);
+        }
+    };
+
+    const handleLetterheadUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !settings) return;
+
+        setUploadingLetterhead(true);
+        setError(null);
+        try {
+            const fileName = `letterheads/pm_${institutionId}_${Date.now()}.${file.name.split('.').pop()}`;
+            const publicUrl = await apiService.uploadFile('eduai', fileName, file, file.type);
+            if (publicUrl) {
+                setSettings({
+                    ...settings,
+                    branding: { ...settings.branding!, letterheadUrl: publicUrl }
+                });
+            }
+        } catch (err) {
+            console.error("Letterhead upload failed:", err);
+            setError("Failed to upload letterhead. Please check your connection.");
+        } finally {
+            setUploadingLetterhead(false);
         }
     };
 
@@ -215,6 +239,47 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                                         {uploadingLogo ? 'Uploading...' : 'Upload New Logo'}
                                     </label>
                                     <p className="text-[10px] text-slate-400 mt-2 uppercase font-bold tracking-tight">Recommended: PNG or SVG, max 2MB</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company Letterhead (For Invoices/Receipts)</label>
+                            <div className="flex items-center gap-4 p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                                {settings.branding?.letterheadUrl ? (
+                                    <div className="relative group">
+                                        <img loading="lazy"
+                                            src={settings.branding.letterheadUrl}
+                                            alt="Letterhead Preview"
+                                            className="w-16 h-16 object-contain rounded-lg bg-white p-1 border border-slate-200"
+                                        />
+                                        <button
+                                            onClick={() => setSettings({ ...settings, branding: { ...settings.branding!, letterheadUrl: '' } })}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <XIcon className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="w-16 h-16 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                                        <UploadIcon className="w-8 h-8 opacity-50" />
+                                    </div>
+                                )}
+                                <div className="flex-grow">
+                                    <input
+                                        type="file"
+                                        id="letterhead-upload"
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={handleLetterheadUpload}
+                                    />
+                                    <label
+                                        htmlFor="letterhead-upload"
+                                        className="btn-secondary py-2 px-4 cursor-pointer inline-flex items-center gap-2 text-sm"
+                                    >
+                                        {uploadingLetterhead ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <UploadIcon className="w-4 h-4" />}
+                                        {uploadingLetterhead ? 'Uploading...' : 'Upload New Letterhead'}
+                                    </label>
+                                    <p className="text-[10px] text-slate-400 mt-2 uppercase font-bold tracking-tight">Recommended: High Resolution Banner image, max 4MB</p>
                                 </div>
                             </div>
                         </div>

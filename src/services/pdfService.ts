@@ -4977,13 +4977,15 @@ export const generatePMInvoicePdfDataUri = async (
     institution: Institution,
     companyDetails: CompanyDetails,
     logoUrl: string | null,
-    landlord?: PMLandlord
+    landlord?: PMLandlord,
+    letterheadUrl?: string | null
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
     const logoImg = await loadImage(logoUrl);
-    const tableStartY = createPdfWithLetterhead(doc, 'RENT INVOICE', companyDetails, institution, logoImg);
+    const headerImg = await loadImage(letterheadUrl || null);
+    const tableStartY = createPdfWithLetterhead(doc, 'RENT INVOICE', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -5049,13 +5051,15 @@ export const generatePMReceiptPdfDataUri = async (
     unit: PMUnit,
     institution: Institution,
     companyDetails: CompanyDetails,
-    logoUrl: string | null
+    logoUrl: string | null,
+    letterheadUrl?: string | null
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
     const logoImg = await loadImage(logoUrl);
-    const tableStartY = createPdfWithLetterhead(doc, 'PAYMENT RECEIPT', companyDetails, institution, logoImg);
+    const headerImg = await loadImage(letterheadUrl || null);
+    const tableStartY = createPdfWithLetterhead(doc, 'PAYMENT RECEIPT', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
