@@ -1406,20 +1406,41 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             };
             await apiService.saveModuleRecord('pm_payments', p);
 
-            // Automated Receipt Generation
-            if (confirm("Payment recorded. Would you like to generate a receipt?")) {
-                const lease = leases.find(l => l.id === p.leaseId);
-                const tenant = tenants.find(t => t.id === lease?.tenantId);
-                const unit = units.find(u => u.id === lease?.unitId);
-                if (tenant && unit) {
-                    try {
-                        const dataUri = await pdfService.generatePMReceiptPdfDataUri(
-                            p, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null
-                        );
-                        setPreviewPdfUrl(dataUri);
-                        setPreviewPdfTitle(`Receipt - ${tenant.name}`);
-                        setShowPdfPreview(true);
-                    } catch (pdfErr) { console.error("PDF Fail:", pdfErr); }
+            // Automated Receipt Generation and Instant Email Delivery
+            const lease = leases.find(l => l.id === p.leaseId);
+            const tenant = tenants.find(t => t.id === lease?.tenantId);
+            const unit = units.find(u => u.id === lease?.unitId);
+            if (tenant && unit) {
+                try {
+                    const dataUri = await pdfService.generatePMReceiptPdfDataUri(
+                        p, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null
+                    );
+                    setPreviewPdfUrl(dataUri);
+                    setPreviewPdfTitle(`Receipt - ${tenant.name}`);
+                    setShowPdfPreview(true);
+
+                    // Instantly send email receipt to tenant if email exists
+                    if (tenant.email) {
+                        const base64Data = dataUri.split(',')[1];
+                        const emailSubject = `Rent Payment Receipt - Unit ${unit.unitNumber}`;
+                        const emailBody = `Dear ${tenant.name},\n\nPlease find attached your payment receipt for KES ${amount.toLocaleString()} recorded on ${p.paymentDate} for Unit ${unit.unitNumber}.\n\nBest Regards,\nProperty Management`;
+                        const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
+                        
+                        apiService.sendEmail(
+                            tenant.email,
+                            emailSubject,
+                            emailBody,
+                            emailConfig,
+                            undefined,
+                            [{ filename: `Receipt_${p.id.trim()}.pdf`, content: base64Data, encoding: 'base64' }]
+                        ).then(() => {
+                            console.log(`Receipt email sent successfully to ${tenant.email}`);
+                        }).catch(emailErr => {
+                            console.error("Failed to send receipt email to tenant:", emailErr);
+                        });
+                    }
+                } catch (pdfErr) {
+                    console.error("PDF Receipt Generation/Delivery Fail:", pdfErr);
                 }
             }
 
