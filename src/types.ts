@@ -2853,6 +2853,7 @@ export interface PMSettings {
         afterDueDays: number;
         template?: string;
     };
+    defaultRentDueDate?: number;
     updatedAt: string;
 }
 

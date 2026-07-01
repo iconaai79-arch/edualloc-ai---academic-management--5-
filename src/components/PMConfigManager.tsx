@@ -52,6 +52,7 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                         afterDueDays: 1,
                         template: 'Dear Tenant, your rent for {month} is due on {due_date}. Please clear it to avoid penalties.'
                     },
+                    defaultRentDueDate: 5,
                     updatedAt: new Date().toISOString()
                 });
             }
@@ -291,6 +292,33 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                                 <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
                                     <PhoneIcon className="w-3 h-3" /> Placeholders: {"{tenant}"}, {"{month}"}, {"{due_date}"}, {"{amount}"}
                                 </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Rent & Payment Policy Section */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 space-y-4 md:col-span-2">
+                    <div className="flex items-center gap-2 border-b pb-2">
+                        <CheckCircleIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        <h3 className="font-bold">Rental & Billing Configuration</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Default Rent Due Day of the Month</label>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="31"
+                                    value={settings.defaultRentDueDate || 5}
+                                    onChange={e => setSettings({ ...settings, defaultRentDueDate: Math.min(31, Math.max(1, parseInt(e.target.value) || 1)) })}
+                                    className="form-input w-24 font-bold text-center"
+                                />
+                                <span className="text-xs text-slate-400 font-medium">
+                                    Day of each calendar month (e.g. 5 means rent is due on the 5th day of every month).
+                                </span>
                             </div>
                         </div>
                     </div>

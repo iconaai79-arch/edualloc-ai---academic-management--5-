@@ -3,7 +3,7 @@ import {
     User, Institution, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
     PMPropertyType, PMUnitStatus, PMLeaseStatus, PMPaymentMethod, PMPaymentType,
     PMPriority, PMTicketStatus, PMLandlord, PMDisbursement, PMInquiry, PMInquiryStatus,
-    CompanyDetails, PMInvoice, PMInvoiceStatus, SmsConfig, Department, Subject, Course, LetterheadConfig, UserUpdateData
+    CompanyDetails, PMInvoice, PMInvoiceStatus, SmsConfig, Department, Subject, Course, LetterheadConfig, UserUpdateData, PMSettings
 } from '../types';
 import { apiService } from '../services/apiService';
 import { PlusIcon } from './icons/PlusIcon';
@@ -134,6 +134,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [tenantSearchQuery, setTenantSearchQuery] = useState('');
     const [selectedLeaseId, setSelectedLeaseId] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [pmSettings, setPmSettings] = useState<PMSettings | null>(null);
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [showListingModal, setShowListingModal] = useState(false);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -176,6 +177,29 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         return [...mappedStaff, ...mappedTenants, ...mappedLandlords] as any[];
     }, [users, tenants, landlords, institutionId]);
 
+    const getNextRentDueDate = (dueDay: number): string => {
+        const today = new Date();
+        let targetMonth = today.getMonth();
+        let targetYear = today.getFullYear();
+        
+        if (today.getDate() > dueDay) {
+            targetMonth += 1;
+            if (targetMonth > 11) {
+                targetMonth = 0;
+                targetYear += 1;
+            }
+        }
+        
+        const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+        const finalDay = Math.min(dueDay, daysInMonth);
+        
+        const dateObj = new Date(targetYear, targetMonth, finalDay);
+        const year = dateObj.getFullYear();
+        const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dayStr = String(dateObj.getDate()).padStart(2, '0');
+        return `${year}-${monthStr}-${dayStr}`;
+    };
+
     const loadData = async () => {
         try {
             setLoading(true);
@@ -190,10 +214,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 apiService.fetchModuleRecords<PMDisbursement>('pm_disbursements', institutionId),
                 apiService.fetchModuleRecords<any>('pm_listings', institutionId),
                 apiService.fetchModuleRecords<PMInquiry>('pm_inquiries', institutionId),
-                apiService.fetchModuleRecords<PMInvoice>('pm_invoices', institutionId)
+                apiService.fetchModuleRecords<PMInvoice>('pm_invoices', institutionId),
+                apiService.fetchModuleRecords<PMSettings>('pm_settings', institutionId)
             ]);
             
-            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv] = results as any[];
+            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv, stg] = results as any[];
 
             setLandlords(ls || []);
             setProperties(ps || []);
@@ -206,6 +231,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             setListings(lts || []);
             setInquiries(inq || []);
             setInvoices(inv || []);
+            
+            if (stg && stg.length > 0) {
+                setPmSettings(stg[0]);
+            } else {
+                setPmSettings(null);
+            }
+            
             onDataChange();
         } catch (error) {
             console.error("Failed to load PM data:", error);
@@ -3997,7 +4029,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         </div>
                         <div className="space-y-1">
                             <label className="text-[10px] font-black uppercase text-slate-400">Due Date</label>
-                            <input name="dueDate" type="date" required className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" />
+                            <input 
+                                name="dueDate" 
+                                type="date" 
+                                required 
+                                defaultValue={pmSettings?.defaultRentDueDate ? getNextRentDueDate(pmSettings.defaultRentDueDate) : new Date().toISOString().split('T')[0]}
+                                className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" 
+                            />
                         </div>
                     </div>
                     <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all mt-4">
