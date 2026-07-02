@@ -407,11 +407,22 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const handleVisitorLookup = () => {
         if (!walkInForm.phone) return;
         setLookupStatus('searching');
-        const matches = (visitors || []).filter(v => v.phoneNumber === walkInForm.phone);
+        const matches = (visitors || []).filter(v => {
+            const vPhone = (v.phoneNumber || v.phone || (v as any).phone_number || '').replace(/\D/g, '');
+            const searchPhone = walkInForm.phone.replace(/\D/g, '');
+            if (!vPhone || !searchPhone) return false;
+            return vPhone.endsWith(searchPhone) || searchPhone.endsWith(vPhone);
+        });
         if (matches.length > 0) {
             const returning = [...matches].sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''))[0];
             if (returning) {
-                setWalkInForm({ ...walkInForm, name: returning.name || '', idNumber: returning.idNumber || '', vehiclePlate: returning.vehiclePlate || '', vehicleModel: returning.vehicleModel || '' });
+                setWalkInForm({ 
+                    ...walkInForm, 
+                    name: returning.name || returning.fullName || '', 
+                    idNumber: returning.idNumber || (returning as any).id_number || (returning as any).nationalId || '', 
+                    vehiclePlate: returning.vehiclePlate || (returning as any).vehicle_plate || '', 
+                    vehicleModel: returning.vehicleModel || (returning as any).vehicle_model || '' 
+                });
                 setLookupStatus('found');
             }
         } else {

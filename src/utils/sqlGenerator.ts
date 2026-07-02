@@ -861,6 +861,7 @@ CREATE TABLE IF NOT EXISTS visitors (
     name TEXT NOT NULL,
     email TEXT,
     phone_number TEXT,
+    id_number TEXT,
     purpose TEXT,
     visit_date DATE NOT NULL,
     time_in TEXT,
