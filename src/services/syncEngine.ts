@@ -108,7 +108,15 @@ class SyncEngine {
                 electionEvents,
                 electionCandidates,
                 electionVotersLedger,
-                electionCheckins
+                electionCheckins,
+                bcSettings,
+                bcCourses,
+                bcStudents,
+                bcTrainers,
+                bcFeeStructures,
+                bcInvoices,
+                bcPayments,
+                bcPracticals
             ] = await Promise.all([
                 apiService.fetchModuleRecords('institutions', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('constituencies').catch(() => []),
@@ -119,7 +127,15 @@ class SyncEngine {
                  apiService.fetchModuleRecords('election_events', tenantId).catch(() => []),
                  apiService.fetchModuleRecords('election_candidates', tenantId).catch(() => []),
                  apiService.fetchModuleRecords('election_voters_ledger', tenantId).catch(() => []),
-                 apiService.fetchModuleRecords('election_checkins', tenantId).catch(() => [])
+                 apiService.fetchModuleRecords('election_checkins', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('bc_settings', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('bc_courses', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('bc_students', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('bc_trainers', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('bc_fee_structures', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('bc_invoices', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('bc_payments', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('bc_practicals', tenantId).catch(() => [])
              ]);
  
              update(50);
@@ -135,7 +151,15 @@ class SyncEngine {
                  ...electionEvents.map((item: any) => localDb.put('election_events', item)),
                  ...electionCandidates.map((item: any) => localDb.put('election_candidates', item)),
                  ...electionVotersLedger.map((item: any) => localDb.put('election_voters_ledger', item)),
-                 ...electionCheckins.map((item: any) => localDb.put('election_checkins', item))
+                 ...electionCheckins.map((item: any) => localDb.put('election_checkins', item)),
+                 ...bcSettings.map((item: any) => localDb.put('bc_settings', item)),
+                 ...bcCourses.map((item: any) => localDb.put('bc_courses', item)),
+                 ...bcStudents.map((item: any) => localDb.put('bc_students', item)),
+                 ...bcTrainers.map((item: any) => localDb.put('bc_trainers', item)),
+                 ...bcFeeStructures.map((item: any) => localDb.put('bc_fee_structures', item)),
+                 ...bcInvoices.map((item: any) => localDb.put('bc_invoices', item)),
+                 ...bcPayments.map((item: any) => localDb.put('bc_payments', item)),
+                 ...bcPracticals.map((item: any) => localDb.put('bc_practicals', item))
              ]);
 
             update(100);

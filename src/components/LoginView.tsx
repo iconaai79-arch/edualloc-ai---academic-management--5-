@@ -652,6 +652,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     const type = e.target.value;
                                                     let cat = '';
                                                     if (type === 'Education') cat = 'Primary';
+                                                    if (type === 'Beauty College') cat = 'beauty college';
                                                     if (type === 'Business') cat = 'Agrovet';
                                                     if (type === 'HIS') cat = 'Hospital/Clinic';
                                                     if (type === 'Law Firm') cat = 'Law Firm';
@@ -664,6 +665,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 }}
                                             >
                                                 <option value="Education">Education Sector</option>
+                                                <option value="Beauty College">Beauty & Cosmetology College</option>
                                                 <option value="HIS">Health Sector (HIS)</option>
                                                 <option value="Pharmacy">Pharmacy / Chemist</option>
                                                 <option value="Business">Business Ecosystem</option>
@@ -717,6 +719,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="Institute">Institute</option>
                                                         <option value="Polytechnic">Polytechnic</option>
                                                         <option value="Driving School">Driving School</option>
+                                                        <option value="beauty college">Beauty & Cosmetology College</option>
                                                         <option value="University">University</option>
                                                         <option value="Alumni Network">Alumni Network / Alumna Association</option>
                                                         <option value="Sports & Athletics">Sports & Athletics / Events Hub</option>

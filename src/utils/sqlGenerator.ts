@@ -1881,6 +1881,114 @@ CREATE TABLE IF NOT EXISTS ds_payments (
 
 ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS student_id TEXT;
 
+-- 14.5 BEAUTY COLLEGE MODULE
+CREATE TABLE IF NOT EXISTS bc_trainers (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    specialization TEXT,
+    status TEXT DEFAULT 'Active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bc_courses (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    base_fee DECIMAL(12, 2) DEFAULT 0,
+    kit_fee DECIMAL(12, 2) DEFAULT 0,
+    exam_fee DECIMAL(12, 2) DEFAULT 0,
+    practical_hours_required INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(code, institution_id)
+);
+
+CREATE TABLE IF NOT EXISTS bc_students (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    full_name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    course_id TEXT REFERENCES bc_courses(id) ON DELETE SET NULL,
+    kit_issued_status TEXT DEFAULT 'Pending',
+    practical_hours_completed INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'Enrolled',
+    enrollment_date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bc_practicals (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES bc_students(id) ON DELETE CASCADE,
+    trainer_id TEXT REFERENCES bc_trainers(id) ON DELETE SET NULL,
+    session_date DATE NOT NULL,
+    hours INTEGER DEFAULT 1,
+    topic TEXT,
+    status TEXT DEFAULT 'Completed',
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bc_settings (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    fee_installment_split INTEGER DEFAULT 3,
+    invoice_prefix TEXT DEFAULT 'BC-INV',
+    receipt_prefix TEXT DEFAULT 'BC-REC',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bc_fee_structures (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    course_id TEXT NOT NULL REFERENCES bc_courses(id) ON DELETE CASCADE,
+    items JSONB NOT NULL,
+    total_amount DECIMAL(12, 2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bc_invoices (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES bc_students(id) ON DELETE CASCADE,
+    student_name TEXT NOT NULL,
+    course_id TEXT REFERENCES bc_courses(id) ON DELETE SET NULL,
+    items JSONB NOT NULL,
+    total_amount DECIMAL(12, 2) NOT NULL,
+    paid_amount DECIMAL(12, 2) DEFAULT 0,
+    balance DECIMAL(12, 2) NOT NULL,
+    status TEXT DEFAULT 'Pending',
+    invoice_number TEXT NOT NULL,
+    due_date DATE,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bc_payments (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    invoice_id TEXT NOT NULL REFERENCES bc_invoices(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES bc_students(id) ON DELETE CASCADE,
+    student_name TEXT,
+    amount DECIMAL(12, 2) NOT NULL,
+    payment_method TEXT NOT NULL,
+    transaction_reference TEXT,
+    payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    receipt_number TEXT NOT NULL,
+    received_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- 15. CAR SHOWROOM MODULE
 CREATE TABLE IF NOT EXISTS car_sales_listings (
     id TEXT PRIMARY KEY,
@@ -2310,6 +2418,7 @@ BEGIN
         'his_eye_prescriptions', 'his_medication_logs', 'his_financial_records',
         'his_broadcasts', 'institution_module_states',
         'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_settings', 'ds_fee_structures', 'ds_invoices', 'ds_payments', 'ds_license_categories', 'ds_votes',
+        'bc_settings', 'bc_courses', 'bc_students', 'bc_trainers', 'bc_fee_structures', 'bc_invoices', 'bc_payments', 'bc_practicals',
         'car_sales_listings', 'car_test_drive_bookings', 'car_appraisals', 'car_sales_invoices', 'car_sales_payments', 'showroom_settings',
         'heritage_members', 'heritage_stories', 'heritage_galleries', 'heritage_announcements',
         'student_enrollments', 'bank_transactions', 'store_categories',

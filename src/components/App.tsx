@@ -900,6 +900,7 @@ export const App: React.FC = () => {
             const isLogistics = isSuper || ['logistics', 'transport'].includes(instTypeLower);
             const isHospitality = isSuper || instTypeLower === 'hospitality';
             const isDrivingSchool = isSuper || instTypeLower === 'driving school' || activeInstWithModules?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
+            const isBeautyCollege = isSuper || instTypeLower === 'beauty college' || activeInstWithModules?.moduleStates?.some(m => m.moduleId === 'beauty_college' && (m.status === 'active' || m.status === 'trial'));
             const isPolitical = isSuper || instTypeLower === 'political campaign';
             const isCommunity = isSuper || instTypeLower === 'community';
             const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
@@ -5178,7 +5179,8 @@ export const App: React.FC = () => {
     if (currentUser && activeRole !== 'super_admin' && !currentUser.isImpersonated) {
         const inst = institutions.find(i => i.id === currentUser.institutionId) || (activeInstitution ? activeInstitution : undefined);
         const subscriptionExpired = inst && inst.status === 'active' && inst.subscriptionEndsAt && new Date(inst.subscriptionEndsAt) < new Date();
-        if (inst && (inst.status === 'suspended' || subscriptionExpired)) {
+        const hasOverdueBill = inst && inst.billingModel === 'postpaid_student' && inst.isSuspendedForBilling;
+        if (inst && (inst.status === 'suspended' || subscriptionExpired || hasOverdueBill)) {
             return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
                 await apiService.saveModuleRecord('institution_extension_requests', {
                     id: `ext_${Date.now()}`,

@@ -38,6 +38,7 @@ const ChurchDashboard = lazy(() => import('./church/ChurchDashboard').then(m => 
 const LogisticsManager = lazy(() => import('./LogisticsManager').then(m => ({ default: m.LogisticsManager })));
 const LawManager = lazy(() => import('./law/LawManager').then(m => ({ default: m.LawManager })));
 const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
+const BeautyCollegeManager = lazy(() => import('./bc/BeautyCollegeManager').then(m => ({ default: m.BeautyCollegeManager })));
 import { TimetableUserDirectory } from './timetable/TimetableUserDirectory';
 const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ default: m.CommunityManager })));
 const AlumniManager = lazy(() => import('./AlumniManager').then(m => ({ default: m.AlumniManager })));
@@ -575,11 +576,18 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         return cat.includes('driving school') || type.includes('driving school') || !!hasModule;
     }, [props.currentInstitution, institutionType]);
 
+    const isBC = useMemo(() => {
+        const cat = props.currentInstitution?.category?.toLowerCase() || '';
+        const type = institutionType?.toLowerCase() || '';
+        const hasModule = props.currentInstitution?.moduleStates?.some(m => m.moduleId === 'beauty_college' && (m.status === 'active' || m.status === 'trial'));
+        return cat.includes('beauty college') || type.includes('beauty college') || !!hasModule;
+    }, [props.currentInstitution, institutionType]);
+
     const isEdu = useMemo(() => {
-        // Driving Schools are independent – they must never enter the education console flow
-        if (isDS) return false;
+        // Driving Schools and Beauty Colleges are independent – they must never enter the education console flow
+        if (isDS || isBC) return false;
         return isEduInstitution(props.currentInstitution);
-    }, [props.currentInstitution, isDS]);
+    }, [props.currentInstitution, isDS, isBC]);
 
     const isLaw = useMemo(() => {
         const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
@@ -732,6 +740,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const isModuleActive = useCallback((moduleId: string) => {
         if (props.currentInstitution?.institutionType === 'Reseller') return true;
         if (props.currentInstitution?.id?.startsWith('demo_')) return true;
+        if (moduleId === 'beauty_college' && isBC) return true;
 
         const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
         if (!state) return false;
@@ -771,6 +780,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'church', label: 'Church System', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'law', label: 'Legal Module', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'driving_school', label: 'Driving School', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
+            { id: 'beauty_college', label: 'Beauty College', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'community', label: isHeritage ? 'Family Council' : isCampaign ? 'Campaign Strategy' : 'Community Hub', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'alumni', label: 'Alumni Network', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'hospitality', label: 'Hospitality Hub', icon: <PalmTreeIcon className="w-5 h-5 mr-2" /> },
@@ -959,8 +969,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'church') return isChurch;
             if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
             if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || isDS || institutionType?.toLowerCase().includes('driving school');
+            if (tab.id === 'beauty_college') return isBC || institutionType?.toLowerCase().includes('beauty college');
             if (tab.id === 'community') return isCommunity || roleToUse === 'community_admin';
-            if (tab.id === 'alumni') return (isAlumni || roleToUse === 'alumni_admin') && !isDS;
+            if (tab.id === 'alumni') return (isAlumni || roleToUse === 'alumni_admin') && !isDS && !isBC;
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
             if (tab.id === 'auto_marketplace') return isAutoMarket;
             if (tab.id === 'fuel_station') return isFuelStation;
@@ -1542,6 +1553,58 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 );
                             })()}
 
+                            {/* Card 7.5: Beauty College Module — only for higher-ed */}
+                            {isHigherEd && (() => {
+                                const isActive = isModuleActive('beauty_college');
+                                return (
+                                    <div
+                                        onClick={() => {
+                                            if (!isActive) {
+                                                alert("The Beauty College module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            setActiveScope('bc');
+                                            setActiveTab('beauty_college');
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-indigo-600 text-white rounded-2xl w-fit shadow-lg shadow-indigo-100 dark:shadow-none">
+                                                <SparklesIcon className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Beauty College</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Manage cosmetology student enrollment packages, starter kit status, practical beauty salon hours, and installment fee billing.
+                                                </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('beauty_college');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate beauty college trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-indigo-600 hover:bg-indigo-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             {/* Card 8: Finance & Fees */}
                             {(() => {
                                 const isActive = isModuleActive('finance');
@@ -2113,7 +2176,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 ) : (
                     <>
-                {activeTab === 'dashboard' && !isCoop && !isDS && !isAutoMarket && !isCampaign && activeScope !== 'ds' && (
+                {activeTab === 'dashboard' && !isCoop && !isDS && !isBC && !isAutoMarket && !isCampaign && activeScope !== 'ds' && activeScope !== 'bc' && (
                     <div className="space-y-6">
                         {isCampaign ? (
                             <div className="animate-fade-in">
@@ -3155,6 +3218,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         departments={props.departments || []}
                         rooms={props.rooms || []}
                         letterheadConfig={props.letterheadConfig}
+                    />
+                )}
+
+                {(activeTab === 'beauty_college' || activeTab === 'dashboard' || activeTab.startsWith('bc_')) && (isBC || activeScope === 'bc') && (
+                    <BeautyCollegeManager
+                        currentUser={props.currentUser!}
+                        currentInstitution={props.currentInstitution!}
+                        onRefreshData={props.onRefreshData}
                     />
                 )}
 

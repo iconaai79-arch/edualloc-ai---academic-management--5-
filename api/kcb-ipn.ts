@@ -1154,6 +1154,142 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             timestamp: new Date().toISOString()
                         });
                     }
+                } else if (type === 'student_admission' && metadata.student_id) {
+                    console.log(`[KCB IPN] Processing student admission payment for student: ${metadata.student_id}`);
+                    
+                    // 1. Update student record in ds_students
+                    await supabase
+                        .from('ds_students')
+                        .update({
+                            payment_status: 'paid',
+                            status: 'Enrolled',
+                            activation_date: new Date().toISOString()
+                        })
+                        .eq('id', metadata.student_id);
+
+                    // 2. Fetch student details to get userId and email/phone for credentials
+                    const { data: studentData } = await supabase
+                        .from('ds_students')
+                        .select('*')
+                        .eq('id', metadata.student_id)
+                        .maybeSingle();
+
+                    if (studentData) {
+                        // Activate associated user profile
+                        if (studentData.user_id || studentData.userId) {
+                            const uid = studentData.user_id || studentData.userId;
+                            await supabase.from('users').update({ status: 'active' }).eq('id', uid);
+                        }
+
+                        // 3. Generate Invoice and Receipt for Student registration
+                        const invoiceId = `inv_stud_${Date.now()}`;
+                        const studentCode = studentData.admission_number || studentData.id.slice(-6).toUpperCase();
+                        const invoiceNumber = `${invoicePrefix}STUD-${studentCode}`;
+                        
+                        await supabase.from('invoices').insert({
+                            id: invoiceId,
+                            invoice_number: invoiceNumber,
+                            institution_id: instId || 'SYSTEM',
+                            issue_date: new Date().toISOString().split('T')[0],
+                            due_date: new Date().toISOString().split('T')[0],
+                            total_amount: amt,
+                            status: 'paid',
+                            items: JSON.stringify([{
+                                description: `Driving School Student Registration Fee for ${studentData.full_name} (${studentCode}) (KCB C2B)`,
+                                quantity: 1,
+                                unitPrice: amt,
+                                amount: amt
+                            }])
+                        });
+
+                        await supabase.from('receipts').insert({
+                            id: `rec_stud_${Date.now()}`,
+                            receipt_number: transactionID || `${receiptPrefix}STUD-${Date.now().toString().slice(-6)}`,
+                            institution_id: instId || 'SYSTEM',
+                            invoice_id: invoiceId,
+                            amount_paid: amt,
+                            payment_date: new Date().toISOString().split('T')[0],
+                            payment_method: 'KCB IPN',
+                            related_transaction_id: transaction.id
+                        });
+
+                        // 4. Send Welcome Credentials SMS
+                        const smsConfig = settings.sms_config;
+                        const studentPhone = studentData.phone || transaction.phone_number;
+                        if (smsConfig && studentPhone && studentPhone.trim().length >= 9) {
+                            try {
+                                const { data: inst } = await supabase.from('institutions').select('name').eq('id', instId).maybeSingle();
+                                const portalTitle = inst?.name || 'Driving School';
+                                const portalUrl = `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}`;
+                                const smsMsg = `Payment Verified via KCB! Welcome to ${portalTitle}. Your Driving School account is now active.\nPortal: ${portalUrl}\nUser ID: ${studentPhone}`;
+                                
+                                let phone = studentPhone.replace(/[^\d]/g, '');
+                                if (phone.startsWith('2540')) phone = '254' + phone.substring(4);
+                                else if (phone.startsWith('0')) phone = '254' + phone.substring(1);
+                                else if (phone.length === 9) phone = '254' + phone;
+
+                                const provider = smsConfig.provider || 'Zettatel';
+                                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
+                                const smsParams = new URLSearchParams({
+                                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
+                                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                                    mobile: phone,
+                                    msg: smsMsg,
+                                    senderid: smsConfig.fromNumber || provider,
+                                    msgType: 'text',
+                                    output: 'json'
+                                });
+
+                                const finalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${smsParams.toString()}`;
+                                await fetch(finalUrl, { method: 'GET' });
+                            } catch (smsErr) {
+                                console.error("[KCB IPN] Failed to dispatch welcome credentials SMS:", smsErr);
+                            }
+                        }
+                    }
+                } else if (type === 'tenant_postpaid_bill' && metadata.bill_id) {
+                    console.log(`[KCB IPN] Processing postpaid monthly bill payment: ${metadata.bill_id} for institution: ${instId}`);
+
+                    // 1. Mark postpaid bill as paid in tenant_bills
+                    await supabase
+                        .from('tenant_bills')
+                        .update({ status: 'paid' })
+                        .eq('id', metadata.bill_id);
+
+                    // 2. Unsuspend the institution
+                    await supabase
+                        .from('institutions')
+                        .update({ is_suspended_for_billing: false })
+                        .eq('id', instId);
+
+                    // 3. Create invoice & receipt for Postpaid bill
+                    const invoiceId = `inv_bill_${Date.now()}`;
+                    await supabase.from('invoices').insert({
+                        id: invoiceId,
+                        invoice_number: `${invoicePrefix}BILL-${Date.now().toString().slice(-6)}`,
+                        institution_id: instId || 'SYSTEM',
+                        issue_date: new Date().toISOString().split('T')[0],
+                        due_date: new Date().toISOString().split('T')[0],
+                        total_amount: amt,
+                        status: 'paid',
+                        items: JSON.stringify([{
+                            description: `Consolidated Monthly Student Registration Bill settlement (KCB C2B)`,
+                            quantity: 1,
+                            unitPrice: amt,
+                            amount: amt
+                        }])
+                    });
+
+                    await supabase.from('receipts').insert({
+                        id: `rec_bill_${Date.now()}`,
+                        receipt_number: transactionID || `${receiptPrefix}BILL-${Date.now().toString().slice(-6)}`,
+                        institution_id: instId || 'SYSTEM',
+                        invoice_id: invoiceId,
+                        amount_paid: amt,
+                        payment_date: new Date().toISOString().split('T')[0],
+                        payment_method: 'KCB IPN',
+                        related_transaction_id: transaction.id
+                    });
                 } else if (type === 'invoice' && metadata.invoiceId) {
                     await supabase.from('invoices').update({ status: 'paid' }).eq('id', metadata.invoiceId);
 

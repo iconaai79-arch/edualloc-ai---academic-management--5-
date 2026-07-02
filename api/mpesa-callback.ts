@@ -290,6 +290,165 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
                 }
+            } else if (metadata.type === 'student_admission' && metadata.student_id) {
+                console.log(`[M-Pesa Callback] Processing student admission payment for student: ${metadata.student_id}`);
+                
+                // 1. Update student record in ds_students
+                const { error: studentUpdateErr } = await supabase
+                    .from('ds_students')
+                    .update({
+                        payment_status: 'paid',
+                        status: 'Enrolled',
+                        activation_date: new Date().toISOString()
+                    })
+                    .eq('id', metadata.student_id);
+                
+                if (studentUpdateErr) {
+                    console.error('[M-Pesa Callback] Failed to update student record:', studentUpdateErr);
+                } else {
+                    console.log('[M-Pesa Callback] ✅ STUDENT RECORD ENROLLED & PAID');
+                }
+
+                // 2. Fetch student details to get userId and email/phone for credentials
+                const { data: studentData, error: studentFetchErr } = await supabase
+                    .from('ds_students')
+                    .select('*')
+                    .eq('id', metadata.student_id)
+                    .maybeSingle();
+
+                if (studentFetchErr || !studentData) {
+                    console.error('[M-Pesa Callback] Failed to fetch student details:', studentFetchErr);
+                } else {
+                    // Activate associated user profile
+                    if (studentData.user_id || studentData.userId) {
+                        const uid = studentData.user_id || studentData.userId;
+                        await supabase.from('users').update({ status: 'active' }).eq('id', uid);
+                        console.log(`[M-Pesa Callback] ✅ USER PROFILE ACTIVATED: ${uid}`);
+                    }
+
+                    // 3. Generate Invoice and Receipt for Student registration
+                    const invoiceId = `inv_stud_${Date.now()}`;
+                    const studentCode = studentData.admission_number || studentData.id.slice(-6).toUpperCase();
+                    const invoiceNumber = `${invoicePrefix}STUD-${studentCode}`;
+                    
+                    await supabase.from('invoices').insert({
+                        id: invoiceId,
+                        invoice_number: invoiceNumber,
+                        institution_id: transaction.institution_id,
+                        issue_date: new Date().toISOString().split('T')[0],
+                        due_date: new Date().toISOString().split('T')[0],
+                        total_amount: transaction.amount,
+                        status: 'paid',
+                        items: JSON.stringify([{
+                            description: `Driving School Student Registration Fee for ${studentData.full_name} (${studentCode})`,
+                            quantity: 1,
+                            unitPrice: transaction.amount,
+                            amount: transaction.amount
+                        }])
+                    });
+
+                    await supabase.from('receipts').insert({
+                        id: `rec_stud_${Date.now()}`,
+                        receipt_number: mpesaReceiptNumber || `${receiptPrefix}STUD-${Date.now().toString().slice(-6)}`,
+                        institution_id: transaction.institution_id,
+                        invoice_id: invoiceId,
+                        amount_paid: transaction.amount,
+                        payment_date: new Date().toISOString().split('T')[0],
+                        payment_method: 'M-Pesa',
+                        related_transaction_id: transaction.id
+                    });
+
+                    // 4. Send Welcome Credentials SMS
+                    const smsConfig = settings.sms_config;
+                    const studentPhone = studentData.phone || transaction.phone_number;
+                    if (smsConfig && studentPhone && studentPhone.trim().length >= 9) {
+                        try {
+                            const { data: inst } = await supabase.from('institutions').select('name').eq('id', transaction.institution_id).maybeSingle();
+                            const portalTitle = inst?.name || 'Driving School';
+                            const portalUrl = `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}`;
+                            
+                            const smsMsg = `Payment Verified! Welcome to ${portalTitle}. Your Driving School account is now active.\nPortal: ${portalUrl}\nUser ID: ${studentPhone}`;
+                            
+                            let phone = studentPhone.replace(/[^\d]/g, '');
+                            if (phone.startsWith('2540')) phone = '254' + phone.substring(4);
+                            else if (phone.startsWith('0')) phone = '254' + phone.substring(1);
+                            else if (phone.length === 9) phone = '254' + phone;
+
+                            const provider = smsConfig.provider || 'Zettatel';
+                            const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
+                            const smsParams = new URLSearchParams({
+                                userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
+                                password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                                mobile: phone,
+                                msg: smsMsg,
+                                senderid: smsConfig.fromNumber || provider,
+                                msgType: 'text',
+                                output: 'json'
+                            });
+
+                            const finalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${smsParams.toString()}`;
+                            await fetchWithTimeout(finalUrl, { method: 'GET' }, 15000);
+                            console.log("[M-Pesa Callback] Dispatched credentials SMS to student after payment success");
+                        } catch (smsErr) {
+                            console.error("[M-Pesa Callback] Failed to dispatch welcome credentials SMS:", smsErr);
+                        }
+                    }
+                }
+            } else if (metadata.type === 'tenant_postpaid_bill' && metadata.bill_id) {
+                console.log(`[M-Pesa Callback] Processing postpaid monthly bill payment: ${metadata.bill_id} for institution: ${transaction.institution_id}`);
+
+                // 1. Mark postpaid bill as paid in tenant_bills
+                const { error: billUpdateErr } = await supabase
+                    .from('tenant_bills')
+                    .update({ status: 'paid' })
+                    .eq('id', metadata.bill_id);
+
+                if (billUpdateErr) {
+                    console.error('[M-Pesa Callback] Failed to update postpaid bill:', billUpdateErr);
+                } else {
+                    console.log('[M-Pesa Callback] ✅ POSTPAID BILL STATUS MARKED AS PAID');
+                }
+
+                // 2. Unsuspend the institution
+                const { error: instUpdateErr } = await supabase
+                    .from('institutions')
+                    .update({ is_suspended_for_billing: false })
+                    .eq('id', transaction.institution_id);
+
+                if (instUpdateErr) {
+                    console.error('[M-Pesa Callback] Failed to unsuspend institution:', instUpdateErr);
+                } else {
+                    console.log('[M-Pesa Callback] ✅ INSTITUTION UNSUSPENDED');
+                }
+
+                // 3. Create invoice & receipt for Postpaid bill
+                const invoiceId = `inv_bill_${Date.now()}`;
+                await supabase.from('invoices').insert({
+                    id: invoiceId,
+                    invoice_number: `${invoicePrefix}BILL-${Date.now().toString().slice(-6)}`,
+                    institution_id: transaction.institution_id,
+                    issue_date: new Date().toISOString().split('T')[0],
+                    due_date: new Date().toISOString().split('T')[0],
+                    total_amount: transaction.amount,
+                    status: 'paid',
+                    items: JSON.stringify([{
+                        description: `Consolidated Monthly Student Registration Bill settlement`,
+                        quantity: 1,
+                        unitPrice: transaction.amount,
+                        amount: transaction.amount
+                    }])
+                });
+
+                await supabase.from('receipts').insert({
+                    id: `rec_bill_${Date.now()}`,
+                    receipt_number: mpesaReceiptNumber || `${receiptPrefix}BILL-${Date.now().toString().slice(-6)}`,
+                    institution_id: transaction.institution_id,
+                    invoice_id: invoiceId,
+                    amount_paid: transaction.amount,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_method: 'M-Pesa',
+                    related_transaction_id: transaction.id
+                });
             } else if (metadata.type === 'sms' && metadata.units) {
                 console.log(`[M-Pesa Callback] Crediting SMS units: ${metadata.units} for ${transaction.institution_id}`);
 

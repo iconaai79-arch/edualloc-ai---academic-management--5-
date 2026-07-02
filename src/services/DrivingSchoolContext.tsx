@@ -329,6 +329,23 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const addStudent = useCallback(async (data: any) => {
         if (!institutionId) return;
+
+        // Fetch institution configuration
+        let inst: any = { name: 'Driving School' };
+        try {
+            const insts = await apiService.fetchModuleRecords('institutions', institutionId);
+            if (insts && insts[0]) inst = insts[0];
+        } catch (e) {
+            console.warn("Failed to fetch institution config in addStudent:", e);
+        }
+
+        const billingModel = inst.billing_model || inst.billingModel || 'fixed';
+        const isSuspended = inst.is_suspended_for_billing || inst.isSuspendedForBilling || false;
+
+        if (billingModel === 'postpaid_student' && isSuspended) {
+            error("Access Suspended: Your school has an overdue monthly bill. Please settle it to enroll new students.");
+            throw new Error("Institution billing suspension");
+        }
         
         let admNumber = data.admissionNumber;
         if (!admNumber) {
@@ -377,6 +394,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
             const userEmail = data.email || `${userId}@ds.local`;
             
+            const isPrepaid = billingModel === 'prepaid_student';
+            const userStatus = isPrepaid ? 'inactive' : 'active';
+
             // 1. Create platform user account so they appear in global student views
             try {
                 await apiService.registerUser({
@@ -386,7 +406,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     password: generatedPassword,
                     role: 'student',
                     institutionId,
-                    status: 'active'
+                    status: userStatus
                 } as any);
 
                 // Ensure the phone number is correctly persisted on the user record directly
@@ -398,7 +418,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     password: generatedPassword,
                     role: 'student',
                     institutionId,
-                    status: 'active'
+                    status: userStatus
                 } as any);
             } catch (e) {
                 console.warn("Platform user registration skipped or failed:", e);
@@ -413,31 +433,58 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 id: newId, 
                 userId,
                 institutionId,
-                status: 'Enrolled',
+                status: isPrepaid ? 'Pending Payment' : 'Enrolled',
                 courseDurationDays: duration,
                 remainingDays: duration,
+                paymentStatus: isPrepaid ? 'unpaid' : 'paid',
                 createdAt: new Date().toISOString()
             };
             
             await apiService.saveModuleRecord('ds_students', newStudent);
-            success("Student enrolled successfully");
 
-            // Automated Welcome Credentials via SMS
-            if (data.phone && data.phone.trim().length >= 9) {
-                try {
-                    const insts = await apiService.fetchModuleRecords('institutions', institutionId);
-                    const inst = insts?.[0] || { name: 'Driving School' };
-                    const companySettings = await apiService.fetchCompanySettings().catch(() => null);
-                    const portalTitle = inst.name || 'Driving School';
-                    const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
+            if (isPrepaid) {
+                const amount = Number(inst.rate_per_student || inst.ratePerStudent || 0);
+                if (amount > 0) {
+                    try {
+                        const response = await apiService.initiateMpesaPayment(amount, data.phone || '', {
+                            type: 'student_admission',
+                            student_id: newId,
+                            institution_id: institutionId
+                        }, inst.mpesaConfig);
 
-                    const portalUrl = window.location.origin;
-                    const smsMsg = `Welcome to ${portalTitle}! Your Driving School account is ready.\nPortal: ${portalUrl}\nUser ID: ${data.phone}\nTemp Password: ${generatedPassword}`;
-                    
-                    await apiService.sendSms(data.phone, smsMsg, activeSmsConfig, 1, institutionId);
-                    console.log("[DS Automation] Welcome credentials SMS dispatched to student:", data.phone);
-                } catch (smsErr) {
-                    console.error("[DS Automation] Failed to dispatch student welcome SMS:", smsErr);
+                        if (response && (response.success || response.ResponseCode === '0')) {
+                            success(`STK Push initiated to ${data.phone} for KES ${amount}. Status is Pending Payment.`);
+                        } else {
+                            error(`Student saved. STK Push failed: ${response?.message || 'Gateway rejected'}`);
+                        }
+                    } catch (e: any) {
+                        console.error("[DS Billing] STK Push initiation exception:", e);
+                        error("Student saved. STK push failed, payment gateway offline.");
+                    }
+                } else {
+                    // Free or 0 price prepaid student
+                    await apiService.saveModuleRecord('ds_students', { ...newStudent, status: 'Enrolled', paymentStatus: 'paid' });
+                    await apiService.saveUser({ id: userId, status: 'active' } as any);
+                    success("Student enrolled successfully (free registration)");
+                }
+            } else {
+                success("Student enrolled successfully");
+
+                // Automated Welcome Credentials via SMS
+                if (data.phone && data.phone.trim().length >= 9) {
+                    try {
+                        const companySettings = await apiService.fetchCompanySettings().catch(() => null);
+                        const portalTitle = inst.name || 'Driving School';
+                        const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
+
+                        const portalUrl = window.location.origin;
+                        const smsMsg = `Welcome to ${portalTitle}! Your Driving School account is ready.\nPortal: ${portalUrl}\nUser ID: ${data.phone}\nTemp Password: ${generatedPassword}`;
+                        
+                        await apiService.sendSms(data.phone, smsMsg, activeSmsConfig, 1, institutionId);
+                        console.log("[DS Automation] Welcome credentials SMS dispatched to student:", data.phone);
+                    } catch (smsErr) {
+                        console.error("[DS Automation] Failed to dispatch student welcome SMS:", smsErr);
+                    }
                 }
             }
 

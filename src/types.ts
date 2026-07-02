@@ -415,7 +415,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Beauty College' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency';
     category?: string;
     createdAt?: string;
     businessSubType?: string; // Legacy field, eventually merge with category
@@ -423,6 +423,10 @@ export interface Institution {
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
     trialEndsAt?: string;
+    billingModel?: 'fixed' | 'prepaid_student' | 'postpaid_student';
+    ratePerStudent?: number;
+    billingCycleAnchor?: string;
+    isSuspendedForBilling?: boolean;
     institutionCode?: string;
     themeColor?: string;
     logoUrl?: string | null;
@@ -4018,6 +4022,21 @@ export interface DSStudent {
     createdAt: string;
     webauthnCredentials?: any; // To store WebAuthn passkey data
     fingerprintTemplate?: string; // To store USB scanner biometric hash
+    paymentStatus?: 'paid' | 'unpaid';
+    activationDate?: string;
+}
+
+export interface TenantBill {
+    id: string;
+    institutionId: string;
+    billingPeriodStart: string;
+    billingPeriodEnd: string;
+    studentCount: number;
+    ratePerStudent: number;
+    totalAmount: number;
+    status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+    createdAt: string;
+    dueAt: string;
 }
 
 export interface DSLesson {
