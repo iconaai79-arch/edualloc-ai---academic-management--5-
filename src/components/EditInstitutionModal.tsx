@@ -25,6 +25,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     customSmsPrice: '',
     category: '',
     businessSubType: '',
+    billingModel: 'fixed',
+    ratePerStudent: '0',
   });
 
   useEffect(() => {
@@ -44,6 +46,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         customSmsPrice: (institution.customSmsPrice ?? (institution as any).custom_sms_price)?.toString() || '',
         category: institution.category || institution.businessSubType || '',
         businessSubType: institution.businessSubType || '',
+        billingModel: institution.billingModel || (institution as any).billing_model || 'fixed',
+        ratePerStudent: (institution.ratePerStudent ?? (institution as any).rate_per_student ?? 0).toString(),
       });
     }
   }, [institution]);
@@ -81,6 +85,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : null,
       category: formData.category || undefined,
       businessSubType: formData.category || formData.businessSubType || undefined,
+      billingModel: formData.billingModel as any,
+      ratePerStudent: parseFloat(formData.ratePerStudent) || 0,
     };
     onSave(institution.id, saveData);
   };
@@ -363,6 +369,45 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                     />
                   </div>
                   <p className="mt-4 text-[10px] text-slate-400 italic">Set a custom cost per SMS unit for this institution. Leave empty to use system default.</p>
+                </div>
+
+                <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-xl flex items-center justify-center">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                    </div>
+                    <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Driving School Subscription Billing</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5 ml-1 tracking-wider">Billing Model</label>
+                      <select
+                        name="billingModel"
+                        value={formData.billingModel}
+                        onChange={handleChange}
+                        className="form-select font-bold text-slate-800 dark:text-slate-100"
+                      >
+                        <option value="fixed">Standard Fixed Plan</option>
+                        <option value="prepaid_student">Prepaid (Per Student Enrollment)</option>
+                        <option value="postpaid_student">Postpaid (Accumulate & Bill Monthly)</option>
+                      </select>
+                    </div>
+                    {formData.billingModel !== 'fixed' && (
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5 ml-1 tracking-wider">Rate per Student (KES)</label>
+                        <input
+                          type="number"
+                          name="ratePerStudent"
+                          value={formData.ratePerStudent}
+                          onChange={handleChange}
+                          className="form-input font-bold text-amber-600 dark:text-amber-400"
+                          placeholder="e.g. 200"
+                          min="0"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-4 text-[10px] text-slate-400 italic">Select the billing strategy for this tenant. Student-based models apply only to Driving Schools.</p>
                 </div>
 
                 <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
