@@ -2032,6 +2032,127 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
             }
+            // 4.1.b. Handle Driving School Student Admission
+            else if (meta.type === 'student_admission' && meta.student_id) {
+                console.log(`[Reconcile] Processing student admission payment for student: ${meta.student_id}`);
+                
+                // 1. Update student record in ds_students
+                await supabase
+                    .from('ds_students')
+                    .update({
+                        payment_status: 'paid',
+                        status: 'Enrolled',
+                        activation_date: new Date().toISOString()
+                    })
+                    .eq('id', meta.student_id);
+
+                // 2. Fetch student details to get userId and email/phone for credentials
+                const { data: studentData } = await supabase
+                    .from('ds_students')
+                    .select('*')
+                    .eq('id', meta.student_id)
+                    .maybeSingle();
+
+                if (studentData) {
+                    // Activate associated user profile
+                    if (studentData.user_id || studentData.userId) {
+                        const uid = studentData.user_id || studentData.userId;
+                        await supabase.from('users').update({ status: 'active' }).eq('id', uid);
+                    }
+
+                    // 3. Generate Invoice
+                    if (!invId) {
+                        invId = `inv_stud_${Date.now()}`;
+                        const studentCode = studentData.admission_number || studentData.id.slice(-6).toUpperCase();
+                        const invoiceNumber = `${invoicePrefix}STUD-${studentCode}`;
+                        
+                        await supabase.from('invoices').insert({
+                            id: invId,
+                            invoice_number: invoiceNumber,
+                            institution_id: instId || 'SYSTEM',
+                            issue_date: new Date().toISOString().split('T')[0],
+                            due_date: new Date().toISOString().split('T')[0],
+                            total_amount: amt,
+                            status: 'paid',
+                            items: JSON.stringify([{
+                                description: `Driving School Student Registration Fee for ${studentData.full_name} (${studentCode})`,
+                                quantity: 1,
+                                unitPrice: amt,
+                                amount: amt
+                            }])
+                        });
+                    }
+
+                    // 4. Send Welcome Credentials SMS
+                    const smsConfig = settings.sms_config;
+                    const studentPhone = studentData.phone || txn.phone_number;
+                    if (smsConfig && studentPhone && studentPhone.trim().length >= 9) {
+                        try {
+                            const portalTitle = inst?.name || 'Driving School';
+                            const portalUrl = 'https://eduai.co.ke';
+                            const smsMsg = `Payment Verified! Welcome to ${portalTitle}. Your Driving School account is now active.\nPortal: ${portalUrl}\nUser ID: ${studentPhone}`;
+                            
+                            let phone = studentPhone.replace(/[^\d]/g, '');
+                            if (phone.startsWith('2540')) phone = '254' + phone.substring(4);
+                            else if (phone.startsWith('0')) phone = '254' + phone.substring(1);
+                            else if (phone.length === 9) phone = '254' + phone;
+
+                            const provider = smsConfig.provider || 'Zettatel';
+                            const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
+                            const smsParams = new URLSearchParams({
+                                userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
+                                password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                                mobile: phone,
+                                msg: smsMsg,
+                                senderid: smsConfig.fromNumber || provider,
+                                msgType: 'text',
+                                output: 'json'
+                            });
+
+                            const finalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${smsParams.toString()}`;
+                            await fetch(finalUrl, { method: 'GET' });
+                        } catch (smsErr) {
+                            console.error("[Reconcile] Failed to dispatch welcome credentials SMS:", smsErr);
+                        }
+                    }
+                }
+            }
+            // 4.1.c. Handle Driving School Tenant Postpaid Bill
+            else if (meta.type === 'tenant_postpaid_bill' && meta.bill_id) {
+                console.log(`[Reconcile] Processing postpaid monthly bill payment: ${meta.bill_id} for institution: ${instId}`);
+
+                // 1. Mark postpaid bill as paid in tenant_bills
+                await supabase
+                    .from('tenant_bills')
+                    .update({ status: 'paid' })
+                    .eq('id', meta.bill_id);
+
+                // 2. Unsuspend the institution
+                await supabase
+                    .from('institutions')
+                    .update({ is_suspended_for_billing: false })
+                    .eq('id', instId);
+
+                // 3. Create invoice
+                if (!invId) {
+                    invId = `inv_bill_${Date.now()}`;
+                    await supabase.from('invoices').insert({
+                        id: invId,
+                        invoice_number: `${invoicePrefix}BILL-${Date.now().toString().slice(-6)}`,
+                        institution_id: instId || 'SYSTEM',
+                        issue_date: new Date().toISOString().split('T')[0],
+                        due_date: new Date().toISOString().split('T')[0],
+                        total_amount: amt,
+                        status: 'paid',
+                        items: JSON.stringify([{
+                            description: `Consolidated Monthly Student Registration Bill settlement`,
+                            quantity: 1,
+                            unitPrice: amt,
+                            amount: amt
+                        }])
+                    });
+                }
+            }
             // 4.2. Handle Driving School Invoice
             else if (meta.type === 'ds_invoice' && invId) {
                 const { data: dsInvoice } = await supabase
