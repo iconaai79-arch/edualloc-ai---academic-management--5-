@@ -22,6 +22,7 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
     const [isMasked, setIsMasked] = useState(true);
     const [countdown, setCountdown] = useState<number | null>(null);
     const [showConfetti, setShowConfetti] = useState(false);
+    const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
 
     // Fetch Election Data and Votes
     const fetchData = useCallback(async () => {
@@ -146,6 +147,26 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
         return sortedGrouped;
     }, [ballots, candidates, users]);
 
+    const enrichedCandidates = useMemo(() => {
+        return candidates.map(c => {
+            const profile = users.find(u => u.id === c.studentId);
+            return {
+                ...c,
+                studentName: profile?.name || 'Unknown Candidate',
+                studentPhoto: c.posterUrl || (profile as any)?.photoUrl || (profile as any)?.photo || null
+            };
+        });
+    }, [candidates, users]);
+
+    // Candidates Slide Show Rotation
+    useEffect(() => {
+        if (enrichedCandidates.length === 0) return;
+        const interval = setInterval(() => {
+            setCurrentSlideIndex(prev => (prev + 1) % enrichedCandidates.length);
+        }, 5500);
+        return () => clearInterval(interval);
+    }, [enrichedCandidates.length]);
+
     return (
         <div className="min-h-screen bg-[#070b19] text-slate-100 font-sans p-6 lg:p-12 relative overflow-hidden select-none">
             <style>{`
@@ -161,6 +182,10 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
                 }
                 @keyframes spin-gradient {
                     100% { transform: rotate(360deg); }
+                }
+                @keyframes slideProgress {
+                    0% { width: 0%; }
+                    100% { width: 100%; }
                 }
                 .animated-candidate-photo {
                     animation: floating 3s ease-in-out infinite, pulse-glow 2s infinite;
@@ -293,13 +318,102 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
 
                     {/* VOTING DATA DISPLAY (MASKED vs REVEALED) */}
                     {countdown === null && isMasked && election.status !== 'closed' ? (
-                        <div className="bg-slate-900/30 backdrop-blur-sm p-16 rounded-[4rem] border border-slate-800 text-center max-w-xl mx-auto">
-                            <Clock className="w-20 h-20 text-indigo-500 mx-auto mb-6 animate-pulse" />
-                            <h3 className="text-2xl font-black uppercase tracking-tight text-white mb-2">Polling In Progress</h3>
-                            <p className="text-slate-450 text-xs mb-8">Results are masked to protect voter neutrality and prevent herd voting. Live turnout continues to stream above.</p>
-                            <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-2xl text-[9px] uppercase tracking-widest font-black text-slate-400">
-                                <AlertCircle className="w-4 h-4 text-amber-500" /> Results unlock when election closes
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+                            {/* Left Column: Polling Status & Info */}
+                            <div className="bg-slate-900/30 backdrop-blur-sm p-12 rounded-[3.5rem] border border-slate-800 flex flex-col justify-center text-center lg:text-left space-y-6">
+                                <div>
+                                    <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
+                                        <Clock className="w-10 h-10 text-indigo-500 animate-pulse" />
+                                        <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 border border-indigo-500/25 px-3.5 py-1 rounded-full tracking-widest">Polling In Progress</span>
+                                    </div>
+                                    <h3 className="text-3xl font-black uppercase tracking-tight text-white mb-3">Wait For The Results</h3>
+                                    <p className="text-slate-400 text-xs leading-relaxed max-w-md">
+                                        Electoral logs are streaming and votes are being tallied securely in real-time. Results will be calculated and projected automatically as soon as the election closes.
+                                    </p>
+                                </div>
+                                <div className="pt-4 border-t border-slate-800/80 flex justify-center lg:justify-start">
+                                    <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-2xl text-[9px] uppercase tracking-widest font-black text-slate-400">
+                                        <AlertCircle className="w-4 h-4 text-amber-500" /> Results unlock when election closes
+                                    </div>
+                                </div>
                             </div>
+
+                            {/* Right Column: Dynamic Branded Candidate Slideshow */}
+                            {enrichedCandidates.length > 0 && (
+                                <div className="bg-slate-900/20 backdrop-blur-md p-10 rounded-[3.5rem] border border-slate-800/80 shadow-xl flex flex-col justify-between relative overflow-hidden h-[420px] transition-all">
+                                    {/* Rotating top background glow */}
+                                    <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 bg-indigo-500/10 rounded-full blur-[60px]" />
+                                    
+                                    {/* Slideshow Progress Bar indicator */}
+                                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-900">
+                                        <div 
+                                            key={currentSlideIndex}
+                                            className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 rounded-r transition-all" 
+                                            style={{
+                                                animation: 'slideProgress 5.5s linear forwards',
+                                                width: '0%'
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* Candidate Card Contents */}
+                                    {(() => {
+                                        const currentCand = enrichedCandidates[currentSlideIndex];
+                                        if (!currentCand) return null;
+                                        return (
+                                            <div 
+                                                key={currentCand.id} 
+                                                className="flex flex-col h-full justify-between animate-fade-in py-4"
+                                            >
+                                                {/* Header Details */}
+                                                <div className="flex gap-5 items-center">
+                                                    <div className="gradient-border-wrap animated-candidate-photo shrink-0 scale-110">
+                                                        <div className="gradient-border-inner p-[1.5px]">
+                                                            {currentCand.studentPhoto ? (
+                                                                <img src={currentCand.studentPhoto} alt={currentCand.studentName} className="w-16 h-16 rounded-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center font-black text-indigo-400 text-lg">
+                                                                    {currentCand.studentName?.substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1 text-left">
+                                                        <span className="inline-block text-[9px] font-black uppercase text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-0.5 rounded-full tracking-wider">{currentCand.position}</span>
+                                                        <h4 className="text-2xl font-black uppercase tracking-tight text-white">{currentCand.studentName}</h4>
+                                                        {currentCand.tagline && (
+                                                            <p className="text-slate-400 text-xs italic">"{currentCand.tagline}"</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Candidate Manifesto / Profile */}
+                                                <div className="bg-slate-950/40 border border-slate-900 rounded-[2rem] p-6 my-4 flex-grow flex flex-col justify-center text-left">
+                                                    <h5 className="text-[8px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Candidate Manifesto</h5>
+                                                    <p className="text-slate-300 text-xs leading-relaxed italic overflow-y-auto max-h-[140px]">
+                                                        {currentCand.manifesto || 'No manifesto details provided. Nominated to bring proactive leadership and student advocacy.'}
+                                                    </p>
+                                                </div>
+
+                                                {/* Slide Nav / Indicators */}
+                                                <div className="flex justify-between items-center text-[9px] font-black uppercase text-slate-500 tracking-widest mt-2">
+                                                    <span>Nominated Profile</span>
+                                                    <div className="flex gap-2">
+                                                        {enrichedCandidates.map((_, idx) => (
+                                                            <button 
+                                                                key={idx}
+                                                                onClick={() => setCurrentSlideIndex(idx)}
+                                                                className={`w-2 h-2 rounded-full transition-all ${idx === currentSlideIndex ? 'bg-indigo-400 w-5' : 'bg-slate-800'}`}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    <span>Candidate {currentSlideIndex + 1} of {enrichedCandidates.length}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            )}
                         </div>
                     ) : (
                         (countdown === null || countdown === 0) && (
