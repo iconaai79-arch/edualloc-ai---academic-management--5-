@@ -23,6 +23,7 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
     const [countdown, setCountdown] = useState<number | null>(null);
     const [showConfetti, setShowConfetti] = useState(false);
     const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+    const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number } | null>(null);
 
     // Fetch Election Data and Votes
     const fetchData = useCallback(async () => {
@@ -84,6 +85,35 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
             return () => clearTimeout(timer);
         }
     }, [countdown]);
+
+    // Timer effect for voting close
+    useEffect(() => {
+        if (!election || election.status === 'closed') {
+            setTimeLeft(null);
+            return;
+        }
+
+        const updateTimer = () => {
+            const now = new Date().getTime();
+            const end = new Date(election.endTime).getTime();
+            const diff = end - now;
+
+            if (diff <= 0) {
+                setTimeLeft(null);
+                return;
+            }
+
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            setTimeLeft({ hours, minutes, seconds });
+        };
+
+        updateTimer();
+        const timer = setInterval(updateTimer, 1000);
+        return () => clearInterval(timer);
+    }, [election]);
 
     // Calculate unique voters who cast at least one ballot (using receiptHash check)
     const uniqueVoterReceipts = useMemo(() => {
@@ -255,6 +285,58 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
                         </p>
                     </div>
 
+                    {/* 3D Countdown to Voting Close */}
+                    {timeLeft && election.status !== 'closed' && (
+                        <div className="flex flex-col items-center space-y-4 py-4 animate-in fade-in slide-in-from-top-6">
+                            <span className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.25em] flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 px-3.5 py-1.5 rounded-full">
+                                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" /> Time Left Until Polls Close
+                            </span>
+                            <div className="flex gap-4" style={{ perspective: '1000px' }}>
+                                {/* Hours Box */}
+                                <div className="flex flex-col items-center">
+                                    <div 
+                                        className="w-16 h-20 rounded-2xl bg-gradient-to-b from-[#1b233d] to-[#0d1224] border border-[#2b3558] flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.6),inset_0_2px_0_0_rgba(255,255,255,0.05)] relative overflow-hidden"
+                                        style={{ transform: 'rotateX(15deg)', transformStyle: 'preserve-3d' }}
+                                    >
+                                        <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-[#070b19]/60" />
+                                        <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-indigo-100 drop-shadow-[0_0_8px_rgba(99,102,241,0.4)]">
+                                            {String(timeLeft.hours).padStart(2, '0')}
+                                        </span>
+                                    </div>
+                                    <span className="text-[7px] font-black uppercase text-slate-500 tracking-widest mt-2">Hours</span>
+                                </div>
+                                <span className="text-3xl font-black text-indigo-500 self-center -mt-4 animate-pulse">:</span>
+                                {/* Minutes Box */}
+                                <div className="flex flex-col items-center">
+                                    <div 
+                                        className="w-16 h-20 rounded-2xl bg-gradient-to-b from-[#1b233d] to-[#0d1224] border border-[#2b3558] flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.6),inset_0_2px_0_0_rgba(255,255,255,0.05)] relative overflow-hidden"
+                                        style={{ transform: 'rotateX(15deg)', transformStyle: 'preserve-3d' }}
+                                    >
+                                        <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-[#070b19]/60" />
+                                        <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-indigo-100 drop-shadow-[0_0_8px_rgba(99,102,241,0.4)]">
+                                            {String(timeLeft.minutes).padStart(2, '0')}
+                                        </span>
+                                    </div>
+                                    <span className="text-[7px] font-black uppercase text-slate-500 tracking-widest mt-2">Minutes</span>
+                                </div>
+                                <span className="text-3xl font-black text-indigo-500 self-center -mt-4 animate-pulse">:</span>
+                                {/* Seconds Box */}
+                                <div className="flex flex-col items-center">
+                                    <div 
+                                        className="w-16 h-20 rounded-2xl bg-gradient-to-b from-[#1b233d] to-[#0d1224] border border-[#2b3558] flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.6),inset_0_2px_0_0_rgba(255,255,255,0.05)] relative overflow-hidden"
+                                        style={{ transform: 'rotateX(15deg)', transformStyle: 'preserve-3d' }}
+                                    >
+                                        <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-[#070b19]/60" />
+                                        <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-indigo-100 drop-shadow-[0_0_8px_rgba(99,102,241,0.4)]">
+                                            {String(timeLeft.seconds).padStart(2, '0')}
+                                        </span>
+                                    </div>
+                                    <span className="text-[7px] font-black uppercase text-slate-500 tracking-widest mt-2">Seconds</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Stats Summary Panel */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* Registered Students */}
@@ -298,12 +380,22 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
 
                     {/* COUNTDOWN REVEAL SCREEN */}
                     {countdown !== null && countdown > 0 && (
-                        <div className="bg-slate-900/50 backdrop-blur-md p-16 rounded-[4rem] border border-indigo-900/40 text-center max-w-xl mx-auto shadow-2xl animate-pulse">
-                            <h3 className="text-lg font-black uppercase tracking-[0.3em] text-indigo-400 mb-6">Declaring Winners</h3>
-                            <div className="w-32 h-32 rounded-full border-4 border-indigo-500/30 flex items-center justify-center mx-auto text-7xl font-black text-white bg-indigo-950/20 shadow-xl shadow-indigo-500/10">
-                                {countdown}
+                        <div className="bg-[#0b0f20]/60 backdrop-blur-xl p-16 rounded-[4.5rem] border border-indigo-500/20 text-center max-w-xl mx-auto shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)] relative overflow-hidden animate-in fade-in zoom-in-95">
+                            {/* Accent background glow */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-500/10 rounded-full blur-[80px] pointer-events-none" />
+                            <h3 className="text-sm font-black uppercase tracking-[0.4em] text-indigo-400 mb-10">Declaring Winners</h3>
+                            <div className="flex justify-center" style={{ perspective: '1000px' }}>
+                                <div 
+                                    className="w-32 h-40 rounded-3xl bg-gradient-to-b from-[#1b233d] to-[#0c1020] border-2 border-[#3b4778] flex items-center justify-center shadow-[0_20px_40px_-6px_rgba(0,0,0,0.9),inset_0_4px_0_0_rgba(255,255,255,0.08),0_0_30px_rgba(99,102,241,0.3)] relative overflow-hidden animate-bounce"
+                                    style={{ transform: 'rotateX(15deg)', transformStyle: 'preserve-3d' }}
+                                >
+                                    <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-[#070b19]/80 shadow-[0_1px_0_0_rgba(255,255,255,0.08)]" />
+                                    <span className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-indigo-100 to-indigo-300 drop-shadow-[0_0_20px_rgba(99,102,241,0.8)]">
+                                        {countdown}
+                                    </span>
+                                </div>
                             </div>
-                            <p className="text-xs text-slate-450 uppercase tracking-widest mt-8 font-black">Hold your breath for the reveal...</p>
+                            <p className="text-[10px] text-slate-450 uppercase tracking-[0.2em] mt-10 font-black">Hold your breath for the reveal...</p>
                         </div>
                     )}
 
