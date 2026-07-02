@@ -132,7 +132,7 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
                 return {
                     candidateId: c.id,
                     studentName: profile?.name || 'Unknown Candidate',
-                    studentPhoto: (profile as any)?.photoUrl || (profile as any)?.photo || null,
+                    studentPhoto: c.posterUrl || (profile as any)?.photoUrl || (profile as any)?.photo || null,
                     votes,
                     percentage: Math.round((votes / totalPosVotes) * 100)
                 };
@@ -148,6 +148,48 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
 
     return (
         <div className="min-h-screen bg-[#070b19] text-slate-100 font-sans p-6 lg:p-12 relative overflow-hidden select-none">
+            <style>{`
+                @keyframes floating {
+                    0% { transform: translateY(0px) scale(1); }
+                    50% { transform: translateY(-4px) scale(1.03); }
+                    100% { transform: translateY(0px) scale(1); }
+                }
+                @keyframes pulse-glow {
+                    0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+                    70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+                    100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+                }
+                @keyframes spin-gradient {
+                    100% { transform: rotate(360deg); }
+                }
+                .animated-candidate-photo {
+                    animation: floating 3s ease-in-out infinite, pulse-glow 2s infinite;
+                }
+                .gradient-border-wrap {
+                    position: relative;
+                    background: linear-gradient(to right, #6366f1, #a855f7, #ec4899);
+                    padding: 2.5px;
+                    border-radius: 9999px;
+                    overflow: hidden;
+                    display: inline-block;
+                }
+                .gradient-border-wrap::before {
+                    content: '';
+                    position: absolute;
+                    top: -50%;
+                    left: -50%;
+                    width: 200%;
+                    height: 200%;
+                    background: conic-gradient(#6366f1, #a855f7, #ec4899, #6366f1);
+                    animation: spin-gradient 4s linear infinite;
+                    border-radius: 50%;
+                }
+                .gradient-border-inner {
+                    position: relative;
+                    background: #090e1f;
+                    border-radius: 9999px;
+                }
+            `}</style>
             {/* Grid Glowing Accents */}
             <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-650/10 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-650/10 rounded-full blur-[120px] pointer-events-none" />
@@ -291,13 +333,17 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
                                                                     <span className={`text-xs font-black ${isTop ? 'text-indigo-400' : 'text-slate-500'}`}>
                                                                         #{idx + 1}
                                                                     </span>
-                                                                    {cand.studentPhoto ? (
-                                                                        <img src={cand.studentPhoto} alt={cand.studentName} className="w-8 h-8 rounded-full object-cover border border-slate-800" />
-                                                                    ) : (
-                                                                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-400 text-xs">
-                                                                            {cand.studentName?.substring(0, 2).toUpperCase()}
+                                                                    <div className="gradient-border-wrap animated-candidate-photo shrink-0">
+                                                                        <div className="gradient-border-inner p-[1px]">
+                                                                            {cand.studentPhoto ? (
+                                                                                <img src={cand.studentPhoto} alt={cand.studentName} className="w-12 h-12 rounded-full object-cover" />
+                                                                            ) : (
+                                                                                <div className="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center font-black text-indigo-400 text-xs">
+                                                                                    {cand.studentName?.substring(0, 2).toUpperCase()}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
-                                                                    )}
+                                                                    </div>
                                                                     <span className={isTop ? 'text-white' : 'text-slate-300'}>{cand.studentName}</span>
                                                                 </div>
                                                                 <span className={isTop ? 'text-indigo-400 font-extrabold' : 'text-slate-400'}>
