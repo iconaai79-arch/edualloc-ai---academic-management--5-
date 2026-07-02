@@ -3320,6 +3320,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         updateVehicle: onUpdateVehicle,
         deleteVehicle: onDeleteVehicle,
         addStudent: onAddStudent,
+        verifyStudentPayment: onVerifyStudentPayment,
         updateStudent: onUpdateStudent,
         deleteStudent: onDeleteStudent,
         addLesson: onAddLesson,
@@ -5796,6 +5797,24 @@ END $$;
                                                         </td>
                                                         <td className="px-10 py-8 text-right min-w-[245px]">
                                                             <div className="flex justify-end gap-2">
+                                                                {student.status === 'Pending Payment' && (
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            setIsActionLoading(true);
+                                                                            try {
+                                                                                await onVerifyStudentPayment(student.id);
+                                                                            } catch (err: any) {
+                                                                                toastError(err.message || "Verification failed");
+                                                                            } finally {
+                                                                                setIsActionLoading(false);
+                                                                            }
+                                                                        }}
+                                                                        className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg text-emerald-500 hover:text-emerald-700 transition-colors animate-pulse"
+                                                                        title="Verify NCBA STK Payment Status"
+                                                                    >
+                                                                        <CreditCardIcon className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
                                                                 <button 
                                                                     onClick={async () => {
                                                                         setIsActionLoading(true);

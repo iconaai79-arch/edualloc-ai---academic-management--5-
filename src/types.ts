@@ -4008,7 +4008,7 @@ export interface DSStudent {
     preferredInstructorId?: string;
     theoryProgressPercent: number;
     practicalProgressPercent: number;
-    status: 'Enrolled' | 'Graduated' | 'Dropped';
+    status: 'Enrolled' | 'Graduated' | 'Dropped' | 'Pending Payment';
     enrollmentDate: string;
     courseDurationDays?: number;
     remainingDays?: number;
@@ -4024,6 +4024,7 @@ export interface DSStudent {
     fingerprintTemplate?: string; // To store USB scanner biometric hash
     paymentStatus?: 'paid' | 'unpaid';
     activationDate?: string;
+    checkoutRequestId?: string;
 }
 
 export interface TenantBill {

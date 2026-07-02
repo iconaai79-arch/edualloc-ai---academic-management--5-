@@ -34,6 +34,7 @@ interface DrivingSchoolContextType {
     updateVehicle: (data: any) => Promise<void>;
     deleteVehicle: (id: string) => Promise<void>;
     addStudent: (data: any) => Promise<void>;
+    verifyStudentPayment: (studentId: string) => Promise<void>;
     updateStudent: (data: any) => Promise<void>;
     deleteStudent: (id: string) => Promise<void>;
     addLesson: (data: any) => Promise<void>;
@@ -445,47 +446,27 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             if (isPrepaid) {
                 const amount = Number(inst.rate_per_student || inst.ratePerStudent || 0);
                 if (amount > 0) {
-                    try {
-                        const response = await apiService.initiateNcbaPayment(amount, data.phone || '', {
-                            type: 'student_admission',
-                            student_id: newId,
-                            institution_id: institutionId
-                        });
-
+                    // Fire STK push in the background and return immediately so onboarding is fast
+                    apiService.initiateNcbaPayment(amount, data.phone || '', {
+                        type: 'student_admission',
+                        student_id: newId,
+                        institution_id: institutionId
+                    }).then(async (response) => {
                         if (response && (response.success || response.requestId)) {
-                            const requestId = response.requestId;
-                            info("NCBA STK Push initiated. Please enter your PIN on your phone to confirm payment.");
-
-                            // Poll status for up to 60 seconds (20 attempts of 3 seconds)
-                            let isPaid = false;
-                            for (let i = 0; i < 20; i++) {
-                                await new Promise(resolve => setTimeout(resolve, 3000));
-                                const statusCheck = await apiService.checkNcbaStatus(requestId, inst.ncbaConfig || (inst as any).ncba_config);
-                                if (statusCheck && (statusCheck.status === 'completed' || statusCheck.status === 'SUCCESS' || statusCheck.status === 'paid')) {
-                                    isPaid = true;
-                                    break;
-                                }
-                                if (statusCheck && (statusCheck.status === 'failed' || statusCheck.status === 'REJECTED')) {
-                                    break;
-                                }
-                            }
-
-                            if (isPaid) {
-                                success("Payment confirmed successfully via NCBA! Student admitted.");
-                                await onRefresh();
-                            } else {
-                                error("Payment confirmation timed out or was rejected. Enrollment is pending payment.");
-                                throw new Error("NCBA payment confirmation failed");
-                            }
+                            // Update student with checkoutRequestId
+                            await apiService.saveModuleRecord('ds_students', {
+                                ...newStudent,
+                                checkoutRequestId: response.requestId
+                            });
+                            success(`NCBA payment prompt sent to student's phone. Enrollment is pending confirmation.`);
+                            await onRefresh();
                         } else {
-                            error(`STK Push failed: ${response?.message || 'Gateway rejected'}`);
-                            throw new Error(`NCBA STK Push failed: ${response?.message}`);
+                            error(`Payment prompt initiation failed for student ${data.fullName}.`);
                         }
-                    } catch (e: any) {
-                        console.error("[DS Billing] NCBA STK Push exception:", e);
-                        error(e.message || "Student saved. STK push failed, payment gateway offline.");
-                        throw e;
-                    }
+                    }).catch((err) => {
+                        console.error("[DS Billing] Background NCBA STK push exception:", err);
+                        error("NCBA STK payment prompt offline.");
+                    });
                 } else {
                     // Free or 0 price prepaid student
                     await apiService.saveModuleRecord('ds_students', { ...newStudent, status: 'Enrolled', paymentStatus: 'paid' });
@@ -518,7 +499,52 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to enroll student");
             throw err;
         }
-    }, [institutionId, students, settings, onRefresh, success, error]);
+    }, [institutionId, onRefresh, success, error, info]);
+
+    const verifyStudentPayment = useCallback(async (studentId: string) => {
+        if (!institutionId) return;
+        const student = students.find(s => s.id === studentId);
+        if (!student) {
+            error("Student not found.");
+            return;
+        }
+
+        let requestId = (student as any).checkoutRequestId || (student as any).checkout_request_id;
+        
+        if (!requestId) {
+            // Fallback: Fetch latest pending transaction from database
+            try {
+                const txns = await apiService.fetchModuleRecords('ncba_transactions', undefined, undefined, {
+                    limit: 1,
+                    order: 'created_at.desc'
+                });
+                const match = txns.find((t: any) => t.metadata?.student_id === studentId && t.status === 'pending');
+                if (match) {
+                    requestId = match.transaction_id || match.checkout_request_id;
+                }
+            } catch (e) {
+                console.warn("Failed to lookup transactions:", e);
+            }
+        }
+
+        if (!requestId) {
+            error("No pending NCBA payment transaction found for this student.");
+            return;
+        }
+
+        try {
+            info("Querying NCBA payment status...");
+            const statusCheck = await apiService.checkNcbaStatus(requestId);
+            if (statusCheck && (statusCheck.status === 'completed' || statusCheck.status === 'SUCCESS' || statusCheck.status === 'paid')) {
+                success("Payment confirmed successfully! Student has been enrolled.");
+                await onRefresh();
+            } else {
+                error(`Payment status is currently: ${statusCheck.status || 'pending'}. Please retry once PIN is entered.`);
+            }
+        } catch (err: any) {
+            error(err.message || "Failed to query NCBA payment status.");
+        }
+    }, [institutionId, students, onRefresh, success, error, info]);
 
     const updateStudent = useCallback(async (data: any) => {
         if (!institutionId) return;
@@ -1364,7 +1390,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         mpesaTransactions, bankTransactions, leads,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads,
-        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead, deleteLeads,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead, deleteLeads,
         sendLessonNotification,
         refreshData, stats
     };
