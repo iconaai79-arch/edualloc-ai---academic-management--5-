@@ -66,7 +66,8 @@ async function refreshGoogleDriveTokens(config: any) {
     }
 
     return await greq.json() as any;
-}
+// Memory cache for NCBA tokens to prevent slow polling
+const ncbaTokenCache: Record<string, { token: string | null; expiresAt: number }> = {};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -1468,9 +1469,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
-            const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
-            
             if (!cId || !cSec) throw new Error(`NCBA Configuration incomplete: ${!cId ? 'Client ID' : 'Client Secret'} is missing.`);
+
+            const cacheKey = `${cId}`;
+            const cached = ncbaTokenCache[cacheKey];
+            if (cached && Date.now() < cached.expiresAt) {
+                console.log(`[NCBA Auth Service] Using cached OAuth2 token for ${cId} (Expires in ${Math.round((cached.expiresAt - Date.now()) / 1000)}s)`);
+                return cached.token;
+            }
+
+            const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
             
             // Debugging: Show fingerprint to user (Safe for production logs)
             console.log(`[NCBA Debug] Attempting authentication with: ${fingerprint}, Method: ${ncbaConfig.authMethod || 'bearer'}`);
@@ -1565,6 +1573,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             console.log(`[NCBA Auth] Token successfully retrieved via fallback strategy.`);
+            
+            const expiresIn = Number(data.expires_in || 3000);
+            ncbaTokenCache[cacheKey] = {
+                token: data.access_token,
+                expiresAt: Date.now() + (expiresIn * 1000) - 60000 // 1 minute buffer
+            };
+
             return data.access_token;
         };
 
