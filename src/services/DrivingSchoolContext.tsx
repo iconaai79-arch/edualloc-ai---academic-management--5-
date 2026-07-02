@@ -450,7 +450,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                             type: 'student_admission',
                             student_id: newId,
                             institution_id: institutionId
-                        }, inst.ncbaConfig || (inst as any).ncba_config);
+                        });
 
                         if (response && (response.success || response.requestId)) {
                             const requestId = response.requestId;

@@ -1878,13 +1878,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // 1. Fetch Institution
             let inst = null;
-            if (instId && instId !== 'SYSTEM' && instId !== 'GLOBAL') {
-                const { data } = await supabase.from('institutions').select('*').eq('id', instId).maybeSingle();
+            const resolvedInstId = (instId === 'SYSTEM' || instId === 'GLOBAL') ? meta.institution_id : instId;
+            if (resolvedInstId && resolvedInstId !== 'SYSTEM' && resolvedInstId !== 'GLOBAL') {
+                const { data } = await supabase.from('institutions').select('*').eq('id', resolvedInstId).maybeSingle();
                 inst = data;
             }
 
-            if (!inst && instId !== 'SYSTEM' && instId !== 'GLOBAL') {
-                console.error(`[Reconcile] Institution ${instId} not found.`);
+            if (!inst && resolvedInstId !== 'SYSTEM' && resolvedInstId !== 'GLOBAL' && resolvedInstId) {
+                console.error(`[Reconcile] Institution ${resolvedInstId} not found.`);
                 return;
             }
 
@@ -2069,7 +2070,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         await supabase.from('invoices').insert({
                             id: invId,
                             invoice_number: invoiceNumber,
-                            institution_id: instId || 'SYSTEM',
+                            institution_id: resolvedInstId || 'SYSTEM',
                             issue_date: new Date().toISOString().split('T')[0],
                             due_date: new Date().toISOString().split('T')[0],
                             total_amount: amt,
@@ -2400,7 +2401,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 await supabase.from('receipts').insert({
                     id: `rec_${Date.now()}`,
                     receipt_number: `${receiptPrefix}${Date.now().toString().slice(-6)}`,
-                    institution_id: instId,
+                    institution_id: resolvedInstId || instId || 'SYSTEM',
                     invoice_id: invId,
                     amount_paid: amt,
                     payment_date: new Date().toISOString().split('T')[0],
@@ -3241,24 +3242,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const institutionId = paramsMap.institutionId || paramsMap.institution_id || paramsMap.metadata?.institutionId || 'GLOBAL';
             const phone = paramsMap.phone || paramsMap.phoneNumber || paramsMap.phone_number || paramsMap.recipient || paramsMap.metadata?.payerPhoneNumber;
             const targetAmount = paramsMap.amount || paramsMap.metadata?.amount || amount || 0;
-            const isPlatformService = ['sms', 'subscription', 'one-off'].includes(paramsMap.metadata?.type);
+            const isPlatformService = ['sms', 'subscription', 'one-off', 'student_admission'].includes(paramsMap.metadata?.type);
             
             // Prioritize config from request body (for testing unsaved changes)
             let ncbaConfig = bodyConfig ? toCamelCase(bodyConfig) : null;
             let targetInstId = institutionId;
 
             if (!ncbaConfig) {
-                // Try institution-specific config first
-                const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
-                
-                if (inst && inst.ncbaConfig) {
-                    ncbaConfig = toCamelCase(inst.ncbaConfig);
-                    targetInstId = inst.id;
-                } else if (isPlatformService) {
-                    // Fallback to Global Super Admin config for platform services (SMS/Subscription)
+                if (isPlatformService) {
+                    // Fallback to Global Super Admin config for platform services (SMS/Subscription/Student Admission)
                     ncbaConfig = toCamelCase(settings.ncba_config || settings.ncbaConfig);
-                    targetInstId = institutionId || user?.user_metadata?.institutionId || 'SYSTEM';
-                    console.log(`[NCBA Gateway] Falling back to normalized global configuration for ${paramsMap.metadata?.type} purchase.`);
+                    targetInstId = 'SYSTEM';
+                    console.log(`[NCBA Gateway] Using global configuration for platform service ${paramsMap.metadata?.type}.`);
+                } else {
+                    // Try institution-specific config first
+                    const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
+                    if (inst && inst.ncbaConfig) {
+                        ncbaConfig = toCamelCase(inst.ncbaConfig);
+                        targetInstId = inst.id;
+                    }
                 }
 
                 if (!ncbaConfig) {
