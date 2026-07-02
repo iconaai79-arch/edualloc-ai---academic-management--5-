@@ -14,6 +14,7 @@ export const EduVoteBallot: React.FC<EduVoteBallotProps> = ({ user }) => {
     const [activeElections, setActiveElections] = useState<ElectionEvent[]>([]);
     const [candidates, setCandidates] = useState<ElectionCandidate[]>([]);
     const [voterLedgerRecords, setVoterLedgerRecords] = useState<any[]>([]);
+    const [voterCheckins, setVoterCheckins] = useState<any[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     
@@ -33,12 +34,13 @@ export const EduVoteBallot: React.FC<EduVoteBallotProps> = ({ user }) => {
         try {
             const instId = user.institutionId || 'GLOBAL';
             
-            // 1. Fetch elections, candidates, and voter ledger records
-            const [eventsData, candData, ledgerData, usersData] = await Promise.all([
+            // 1. Fetch elections, candidates, voter ledger, and checkins
+            const [eventsData, candData, ledgerData, usersData, checkinsData] = await Promise.all([
                 apiService.fetchModuleRecords('election_events', instId).catch(() => []),
                 apiService.fetchModuleRecords('election_candidates', instId).catch(() => []),
                 apiService.fetchModuleRecords('election_voters_ledger', instId).catch(() => []),
-                apiService.fetchModuleRecords('users', instId).catch(() => [])
+                apiService.fetchModuleRecords('users', instId).catch(() => []),
+                apiService.fetchModuleRecords('election_checkins', instId).catch(() => [])
             ]);
 
             // Filter for ACTIVE and PUBLISHED elections
@@ -52,6 +54,10 @@ export const EduVoteBallot: React.FC<EduVoteBallotProps> = ({ user }) => {
             // Filter ledger records for current student to see if they've voted
             const myLedger = (ledgerData || []).filter((l: any) => l.studentId === user.id);
             setVoterLedgerRecords(myLedger);
+
+            // Filter checkins for current student
+            const myCheckins = (checkinsData || []).filter((c: any) => c.studentId === user.id);
+            setVoterCheckins(myCheckins);
 
             if (active.length > 0) {
                 setSelectedElection(active[0]);
@@ -70,6 +76,11 @@ export const EduVoteBallot: React.FC<EduVoteBallotProps> = ({ user }) => {
     // Check if user has already voted in current selected election
     const hasVoted = Boolean(
         selectedElection && voterLedgerRecords.some(l => l.electionId === selectedElection.id)
+    );
+
+    // Check if voter has checked in at the registry desk
+    const isCheckedIn = Boolean(
+        selectedElection && voterCheckins.some(c => c.electionId === selectedElection.id)
     );
 
     // Group candidates of selected election by position
@@ -311,6 +322,18 @@ export const EduVoteBallot: React.FC<EduVoteBallotProps> = ({ user }) => {
                                     <Award className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
                                     <h3 className="text-2xl font-black uppercase tracking-tight text-slate-800 dark:text-slate-200 mb-2">Election Closed</h3>
                                     <p className="text-slate-450 text-xs">This election board is closed. Results are now being compiled or are displayed on the public live board.</p>
+                                </div>
+                            ) : !isCheckedIn ? (
+                                <div className="bg-white dark:bg-slate-800 rounded-[3.5rem] border border-slate-100 dark:border-slate-700 p-12 text-center shadow-sm max-w-lg mx-auto space-y-6">
+                                    <QrCode className="w-16 h-16 text-amber-500 mx-auto animate-pulse" />
+                                    <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Check-In Required</h3>
+                                    <p className="text-slate-450 text-xs leading-relaxed">
+                                        Your digital ballot is currently locked. To activate it, please present your **Voter Pass QR Code** (found on your printed or digital voter card) to the election registrar at the check-in desk.
+                                    </p>
+                                    <div className="pt-4 border-t border-slate-100 dark:border-slate-700/60 flex flex-col items-center">
+                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Student Credentials</span>
+                                        <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 mt-1">{user.name} ({user.email})</span>
+                                    </div>
                                 </div>
                             ) : (
                                 /* ACTIVE BALLOT FORM */

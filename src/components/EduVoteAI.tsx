@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
     Plus, Trash, Play, Pause, Square, CheckCircle, XCircle, QrCode, 
     ChevronRight, BarChart2, Award, Calendar, Layers, ShieldCheck, 
@@ -53,6 +53,17 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
     const [selectedVoters, setSelectedVoters] = useState<Set<string>>(new Set());
     const [qrUrls, setQrUrls] = useState<Record<string, string>>({});
 
+    // Voter Check-In & Scanner States
+    const [showCheckInModal, setShowCheckInModal] = useState(false);
+    const [scannerSelectedElectionId, setScannerSelectedElectionId] = useState('');
+    const [scannerMatchedStudent, setScannerMatchedStudent] = useState<User | null>(null);
+    const [scannerInput, setScannerInput] = useState('');
+    const [voterLedger, setVoterLedger] = useState<any[]>([]);
+    const [electionCheckins, setElectionCheckins] = useState<any[]>([]);
+
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const [stream, setStream] = useState<MediaStream | null>(null);
+
     // Fetch Initial Data
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -60,18 +71,22 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
             const instId = user.institutionId || 'GLOBAL';
             
             // Fetch events, candidates, users, courses, and levels for the tenant
-            const [eventsData, candData, usersData, coursesData, levelsData] = await Promise.all([
+            const [eventsData, candData, usersData, coursesData, levelsData, ledgerData, checkinsData] = await Promise.all([
                 apiService.fetchModuleRecords('election_events', instId).catch(() => []),
                 apiService.fetchModuleRecords('election_candidates', instId).catch(() => []),
                 apiService.fetchModuleRecords('users', instId).catch(() => []),
                 apiService.fetchModuleRecords('courses', instId).catch(() => []),
-                apiService.fetchModuleRecords('course_levels', instId).catch(() => [])
+                apiService.fetchModuleRecords('course_levels', instId).catch(() => []),
+                apiService.fetchModuleRecords('election_voters_ledger', instId).catch(() => []),
+                apiService.fetchModuleRecords('election_checkins', instId).catch(() => [])
             ]);
 
             setElections(eventsData || []);
             setCandidates(candData || []);
             setCourses(coursesData || []);
             setCourseLevels(levelsData || []);
+            setVoterLedger(ledgerData || []);
+            setElectionCheckins(checkinsData || []);
             
             // Only keep students in nominee list
             const studentUsers = (usersData || []).filter((u: any) => u.role === 'student');
@@ -86,6 +101,74 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const startCamera = async () => {
+        try {
+            const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            setStream(mediaStream);
+            if (videoRef.current) {
+                videoRef.current.srcObject = mediaStream;
+            }
+        } catch (err) {
+            console.error("Camera access failed:", err);
+        }
+    };
+
+    const stopCamera = () => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            setStream(null);
+        }
+    };
+
+    const handleSelectVoter = (student: User) => {
+        setScannerMatchedStudent(student);
+    };
+
+    const handleUrlInput = (urlStr: string) => {
+        try {
+            const url = new URL(urlStr);
+            const email = url.searchParams.get('email');
+            if (email) {
+                const std = students.find(s => s.email?.toLowerCase() === email.toLowerCase());
+                if (std) {
+                    handleSelectVoter(std);
+                    return;
+                }
+            }
+        } catch (e) {
+            const std = students.find(s => s.id === urlStr || s.email?.toLowerCase() === urlStr.toLowerCase() || s.name?.toLowerCase().includes(urlStr.toLowerCase()));
+            if (std) {
+                handleSelectVoter(std);
+                return;
+            }
+        }
+        alert("No matching registered voter was found for that input.");
+    };
+
+    const handleMarkCheckedIn = async () => {
+        if (!scannerSelectedElectionId || !scannerMatchedStudent) return;
+        const newCheckin = {
+            id: `chk_${Date.now()}`,
+            electionId: scannerSelectedElectionId,
+            studentId: scannerMatchedStudent.id,
+            checkedInAt: new Date().toISOString(),
+            institutionId: user.institutionId || 'GLOBAL'
+        };
+
+        try {
+            await apiService.saveModuleRecord('election_checkins', newCheckin);
+            await syncEngine.queueMutation('INSERT', 'election_checkins', newCheckin).catch(() => {});
+            setElectionCheckins(prev => [...prev, newCheckin]);
+            alert(`Checked in ${scannerMatchedStudent.name} successfully! Ballot activated.`);
+            setScannerMatchedStudent(null);
+            setScannerInput('');
+            fetchData();
+        } catch (error) {
+            console.error("Voter check-in failed:", error);
+            alert("Voter check-in failed.");
+        }
+    };
 
     // Create Election
     const handleCreateElection = async (e: React.FormEvent) => {
@@ -352,6 +435,12 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
                         className="px-6 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 rounded-[2rem] font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-sm transition-all"
                     >
                         <QrCode className="w-4 h-4 text-indigo-500" /> Kiosk Passcodes
+                    </button>
+                    <button
+                        onClick={() => setShowCheckInModal(true)}
+                        className="px-6 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 rounded-[2rem] font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-sm transition-all"
+                    >
+                        <UserCheck className="w-4 h-4 text-indigo-500" /> Voter Check-In Desk
                     </button>
                     <button
                         onClick={() => setShowCreateModal(true)}
@@ -1025,6 +1114,188 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* VOTER CHECK-IN SCANNER MODAL */}
+            {showCheckInModal && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[1000] animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-[3rem] p-10 border border-slate-100 dark:border-slate-700 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Voter Check-In Desk</h3>
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Live Electoral Registry Verification</p>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    stopCamera();
+                                    setShowCheckInModal(false);
+                                    setScannerMatchedStudent(null);
+                                    setScannerInput('');
+                                }} 
+                                className="p-2.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 rounded-full transition-colors"
+                            >
+                                <XCircle className="w-6 h-6 text-slate-500 hover:text-red-500" />
+                            </button>
+                        </div>
+
+                        {/* Scanner Select Election */}
+                        <div className="mb-6">
+                            <label className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-2">Select Active Election</label>
+                            <select
+                                value={scannerSelectedElectionId}
+                                onChange={(e) => {
+                                    setScannerSelectedElectionId(e.target.value);
+                                    setScannerMatchedStudent(null);
+                                }}
+                                className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-150 dark:border-slate-700 rounded-3xl text-sm focus:outline-none font-bold"
+                            >
+                                <option value="">-- Choose Election Event --</option>
+                                {elections.filter(e => e.status === 'active' || e.status === 'paused').map(e => (
+                                    <option key={e.id} value={e.id}>{e.title}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {scannerSelectedElectionId ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {/* Left Side: Camera Scanner View / Simulator */}
+                                <div className="space-y-4">
+                                    <div className="relative rounded-[2rem] bg-slate-950 border-2 border-slate-800 overflow-hidden aspect-video flex items-center justify-center">
+                                        {/* Camera feed */}
+                                        <video 
+                                            ref={videoRef}
+                                            autoPlay
+                                            playsInline
+                                            className="w-full h-full object-cover"
+                                            style={{ display: stream ? 'block' : 'none' }}
+                                        />
+                                        {!stream && (
+                                            <div className="text-center p-6 space-y-3">
+                                                <QrCode className="w-12 h-12 text-slate-600 mx-auto animate-pulse" />
+                                                <button
+                                                    onClick={startCamera}
+                                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                >
+                                                    Start Video Scanner
+                                                </button>
+                                                <p className="text-[9px] text-slate-500">Camera feed requires SSL or localhost connection.</p>
+                                            </div>
+                                        )}
+                                        {stream && (
+                                            <div className="absolute inset-0 border-[3px] border-emerald-500/60 pointer-events-none rounded-[2rem] m-4 animate-pulse">
+                                                <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-emerald-500/80 -translate-y-1/2" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Simulated scan option */}
+                                    <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-150 dark:border-slate-700 rounded-[2rem] space-y-3">
+                                        <span className="text-[8px] font-black uppercase text-indigo-400 tracking-wider">Demo / Hardware Scanner Simulator</span>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Paste QR Code URL or type email..."
+                                                value={scannerInput}
+                                                onChange={(e) => setScannerInput(e.target.value)}
+                                                className="flex-grow px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs focus:outline-none"
+                                            />
+                                            <button
+                                                onClick={() => handleUrlInput(scannerInput)}
+                                                className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold uppercase tracking-wider transition-all"
+                                            >
+                                                Scan
+                                            </button>
+                                        </div>
+                                        <select
+                                            onChange={(e) => {
+                                                const std = students.find(s => s.id === e.target.value);
+                                                if (std) handleSelectVoter(std);
+                                            }}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs focus:outline-none"
+                                        >
+                                            <option value="">-- Or Select Student to Simulate --</option>
+                                            {students.map(s => (
+                                                <option key={s.id} value={s.id}>{s.name || s.email}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Right Side: Voter Profile Status Card */}
+                                <div className="flex flex-col justify-between h-full min-h-[300px]">
+                                    {scannerMatchedStudent ? (
+                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2.5rem] border border-slate-150 dark:border-slate-700 flex-grow flex flex-col justify-between space-y-4">
+                                            {/* Photo & Identity details */}
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 border-2 border-indigo-500 shrink-0">
+                                                    {(scannerMatchedStudent as any).photoUrl ? (
+                                                        <img src={(scannerMatchedStudent as any).photoUrl} alt="Student" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center font-black text-indigo-400 text-xl">
+                                                            {scannerMatchedStudent.name?.substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase leading-tight">{scannerMatchedStudent.name}</h4>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{scannerMatchedStudent.email}</p>
+                                                    <span className="inline-block text-[8px] font-black uppercase text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">Registered Student</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Eligibility Details */}
+                                            {(() => {
+                                                const hasVotedInElec = voterLedger.some(l => l.electionId === scannerSelectedElectionId && l.studentId === scannerMatchedStudent.id);
+                                                const hasCheckedIn = electionCheckins.some(c => c.electionId === scannerSelectedElectionId && c.studentId === scannerMatchedStudent.id);
+
+                                                return (
+                                                    <div className="space-y-4 flex-grow flex flex-col justify-center text-left">
+                                                        {hasVotedInElec ? (
+                                                            <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-center">
+                                                                <span className="text-[9px] font-black text-red-500 uppercase tracking-widest block mb-1">Status: Already Voted</span>
+                                                                <p className="text-slate-400 text-[10px] font-bold">This voter has already submitted a ballot. Ballot key is locked.</p>
+                                                            </div>
+                                                        ) : hasCheckedIn ? (
+                                                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-center">
+                                                                <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest block mb-1">Status: Checked In</span>
+                                                                <p className="text-slate-400 text-[10px] font-bold">Already checked in at the check-in desk. Waiting to cast vote.</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center">
+                                                                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest block mb-1">Status: Eligible to Vote</span>
+                                                                <p className="text-slate-400 text-[10px] font-bold">Not checked in yet. Ready to activate ballot.</p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Actions */}
+                                                        {!hasVotedInElec && !hasCheckedIn && (
+                                                            <button
+                                                                onClick={handleMarkCheckedIn}
+                                                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all flex items-center justify-center gap-2"
+                                                            >
+                                                                <CheckCircle className="w-4 h-4" /> Check In & Activate Ballot
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    ) : (
+                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-12 rounded-[2.5rem] border border-slate-150 dark:border-slate-700 flex-grow flex flex-col justify-center items-center text-center">
+                                            <QrCode className="w-16 h-16 text-slate-300 dark:text-slate-700 mb-4" />
+                                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Awaiting Registry Scan</p>
+                                            <p className="text-slate-400 text-[10px] max-w-[200px] mt-1.5 leading-relaxed">Present student voters card to scanner to load verification credentials.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="py-12 text-center text-slate-450 font-bold uppercase text-xs">
+                                Please select an active election event to initialize scanning.
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

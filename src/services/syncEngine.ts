@@ -106,7 +106,9 @@ class SyncEngine {
                 smsLogs,
                 smsOutbox,
                 electionEvents,
-                electionCandidates
+                electionCandidates,
+                electionVotersLedger,
+                electionCheckins
             ] = await Promise.all([
                 apiService.fetchModuleRecords('institutions', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('constituencies').catch(() => []),
@@ -114,23 +116,27 @@ class SyncEngine {
                 apiService.fetchModuleRecords('requisitions', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('sms_logs', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('sms_outbox', tenantId).catch(() => []),
-                apiService.fetchModuleRecords('election_events', tenantId).catch(() => []),
-                apiService.fetchModuleRecords('election_candidates', tenantId).catch(() => [])
-            ]);
-
-            update(50);
-
-            // Populate local IndexedDB tables
-            await Promise.all([
-                ...institutions.map((item: any) => localDb.put('institutions', item)),
-                ...constituencies.map((item: any) => localDb.put('constituencies', item)),
-                ...users.map((item: any) => localDb.put('users', item)),
-                ...requisitions.map((item: any) => localDb.put('requisitions', item)),
-                ...smsLogs.map((item: any) => localDb.put('sms_logs', item)),
-                ...smsOutbox.map((item: any) => localDb.put('sms_outbox', item)),
-                ...electionEvents.map((item: any) => localDb.put('election_events', item)),
-                ...electionCandidates.map((item: any) => localDb.put('election_candidates', item))
-            ]);
+                 apiService.fetchModuleRecords('election_events', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('election_candidates', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('election_voters_ledger', tenantId).catch(() => []),
+                 apiService.fetchModuleRecords('election_checkins', tenantId).catch(() => [])
+             ]);
+ 
+             update(50);
+ 
+             // Populate local IndexedDB tables
+             await Promise.all([
+                 ...institutions.map((item: any) => localDb.put('institutions', item)),
+                 ...constituencies.map((item: any) => localDb.put('constituencies', item)),
+                 ...users.map((item: any) => localDb.put('users', item)),
+                 ...requisitions.map((item: any) => localDb.put('requisitions', item)),
+                 ...smsLogs.map((item: any) => localDb.put('sms_logs', item)),
+                 ...smsOutbox.map((item: any) => localDb.put('sms_outbox', item)),
+                 ...electionEvents.map((item: any) => localDb.put('election_events', item)),
+                 ...electionCandidates.map((item: any) => localDb.put('election_candidates', item)),
+                 ...electionVotersLedger.map((item: any) => localDb.put('election_voters_ledger', item)),
+                 ...electionCheckins.map((item: any) => localDb.put('election_checkins', item))
+             ]);
 
             update(100);
         } catch (err: any) {

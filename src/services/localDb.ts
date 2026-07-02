@@ -3,7 +3,7 @@ const STORE_NAMES = [
     'departments', 'subjects', 'courses', 'allocation_requests', 'academic_years', 'semesters',
     'rooms', 'buildings', 'academic_levels', 'tasks', 'transactions', 'receipts', 'activity_log',
     'notifications', 'institution_module_states', 'school_registry',
-    'election_events', 'election_candidates', 'election_voters_ledger', 'election_ballots'
+    'election_events', 'election_candidates', 'election_voters_ledger', 'election_ballots', 'election_checkins'
 ];
 
 class LocalDb {
