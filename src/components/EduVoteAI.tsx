@@ -60,6 +60,7 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
     const [scannerInput, setScannerInput] = useState('');
     const [voterLedger, setVoterLedger] = useState<any[]>([]);
     const [electionCheckins, setElectionCheckins] = useState<any[]>([]);
+    const [institution, setInstitution] = useState<any>(null);
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
@@ -71,14 +72,15 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
             const instId = user.institutionId || 'GLOBAL';
             
             // Fetch events, candidates, users, courses, and levels for the tenant
-            const [eventsData, candData, usersData, coursesData, levelsData, ledgerData, checkinsData] = await Promise.all([
+            const [eventsData, candData, usersData, coursesData, levelsData, ledgerData, checkinsData, instList] = await Promise.all([
                 apiService.fetchModuleRecords('election_events', instId).catch(() => []),
                 apiService.fetchModuleRecords('election_candidates', instId).catch(() => []),
                 apiService.fetchModuleRecords('users', instId).catch(() => []),
                 apiService.fetchModuleRecords('courses', instId).catch(() => []),
                 apiService.fetchModuleRecords('course_levels', instId).catch(() => []),
                 apiService.fetchModuleRecords('election_voters_ledger', instId).catch(() => []),
-                apiService.fetchModuleRecords('election_checkins', instId).catch(() => [])
+                apiService.fetchModuleRecords('election_checkins', instId).catch(() => []),
+                apiService.fetchModuleRecords('institutions', instId).catch(() => [])
             ]);
 
             setElections(eventsData || []);
@@ -87,6 +89,8 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
             setCourseLevels(levelsData || []);
             setVoterLedger(ledgerData || []);
             setElectionCheckins(checkinsData || []);
+            const matchedInst = instList.find((i: any) => i.id === instId) || instList[0] || null;
+            setInstitution(matchedInst);
             
             // Only keep students in nominee list
             const studentUsers = (usersData || []).filter((u: any) => u.role === 'student');
@@ -1006,7 +1010,7 @@ export const EduVoteAI: React.FC<EduVoteAIProps> = ({ user, onViewProjector }) =
                                     {filteredVoters.map(voter => {
                                         const isChecked = selectedVoters.has(voter.id);
                                         const regNo = voter.admissionNumber || voter.admission_number || voter.staffId || voter.id.substring(0, 8);
-                                        const instData = localDb.getInstitution?.(user.institutionId || 'GLOBAL') || {};
+                                        const instData = institution || {};
                                         
                                         return (
                                             <div 
