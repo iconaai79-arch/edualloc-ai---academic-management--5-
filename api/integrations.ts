@@ -66,6 +66,8 @@ async function refreshGoogleDriveTokens(config: any) {
     }
 
     return await greq.json() as any;
+}
+
 // Memory cache for NCBA tokens to prevent slow polling
 const ncbaTokenCache: Record<string, { token: string | null; expiresAt: number }> = {};
 
@@ -492,26 +494,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const fromEmail = emailConfig.from_email || emailConfig.fromEmail || username;
             const fromName = emailConfig.from_name || emailConfig.fromName || branding.name;
 
-            const transporter = nodemailer.createTransport({
-                host: host,
-                port: Number(port || 587),
-                secure: Number(port) === 465,
-                auth: { user: username, pass: password },
-                tls: { rejectUnauthorized: false }
-            });
+            try {
+                const transporter = nodemailer.createTransport({
+                    host: host,
+                    port: Number(port || 587),
+                    secure: Number(port) === 465,
+                    auth: { user: username, pass: password },
+                    tls: { rejectUnauthorized: false }
+                });
 
-            const htmlContent = wrapHtml((message || '').replace(/\n/g, '<br>'), branding);
+                const htmlContent = wrapHtml((message || '').replace(/\n/g, '<br>'), branding);
 
-            const info = await transporter.sendMail({
-                from: `"${fromName}" <${fromEmail}>`,
-                to: recipient,
-                subject: subject || `${branding.name} Notification`,
-                text: message,
-                html: htmlContent,
-                attachments: paramsMap.attachments // Supports { filename: string, content: string (base64) / Buffer, contentType: string }
-            });
+                const info = await transporter.sendMail({
+                    from: `"${fromName}" <${fromEmail}>`,
+                    to: recipient,
+                    subject: subject || `${branding.name} Notification`,
+                    text: message,
+                    html: htmlContent,
+                    attachments: paramsMap.attachments // Supports { filename: string, content: string (base64) / Buffer, contentType: string }
+                });
 
-            return res.status(200).json({ success: true, message: 'Email sent successfully.', messageId: info.messageId });
+                return res.status(200).json({ success: true, message: 'Email sent successfully.', messageId: info.messageId });
+            } catch (e: any) {
+                console.error("[Email Gateway] SMTP send error:", e);
+                return res.status(200).json({ success: false, message: `SMTP Gateway error: ${e.message || 'Connection failed'}` });
+            }
         }
 
         if (action === 'sendAlumnaWelcome') {
@@ -524,33 +531,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const alumnaName = getParam('alumnaName');
             const loginLink = getParam('loginLink') || `https://almamater.eduai.co.ke/?view=alumnae_social`;
 
-            const transporter = nodemailer.createTransport({
-                host: emailConfig.host,
-                port: Number(emailConfig.port || 587),
-                secure: Number(emailConfig.port) === 465,
-                auth: { user: emailConfig.username, pass: emailConfig.password },
-                tls: { rejectUnauthorized: false }
-            });
+            try {
+                const transporter = nodemailer.createTransport({
+                    host: emailConfig.host,
+                    port: Number(emailConfig.port || 587),
+                    secure: Number(emailConfig.port) === 465,
+                    auth: { user: emailConfig.username, pass: emailConfig.password },
+                    tls: { rejectUnauthorized: false }
+                });
 
-            const welcomeContent = `
-                <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Welcome to the Alumnae Circle!</h2>
-                <p>Hello <strong>${alumnaName}</strong>,</p>
-                <p>Congratulations! Your registration for the Alumnae Network is successful. We are thrilled to have you as part of our professional community.</p>
-                <p>You can now access the portal to connect with classmates, share your legacy, and explore opportunities.</p>
-                <div style="margin: 30px 0; text-align: center;">
-                    <a href="${loginLink}" style="background-color: ${branding.primaryColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; display: inline-block; box-shadow: 0 4px 12px ${branding.primaryColor}40;">Access Alumnae Portal</a>
-                </div>
-                <p style="font-size: 12px; color: #64748b;">If the button above doesn't work, copy and paste this link into your browser: <br>${loginLink}</p>
-            `;
+                const welcomeContent = `
+                    <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Welcome to the Alumnae Circle!</h2>
+                    <p>Hello <strong>${alumnaName}</strong>,</p>
+                    <p>Congratulations! Your registration for the Alumnae Network is successful. We are thrilled to have you as part of our professional community.</p>
+                    <p>You can now access the portal to connect with classmates, share your legacy, and explore opportunities.</p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${loginLink}" style="background-color: ${branding.primaryColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; display: inline-block; box-shadow: 0 4px 12px ${branding.primaryColor}40;">Access Alumnae Portal</a>
+                    </div>
+                    <p style="font-size: 12px; color: #64748b;">If the button above doesn't work, copy and paste this link into your browser: <br>${loginLink}</p>
+                `;
 
-            const info = await transporter.sendMail({
-                from: `"${branding.name} Alumnae" <${emailConfig.from_email || emailConfig.username}>`,
-                to: recipient,
-                subject: `Welcome to the Alumnae Circle, ${alumnaName}!`,
-                html: wrapHtml(welcomeContent, branding)
-            });
+                const info = await transporter.sendMail({
+                    from: `"${branding.name} Alumnae" <${emailConfig.from_email || emailConfig.username}>`,
+                    to: recipient,
+                    subject: `Welcome to the Alumnae Circle, ${alumnaName}!`,
+                    html: wrapHtml(welcomeContent, branding)
+                });
 
-            return res.status(200).json({ success: true, message: 'Welcome email sent successfully.', messageId: info.messageId });
+                return res.status(200).json({ success: true, message: 'Welcome email sent successfully.', messageId: info.messageId });
+            } catch (e: any) {
+                console.error("[Email Gateway] SMTP send welcome error:", e);
+                return res.status(200).json({ success: false, message: `SMTP Gateway welcome error: ${e.message || 'Connection failed'}` });
+            }
         }
 
         if (action === 'sendSms') {
@@ -1215,42 +1227,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             console.log(`[Forgot Password] Dispatching recovery link to: ${recipient} using ${host}:${port}`);
 
-            const transporter = nodemailer.createTransport({
-                host: host,
-                port: Number(port || 587),
-                secure: Number(port) === 465,
-                auth: { user: username, pass: password },
-                tls: { rejectUnauthorized: false }
-            });
+            try {
+                const transporter = nodemailer.createTransport({
+                    host: host,
+                    port: Number(port || 587),
+                    secure: Number(port) === 465,
+                    auth: { user: username, pass: password },
+                    tls: { rejectUnauthorized: false }
+                });
 
-            const protocol = String(req.headers['x-forwarded-proto'] || 'https');
-            const hostHeader = req.headers.host || 'eduai.co.ke';
-            const resetLink = `${protocol}://${hostHeader}/?resetToken=${token}`;
+                const protocol = String(req.headers['x-forwarded-proto'] || 'https');
+                const hostHeader = req.headers.host || 'eduai.co.ke';
+                const resetLink = `${protocol}://${hostHeader}/?resetToken=${token}`;
 
-            const instId = user.user_metadata?.institutionId || user.institution_id || user.institutionId;
-            const branding = await getBranding(instId);
+                const instId = user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+                const branding = await getBranding(instId);
 
-            const recoverySubject = `Password Reset Request - ${branding.name}`;
-            const recoveryContent = `
-                <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Password Recovery</h2>
-                <p>Dear <strong>${user.name || 'User'}</strong>,</p>
-                <p>You requested a password reset for your account on the <strong>${branding.name}</strong> system.</p>
-                <p>Please click the button below to set a new password. This link is valid for 1 hour:</p>
-                <div style="margin: 30px 0; text-align: center;">
-                    <a href="${resetLink}" style="background-color: ${branding.primaryColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; display: inline-block;">Reset Password</a>
-                </div>
-                <p style="font-size: 12px; color: #64748b;">If you did not request this, please ignore this email and your password will remain unchanged.</p>
-            `;
+                const recoverySubject = `Password Reset Request - ${branding.name}`;
+                const recoveryContent = `
+                    <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Password Recovery</h2>
+                    <p>Dear <strong>${user.name || 'User'}</strong>,</p>
+                    <p>You requested a password reset for your account on the <strong>${branding.name}</strong> system.</p>
+                    <p>Please click the button below to set a new password. This link is valid for 1 hour:</p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${resetLink}" style="background-color: ${branding.primaryColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; display: inline-block;">Reset Password</a>
+                    </div>
+                    <p style="font-size: 12px; color: #64748b;">If you did not request this, please ignore this email and your password will remain unchanged.</p>
+                `;
 
-            const info = await transporter.sendMail({
-                from: `"${branding.name}" <${fromEmail}>`,
-                to: recipient,
-                subject: recoverySubject,
-                text: `Dear ${user.name || 'User'},\n\nPlease use this link to reset your password: ${resetLink}`,
-                html: wrapHtml(recoveryContent, branding)
-            });
+                const info = await transporter.sendMail({
+                    from: `"${branding.name}" <${fromEmail}>`,
+                    to: recipient,
+                    subject: recoverySubject,
+                    text: `Dear ${user.name || 'User'},\n\nPlease use this link to reset your password: ${resetLink}`,
+                    html: wrapHtml(recoveryContent, branding)
+                });
 
-            console.log(`[Forgot Password] Recovery link sent successfully via Email. Message ID: ${info.messageId}`);
+                console.log(`[Forgot Password] Recovery link sent successfully via Email. Message ID: ${info.messageId}`);
+            } catch (e: any) {
+                console.error("[Forgot Password] SMTP send recovery email error:", e);
+                if (!user.phone_number) {
+                    return res.status(200).json({ success: false, message: `Email delivery failed: ${e.message || 'SMTP connection failed'}` });
+                }
+            }
 
             // NEW: Dispatch recovery link via SMS if phone number is available
             let smsSuccess = false;
