@@ -148,6 +148,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [editingProperty, setEditingProperty] = useState<PMProperty | null>(null);
     const [editingUnit, setEditingUnit] = useState<PMUnit | null>(null);
     const [isAddingStaff, setIsAddingStaff] = useState(false);
+    const [commStartDate, setCommStartDate] = useState('');
+    const [commEndDate, setCommEndDate] = useState('');
+    const [showGenerateArrearsModal, setShowGenerateArrearsModal] = useState(false);
 
     const [search, setSearch] = useState('');
     const [showPdfPreview, setShowPdfPreview] = useState(false);
@@ -1447,6 +1450,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
                 paymentMethod: data.paymentMethod || 'M-Pesa',
                 paymentType,
+                reference: data.reference,
                 status: 'Completed',
                 commissionAmount,
                 institutionId,
@@ -1494,10 +1498,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         try {
                             const blob = dataUriToBlob(dataUri);
                             const fileName = `receipts/Receipt_${p.id.trim()}.pdf`;
-                            const publicUrl = await apiService.uploadBlob(fileName, blob);
-                            const shortUrl = await apiService.shortenUrl(publicUrl);
+                            let publicUrl = '';
+                            let shortUrl = '';
+                            try {
+                                publicUrl = await apiService.uploadBlob(fileName, blob);
+                                shortUrl = await apiService.shortenUrl(publicUrl);
+                            } catch (uploadErr) {
+                                console.warn("Supabase storage upload failed, sending SMS without attachment", uploadErr);
+                            }
                             
-                            const smsMessage = `Dear ${tenant.name}, payment of KES ${amount.toLocaleString()} for Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. Download receipt here: ${shortUrl}`;
+                            const smsMessage = publicUrl 
+                                ? `Dear ${tenant.name}, payment of KES ${amount.toLocaleString()} for Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. Download receipt here: ${shortUrl}`
+                                : `Dear ${tenant.name}, payment of KES ${amount.toLocaleString()} for Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. (PDF receipt generated successfully)`;
                             
                             apiService.sendSms(
                                 tenant.phoneNumber, 
@@ -1544,6 +1556,123 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             setShowInvoiceModal(false);
             loadData();
         } catch (e: any) { alert(e.message || "Failed to save invoice"); }
+    };
+
+    const handleGenerateArrears = async (data: {
+        billingMonth: string;
+        propertyId: string;
+        dueDate: string;
+        generateRent: boolean;
+        generateArrears: boolean;
+    }) => {
+        try {
+            const [yearStr, monthStr] = data.billingMonth.split('-');
+            const targetYear = parseInt(yearStr);
+            const targetMonth = parseInt(monthStr);
+            
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const monthName = monthNames[targetMonth - 1];
+            const rentDescription = `Rent - ${monthName} ${targetYear}`;
+
+            let targetLeases = leases.filter(l => l.status === 'Active');
+            if (data.propertyId !== 'all') {
+                targetLeases = targetLeases.filter(l => {
+                    const unit = units.find(u => u.id === l.unitId);
+                    return unit?.propertyId === data.propertyId;
+                });
+            }
+
+            const newInvoices: PMInvoice[] = [];
+
+            for (const lease of targetLeases) {
+                const tenant = tenants.find(t => t.id === lease.tenantId);
+                const unit = units.find(u => u.id === lease.unitId);
+                if (!tenant || !unit) continue;
+
+                if (data.generateRent) {
+                    const alreadyExists = invoices.some(inv => 
+                        inv.leaseId === lease.id && 
+                        inv.description.toLowerCase().includes(rentDescription.toLowerCase())
+                    );
+
+                    if (!alreadyExists) {
+                        newInvoices.push({
+                            id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                            invoiceNumber: `INV-${Date.now().toString().slice(-6)}-R${Math.floor(Math.random()*100)}`,
+                            leaseId: lease.id,
+                            tenantId: lease.tenantId,
+                            unitId: lease.unitId,
+                            description: rentDescription,
+                            amount: lease.rentAmount,
+                            issueDate: new Date().toISOString().split('T')[0],
+                            dueDate: data.dueDate,
+                            status: 'Sent',
+                            institutionId,
+                            createdAt: new Date().toISOString()
+                        });
+                    }
+                }
+
+                if (data.generateArrears) {
+                    const start = new Date(lease.startDate);
+                    const today = new Date();
+                    let expectedRent = 0;
+                    let curr = new Date(start);
+                    while (curr <= today) {
+                        expectedRent += lease.rentAmount;
+                        curr.setMonth(curr.getMonth() + 1);
+                    }
+
+                    const totalPaid = payments
+                        .filter(p => p.leaseId === lease.id && p.paymentType === 'Rent')
+                        .reduce((sum, p) => sum + p.amount, 0);
+
+                    const totalInvoiced = invoices
+                        .filter(inv => inv.leaseId === lease.id && inv.description.toLowerCase().includes('rent'))
+                        .reduce((sum, inv) => sum + inv.amount, 0);
+
+                    const unInvoicedArrears = expectedRent - totalPaid - totalInvoiced;
+
+                    if (unInvoicedArrears > 0) {
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        const alreadyExistsArrears = invoices.some(inv => 
+                            inv.leaseId === lease.id && 
+                            inv.description.includes('Outstanding Arrears Adjustment') &&
+                            inv.issueDate === todayStr
+                        );
+
+                        if (!alreadyExistsArrears) {
+                            newInvoices.push({
+                                id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                invoiceNumber: `INV-${Date.now().toString().slice(-6)}-A${Math.floor(Math.random()*100)}`,
+                                leaseId: lease.id,
+                                tenantId: lease.tenantId,
+                                unitId: lease.unitId,
+                                description: `Outstanding Arrears Adjustment - ${new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' })}`,
+                                amount: unInvoicedArrears,
+                                issueDate: todayStr,
+                                dueDate: data.dueDate,
+                                status: 'Sent',
+                                institutionId,
+                                createdAt: new Date().toISOString()
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (newInvoices.length === 0) {
+                alert("No new rent or arrears invoices need to be generated for the selected criteria.");
+                return;
+            }
+
+            await apiService.saveModuleRecords('pm_invoices', newInvoices);
+            alert(`Successfully generated ${newInvoices.length} invoices!`);
+            setShowGenerateArrearsModal(false);
+            loadData();
+        } catch (e: any) {
+            alert(e.message || "Failed to generate invoices");
+        }
     };
 
     const handleSaveTicket = async (data: Partial<PMTicket>) => {
@@ -1598,6 +1727,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <td className="p-6">
                                             <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">{tenant?.name || 'N/A'}</p>
                                             <p className="text-[9px] text-blue-600 font-bold uppercase">{payment.paymentType}</p>
+                                            {payment.reference && (
+                                                <p className="text-[9px] text-purple-650 font-black uppercase tracking-wider mt-0.5">Ref: {payment.reference}</p>
+                                            )}
                                         </td>
                                         <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</td>
                                         <td className="p-6 font-bold text-slate-500 uppercase text-[10px]">{payment.paymentMethod}</td>
@@ -1630,6 +1762,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <div>
                                         <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</h4>
                                         <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{payment.paymentType}</p>
+                                        {payment.reference && (
+                                            <p className="text-[9px] text-purple-650 font-black uppercase tracking-wider mt-0.5">Ref: {payment.reference}</p>
+                                        )}
                                     </div>
                                     <div className="text-right">
                                         <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</p>
@@ -1646,12 +1781,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const InvoicesTab = () => {
         const [search, setSearch] = useState('');
+        const [statusFilter, setStatusFilter] = useState('all');
+        const [propertyFilter, setPropertyFilter] = useState('all');
         const [sendingBulk, setSendingBulk] = useState(false);
 
         const filteredInvoices = invoices.filter(inv => {
             const tenant = tenants.find(t => t.id === inv.tenantId);
-            return inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
-                   tenant?.name.toLowerCase().includes(search.toLowerCase());
+            const unit = units.find(u => u.id === inv.unitId);
+            
+            const matchesSearch = inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
+                                 tenant?.name.toLowerCase().includes(search.toLowerCase());
+            const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
+            const matchesProperty = propertyFilter === 'all' || unit?.propertyId === propertyFilter;
+
+            return matchesSearch && matchesStatus && matchesProperty;
         });
 
         const handleDownload = async (inv: PMInvoice) => {
@@ -1689,12 +1832,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 );
                 const blob = dataURItoBlob(dataUri);
                 const fileName = `pm/invoices/${inv.invoiceNumber}.pdf`;
-                const publicUrl = await apiService.uploadBlob(fileName, blob);
+                
+                let publicUrl = '';
+                try {
+                    publicUrl = await apiService.uploadBlob(fileName, blob);
+                } catch (uploadErr) {
+                    console.warn("Invoice PDF upload failed, sending notification without attachment", uploadErr);
+                }
                 
                 if (tenant.phoneNumber) {
-                    const msg = `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${publicUrl}`;
+                    const msg = publicUrl 
+                        ? `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${publicUrl}`
+                        : `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. (PDF link temporarily unavailable)`;
                     await apiService.sendSms(tenant.phoneNumber, msg, currentInstitution.smsConfig, 1, institutionId);
-                    alert("Invoice link sent via SMS!");
+                    alert(publicUrl ? "Invoice link sent via SMS!" : "Invoice notification sent via SMS! (PDF link unavailable due to storage connection issues)");
                 }
             } catch (err) { alert("Failed to send invoice."); }
         };
@@ -1730,9 +1881,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         );
                         const blob = dataURItoBlob(dataUri);
                         const fileName = `pm/invoices/${inv.invoiceNumber}.pdf`;
-                        const publicUrl = await apiService.uploadBlob(fileName, blob);
                         
-                        const msg = `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${publicUrl}`;
+                        let publicUrl = '';
+                        try {
+                            publicUrl = await apiService.uploadBlob(fileName, blob);
+                        } catch (uploadErr) {
+                            console.warn(`Bulk send: PDF upload failed for invoice #${inv.invoiceNumber}`, uploadErr);
+                        }
+                        
+                        const msg = publicUrl
+                            ? `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${publicUrl}`
+                            : `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. (PDF link temporarily unavailable)`;
                         await apiService.sendSms(tenant.phoneNumber, msg, currentInstitution.smsConfig, 1, institutionId);
                         successCount++;
                     } catch (err) {
@@ -1752,7 +1911,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
         return (
             <div className="space-y-6 animate-in fade-in duration-500">
-                <div className="flex bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm gap-4 items-center flex-wrap sm:flex-nowrap">
+                <div className="flex bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm gap-4 items-center flex-wrap">
                     <div className="flex flex-1 items-center gap-4 min-w-[200px]">
                         <SearchIcon className="w-5 h-5 text-slate-400 ml-2" />
                         <input 
@@ -1763,16 +1922,57 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    {filteredInvoices.length > 0 && (
-                        <button
-                            onClick={handleBulkSendInvoices}
-                            disabled={sendingBulk}
-                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black uppercase tracking-widest text-[10px] py-3.5 px-6 rounded-2xl flex items-center gap-2 transition-all shadow-md shadow-emerald-600/10 shrink-0 ml-auto"
+                    
+                    {/* Status Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Status</label>
+                        <select 
+                            value={statusFilter} 
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
                         >
-                            <PaperAirplaneIcon className="w-4.5 h-4.5" />
-                            {sendingBulk ? "Sending..." : "Bulk Send via SMS"}
+                            <option value="all">All Statuses</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Paid">Paid</option>
+                            <option value="Overdue">Overdue</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+
+                    {/* Property Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Property</label>
+                        <select 
+                            value={propertyFilter} 
+                            onChange={(e) => setPropertyFilter(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none max-w-[150px] truncate dark:text-white"
+                        >
+                            <option value="all">All Properties</option>
+                            {properties.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex gap-2 ml-auto">
+                        <button
+                            onClick={() => setShowGenerateArrearsModal(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest text-[10px] py-3.5 px-6 rounded-2xl flex items-center gap-2 transition-all shadow-md shadow-blue-600/10 shrink-0"
+                        >
+                            <DocumentTextIcon className="w-4.5 h-4.5" />
+                            Generate Rent & Arrears
                         </button>
-                    )}
+                        {filteredInvoices.length > 0 && (
+                            <button
+                                onClick={handleBulkSendInvoices}
+                                disabled={sendingBulk}
+                                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black uppercase tracking-widest text-[10px] py-3.5 px-6 rounded-2xl flex items-center gap-2 transition-all shadow-md shadow-emerald-600/10 shrink-0"
+                            >
+                                <PaperAirplaneIcon className="w-4.5 h-4.5" />
+                                {sendingBulk ? "Sending..." : "Bulk Send via SMS"}
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredInvoices.map(inv => {
@@ -2691,13 +2891,21 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             {reportsSubTab === 'statements' && <StatementsManager />}
 
             {reportsSubTab === 'commission' && (() => {
+                // Apply date range filter
+                const filteredPayments = payments.filter(p => {
+                    if (p.paymentType !== 'Rent') return false;
+                    if (commStartDate && p.paymentDate < commStartDate) return false;
+                    if (commEndDate && p.paymentDate > commEndDate) return false;
+                    return true;
+                });
+
                 // Build per-property commission data
                 const commissionRows = properties.map(prop => {
                     const propUnits = units.filter(u => u.propertyId === prop.id);
                     const unitIds = propUnits.map(u => u.id);
                     const propLeases = leases.filter(l => unitIds.includes(l.unitId));
                     const leaseIds = propLeases.map(l => l.id);
-                    const propPayments = payments.filter(p => leaseIds.includes(p.leaseId) && p.paymentType === 'Rent');
+                    const propPayments = filteredPayments.filter(p => leaseIds.includes(p.leaseId));
                     const gross = propPayments.reduce((s, p) => s + p.amount, 0);
                     const commission = propPayments.reduce((s, p) => s + (p.commissionAmount || 0), 0);
                     const net = gross - commission;
@@ -2711,6 +2919,53 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                 return (
                     <div className="space-y-8">
+                        {/* ── Date Range Filter Bar ── */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg">
+                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">Filter by Date Range</p>
+                            <div className="flex flex-wrap items-center gap-3">
+                                {/* Quick filters */}
+                                {[
+                                    { label: 'All Time', start: '', end: '' },
+                                    { label: 'This Month', start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10), end: new Date().toISOString().slice(0,10) },
+                                    { label: 'Last 30d', start: new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10), end: new Date().toISOString().slice(0,10) },
+                                    { label: 'Last 3 Months', start: new Date(Date.now() - 90*24*60*60*1000).toISOString().slice(0,10), end: new Date().toISOString().slice(0,10) },
+                                    { label: 'Last 6 Months', start: new Date(Date.now() - 180*24*60*60*1000).toISOString().slice(0,10), end: new Date().toISOString().slice(0,10) },
+                                    { label: 'This Year', start: `${new Date().getFullYear()}-01-01`, end: new Date().toISOString().slice(0,10) },
+                                ].map(q => (
+                                    <button
+                                        key={q.label}
+                                        onClick={() => { setCommStartDate(q.start); setCommEndDate(q.end); }}
+                                        className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                            commStartDate === q.start && commEndDate === q.end
+                                                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
+                                                : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                        }`}
+                                    >
+                                        {q.label}
+                                    </button>
+                                ))}
+                                <div className="flex items-center gap-2 ml-auto">
+                                    <input
+                                        type="date"
+                                        value={commStartDate}
+                                        onChange={e => setCommStartDate(e.target.value)}
+                                        className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-purple-500 transition-all"
+                                    />
+                                    <span className="text-[10px] font-bold text-slate-400">to</span>
+                                    <input
+                                        type="date"
+                                        value={commEndDate}
+                                        onChange={e => setCommEndDate(e.target.value)}
+                                        className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-purple-500 transition-all"
+                                    />
+                                </div>
+                            </div>
+                            {(commStartDate || commEndDate) && (
+                                <p className="text-[9px] font-bold text-purple-500 mt-3 uppercase tracking-widest">
+                                    Showing: {commStartDate || 'beginning'} → {commEndDate || 'today'} · {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''}
+                                </p>
+                            )}
+                        </div>
                         {/* ── Summary Cards ── */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
@@ -2799,8 +3054,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     </thead>
                                     <tbody>
                                         {(() => {
-                                            const allDetailRows = payments
-                                                .filter(p => p.paymentType === 'Rent' && (p.commissionAmount || 0) > 0)
+                                            const allDetailRows = filteredPayments
+                                                .filter(p => (p.commissionAmount || 0) > 0)
                                                 .map(p => {
                                                     const lease = leases.find(l => l.id === p.leaseId);
                                                     const unit = units.find(u => u.id === lease?.unitId);
@@ -3984,146 +4239,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </Modal>
             )}
 
-            <Modal show={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Record Transaction">
-                <form onSubmit={(e) => { 
-                    e.preventDefault(); 
-                    if (!selectedLeaseId) {
-                        alert("Please search and select a tenant lease.");
-                        return;
-                    }
-                    const formData = new FormData(e.currentTarget); 
-                    handleSavePayment({ 
-                        leaseId: selectedLeaseId, 
-                        amount: parseFloat(formData.get('amount') as string) || 0, 
-                        paymentType: formData.get('paymentType') as PMPaymentType,
-                        paymentDate: formData.get('paymentDate') as string,
-                        paymentMethod: formData.get('paymentMethod') as PMPaymentMethod
-                    }); 
-                }} className="space-y-6">
-                    {/* Tenant Search & Select Dropdown */}
-                    <div className="relative">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Search Tenant</label>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                placeholder="Type tenant name or unit number to search..."
-                                value={tenantSearchQuery}
-                                onChange={(e) => {
-                                    setTenantSearchQuery(e.target.value);
-                                    setIsDropdownOpen(true);
-                                }}
-                                onFocus={() => setIsDropdownOpen(true)}
-                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm"
-                            />
-                            {selectedLeaseId && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSelectedLeaseId('');
-                                        setTenantSearchQuery('');
-                                    }}
-                                    className="px-4 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-2xl font-bold text-xs"
-                                >
-                                    Clear
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Selected Lease Indicator */}
-                        {selectedLeaseId ? (() => {
-                            const lease = leases.find(l => l.id === selectedLeaseId);
-                            const tenant = tenants.find(t => t.id === lease?.tenantId);
-                            const unit = units.find(u => u.id === lease?.unitId);
-                            return (
-                                <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-100 dark:border-indigo-900/50 flex justify-between items-center">
-                                    <span>Selected: {tenant?.name || 'Unknown'} (Unit {unit?.unitNumber || 'N/A'})</span>
-                                    <span className="text-[9px] bg-indigo-200 dark:bg-indigo-900 text-indigo-850 px-2 py-0.5 rounded-full uppercase tracking-wider">Active Lease</span>
-                                </div>
-                            );
-                        })() : (
-                            <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold border border-amber-100 dark:border-amber-900/50">
-                                ⚠ Please search and select a tenant from the matches list.
-                            </div>
-                        )}
-
-                        {/* Dropdown Options */}
-                        {isDropdownOpen && (
-                            <div className="absolute z-[1100] left-0 right-0 mt-2 max-h-60 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 space-y-1">
-                                {(() => {
-                                    const filtered = leases.filter(l => {
-                                        if (l.status !== 'Active') return false;
-                                        const tenant = tenants.find(t => t.id === l.tenantId);
-                                        const unit = units.find(u => u.id === l.unitId);
-                                        const query = tenantSearchQuery.toLowerCase();
-                                        return (tenant?.name || '').toLowerCase().includes(query) ||
-                                               (unit?.unitNumber || '').toLowerCase().includes(query);
-                                    });
-
-                                    if (filtered.length === 0) {
-                                        return <div className="text-center p-4 text-xs text-slate-400">No active tenants match your search.</div>;
-                                    }
-
-                                    return filtered.map(l => {
-                                        const tenant = tenants.find(t => t.id === l.tenantId);
-                                        const unit = units.find(u => u.id === l.unitId);
-                                        return (
-                                            <div
-                                                key={l.id}
-                                                onClick={() => {
-                                                    setSelectedLeaseId(l.id);
-                                                    setTenantSearchQuery(`${tenant?.name} - Unit ${unit?.unitNumber}`);
-                                                    setIsDropdownOpen(false);
-                                                }}
-                                                className={`p-3 rounded-xl text-xs font-bold cursor-pointer transition-colors text-left flex justify-between items-center ${
-                                                    selectedLeaseId === l.id 
-                                                        ? 'bg-indigo-600 text-white' 
-                                                        : 'hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
-                                                }`}
-                                            >
-                                                <span>{tenant?.name}</span>
-                                                <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${
-                                                    selectedLeaseId === l.id ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-900 text-slate-400'
-                                                }`}>Unit {unit?.unitNumber}</span>
-                                            </div>
-                                        );
-                                    });
-                                })()}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Payment Date</label>
-                            <input 
-                                type="date" 
-                                name="paymentDate" 
-                                required 
-                                defaultValue={new Date().toISOString().split('T')[0]} 
-                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Payment Method</label>
-                            <select 
-                                name="paymentMethod" 
-                                required
-                                defaultValue="M-Pesa"
-                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm"
-                            >
-                                <option value="M-Pesa">M-Pesa</option>
-                                <option value="Bank Transfer">Bank Transfer</option>
-                                <option value="Cash">Cash</option>
-                                <option value="Cheque">Cheque</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <select name="paymentType" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"><option value="Rent">Rent</option><option value="Utility">Utility Bill</option><option value="Deposit">Deposit</option></select>
-                    <input name="amount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Amount Paid" />
-                    <button type="submit" className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Finalize Payment</button>
-                </form>
-            </Modal>
+            {showPaymentModal && (
+                <RecordPaymentModal
+                    show={showPaymentModal}
+                    onClose={() => setShowPaymentModal(false)}
+                    leases={leases}
+                    tenants={tenants}
+                    units={units}
+                    properties={properties}
+                    onSave={handleSavePayment}
+                    pmSettings={pmSettings}
+                    getNextRentDueDate={getNextRentDueDate}
+                />
+            )}
 
             <Modal show={showTicketModal} onClose={() => setShowTicketModal(false)} title="Maintenance Request">
                 <form onSubmit={(e) => {
@@ -4303,6 +4431,53 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     </button>
                 </form>
             </Modal>
+
+            <Modal show={showGenerateArrearsModal} onClose={() => setShowGenerateArrearsModal(false)} title="Generate Rent & Arrears Invoices" maxWidth="max-w-md">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleGenerateArrears({
+                        billingMonth: formData.get('billingMonth') as string,
+                        propertyId: formData.get('propertyId') as string,
+                        dueDate: formData.get('dueDate') as string,
+                        generateRent: formData.get('generateRent') === 'true',
+                        generateArrears: formData.get('generateArrears') === 'true',
+                    });
+                }} className="space-y-4">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400">Target Billing Month</label>
+                        <input name="billingMonth" type="month" required defaultValue={new Date().toISOString().slice(0, 7)} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none text-sm dark:text-slate-800" />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400">Property</label>
+                        <select name="propertyId" required className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none text-sm dark:text-slate-800">
+                            <option value="all">All Properties</option>
+                            {properties.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400">Payment Due Date</label>
+                        <input name="dueDate" type="date" required defaultValue={pmSettings?.defaultRentDueDate ? getNextRentDueDate(pmSettings.defaultRentDueDate) : new Date().toISOString().split('T')[0]} className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none text-sm dark:text-slate-800" />
+                    </div>
+                    
+                    <div className="space-y-3 pt-2">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" name="generateRent" value="true" defaultChecked className="w-4.5 h-4.5 rounded text-blue-600 focus:ring-blue-500" />
+                            <span className="text-xs font-bold text-slate-650 dark:text-slate-350">Generate Standard Rent Invoices</span>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" name="generateArrears" value="true" defaultChecked className="w-4.5 h-4.5 rounded text-blue-600 focus:ring-blue-500" />
+                            <span className="text-xs font-bold text-slate-650 dark:text-slate-350">Generate Outstanding Arrears Invoices</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all mt-4">
+                        Generate & Process Invoices
+                    </button>
+                </form>
+            </Modal>
         </div>
     );
 };
@@ -4317,4 +4492,193 @@ const dataURItoBlob = (dataURI: string) => {
     }
     return new Blob([ab], { type: mimeString });
 };
+
+interface RecordPaymentModalProps {
+    show: boolean;
+    onClose: () => void;
+    leases: PMLease[];
+    tenants: PMTenant[];
+    units: PMUnit[];
+    properties: PMProperty[];
+    onSave: (data: Partial<PMPayment>) => void;
+    pmSettings: PMSettings | null;
+    getNextRentDueDate: (dueDay: number) => string;
+}
+
+const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
+    show, onClose, leases, tenants, units, properties, onSave, pmSettings, getNextRentDueDate
+}) => {
+    const [tenantSearchQuery, setTenantSearchQuery] = useState('');
+    const [selectedLeaseId, setSelectedLeaseId] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+    if (!show) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Record Transaction</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                        <svg className="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div className="p-8 max-h-[70vh] overflow-y-auto">
+                    <form onSubmit={(e) => { 
+                        e.preventDefault(); 
+                        if (!selectedLeaseId) {
+                            alert("Please search and select a tenant lease.");
+                            return;
+                        }
+                        const formData = new FormData(e.currentTarget); 
+                        onSave({ 
+                            leaseId: selectedLeaseId, 
+                            amount: parseFloat(formData.get('amount') as string) || 0, 
+                            paymentType: formData.get('paymentType') as PMPaymentType,
+                            paymentDate: formData.get('paymentDate') as string,
+                            paymentMethod: formData.get('paymentMethod') as PMPaymentMethod,
+                            reference: formData.get('reference') as string
+                        }); 
+                    }} className="space-y-6">
+                        {/* Tenant Search & Select Dropdown */}
+                        <div className="relative">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Search Tenant</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="Type tenant name or unit number to search..."
+                                    value={tenantSearchQuery}
+                                    onChange={(e) => {
+                                        setTenantSearchQuery(e.target.value);
+                                        setIsDropdownOpen(true);
+                                    }}
+                                    onFocus={() => setIsDropdownOpen(true)}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm dark:text-white"
+                                />
+                                {selectedLeaseId && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedLeaseId('');
+                                            setTenantSearchQuery('');
+                                        }}
+                                        className="px-4 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-2xl font-bold text-xs"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Selected Lease Indicator */}
+                            {selectedLeaseId ? (() => {
+                                const lease = leases.find(l => l.id === selectedLeaseId);
+                                const tenant = tenants.find(t => t.id === lease?.tenantId);
+                                const unit = units.find(u => u.id === lease?.unitId);
+                                return (
+                                    <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-100 dark:border-indigo-900/50 flex justify-between items-center">
+                                        <span>Selected: {tenant?.name || 'Unknown'} (Unit {unit?.unitNumber || 'N/A'})</span>
+                                        <span className="text-[9px] bg-indigo-200 dark:bg-indigo-900 text-indigo-850 px-2 py-0.5 rounded-full uppercase tracking-wider">Active Lease</span>
+                                    </div>
+                                );
+                            })() : (
+                                <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold border border-amber-100 dark:border-amber-900/50">
+                                    ⚠ Please search and select a tenant from the matches list.
+                                </div>
+                            )}
+
+                            {/* Dropdown Options */}
+                            {isDropdownOpen && (
+                                <div className="absolute z-[1100] left-0 right-0 mt-2 max-h-60 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 space-y-1">
+                                    {(() => {
+                                        const filtered = leases.filter(l => {
+                                            if (l.status !== 'Active') return false;
+                                            const tenant = tenants.find(t => t.id === l.tenantId);
+                                            const unit = units.find(u => u.id === l.unitId);
+                                            const query = tenantSearchQuery.toLowerCase();
+                                            return (tenant?.name || '').toLowerCase().includes(query) ||
+                                                   (unit?.unitNumber || '').toLowerCase().includes(query);
+                                        });
+
+                                        if (filtered.length === 0) {
+                                            return <div className="text-center p-4 text-xs text-slate-400">No active tenants match your search.</div>;
+                                        }
+
+                                        return filtered.map(l => {
+                                            const tenant = tenants.find(t => t.id === l.tenantId);
+                                            const unit = units.find(u => u.id === l.unitId);
+                                            return (
+                                                <div
+                                                    key={l.id}
+                                                    onClick={() => {
+                                                        setSelectedLeaseId(l.id);
+                                                        setTenantSearchQuery(`${tenant?.name} - Unit ${unit?.unitNumber}`);
+                                                        setIsDropdownOpen(false);
+                                                    }}
+                                                    className={`p-3 rounded-xl text-xs font-bold cursor-pointer transition-colors text-left flex justify-between items-center ${
+                                                        selectedLeaseId === l.id 
+                                                            ? 'bg-indigo-600 text-white' 
+                                                            : 'hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                                                    }`}
+                                                >
+                                                    <span>{tenant?.name}</span>
+                                                    <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ${
+                                                        selectedLeaseId === l.id ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-900 text-slate-400'
+                                                    }`}>Unit {unit?.unitNumber}</span>
+                                                </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Payment Date</label>
+                                <input 
+                                    type="date" 
+                                    name="paymentDate" 
+                                    required 
+                                    defaultValue={new Date().toISOString().split('T')[0]} 
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Payment Method</label>
+                                <select 
+                                    name="paymentMethod" 
+                                    required
+                                    defaultValue="M-Pesa"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm dark:text-white"
+                                >
+                                    <option value="M-Pesa">M-Pesa</option>
+                                    <option value="Bank Transfer">Bank Transfer</option>
+                                    <option value="Cash">Cash</option>
+                                    <option value="Cheque">Cheque</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Transaction Reference (Optional)</label>
+                            <input 
+                                name="reference" 
+                                type="text" 
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-sm dark:text-white" 
+                                placeholder="e.g. QX87654321 / BANK-REF" 
+                            />
+                        </div>
+
+                        <select name="paymentType" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"><option value="Rent">Rent</option><option value="Utility">Utility Bill</option><option value="Deposit">Deposit</option></select>
+                        <input name="amount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Amount Paid" />
+                        <button type="submit" className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Finalize Payment</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 

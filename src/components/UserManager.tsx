@@ -1037,7 +1037,16 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         let list = (users || []).filter(u => {
             if (!u) return false;
             if (activeTab === 'staff') {
-                return u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead';
+                const baseFilter = u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead';
+                if (isPm) {
+                    // For PM: restrict to this institution and exclude PM-specific roles managed elsewhere
+                    return baseFilter
+                        && u.role !== 'landlord'
+                        && u.role !== 'tenant'
+                        && u.role !== 'visitor'
+                        && u.institutionId === (currentInstitution?.id || currentUser?.institutionId);
+                }
+                return baseFilter;
             }
             if (activeTab === 'customer') {
                 return u.role === 'customer' || u.role === 'lead';
@@ -1084,7 +1093,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             );
         }
         return list;
-    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId, isRetailAgency]);
+    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId, isRetailAgency, isPm, currentInstitution?.id, currentUser?.institutionId]);
+
 
     const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];

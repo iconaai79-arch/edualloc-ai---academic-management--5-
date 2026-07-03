@@ -2745,6 +2745,7 @@ export interface PMPayment {
     paymentDate: string;
     paymentMethod: PMPaymentMethod;
     paymentType: PMPaymentType;
+    reference?: string;
     periodMonth?: number;
     periodYear?: number;
     status: 'Completed' | 'Pending' | 'Cancelled';
