@@ -107,7 +107,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const institutionId = currentInstitution?.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices'>('properties');
-    const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements'>('analytics');
+    const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission'>('analytics');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
 
@@ -2641,6 +2641,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     {[
                         { id: 'analytics', label: 'Analytics', icon: ChartPieIcon },
                         { id: 'statements', label: 'Financial Statements', icon: CurrencyIcon },
+                        { id: 'commission', label: 'Commission Report', icon: ChartBarIcon },
                     ].map(sub => (
                         <button
                             key={sub.id}
@@ -2688,6 +2689,155 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             )}
 
             {reportsSubTab === 'statements' && <StatementsManager />}
+
+            {reportsSubTab === 'commission' && (() => {
+                // Build per-property commission data
+                const commissionRows = properties.map(prop => {
+                    const propUnits = units.filter(u => u.propertyId === prop.id);
+                    const unitIds = propUnits.map(u => u.id);
+                    const propLeases = leases.filter(l => unitIds.includes(l.unitId));
+                    const leaseIds = propLeases.map(l => l.id);
+                    const propPayments = payments.filter(p => leaseIds.includes(p.leaseId) && p.paymentType === 'Rent');
+                    const gross = propPayments.reduce((s, p) => s + p.amount, 0);
+                    const commission = propPayments.reduce((s, p) => s + (p.commissionAmount || 0), 0);
+                    const net = gross - commission;
+                    const landlord = landlords.find(l => l.id === prop.landlordId);
+                    return { prop, propPayments, gross, commission, net, landlord, propUnits };
+                }).filter(r => r.gross > 0 || r.propPayments.length > 0);
+
+                const totalGross = commissionRows.reduce((s, r) => s + r.gross, 0);
+                const totalComm = commissionRows.reduce((s, r) => s + r.commission, 0);
+                const totalNet = totalGross - totalComm;
+
+                return (
+                    <div className="space-y-8">
+                        {/* ── Summary Cards ── */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Total Rent Collected</p>
+                                <p className="text-3xl font-black text-slate-900 dark:text-white italic">KES {totalGross.toLocaleString()}</p>
+                                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">{commissionRows.length} propert{commissionRows.length === 1 ? 'y' : 'ies'}</p>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-purple-100 dark:border-purple-900/30 shadow-xl">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-purple-500 mb-3">Total Commission Earned</p>
+                                <p className="text-3xl font-black text-purple-600 italic">KES {totalComm.toLocaleString()}</p>
+                                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">{totalGross > 0 ? ((totalComm / totalGross) * 100).toFixed(1) : 0}% of collections</p>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-900/30 shadow-xl">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-3">Total Net to Landlords</p>
+                                <p className="text-3xl font-black text-emerald-600 italic">KES {totalNet.toLocaleString()}</p>
+                                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">After management fees</p>
+                            </div>
+                        </div>
+
+                        {/* ── Per-Property Summary ── */}
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Property Commission Summary</h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                        <tr>
+                                            <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Property</th>
+                                            <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Landlord</th>
+                                            <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Rate</th>
+                                            <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Gross Collected</th>
+                                            <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Commission</th>
+                                            <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Net Payout</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {commissionRows.map(({ prop, gross, commission, net, landlord }) => (
+                                            <tr key={prop.id} className="border-t border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
+                                                <td className="p-5">
+                                                    <div className="font-black text-sm text-slate-900 dark:text-white uppercase italic">{prop.name}</div>
+                                                    {prop.town && <div className="text-[9px] font-bold text-blue-500 uppercase tracking-widest mt-0.5">{prop.town}</div>}
+                                                </td>
+                                                <td className="p-5 text-xs font-bold text-purple-600 uppercase">{landlord?.name || <span className="text-slate-400 italic font-normal">Standalone</span>}</td>
+                                                <td className="p-5">
+                                                    <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 text-[9px] font-black px-2.5 py-1 rounded-full">{prop.commissionRate || 0}%</span>
+                                                </td>
+                                                <td className="p-5 text-right text-sm font-black text-slate-900 dark:text-white">KES {gross.toLocaleString()}</td>
+                                                <td className="p-5 text-right text-sm font-black text-purple-600">KES {commission.toLocaleString()}</td>
+                                                <td className="p-5 text-right text-sm font-black text-emerald-600">KES {net.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                        {commissionRows.length === 0 && (
+                                            <tr><td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-widest italic">No payment data found</td></tr>
+                                        )}
+                                        {commissionRows.length > 0 && (
+                                            <tr className="bg-slate-50 dark:bg-slate-900/50 border-t-2 border-slate-200 dark:border-slate-600">
+                                                <td colSpan={3} className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Totals</td>
+                                                <td className="p-5 text-right font-black text-slate-900 dark:text-white">KES {totalGross.toLocaleString()}</td>
+                                                <td className="p-5 text-right font-black text-purple-600">KES {totalComm.toLocaleString()}</td>
+                                                <td className="p-5 text-right font-black text-emerald-600">KES {totalNet.toLocaleString()}</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* ── Detailed Per-Payment Breakdown ── */}
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Detailed Commission Breakdown — All Payments</h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                        <tr>
+                                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Date</th>
+                                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Property / Unit</th>
+                                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Tenant</th>
+                                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Method</th>
+                                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Gross (KES)</th>
+                                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Commission (KES)</th>
+                                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Net (KES)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(() => {
+                                            const allDetailRows = payments
+                                                .filter(p => p.paymentType === 'Rent' && (p.commissionAmount || 0) > 0)
+                                                .map(p => {
+                                                    const lease = leases.find(l => l.id === p.leaseId);
+                                                    const unit = units.find(u => u.id === lease?.unitId);
+                                                    const prop = properties.find(pr => pr.id === unit?.propertyId);
+                                                    const tenant = tenants.find(t => t.id === lease?.tenantId);
+                                                    return { p, lease, unit, prop, tenant };
+                                                })
+                                                .sort((a, b) => b.p.paymentDate.localeCompare(a.p.paymentDate));
+
+                                            if (allDetailRows.length === 0) return (
+                                                <tr><td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-widest italic">No commission payments recorded yet</td></tr>
+                                            );
+
+                                            return allDetailRows.map(({ p, unit, prop, tenant }) => (
+                                                <tr key={p.id} className="border-t border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
+                                                    <td className="p-4 text-[10px] font-bold text-slate-500">{p.paymentDate}</td>
+                                                    <td className="p-4">
+                                                        <div className="text-xs font-black text-slate-900 dark:text-white uppercase">{prop?.name || '—'}</div>
+                                                        <div className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Unit {unit?.unitNumber || '—'}</div>
+                                                    </td>
+                                                    <td className="p-4 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase">{tenant?.name || '—'}</td>
+                                                    <td className="p-4">
+                                                        <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">{p.paymentMethod || '—'}</span>
+                                                    </td>
+                                                    <td className="p-4 text-right text-xs font-black text-slate-900 dark:text-white">{p.amount.toLocaleString()}</td>
+                                                    <td className="p-4 text-right text-xs font-black text-purple-600">{(p.commissionAmount || 0).toLocaleString()}</td>
+                                                    <td className="p-4 text-right text-xs font-black text-emerald-600">{(p.amount - (p.commissionAmount || 0)).toLocaleString()}</td>
+                                                </tr>
+                                            ));
+                                        })()}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 
