@@ -577,17 +577,33 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const deleteStudent = useCallback(async (id: string) => {
         if (!institutionId) return;
+        const student = students.find(s => s.id === id);
+        if (!student) return;
+
         if (!window.confirm("Are you sure you want to remove this student? This action cannot be undone.")) return;
         
         try {
+            // 1. Delete student record
             await apiService.deleteModuleRecord('ds_students', id);
+            
+            // 2. Delete linked user account if exists
+            const userId = student.userId || (student as any).user_id;
+            if (userId) {
+                await apiService.deleteModuleRecord('users', userId).catch(err => {
+                    console.warn("[DS] Failed to delete student user account:", err);
+                });
+            }
+
+            // 3. Update local state immediately for instant feedback
+            setStudents(prev => prev.filter(s => s.id !== id));
+            
             success("Student removed successfully");
             await onRefresh();
         } catch (err) {
             error("Failed to remove student");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, students, onRefresh, success, error]);
 
     const sendLessonNotification = useCallback(async (lesson: DSLesson, isReminder = false) => {
         const student = students.find(s => s.id === lesson.studentId);
