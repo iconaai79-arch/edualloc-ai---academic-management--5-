@@ -1227,6 +1227,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             console.log(`[Forgot Password] Dispatching recovery link to: ${recipient} using ${host}:${port}`);
 
+            const protocol = String(req.headers['x-forwarded-proto'] || 'https');
+            const hostHeader = req.headers.host || 'eduai.co.ke';
+            const resetLink = `${protocol}://${hostHeader}/?resetToken=${token}`;
+
+            let info: any = null;
+
             try {
                 const transporter = nodemailer.createTransport({
                     host: host,
@@ -1235,10 +1241,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     auth: { user: username, pass: password },
                     tls: { rejectUnauthorized: false }
                 });
-
-                const protocol = String(req.headers['x-forwarded-proto'] || 'https');
-                const hostHeader = req.headers.host || 'eduai.co.ke';
-                const resetLink = `${protocol}://${hostHeader}/?resetToken=${token}`;
 
                 const instId = user.user_metadata?.institutionId || user.institution_id || user.institutionId;
                 const branding = await getBranding(instId);
@@ -1255,7 +1257,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     <p style="font-size: 12px; color: #64748b;">If you did not request this, please ignore this email and your password will remain unchanged.</p>
                 `;
 
-                const info = await transporter.sendMail({
+                info = await transporter.sendMail({
                     from: `"${branding.name}" <${fromEmail}>`,
                     to: recipient,
                     subject: recoverySubject,
@@ -1385,7 +1387,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({
                 success: true,
                 message: smsSuccess ? 'Recovery link sent via Email and SMS.' : 'Recovery link sent via Email.',
-                messageId: info.messageId
+                messageId: info?.messageId || null
             });
         }
 
