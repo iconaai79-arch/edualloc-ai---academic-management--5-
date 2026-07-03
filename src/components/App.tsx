@@ -148,6 +148,7 @@ import { AppErrorBoundary } from './common/AppErrorBoundary';
 import { ToastProvider, useToast } from '../services/ToastContext';
 import { DrivingSchoolProvider } from '../services/DrivingSchoolContext';
 import { DSStudentPortal } from './ds/DSStudentPortal';
+import { SecurityKiosk } from './security/SecurityKiosk';
 import { ModuleOnboardingWizard } from './ModuleOnboardingWizard';
 import { localDb } from '../services/localDb';
 import { syncEngine } from '../services/syncEngine';
@@ -1925,9 +1926,9 @@ export const App: React.FC = () => {
     const handleAddInvoice = useCallback(async (invoice: any) => {
         await apiService.saveModuleRecord('invoices', {
             ...invoice,
-            id: `inv_${Date.now()}`,
+            id: invoice.id || `inv_${Date.now()}`,
             institutionId: currentUser?.institutionId,
-            createdAt: new Date().toISOString()
+            createdAt: invoice.createdAt || new Date().toISOString()
         });
         loadData();
     }, [currentUser, loadData]);
@@ -1935,9 +1936,9 @@ export const App: React.FC = () => {
     const handleAddReceipt = useCallback(async (receipt: any) => {
         await apiService.saveModuleRecord('receipts', {
             ...receipt,
-            id: `rcpt_${Date.now()}`,
+            id: receipt.id || `rcpt_${Date.now()}`,
             institutionId: currentUser?.institutionId,
-            createdAt: new Date().toISOString()
+            createdAt: receipt.createdAt || new Date().toISOString()
         });
         loadData();
     }, [currentUser, loadData]);
@@ -5127,6 +5128,24 @@ export const App: React.FC = () => {
     
     // ── EARLY ESCAPE: Public/Unauthenticated Kiosk View ──
     const searchParams = new URLSearchParams(window.location.search);
+    const isSecurityKioskView = searchParams.get('kiosk') === 'security' || searchParams.get('view') === 'security_kiosk';
+    if (!currentUser && isSecurityKioskView) {
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <style dangerouslySetInnerHTML={{ __html: `
+                    :root {
+                        --brand-primary: ${activeBranding.primaryColor};
+                        --brand-secondary: ${activeBranding.secondaryColor};
+                    }
+                `}} />
+                <SecurityKiosk
+                    institution={activeInstitution!}
+                    onRefreshInstitution={loadData}
+                />
+            </Suspense>
+        );
+    }
+
     const isKioskView = searchParams.has('kiosk') || searchParams.get('view') === 'kiosk' || window.location.pathname.includes('/kiosk') || window.location.pathname.endsWith('/kiosk');
     if (!currentUser && isKioskView) {
         return (

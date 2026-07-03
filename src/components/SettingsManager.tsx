@@ -298,7 +298,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00',
         kioskUrl: props.currentInstitution?.kioskUrl || '',
         customSubdomain: props.currentInstitution?.customSubdomain || '',
-        useSubdomain: props.currentInstitution?.useSubdomain ?? false
+        useSubdomain: props.currentInstitution?.useSubdomain ?? false,
+        kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
+        kioskStatus: props.currentInstitution?.kioskStatus || 'active'
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -323,10 +325,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 googleDriveConfig: props.currentInstitution.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
                 storeHoursEnforced: props.currentInstitution.storeHoursEnforced ?? false,
                 storeOpenTime: props.currentInstitution.storeOpenTime || '08:00',
-                storeCloseTime: props.currentInstitution.storeCloseTime || '17:00',
+                storeCloseTime: props.currentInstitution.storeCloseTime || '17:05',
                 kioskUrl: props.currentInstitution.kioskUrl || '',
                 customSubdomain: props.currentInstitution.customSubdomain || '',
-                useSubdomain: props.currentInstitution.useSubdomain ?? false
+                useSubdomain: props.currentInstitution.useSubdomain ?? false,
+                kioskSecurityPin: props.currentInstitution.kioskSecurityPin || '1234',
+                kioskStatus: props.currentInstitution.kioskStatus || 'active'
             });
         }
     }, [props.currentInstitution]);
@@ -378,7 +382,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00',
             kioskUrl: props.currentInstitution?.kioskUrl || '',
             customSubdomain: props.currentInstitution?.customSubdomain || '',
-            useSubdomain: props.currentInstitution?.useSubdomain ?? false
+            useSubdomain: props.currentInstitution?.useSubdomain ?? false,
+            kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
+            kioskStatus: props.currentInstitution?.kioskStatus || 'active'
         });
         setLocalInstGoogleDriveConfig(props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     }, [props.currentInstitution]);
@@ -3552,12 +3558,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 }
                                 if (isCoop || !isEdu || isDS) {
                                     const filtered = ['profile', 'location', 'branding'];
+                                    if (isDS) {
+                                        filtered.push('security_policy');
+                                    }
                                     if (props.currentUser.role === 'admin' || isCoop) {
                                         filtered.push('billing');
                                         filtered.push('integrations');
                                         filtered.push('sms');
                                         if (isCoop) filtered.push('farmer_billing');
-    
                                     }
                                     return filtered;
                                 }
@@ -3843,6 +3851,54 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
                                         </div>
                                     )}
+
+                                    {/* Security Kiosk Controller */}
+                                    <div className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-4 mt-6 animate-fade-in">
+                                        <div>
+                                            <h5 className="text-sm font-bold text-slate-700 dark:text-slate-200">Security Gate Kiosk Controller</h5>
+                                            <p className="text-xs text-slate-400">Configure remote lockdown state and passcodes for the self-service visitor gate terminals.</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+                                            <div className="space-y-1.5">
+                                                <label className="block text-xs font-bold text-slate-500">Kiosk Terminal Status</label>
+                                                <select
+                                                    value={instProfile.kioskStatus || 'active'}
+                                                    onChange={(e) => setInstProfile({ ...instProfile, kioskStatus: e.target.value as any })}
+                                                    className="w-full h-10 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none text-xs"
+                                                >
+                                                    <option value="active">Active (Unlocked)</option>
+                                                    <option value="locked">Emergency Lockout (Locked)</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="block text-xs font-bold text-slate-500">Security Kiosk Exit PIN</label>
+                                                <input
+                                                    type="text"
+                                                    maxLength={8}
+                                                    value={instProfile.kioskSecurityPin || ''}
+                                                    onChange={(e) => setInstProfile({ ...instProfile, kioskSecurityPin: e.target.value.replace(/\D/g, '') })}
+                                                    placeholder="e.g. 1234"
+                                                    className="w-full h-10 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none text-xs font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">Gate Kiosk Access Link</p>
+                                                <p className="text-[10px] text-slate-500 truncate">Launch on security gate Android tablets: <span className="font-bold select-all">{window.location.origin}/?view=security_kiosk</span></p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(`${window.location.origin}/?view=security_kiosk`);
+                                                    alert("Gate Kiosk link copied to clipboard!");
+                                                }}
+                                                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shrink-0"
+                                            >
+                                                Copy Kiosk Link
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="mt-8 flex justify-end">
                                     <button onClick={handleSaveInstitutionProfile} className="btn-primary h-12 px-8 shadow-lg shadow-indigo-100">Synchronize Policies</button>

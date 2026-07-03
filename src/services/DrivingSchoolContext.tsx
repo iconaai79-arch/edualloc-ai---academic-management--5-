@@ -446,28 +446,27 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             if (isPrepaid) {
                 const amount = Number(inst.rate_per_student || inst.ratePerStudent || 0);
                 if (amount > 0) {
-                    // Fire STK push in the background and return immediately so onboarding is fast
-                    apiService.initiateNcbaPayment(amount, data.phone || '', {
-                        type: 'student_admission',
-                        student_id: newId,
-                        institution_id: institutionId
-                    }).then(async (response) => {
+                    try {
+                        const response = await apiService.initiateNcbaPayment(amount, data.phone || '', {
+                            type: 'student_admission',
+                            student_id: newId,
+                            institution_id: institutionId
+                        });
                         const reqId = response?.checkoutRequestId || response?.requestId;
                         if (response && (response.success || reqId)) {
-                            // Update student with checkoutRequestId
+                            (newStudent as any).checkoutRequestId = reqId;
                             await apiService.saveModuleRecord('ds_students', {
                                 ...newStudent,
                                 checkoutRequestId: reqId
                             });
-                            success(`NCBA payment prompt sent to student's phone. Enrollment is pending confirmation.`);
-                            await onRefresh();
+                            success(`NCBA payment prompt sent to student's phone.`);
                         } else {
                             error(`Payment prompt initiation failed for student ${data.fullName}.`);
                         }
-                    }).catch((err) => {
-                        console.error("[DS Billing] Background NCBA STK push exception:", err);
+                    } catch (err) {
+                        console.error("[DS Billing] NCBA STK push exception:", err);
                         error("NCBA STK payment prompt offline.");
-                    });
+                    }
                 } else {
                     // Free or 0 price prepaid student
                     await apiService.saveModuleRecord('ds_students', { ...newStudent, status: 'Enrolled', paymentStatus: 'paid' });
@@ -496,6 +495,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             await onRefresh();
+            return newStudent;
         } catch (err) {
             error("Failed to enroll student");
             throw err;
@@ -1121,6 +1121,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
             
             await onRefresh();
+            return inv;
         } catch (err) {
             error("Failed to generate invoice");
             throw err;

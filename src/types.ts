@@ -490,6 +490,8 @@ export interface Institution {
     kioskUrl?: string;
     customSubdomain?: string;
     useSubdomain?: boolean;
+    kioskSecurityPin?: string;
+    kioskStatus?: 'active' | 'locked';
 }
 
 export interface SchoolGallery {

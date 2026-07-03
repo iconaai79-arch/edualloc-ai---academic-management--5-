@@ -986,7 +986,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
 
             if (tab.id === 'enrollment') {
-                return true;
+                return !isDS;
             }
 
             return true;

@@ -1535,7 +1535,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                     items: loadedItems.length > 0 ? loadedItems : [{ name: 'Standard Course Fee', amount: Number(initialData.totalAmount || 0), priority: 1 }]
                 });
             } else {
-                setFormData({ ...initialData });
+                if (initialData.id) {
+                    setFormData({ ...initialData });
+                } else {
+                    setFormData((prev: any) => ({
+                        ...prev,
+                        ...initialData
+                    }));
+                }
                 if (initialData?.studentName) {
                     setStudentSearch(initialData.studentName);
                 }
@@ -4473,6 +4480,7 @@ END $$;
     const [unassignedDueToVehicles, setUnassignedDueToVehicles] = useState<Array<{ name: string; slot: string }>>([]);
     const [selectedQRLesson, setSelectedQRLesson] = useState<any | null>(null);
     const [enrollWizard, setEnrollWizard] = useState<{ open: boolean; student: any | null; step: 'invoice' | 'payment' | 'lesson' | 'done'; createdInvoiceId: string | null }>({ open: false, student: null, step: 'invoice', createdInvoiceId: null });
+    const [pendingAdmissionPayment, setPendingAdmissionPayment] = useState<{ student: any; checkoutRequestId: string } | null>(null);
 
     // Background Dispatch Queue Processor
     useEffect(() => {
@@ -10128,9 +10136,15 @@ END $$;
                             if (type === 'student') {
                                 if (data.id) await onUpdateStudent(data);
                                 else {
-                                    await onAddStudent(data);
-                                    // Open post-enrollment wizard for new students
-                                    setEnrollWizard({ open: true, student: data, step: 'invoice', createdInvoiceId: null });
+                                    const createdStudent = await onAddStudent(data);
+                                    if (settings?.billingModel === 'prepaid' && createdStudent?.checkoutRequestId) {
+                                        setPendingAdmissionPayment({
+                                            student: createdStudent,
+                                            checkoutRequestId: createdStudent.checkoutRequestId
+                                        });
+                                    } else {
+                                        setEnrollWizard({ open: true, student: createdStudent || data, step: 'invoice', createdInvoiceId: null });
+                                    }
                                 }
                             }
                             else if (type === 'instructor') await onAddInstructor(data);
@@ -10158,8 +10172,8 @@ END $$;
                                 if (data.id) {
                                     await onUpdateInvoice(data);
                                 } else {
-                                    await onAddInvoice(data);
-                                    if (enrollWizard.student) setEnrollWizard(w => ({ ...w, open: true, step: 'payment', createdInvoiceId: (data as any).id || null }));
+                                    const createdInv = await onAddInvoice(data);
+                                    if (enrollWizard.student) setEnrollWizard(w => ({ ...w, open: true, step: 'payment', createdInvoiceId: createdInv?.id || null }));
                                 }
                             }
                             else if (type === 'payment') {
@@ -10339,6 +10353,19 @@ END $$;
                         departments={departments}
                         rooms={rooms || []}
                         leads={leads}
+                    />
+                )}
+
+                {/* ── Prepaid Student Admission Payment Polling Modal ── */}
+                {pendingAdmissionPayment && (
+                    <PrepaidPaymentVerificationModal
+                        student={pendingAdmissionPayment.student}
+                        checkoutRequestId={pendingAdmissionPayment.checkoutRequestId}
+                        onClose={() => setPendingAdmissionPayment(null)}
+                        onConfirmed={(updatedStudent) => {
+                            setPendingAdmissionPayment(null);
+                            setEnrollWizard({ open: true, student: updatedStudent, step: 'invoice', createdInvoiceId: null });
+                        }}
                     />
                 )}
 
@@ -11091,6 +11118,102 @@ END $$;
                 </div>
             )}
         </AppErrorBoundary>
+    );
+};
+
+const PrepaidPaymentVerificationModal: React.FC<{
+    student: any;
+    checkoutRequestId: string;
+    onClose: () => void;
+    onConfirmed: (student: any) => void;
+}> = ({ student, checkoutRequestId, onClose, onConfirmed }) => {
+    const [statusMessage, setStatusMessage] = useState('NCBA payment prompt sent to student\'s phone. Enter PIN to authorize.');
+    const [finalStatus, setFinalStatus] = useState<'pending' | 'completed' | 'failed'>('pending');
+    const [isLoading, setIsLoading] = useState(true);
+    const isCompletedRef = useRef(false);
+
+    useEffect(() => {
+        let attempts = 0;
+        const maxAttempts = 40;
+
+        const pollInterval = setInterval(async () => {
+            attempts++;
+            try {
+                const result = await apiService.checkPaymentStatus('ncba', checkoutRequestId);
+                const status = (result?.status || '').toLowerCase();
+                const isCompleted = status === 'completed' || status === 'success' || status === 'successful';
+                const isFailed = status === 'failed' || status === 'error' || status === 'rejected';
+
+                if (isCompleted && !isCompletedRef.current) {
+                    isCompletedRef.current = true;
+                    clearInterval(pollInterval);
+                    setFinalStatus('completed');
+                    setStatusMessage('Payment verified successfully! Student is enrolled.');
+                    setIsLoading(false);
+                    
+                    setTimeout(() => {
+                        onConfirmed(student);
+                    }, 2000);
+                } else if ((isFailed || attempts >= maxAttempts) && !isCompletedRef.current) {
+                    isCompletedRef.current = true;
+                    clearInterval(pollInterval);
+                    setFinalStatus('failed');
+                    setStatusMessage(isFailed ? 'Transaction was declined by user or bank.' : 'Timeout waiting for payment. If paid, it will reflect shortly.');
+                    setIsLoading(false);
+                }
+            } catch (e) {
+                console.error("[NCBA Poll Error]", e);
+            }
+        }, 3000);
+
+        return () => clearInterval(pollInterval);
+    }, [checkoutRequestId, student, onConfirmed]);
+
+    return (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-8 max-w-sm w-full text-center space-y-6 shadow-2xl">
+                {isLoading ? (
+                    <div className="space-y-4">
+                        <div className="relative w-16 h-16 mx-auto">
+                            <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
+                            <div className="absolute inset-0 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                        <h4 className="text-base font-black text-slate-850 dark:text-white uppercase tracking-tight">Verifying NCBA Payment</h4>
+                        <p className="text-xs text-slate-400 font-medium leading-relaxed">{statusMessage}</p>
+                    </div>
+                ) : finalStatus === 'completed' ? (
+                    <div className="space-y-4">
+                        <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/10">
+                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                        <h4 className="text-base font-black text-slate-850 dark:text-white uppercase tracking-tight">Payment Verified</h4>
+                        <p className="text-xs text-slate-400 font-medium leading-relaxed">{statusMessage}</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/40 text-rose-600 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-rose-500/10">
+                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </div>
+                        <h4 className="text-base font-black text-slate-850 dark:text-white uppercase tracking-tight">Verification Pending</h4>
+                        <p className="text-xs text-slate-400 font-medium leading-relaxed">{statusMessage}</p>
+                        <div className="pt-2 flex gap-2">
+                            <button
+                                onClick={onClose}
+                                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                            >
+                                Close
+                            </button>
+                            <button
+                                onClick={() => onConfirmed(student)}
+                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                            >
+                                Verify Later
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 };
 
