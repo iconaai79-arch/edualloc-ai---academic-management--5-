@@ -3288,8 +3288,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (isPlatformService) {
                     // Fallback to Global Super Admin config for platform services (SMS/Subscription/Student Admission)
                     ncbaConfig = toCamelCase(settings.ncba_config || settings.ncbaConfig);
-                    targetInstId = 'SYSTEM';
-                    console.log(`[NCBA Gateway] Using global configuration for platform service ${paramsMap.metadata?.type}.`);
+                    targetInstId = institutionId || paramsMap.metadata?.institution_id || paramsMap.metadata?.institutionId || 'SYSTEM';
+                    console.log(`[NCBA Gateway] Using global configuration for platform service ${paramsMap.metadata?.type}. Tenant: ${targetInstId}`);
                 } else {
                     // Try institution-specific config first
                     const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();

@@ -452,11 +452,12 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                         student_id: newId,
                         institution_id: institutionId
                     }).then(async (response) => {
-                        if (response && (response.success || response.requestId)) {
+                        const reqId = response?.checkoutRequestId || response?.requestId;
+                        if (response && (response.success || reqId)) {
                             // Update student with checkoutRequestId
                             await apiService.saveModuleRecord('ds_students', {
                                 ...newStudent,
-                                checkoutRequestId: response.requestId
+                                checkoutRequestId: reqId
                             });
                             success(`NCBA payment prompt sent to student's phone. Enrollment is pending confirmation.`);
                             await onRefresh();
