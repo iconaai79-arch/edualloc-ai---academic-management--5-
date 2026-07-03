@@ -1028,16 +1028,16 @@ export const apiService = {
 
         // ── Tier 1.5: Client-side direct Supabase delete (respects RLS) ──
         try {
-            let q = _supabase.from(module).delete();
+            let q = _supabase.from(module).delete().select('id');
             if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
             else q = q.in('id', idsArray);
 
-            const { error: directErr } = await q;
-            if (!directErr) {
-                console.log(`[deleteModuleRecord] Client-side delete OK: ${module} x${idsArray.length}`);
+            const { data: deletedRows, error: directErr } = await q;
+            if (!directErr && deletedRows && deletedRows.length > 0) {
+                console.log(`[deleteModuleRecord] Client-side delete OK: ${module} x${deletedRows.length} rows`);
                 return;
             }
-            console.warn(`[deleteModuleRecord] Client-side delete failed (${directErr.message}), falling back to API...`);
+            console.warn(`[deleteModuleRecord] Client-side delete did not delete any rows (possibly RLS block or missing record), falling back to API...`);
         } catch (directEx: any) {
             console.warn(`[deleteModuleRecord] Client-side delete exception (${directEx.message}), falling back to API...`);
         }
@@ -1045,7 +1045,7 @@ export const apiService = {
         // ── Tier 2: Dedicated Delete API Call ──
         try {
             const token = await apiService.getAuthToken();
-            const url = `/api/delete?module=${encodeURIComponent(module)}`;
+            const url = `${window.location.origin}/api/delete?module=${encodeURIComponent(module)}`;
 
             const response = await fetch(url, {
                 method: 'POST',
