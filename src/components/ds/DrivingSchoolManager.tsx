@@ -1497,13 +1497,13 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     }, [settings?.receiptPrefix, payments]);
 
     useEffect(() => {
-        if (settings && !initialData) {
+        if (settings && (!initialData || !initialData.id)) {
             setFormData((prev: any) => ({
                 ...prev,
-                admissionNumber: type === 'student' ? nextAdmissionNumber : prev.admissionNumber,
-                courseDurationDays: type === 'student' ? (settings.schedulingRules?.requiredDaysToComplete || settings.defaultCourseDuration || 21) : prev.courseDurationDays,
-                invoiceNumber: type === 'invoice' ? nextInvoiceNumber : prev.invoiceNumber,
-                receiptNumber: type === 'payment' ? nextReceiptNumber : prev.receiptNumber
+                admissionNumber: type === 'student' ? (prev.admissionNumber || nextAdmissionNumber) : prev.admissionNumber,
+                courseDurationDays: type === 'student' ? (prev.courseDurationDays || settings.schedulingRules?.requiredDaysToComplete || settings.defaultCourseDuration || 21) : prev.courseDurationDays,
+                invoiceNumber: type === 'invoice' ? (prev.invoiceNumber || nextInvoiceNumber) : prev.invoiceNumber,
+                receiptNumber: type === 'payment' ? (prev.receiptNumber || nextReceiptNumber) : prev.receiptNumber
             }));
         }
     }, [settings, type, initialData, nextAdmissionNumber, nextInvoiceNumber, nextReceiptNumber]);
@@ -1544,13 +1544,15 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     }, [initialData, type]);
 
     const [formData, setFormData] = useState<any>(() => {
-        const base = initialData || {
+        const isEditing = initialData && initialData.id;
+        const base = isEditing ? initialData : {
+            ...(initialData || {}),
             status: type === 'student' ? 'Enrolled' : type === 'lead' ? 'New Enquiry' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
-            admissionNumber: type === 'student' ? nextAdmissionNumber : undefined,
-            invoiceNumber: type === 'invoice' ? nextInvoiceNumber : undefined,
-            receiptNumber: type === 'payment' ? nextReceiptNumber : undefined
+            admissionNumber: type === 'student' ? (initialData?.admissionNumber || nextAdmissionNumber) : undefined,
+            invoiceNumber: type === 'invoice' ? (initialData?.invoiceNumber || nextInvoiceNumber) : undefined,
+            receiptNumber: type === 'payment' ? (initialData?.receiptNumber || nextReceiptNumber) : undefined
         };
-        if (!initialData) {
+        if (!isEditing) {
             if (type === 'student') return { ...base, courseDurationDays: settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
             if (type === 'lead') return { ...base, fullName: '', phone: '', email: '', licenseTypeInterested: 'Class B', source: 'Walk-in', quotedAmount: 15000, notes: '' };
             if (type === 'lesson') return { ...base, lessonDate: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '09:00', lessonType: 'Practical' };
