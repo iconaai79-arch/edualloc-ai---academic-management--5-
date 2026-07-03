@@ -460,6 +460,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const handleSaveLease = async (data: Partial<PMLease>) => {
         try {
             const startDate = new Date().toISOString().split('T')[0];
+            const leasePrefix = pmSettings?.numbering?.leasePrefix || 'LSE';
+            const leaseNextNum = pmSettings?.numbering?.leaseNextNumber || 1000;
+            const leaseNumber = `${leasePrefix}-${leaseNextNum}`;
+
             const newLease: PMLease = {
                 id: `lease_${Date.now()}`,
                 unitId: data.unitId || '',
@@ -474,10 +478,23 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 witnessPhone: data.witnessPhone,
                 noticePeriodDays: data.noticePeriodDays,
                 lateFeePercentage: data.lateFeePercentage,
+                leaseNumber,
                 institutionId,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_leases', newLease);
+
+            if (pmSettings) {
+                const updatedSettings = {
+                    ...pmSettings,
+                    numbering: {
+                        ...(pmSettings.numbering || {}),
+                        leaseNextNumber: leaseNextNum + 1
+                    }
+                };
+                await apiService.saveModuleRecord('pm_settings', updatedSettings);
+                setPmSettings(updatedSettings);
+            }
 
             // Update unit status to Occupied
             const unit = units.find(u => u.id === data.unitId);
@@ -1362,7 +1379,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 const unit = units.find(u => u.id === lease.unitId);
                                 return (
                                     <tr key={lease.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                        <td className="p-6 font-mono text-xs font-black text-slate-400 uppercase">#{lease.id.split('_')[1]}</td>
+                                        <td className="p-6 font-mono text-xs font-black text-slate-400 uppercase">{lease.leaseNumber || `#${lease.id.split('_')[1]}`}</td>
                                         <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</td>
                                         <td className="p-6 text-sm font-bold text-slate-500">UNIT {unit?.unitNumber || 'N/A'}</td>
                                         <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount?.toLocaleString()}</td>
@@ -1396,7 +1413,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-[10px] font-mono font-black text-slate-400 uppercase">#{lease.id.split('_')[1]}</span>
+                                            <span className="text-[10px] font-mono font-black text-slate-400 uppercase">{lease.leaseNumber || `#${lease.id.split('_')[1]}`}</span>
                                             <span className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>{lease.status}</span>
                                         </div>
                                         <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</h4>
@@ -1443,20 +1460,37 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 }
             }
 
+            const receiptPrefix = pmSettings?.numbering?.receiptPrefix || 'REC';
+            const receiptNextNum = pmSettings?.numbering?.receiptNextNumber || 1000;
+            const receiptNumber = `${receiptPrefix}-${receiptNextNum}`;
+
             const p: PMPayment = {
-                id: `pay_${Date.now()} `,
+                id: `pay_${Date.now()}`,
                 leaseId: data.leaseId || '',
                 amount,
                 paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
                 paymentMethod: data.paymentMethod || 'M-Pesa',
                 paymentType,
                 reference: data.reference,
+                receiptNumber,
                 status: 'Completed',
                 commissionAmount,
                 institutionId,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_payments', p);
+
+            if (pmSettings) {
+                const updatedSettings = {
+                    ...pmSettings,
+                    numbering: {
+                        ...(pmSettings.numbering || {}),
+                        receiptNextNumber: receiptNextNum + 1
+                    }
+                };
+                await apiService.saveModuleRecord('pm_settings', updatedSettings);
+                setPmSettings(updatedSettings);
+            }
 
             // Automated Receipt Generation and Instant Delivery (Email & SMS)
             const lease = leases.find(l => l.id === p.leaseId);
@@ -1538,9 +1572,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const handleSaveInvoice = async (data: Partial<PMInvoice>) => {
         try {
+            const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
+            const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
+            const invoiceNumber = `${prefix}-${nextNum}`;
+
             const newInvoice: PMInvoice = {
                 id: `inv_${Date.now()}`,
-                invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+                invoiceNumber,
                 leaseId: data.leaseId || '',
                 tenantId: data.tenantId || '',
                 unitId: data.unitId || '',
@@ -1553,6 +1591,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_invoices', newInvoice);
+
+            if (pmSettings) {
+                const updatedSettings = {
+                    ...pmSettings,
+                    numbering: {
+                        ...(pmSettings.numbering || {}),
+                        invoiceNextNumber: nextNum + 1
+                    }
+                };
+                await apiService.saveModuleRecord('pm_settings', updatedSettings);
+                setPmSettings(updatedSettings);
+            }
+
             setShowInvoiceModal(false);
             loadData();
         } catch (e: any) { alert(e.message || "Failed to save invoice"); }
@@ -1582,6 +1633,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 });
             }
 
+            const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
+            let nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
+
             const newInvoices: PMInvoice[] = [];
 
             for (const lease of targetLeases) {
@@ -1598,7 +1652,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     if (!alreadyExists) {
                         newInvoices.push({
                             id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                            invoiceNumber: `INV-${Date.now().toString().slice(-6)}-R${Math.floor(Math.random()*100)}`,
+                            invoiceNumber: `${prefix}-${nextNum++}`,
                             leaseId: lease.id,
                             tenantId: lease.tenantId,
                             unitId: lease.unitId,
@@ -1644,7 +1698,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         if (!alreadyExistsArrears) {
                             newInvoices.push({
                                 id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                                invoiceNumber: `INV-${Date.now().toString().slice(-6)}-A${Math.floor(Math.random()*100)}`,
+                                invoiceNumber: `${prefix}-${nextNum++}`,
                                 leaseId: lease.id,
                                 tenantId: lease.tenantId,
                                 unitId: lease.unitId,
@@ -1667,6 +1721,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             }
 
             await apiService.saveModuleRecords('pm_invoices', newInvoices);
+
+            if (pmSettings) {
+                const updatedSettings = {
+                    ...pmSettings,
+                    numbering: {
+                        ...(pmSettings.numbering || {}),
+                        invoiceNextNumber: nextNum
+                    }
+                };
+                await apiService.saveModuleRecord('pm_settings', updatedSettings);
+                setPmSettings(updatedSettings);
+            }
+
             alert(`Successfully generated ${newInvoices.length} invoices!`);
             setShowGenerateArrearsModal(false);
             loadData();
@@ -1723,7 +1790,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
                                 return (
                                     <tr key={payment.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                        <td className="p-6 font-mono text-xs font-bold text-slate-400">#{payment.id.split('_')[1]}</td>
+                                        <td className="p-6 font-mono text-xs font-bold text-slate-400">{payment.receiptNumber || `#${payment.id.split('_')[1]}`}</td>
                                         <td className="p-6">
                                             <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">{tenant?.name || 'N/A'}</p>
                                             <p className="text-[9px] text-blue-600 font-bold uppercase">{payment.paymentType}</p>
@@ -1753,7 +1820,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             <div key={payment.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[9px] font-mono font-bold text-slate-400">#{payment.id.split('_')[1]}</span>
+                                        <span className="text-[9px] font-mono font-bold text-slate-400">{payment.receiptNumber || `#${payment.id.split('_')[1]}`}</span>
                                         <span className="bg-emerald-50 text-emerald-600 text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase">Success</span>
                                     </div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</p>
@@ -2901,7 +2968,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 invoices,
                 currentInstitution,
                 institutionId,
-                loadData
+                loadData,
+                pmSettings,
+                setPmSettings
             })}
 
             {reportsSubTab === 'commission' && (() => {
@@ -4706,8 +4775,10 @@ const ArrearsManager: React.FC<{
     currentInstitution: Institution;
     institutionId: string;
     loadData: () => void;
+    pmSettings: PMSettings | null;
+    setPmSettings: (settings: PMSettings) => void;
 }> = ({
-    leases, tenants, units, properties, landlords, payments, invoices, currentInstitution, institutionId, loadData
+    leases, tenants, units, properties, landlords, payments, invoices, currentInstitution, institutionId, loadData, pmSettings, setPmSettings
 }) => {
     const [arrSearch, setArrSearch] = useState('');
     const [arrProperty, setArrProperty] = useState('all');
@@ -4812,6 +4883,9 @@ const ArrearsManager: React.FC<{
         const newInvoices: PMInvoice[] = [];
         const todayStr = new Date().toISOString().split('T')[0];
 
+        const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
+        let nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
+
         for (const item of listWithArrears) {
             const alreadyExists = invoices.some(inv => 
                 inv.leaseId === item.lease.id && 
@@ -4822,7 +4896,7 @@ const ArrearsManager: React.FC<{
 
             newInvoices.push({
                 id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                invoiceNumber: `INV-${Date.now().toString().slice(-6)}-A${Math.floor(Math.random()*100)}`,
+                invoiceNumber: `${prefix}-${nextNum++}`,
                 leaseId: item.lease.id,
                 tenantId: item.lease.tenantId,
                 unitId: item.lease.unitId,
@@ -4841,6 +4915,19 @@ const ArrearsManager: React.FC<{
         }
 
         await apiService.saveModuleRecords('pm_invoices', newInvoices);
+
+        if (pmSettings) {
+            const updatedSettings = {
+                ...pmSettings,
+                numbering: {
+                    ...(pmSettings.numbering || {}),
+                    invoiceNextNumber: nextNum
+                }
+            };
+            await apiService.saveModuleRecord('pm_settings', updatedSettings);
+            setPmSettings(updatedSettings);
+        }
+
         alert(`Successfully generated ${newInvoices.length} arrears invoices.`);
         loadData();
     };
@@ -4997,9 +5084,13 @@ const ArrearsManager: React.FC<{
                                                             );
                                                             if (alreadyExists) return alert("Arrears invoice already generated for today.");
                                                             
+                                                            const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
+                                                            const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
+                                                            const invoiceNumber = `${prefix}-${nextNum}`;
+
                                                             await apiService.saveModuleRecord('pm_invoices', {
                                                                     id: `inv_${Date.now()}`,
-                                                                    invoiceNumber: `INV-${Date.now().toString().slice(-6)}-A`,
+                                                                    invoiceNumber,
                                                                     leaseId: item.lease.id,
                                                                     tenantId: item.lease.tenantId,
                                                                     unitId: item.lease.unitId,
@@ -5011,6 +5102,19 @@ const ArrearsManager: React.FC<{
                                                                     institutionId,
                                                                     createdAt: new Date().toISOString()
                                                             });
+
+                                                            if (pmSettings) {
+                                                                const updatedSettings = {
+                                                                    ...pmSettings,
+                                                                    numbering: {
+                                                                        ...(pmSettings.numbering || {}),
+                                                                        invoiceNextNumber: nextNum + 1
+                                                                    }
+                                                                };
+                                                                await apiService.saveModuleRecord('pm_settings', updatedSettings);
+                                                                setPmSettings(updatedSettings);
+                                                            }
+
                                                             alert("Arrears invoice generated successfully.");
                                                             loadData();
                                                         }}

@@ -2734,6 +2734,7 @@ export interface PMLease {
     noticePeriodDays?: number;
     witnessName?: string;
     witnessPhone?: string;
+    leaseNumber?: string;
     institutionId: string;
     createdAt: string;
 }
@@ -2746,6 +2747,7 @@ export interface PMPayment {
     paymentMethod: PMPaymentMethod;
     paymentType: PMPaymentType;
     reference?: string;
+    receiptNumber?: string;
     periodMonth?: number;
     periodYear?: number;
     status: 'Completed' | 'Pending' | 'Cancelled';
@@ -2863,6 +2865,14 @@ export interface PMSettings {
         template?: string;
     };
     defaultRentDueDate?: number;
+    numbering?: {
+        invoicePrefix?: string;
+        invoiceNextNumber?: number;
+        receiptPrefix?: string;
+        receiptNextNumber?: number;
+        leasePrefix?: string;
+        leaseNextNumber?: number;
+    };
     updatedAt: string;
 }
 

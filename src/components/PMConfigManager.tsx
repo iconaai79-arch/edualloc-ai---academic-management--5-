@@ -54,6 +54,14 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                         template: 'Dear Tenant, your rent for {month} is due on {due_date}. Please clear it to avoid penalties.'
                     },
                     defaultRentDueDate: 5,
+                    numbering: {
+                        invoicePrefix: 'INV',
+                        invoiceNextNumber: 1000,
+                        receiptPrefix: 'REC',
+                        receiptNextNumber: 1000,
+                        leasePrefix: 'LSE',
+                        leaseNextNumber: 1000
+                    },
                     updatedAt: new Date().toISOString()
                 });
             }
@@ -384,6 +392,130 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                                 <span className="text-xs text-slate-400 font-medium">
                                     Day of each calendar month (e.g. 5 means rent is due on the 5th day of every month).
                                 </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Document Numbering & Prefix Settings */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 space-y-4 md:col-span-2">
+                    <div className="flex items-center gap-2 border-b pb-2">
+                        <GridIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-405" />
+                        <h3 className="font-bold">Document Numbering & Prefix Settings</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Invoice numbering settings */}
+                        <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Invoices</h4>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Prefix</label>
+                                <input
+                                    type="text"
+                                    value={settings.numbering?.invoicePrefix ?? 'INV'}
+                                    onChange={e => setSettings({
+                                        ...settings,
+                                        numbering: {
+                                            ...(settings.numbering || {}),
+                                            invoicePrefix: e.target.value
+                                        }
+                                    })}
+                                    className="form-input w-full font-bold"
+                                    placeholder="INV"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Next Number</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={settings.numbering?.invoiceNextNumber ?? 1000}
+                                    onChange={e => setSettings({
+                                        ...settings,
+                                        numbering: {
+                                            ...(settings.numbering || {}),
+                                            invoiceNextNumber: Math.max(1, parseInt(e.target.value) || 1)
+                                        }
+                                    })}
+                                    className="form-input w-full font-bold"
+                                    placeholder="1000"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Receipt numbering settings */}
+                        <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Receipts / Payments</h4>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Prefix</label>
+                                <input
+                                    type="text"
+                                    value={settings.numbering?.receiptPrefix ?? 'REC'}
+                                    onChange={e => setSettings({
+                                        ...settings,
+                                        numbering: {
+                                            ...(settings.numbering || {}),
+                                            receiptPrefix: e.target.value
+                                        }
+                                    })}
+                                    className="form-input w-full font-bold"
+                                    placeholder="REC"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Next Number</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={settings.numbering?.receiptNextNumber ?? 1000}
+                                    onChange={e => setSettings({
+                                        ...settings,
+                                        numbering: {
+                                            ...(settings.numbering || {}),
+                                            receiptNextNumber: Math.max(1, parseInt(e.target.value) || 1)
+                                        }
+                                    })}
+                                    className="form-input w-full font-bold"
+                                    placeholder="1000"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Lease numbering settings */}
+                        <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Leases</h4>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Prefix</label>
+                                <input
+                                    type="text"
+                                    value={settings.numbering?.leasePrefix ?? 'LSE'}
+                                    onChange={e => setSettings({
+                                        ...settings,
+                                        numbering: {
+                                            ...(settings.numbering || {}),
+                                            leasePrefix: e.target.value
+                                        }
+                                    })}
+                                    className="form-input w-full font-bold"
+                                    placeholder="LSE"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Next Number</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={settings.numbering?.leaseNextNumber ?? 1000}
+                                    onChange={e => setSettings({
+                                        ...settings,
+                                        numbering: {
+                                            ...(settings.numbering || {}),
+                                            leaseNextNumber: Math.max(1, parseInt(e.target.value) || 1)
+                                        }
+                                    })}
+                                    className="form-input w-full font-bold"
+                                    placeholder="1000"
+                                />
                             </div>
                         </div>
                     </div>
