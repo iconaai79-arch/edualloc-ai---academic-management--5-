@@ -146,6 +146,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [newListingImages, setNewListingImages] = useState<string[]>([]);
     const [selectedLeaseForPreview, setSelectedLeaseForPreview] = useState<PMLease | null>(null);
     const [editingProperty, setEditingProperty] = useState<PMProperty | null>(null);
+    const [editingInvoice, setEditingInvoice] = useState<PMInvoice | null>(null);
     const [editingUnit, setEditingUnit] = useState<PMUnit | null>(null);
     const [isAddingStaff, setIsAddingStaff] = useState(false);
     const [commStartDate, setCommStartDate] = useState('');
@@ -1572,36 +1573,51 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const handleSaveInvoice = async (data: Partial<PMInvoice>) => {
         try {
-            const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
-            const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
-            const invoiceNumber = `${prefix}-${nextNum}`;
-
-            const newInvoice: PMInvoice = {
-                id: `inv_${Date.now()}`,
-                invoiceNumber,
-                leaseId: data.leaseId || '',
-                tenantId: data.tenantId || '',
-                unitId: data.unitId || '',
-                description: data.description || '',
-                amount: data.amount || 0,
-                issueDate: data.issueDate || new Date().toISOString().split('T')[0],
-                dueDate: data.dueDate || '',
-                status: 'Sent',
-                institutionId,
-                createdAt: new Date().toISOString()
-            };
-            await apiService.saveModuleRecord('pm_invoices', newInvoice);
-
-            if (pmSettings) {
-                const updatedSettings = {
-                    ...pmSettings,
-                    numbering: {
-                        ...(pmSettings.numbering || {}),
-                        invoiceNextNumber: nextNum + 1
-                    }
+            if (editingInvoice) {
+                const updated: PMInvoice = {
+                    ...editingInvoice,
+                    ...data,
+                    amount: data.amount !== undefined ? data.amount : editingInvoice.amount,
+                    description: data.description !== undefined ? data.description : editingInvoice.description,
+                    dueDate: data.dueDate !== undefined ? data.dueDate : editingInvoice.dueDate,
+                    status: data.status !== undefined ? data.status : editingInvoice.status,
+                    openingBalance: data.openingBalance !== undefined ? data.openingBalance : editingInvoice.openingBalance,
                 };
-                await apiService.saveModuleRecord('pm_settings', updatedSettings);
-                setPmSettings(updatedSettings);
+                await apiService.saveModuleRecord('pm_invoices', updated);
+                setEditingInvoice(null);
+            } else {
+                const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
+                const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
+                const invoiceNumber = `${prefix}-${nextNum}`;
+
+                const newInvoice: PMInvoice = {
+                    id: `inv_${Date.now()}`,
+                    invoiceNumber,
+                    leaseId: data.leaseId || '',
+                    tenantId: data.tenantId || '',
+                    unitId: data.unitId || '',
+                    description: data.description || '',
+                    amount: data.amount || 0,
+                    issueDate: data.issueDate || new Date().toISOString().split('T')[0],
+                    dueDate: data.dueDate || '',
+                    status: data.status || 'Sent',
+                    institutionId,
+                    createdAt: new Date().toISOString(),
+                    openingBalance: data.openingBalance,
+                };
+                await apiService.saveModuleRecord('pm_invoices', newInvoice);
+
+                if (pmSettings) {
+                    const updatedSettings = {
+                        ...pmSettings,
+                        numbering: {
+                            ...(pmSettings.numbering || {}),
+                            invoiceNextNumber: nextNum + 1
+                        }
+                    };
+                    await apiService.saveModuleRecord('pm_settings', updatedSettings);
+                    setPmSettings(updatedSettings);
+                }
             }
 
             setShowInvoiceModal(false);
@@ -1670,20 +1686,23 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 if (data.generateArrears) {
                     const start = new Date(lease.startDate);
                     const today = new Date();
-                    let expectedRent = 0;
-                    let curr = new Date(start);
-                    while (curr <= today) {
-                        expectedRent += lease.rentAmount;
-                        curr.setMonth(curr.getMonth() + 1);
-                    }
+
+                    // Precise month count from lease start to today
+                    const startYear = start.getFullYear();
+                    const startMonth = start.getMonth();
+                    const endYear = today.getFullYear();
+                    const endMonth = today.getMonth();
+                    const monthsElapsed = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+                    const billableMonths = Math.max(1, monthsElapsed);
+                    const expectedRent = billableMonths * (lease.rentAmount || 0);
 
                     const totalPaid = payments
-                        .filter(p => p.leaseId === lease.id && p.paymentType === 'Rent')
-                        .reduce((sum, p) => sum + p.amount, 0);
+                        .filter(p => p.leaseId === lease.id)
+                        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
                     const totalInvoiced = invoices
                         .filter(inv => inv.leaseId === lease.id && inv.description.toLowerCase().includes('rent'))
-                        .reduce((sum, inv) => sum + inv.amount, 0);
+                        .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
                     const unInvoicedArrears = expectedRent - totalPaid - totalInvoiced;
 
@@ -2063,10 +2082,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 </div>
                                 
                                 <div className="space-y-2 mb-6">
+                                    {inv.openingBalance !== undefined && inv.openingBalance !== null && (
+                                        <div className="flex justify-between text-[11px] font-bold">
+                                            <span className="text-slate-400 uppercase">Opening Balance</span>
+                                            <span className={`uppercase italic font-black ${inv.openingBalance > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>KES {inv.openingBalance.toLocaleString()}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between text-[11px] font-bold">
-                                        <span className="text-slate-400 uppercase">Amount</span>
+                                        <span className="text-slate-400 uppercase">Invoice Amount</span>
                                         <span className="text-slate-900 dark:text-white uppercase italic">KES {inv.amount?.toLocaleString()}</span>
                                     </div>
+                                    {inv.openingBalance !== undefined && inv.openingBalance !== null && (
+                                        <div className="flex justify-between text-[11px] font-bold border-t border-dashed border-slate-200 dark:border-slate-600 pt-1.5 mt-1">
+                                            <span className="text-slate-500 uppercase font-black">Total Due</span>
+                                            <span className="text-rose-600 uppercase italic font-black">KES {(inv.amount + inv.openingBalance).toLocaleString()}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between text-[11px] font-bold">
                                         <span className="text-slate-400 uppercase">Due Date</span>
                                         <span className="text-slate-900 dark:text-white uppercase italic">{new Date(inv.dueDate).toLocaleDateString()}</span>
@@ -2079,6 +2110,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     </button>
                                     <button onClick={() => handleSend(inv)} title="Send via SMS" className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-emerald-600 hover:text-white transition-all">
                                         <PaperAirplaneIcon className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => { setEditingInvoice(inv); setShowInvoiceModal(true); }} title="Edit Invoice" className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-orange-500 hover:text-white transition-all">
+                                        <PencilIcon className="w-4 h-4" />
                                     </button>
                                     <button onClick={async () => {
                                         if (confirm("Delete this invoice?")) {
@@ -4455,29 +4489,53 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 />
             )}
  
-            <Modal show={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} title="Generate New Invoice" maxWidth="max-w-md">
+            <Modal 
+                show={showInvoiceModal} 
+                onClose={() => {
+                    setShowInvoiceModal(false);
+                    setEditingInvoice(null);
+                }} 
+                title={editingInvoice ? `Edit Invoice - #${editingInvoice.invoiceNumber}` : "Generate New Invoice"} 
+                maxWidth="max-w-md"
+            >
                 <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.currentTarget);
                     const leaseId = formData.get('leaseId') as string;
-                    const lease = leases.find(l => l.id === leaseId);
-                    if (!lease) return;
                     
-                    handleSaveInvoice({
-                        leaseId,
-                        tenantId: lease.tenantId,
-                        unitId: lease.unitId,
+                    const payload: Partial<PMInvoice> = {
                         amount: parseFloat(formData.get('amount') as string) || 0,
                         description: formData.get('description') as string,
-                        issueDate: new Date().toISOString().split('T')[0],
                         dueDate: formData.get('dueDate') as string,
-                    });
+                        openingBalance: formData.get('openingBalance') ? parseFloat(formData.get('openingBalance') as string) : undefined
+                    };
+
+                    if (editingInvoice) {
+                        payload.status = formData.get('status') as PMInvoiceStatus;
+                    } else {
+                        const lease = leases.find(l => l.id === leaseId);
+                        if (!lease) return;
+                        payload.leaseId = leaseId;
+                        payload.tenantId = lease.tenantId;
+                        payload.unitId = lease.unitId;
+                        payload.issueDate = new Date().toISOString().split('T')[0];
+                        payload.status = 'Sent';
+                    }
+
+                    handleSaveInvoice(payload);
                 }} className="space-y-4">
                     <div className="space-y-1">
                         <label className="text-[10px] font-black uppercase text-slate-400">Target Tenant / Lease</label>
-                        <select name="leaseId" required className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none">
+                        <select 
+                            name="leaseId" 
+                            required 
+                            disabled={!!editingInvoice}
+                            key={editingInvoice ? editingInvoice.id : 'new'}
+                            defaultValue={editingInvoice?.leaseId || ""}
+                            className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none disabled:opacity-60"
+                        >
                             <option value="">Select Tenant...</option>
-                            {leases.filter(l => l.status === 'Active').map(l => {
+                            {leases.filter(l => l.status === 'Active' || l.id === editingInvoice?.leaseId).map(l => {
                                 const tenant = tenants.find(t => t.id === l.tenantId);
                                 const unit = units.find(u => u.id === l.unitId);
                                 return (
@@ -4490,12 +4548,23 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     </div>
                     <div className="space-y-1">
                         <label className="text-[10px] font-black uppercase text-slate-400">Description</label>
-                        <input name="description" defaultValue="Monthly Rent" required className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" />
+                        <input 
+                            name="description" 
+                            defaultValue={editingInvoice ? editingInvoice.description : "Monthly Rent"} 
+                            required 
+                            className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" 
+                        />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-[10px] font-black uppercase text-slate-400">Amount (KES)</label>
-                            <input name="amount" type="number" required className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" />
+                            <input 
+                                name="amount" 
+                                type="number" 
+                                defaultValue={editingInvoice ? editingInvoice.amount : ""}
+                                required 
+                                className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" 
+                            />
                         </div>
                         <div className="space-y-1">
                             <label className="text-[10px] font-black uppercase text-slate-400">Due Date</label>
@@ -4503,13 +4572,56 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 name="dueDate" 
                                 type="date" 
                                 required 
-                                defaultValue={pmSettings?.defaultRentDueDate ? getNextRentDueDate(pmSettings.defaultRentDueDate) : new Date().toISOString().split('T')[0]}
+                                defaultValue={editingInvoice ? editingInvoice.dueDate : (pmSettings?.defaultRentDueDate ? getNextRentDueDate(pmSettings.defaultRentDueDate) : new Date().toISOString().split('T')[0])}
                                 className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" 
                             />
                         </div>
                     </div>
+
+                    {editingInvoice && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-slate-400">Status</label>
+                                <select 
+                                    name="status" 
+                                    defaultValue={editingInvoice.status} 
+                                    required 
+                                    className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none"
+                                >
+                                    <option value="Pending">Pending</option>
+                                    <option value="Sent">Sent</option>
+                                    <option value="Paid">Paid</option>
+                                    <option value="Overdue">Overdue</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-slate-400">Opening Balance (KES)</label>
+                                <input 
+                                    name="openingBalance" 
+                                    type="number" 
+                                    defaultValue={editingInvoice.openingBalance || ''} 
+                                    placeholder="0"
+                                    className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" 
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {!editingInvoice && (
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase text-slate-400">Opening Balance (KES) - Optional</label>
+                            <input 
+                                name="openingBalance" 
+                                type="number" 
+                                placeholder="0"
+                                className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" 
+                            />
+                        </div>
+                    )}
+
                     <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all mt-4">
-                        Generate & Finalize Invoice
+                        {editingInvoice ? "Save Changes" : "Generate & Finalize Invoice"}
                     </button>
                 </form>
             </Modal>
@@ -4825,22 +4937,45 @@ const ArrearsManager: React.FC<{
             const landlord = property?.landlordId ? landlords.find(la => la.id === property.landlordId) : null;
 
             const start = new Date(lease.startDate);
-            let expectedRent = 0;
-            let curr = new Date(start);
-            while (curr <= targetDate) {
-                expectedRent += lease.rentAmount;
-                curr.setMonth(curr.getMonth() + 1);
+
+            // Cap start to targetDate — leases that haven't started yet have 0 expected rent
+            if (start > targetDate) {
+                return {
+                    lease, tenant, unit, property, landlord,
+                    periodArrears: 0, unpaidInvoicesAmount: 0, expectedRent: 0, paidRent: 0
+                };
             }
 
-            const paidRent = payments
-                .filter(p => p.leaseId === lease.id && p.paymentType === 'Rent' && new Date(p.paymentDate) <= targetDate)
-                .reduce((sum, p) => sum + p.amount, 0);
+            // Precise month count: how many full or partial billing months have elapsed
+            // from lease start up to and including the target month
+            const startYear = start.getFullYear();
+            const startMonth = start.getMonth();
+            const endYear = targetDate.getFullYear();
+            const endMonth = targetDate.getMonth();
+            const monthsElapsed = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+            // Never count negative or zero months
+            const billableMonths = Math.max(1, monthsElapsed);
+            const expectedRent = billableMonths * (lease.rentAmount || 0);
 
-            const periodArrears = expectedRent - paidRent;
+            // Sum all cash payments against this lease up to targetDate
+            const paidRent = payments
+                .filter(p => p.leaseId === lease.id && new Date(p.paymentDate) <= targetDate)
+                .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+            // Sum credits from paid/partial invoices (to avoid double-counting if invoice-based)
+            const invoiceCredits = invoices
+                .filter(inv => inv.leaseId === lease.id && (inv.status === 'Paid') && new Date(inv.issueDate) <= targetDate)
+                .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+
+            // Total received = cash payments + fully-paid invoice amounts
+            // Use the larger of the two to avoid double-counting when both exist
+            const totalReceived = Math.max(paidRent, invoiceCredits);
+
+            const periodArrears = expectedRent - totalReceived;
 
             const unpaidInvoicesAmount = invoices
                 .filter(inv => inv.leaseId === lease.id && inv.status !== 'Paid' && new Date(inv.issueDate) <= targetDate)
-                .reduce((sum, inv) => sum + inv.amount, 0);
+                .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
             return {
                 lease,
@@ -4851,7 +4986,7 @@ const ArrearsManager: React.FC<{
                 periodArrears: periodArrears > 0 ? periodArrears : 0,
                 unpaidInvoicesAmount,
                 expectedRent,
-                paidRent
+                paidRent: totalReceived
             };
         });
     }, [leases, tenants, units, properties, landlords, payments, invoices, arrPeriod]);
