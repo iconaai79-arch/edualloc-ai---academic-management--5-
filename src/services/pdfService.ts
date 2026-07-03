@@ -4513,6 +4513,7 @@ export const generateBoardingReportPdf = async (
 export const generateTenantStatementPdf = async (
     tenant: PMTenant,
     payments: PMPayment[],
+    invoices: PMInvoice[],
     leases: PMLease[],
     units: PMUnit[],
     startDate: string,
@@ -4546,34 +4547,33 @@ export const generateTenantStatementPdf = async (
     let openingBal = 0;
 
     const tenantLeases = leases.filter(l => l.tenantId === tenant.id);
-    tenantLeases.forEach(lease => {
-        let curr = new Date(lease.startDate);
-        const endDateObj = new Date(endDate);
-        while (curr <= endDateObj) {
-            const dateStr = curr.toISOString().split('T')[0];
-            allTx.push({
-                date: dateStr,
-                description: `Rent Due - ${curr.toLocaleString('default', { month: 'long', year: 'numeric' })}`,
-                type: 'debit',
-                amount: lease.rentAmount,
-                ref: `L-${lease.id.split('_')[1]}`
-            });
-            curr.setMonth(curr.getMonth() + 1);
-        }
-    });
+    const leaseIds = tenantLeases.map(l => l.id);
 
-    payments.forEach(p => {
-        const lease = leases.find(l => l.id === p.leaseId);
-        if (lease?.tenantId === tenant.id) {
+    // Debits: Invoices matching tenant's leases
+    invoices
+        .filter(inv => leaseIds.includes(inv.leaseId))
+        .forEach(inv => {
+            allTx.push({
+                date: inv.issueDate,
+                description: inv.description,
+                type: 'debit',
+                amount: inv.amount,
+                ref: inv.invoiceNumber
+            });
+        });
+
+    // Credits: Payments matching tenant's leases
+    payments
+        .filter(p => leaseIds.includes(p.leaseId))
+        .forEach(p => {
             allTx.push({
                 date: p.paymentDate,
                 description: `Payment - ${p.paymentType} (${p.paymentMethod})`,
                 type: 'credit',
                 amount: p.amount,
-                ref: p.id.split('_')[1]
+                ref: p.receiptNumber || p.id.split('_')[1]
             });
-        }
-    });
+        });
 
     allTx.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'debit' ? -1 : 1));
 

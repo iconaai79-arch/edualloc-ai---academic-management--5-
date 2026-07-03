@@ -2466,37 +2466,35 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             if (targetType === 'tenant') {
                 const tenantLeases = leases.filter(l => l.tenantId === targetId);
-                tenantLeases.forEach(lease => {
-                    // Generate monthly debits (Rent Due)
-                    let curr = new Date(lease.startDate);
-                    const endDateObj = new Date(endDate);
-                    while (curr <= endDateObj) {
-                        const dateStr = curr.toISOString().split('T')[0];
-                        allTx.push({
-                            id: `debit_${lease.id}_${dateStr}`,
-                            date: dateStr,
-                            description: `Rent Due - ${curr.toLocaleString('default', { month: 'long', year: 'numeric' })}`,
-                            type: 'debit',
-                            amount: lease.rentAmount,
-                            ref: `L-${lease.id.split('_')[1]}`
-                        });
-                        curr.setMonth(curr.getMonth() + 1);
-                    }
-                });
+                const leaseIds = tenantLeases.map(l => l.id);
 
-                payments.forEach(p => {
-                    const lease = leases.find(l => l.id === p.leaseId);
-                    if (lease?.tenantId === targetId) {
+                // Debits: Invoices matching tenant's leases
+                invoices
+                    .filter(inv => leaseIds.includes(inv.leaseId))
+                    .forEach(inv => {
+                        allTx.push({
+                            id: inv.id,
+                            date: inv.issueDate,
+                            description: inv.description,
+                            type: 'debit',
+                            amount: inv.amount,
+                            ref: inv.invoiceNumber
+                        });
+                    });
+
+                // Credits: Payments matching tenant's leases
+                payments
+                    .filter(p => leaseIds.includes(p.leaseId))
+                    .forEach(p => {
                         allTx.push({
                             id: p.id,
                             date: p.paymentDate,
                             description: `Payment - ${p.paymentType} (${p.paymentMethod})`,
                             type: 'credit',
                             amount: p.amount,
-                            ref: p.id.split('_')[1]
+                            ref: p.receiptNumber || p.id.split('_')[1]
                         });
-                    }
-                });
+                    });
             } else {
                 // Landlord Logic: Collections vs Management Fees
                 const landlordProperties = properties.filter(p => p.landlordId === targetId);
@@ -2565,7 +2563,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     if (!tenant) return;
                     title = `Tenant Statement - ${tenant.name}`;
                     dataUri = await pdfService.generateTenantStatementPdf(
-                        tenant, payments, leases, units, startDate, endDate, 
+                        tenant, payments, invoices, leases, units, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
                         currentInstitution.logoUrl || null
                     );
@@ -2601,7 +2599,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 let dataUri = '';
                 if (targetType === 'tenant') {
                     dataUri = await pdfService.generateTenantStatementPdf(
-                        entity as PMTenant, payments, leases, units, startDate, endDate, 
+                        entity as PMTenant, payments, invoices, leases, units, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
                         currentInstitution.logoUrl || null
                     );
@@ -2657,7 +2655,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         let dataUri = '';
                         if (targetType === 'tenant') {
                             dataUri = await pdfService.generateTenantStatementPdf(
-                                entity as PMTenant, payments, leases, units, startDate, endDate, 
+                                entity as PMTenant, payments, invoices, leases, units, startDate, endDate, 
                                 currentInstitution, currentInstitution.letterheadConfig, 
                                 currentInstitution.logoUrl || null
                             );
