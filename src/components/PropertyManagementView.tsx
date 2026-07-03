@@ -125,6 +125,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     // Modals
     const [showLandlordModal, setShowLandlordModal] = useState(false);
+    const [editingLandlord, setEditingLandlord] = useState<PMLandlord | null>(null);
     const [showPropertyModal, setShowPropertyModal] = useState(false);
     const [showUnitModal, setShowUnitModal] = useState(false);
     const [showTenantModal, setShowTenantModal] = useState(false);
@@ -265,57 +266,77 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const handleSaveLandlord = async (data: Partial<PMLandlord>) => {
         try {
-            const landlordId = `ll_${Date.now()}`;
-
-            // 1. Create the system user account if email is provided
-            if (data.email) {
-                const tempPassword = Math.random().toString(36).slice(-8);
-                const newUser = {
-                    id: `user_${Date.now()}`,
-                    name: data.name || '',
-                    email: data.email,
-                    phoneNumber: data.phoneNumber || '',
-                    role: 'landlord',
-                    institutionId,
-                    createdAt: new Date().toISOString(),
-                    isActive: true,
-                    mustChangePassword: true,
-                    password: tempPassword
+            if (editingLandlord) {
+                // UPDATE existing landlord record
+                const updatedLandlord: PMLandlord = {
+                    ...editingLandlord,
+                    name: data.name || editingLandlord.name,
+                    phoneNumber: data.phoneNumber || editingLandlord.phoneNumber,
+                    email: data.email ?? editingLandlord.email,
+                    idNumber: data.idNumber ?? editingLandlord.idNumber,
+                    taxPin: data.taxPin ?? editingLandlord.taxPin,
+                    bankDetails: data.bankDetails ?? editingLandlord.bankDetails,
+                    preferredPaymentMethod: data.preferredPaymentMethod ?? editingLandlord.preferredPaymentMethod,
                 };
-                await apiService.saveModuleRecord('users', newUser);
-
-                // 2. Send email with credentials
-                try {
-                    const subject = 'Welcome to your Landlord Portal';
-                    const body = `Welcome, ${data.name}!\n\nYou have been registered as a Landlord in the system.\nYou can now log in to view your properties, track tenant payments, and monitor your commission payouts.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
-                    await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
-                } catch (emailErr) {
-                    console.error("Failed to send landlord welcome email:", emailErr);
-                }
-            }
-
-            // 3. Create the PM landlord record
-            const newLandlord: PMLandlord = {
-                id: landlordId,
-                name: data.name || '',
-                phoneNumber: data.phoneNumber || '',
-                email: data.email,
-                idNumber: data.idNumber,
-                taxPin: data.taxPin,
-                bankDetails: data.bankDetails,
-                preferredPaymentMethod: data.preferredPaymentMethod,
-                institutionId,
-                createdAt: new Date().toISOString()
-            };
-            await apiService.saveModuleRecord('pm_landlords', newLandlord);
-
-            setShowLandlordModal(false);
-            loadData();
-
-            if (data.email) {
-                alert(`Landlord saved! Login credentials have been emailed to ${data.email}`);
+                await apiService.saveModuleRecord('pm_landlords', updatedLandlord);
+                setShowLandlordModal(false);
+                setEditingLandlord(null);
+                loadData();
+                alert('Landlord profile updated successfully!');
             } else {
-                alert("Landlord saved! (No email provided, so no portal access created)");
+                // CREATE new landlord
+                const landlordId = `ll_${Date.now()}`;
+
+                // 1. Create the system user account if email is provided
+                if (data.email) {
+                    const tempPassword = Math.random().toString(36).slice(-8);
+                    const newUser = {
+                        id: `user_${Date.now()}`,
+                        name: data.name || '',
+                        email: data.email,
+                        phoneNumber: data.phoneNumber || '',
+                        role: 'landlord',
+                        institutionId,
+                        createdAt: new Date().toISOString(),
+                        isActive: true,
+                        mustChangePassword: true,
+                        password: tempPassword
+                    };
+                    await apiService.saveModuleRecord('users', newUser);
+
+                    // 2. Send email with credentials
+                    try {
+                        const subject = 'Welcome to your Landlord Portal';
+                        const body = `Welcome, ${data.name}!\n\nYou have been registered as a Landlord in the system.\nYou can now log in to view your properties, track tenant payments, and monitor your commission payouts.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                        await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
+                    } catch (emailErr) {
+                        console.error("Failed to send landlord welcome email:", emailErr);
+                    }
+                }
+
+                // 3. Create the PM landlord record
+                const newLandlord: PMLandlord = {
+                    id: landlordId,
+                    name: data.name || '',
+                    phoneNumber: data.phoneNumber || '',
+                    email: data.email,
+                    idNumber: data.idNumber,
+                    taxPin: data.taxPin,
+                    bankDetails: data.bankDetails,
+                    preferredPaymentMethod: data.preferredPaymentMethod,
+                    institutionId,
+                    createdAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('pm_landlords', newLandlord);
+
+                setShowLandlordModal(false);
+                loadData();
+
+                if (data.email) {
+                    alert(`Landlord saved! Login credentials have been emailed to ${data.email}`);
+                } else {
+                    alert("Landlord saved! (No email provided, so no portal access created)");
+                }
             }
         } catch (e: any) { alert(e.message || "Failed to save landlord"); console.error(e); }
     };
@@ -524,6 +545,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <button className="p-2.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-xl transition-all" title="View Landlord">
                                                 <EyeIcon className="w-4 h-4" />
                                             </button>
+                                            <button
+                                                onClick={() => { setEditingLandlord(landlord); setShowLandlordModal(true); }}
+                                                className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl transition-all"
+                                                title="Edit Landlord"
+                                            >
+                                                <PencilIcon className="w-4 h-4" />
+                                            </button>
                                         </td>
                                     </tr>
                                 );
@@ -548,7 +576,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{landlord.phoneNumber}</p>
                                         </div>
                                     </div>
-                                    <button className="p-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-slate-500"><EyeIcon className="w-4 h-4" /></button>
+                                    <div className="flex gap-2">
+                                        <button className="p-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-slate-500"><EyeIcon className="w-4 h-4" /></button>
+                                        <button
+                                            onClick={() => { setEditingLandlord(landlord); setShowLandlordModal(true); }}
+                                            className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600"
+                                            title="Edit Landlord"
+                                        >
+                                            <PencilIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="mt-4 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl">
                                     <div className="flex justify-between items-center mb-3">
@@ -3453,7 +3490,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </form>
             </Modal>
 
-            <Modal show={showLandlordModal} onClose={() => setShowLandlordModal(false)} title="Onboard Landlord">
+            <Modal
+                show={showLandlordModal}
+                onClose={() => { setShowLandlordModal(false); setEditingLandlord(null); }}
+                title={editingLandlord ? 'Edit Landlord Profile' : 'Onboard Landlord'}
+            >
                 <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.currentTarget);
@@ -3469,31 +3510,31 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 }} className="space-y-6">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Full Name / Company Name</label>
-                        <input name="name" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. John Doe / XYZ Holdings" />
+                        <input key={editingLandlord?.id + '-name'} name="name" required defaultValue={editingLandlord?.name || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. John Doe / XYZ Holdings" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone Number</label>
-                            <input name="phoneNumber" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="+254..." />
+                            <input key={editingLandlord?.id + '-phone'} name="phoneNumber" required defaultValue={editingLandlord?.phoneNumber || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="+254..." />
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
-                            <input name="email" type="email" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="john@example.com" />
+                            <input key={editingLandlord?.id + '-email'} name="email" type="email" defaultValue={editingLandlord?.email || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="john@example.com" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">ID Number</label>
-                            <input name="idNumber" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" />
+                            <input key={editingLandlord?.id + '-id'} name="idNumber" defaultValue={editingLandlord?.idNumber || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" />
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tax PIN</label>
-                            <input name="taxPin" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. A00..." />
+                            <input key={editingLandlord?.id + '-tax'} name="taxPin" defaultValue={editingLandlord?.taxPin || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. A00..." />
                         </div>
                     </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Preferred Payment Method</label>
-                        <select name="preferredPaymentMethod" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                        <select key={editingLandlord?.id + '-method'} name="preferredPaymentMethod" defaultValue={editingLandlord?.preferredPaymentMethod || 'Bank'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all">
                             <option value="Bank">Bank Transfer</option>
                             <option value="M-Pesa">M-Pesa</option>
                             <option value="Cash">Cash</option>
@@ -3502,9 +3543,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Bank / Payment Details</label>
-                        <textarea name="bankDetails" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all h-24" placeholder="Bank name & details, or M-Pesa Till/Paybill details..." />
+                        <textarea key={editingLandlord?.id + '-bank'} name="bankDetails" defaultValue={editingLandlord?.bankDetails || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all h-24" placeholder="Bank name & details, or M-Pesa Till/Paybill details..." />
                     </div>
-                    <button type="submit" className="w-full bg-purple-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-500/20 mt-4">Save Landlord Profile</button>
+                    <button type="submit" className="w-full bg-purple-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-500/20 mt-4">
+                        {editingLandlord ? 'Update Landlord Profile' : 'Save Landlord Profile'}
+                    </button>
                 </form>
             </Modal>
 
