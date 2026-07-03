@@ -2685,6 +2685,7 @@ export interface PMProperty {
     id: string;
     name: string;
     address?: string;
+    town?: string;
     propertyType: PMPropertyType;
     totalUnits: number;
     landlordId?: string;

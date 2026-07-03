@@ -347,6 +347,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 id: editingProperty?.id || `prop_${Date.now()}`,
                 name: data.name || '',
                 address: data.address,
+                town: data.town,
                 propertyType: data.propertyType || 'Apartment',
                 totalUnits: editingProperty?.totalUnits || 0,
                 landlordId: data.landlordId,
@@ -686,6 +687,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 <div className="flex items-center gap-2">
                                                     <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address'}
                                                 </div>
+                                                {property.town && (
+                                                    <div className="text-[9px] font-bold text-blue-500 uppercase tracking-widest mt-1">
+                                                        {property.town}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="p-6">
                                                 <div className="text-xs font-black text-slate-900 dark:text-white">{property.totalUnits || 0} Total</div>
@@ -750,6 +756,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     </div>
                                     <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase">
                                         <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address Provided'}
+                                        {property.town && (
+                                            <span className="ml-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">
+                                                {property.town}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -3449,6 +3460,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     handleSaveProperty({
                         name: formData.get('name') as string,
                         address: formData.get('address') as string,
+                        town: formData.get('town') as string,
                         propertyType: formData.get('propertyType') as PMPropertyType,
                         landlordId: formData.get('landlordId') as string,
                         commissionRate: parseFloat(formData.get('commissionRate') as string) || 0,
@@ -3460,7 +3472,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Physical Address</label>
-                        <input name="address" defaultValue={editingProperty?.address} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="Street, City, Block" />
+                        <input name="address" defaultValue={editingProperty?.address} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="Street, Block No." />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Town / City</label>
+                        <input name="town" defaultValue={editingProperty?.town} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. Nairobi, Mombasa, Kisumu" />
                     </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Type</label>
