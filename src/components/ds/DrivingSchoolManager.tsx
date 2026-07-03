@@ -10114,7 +10114,12 @@ END $$;
                     <DrivingSchoolActionModal 
                         type={actionModal.type}
                         initialData={actionModal.initialData}
-                        onClose={() => setActionModal({ type: null })}
+                        onClose={() => {
+                            setActionModal({ type: null });
+                            if (enrollWizard.student) {
+                                setEnrollWizard(w => ({ ...w, open: true }));
+                            }
+                        }}
                         currentInstitution={currentInstitution}
                         invoices={invoices}
                         onSave={async (data) => {
@@ -10138,7 +10143,7 @@ END $$;
                                 if (data.id) await onUpdateLesson(data);
                                 else {
                                     await onAddLesson(data);
-                                    if (enrollWizard.open) setEnrollWizard(w => ({ ...w, step: 'done' }));
+                                    if (enrollWizard.student) setEnrollWizard(w => ({ ...w, open: true, step: 'done' }));
                                 }
                             }
                             else if (type === 'lead') {
@@ -10153,14 +10158,14 @@ END $$;
                                     await onUpdateInvoice(data);
                                 } else {
                                     await onAddInvoice(data);
-                                    if (enrollWizard.open) setEnrollWizard(w => ({ ...w, step: 'payment', createdInvoiceId: (data as any).id || null }));
+                                    if (enrollWizard.student) setEnrollWizard(w => ({ ...w, open: true, step: 'payment', createdInvoiceId: (data as any).id || null }));
                                 }
                             }
                             else if (type === 'payment') {
                                 if (data.id) await onUpdatePayment(data);
                                 else {
                                     await onAddPayment(data);
-                                    if (enrollWizard.open) setEnrollWizard(w => ({ ...w, step: 'lesson' }));
+                                    if (enrollWizard.student) setEnrollWizard(w => ({ ...w, open: true, step: 'lesson' }));
                                 }
                             }
                             else if (type === 'fee_structure') {
@@ -10344,7 +10349,7 @@ END $$;
                             <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-8 pt-8 pb-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Enrollment Workflow</span>
-                                    <button onClick={() => setEnrollWizard(w => ({ ...w, open: false }))} className="p-1.5 rounded-xl hover:bg-white/10 text-white/70 hover:text-white transition-all">
+                                    <button onClick={() => setEnrollWizard({ open: false, student: null, step: 'invoice', createdInvoiceId: null })} className="p-1.5 rounded-xl hover:bg-white/10 text-white/70 hover:text-white transition-all">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
                                 </div>
@@ -10400,7 +10405,10 @@ END $$;
                                             <p className="text-xs text-slate-400 font-medium mt-1">Create an invoice for this student based on their selected fee structure.</p>
                                         </div>
                                         <button
-                                            onClick={() => { setActionModal({ type: 'invoice', initialData: { studentId: enrollWizard.student?.id, studentName: enrollWizard.student?.fullName || enrollWizard.student?.name } }); }}
+                                            onClick={() => {
+                                                setEnrollWizard(w => ({ ...w, open: false }));
+                                                setActionModal({ type: 'invoice', initialData: { studentId: enrollWizard.student?.id, studentName: enrollWizard.student?.fullName || enrollWizard.student?.name } });
+                                            }}
                                             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
                                         >
                                             Generate Invoice →
@@ -10417,7 +10425,12 @@ END $$;
                                             <p className="text-xs text-slate-400 font-medium mt-1">Record a payment against the student's invoice.</p>
                                         </div>
                                         <button
-                                            onClick={() => { setActiveTab('finance'); setFinanceTab('payments'); setActionModal({ type: 'payment', initialData: { studentId: enrollWizard.student?.id, invoiceId: enrollWizard.createdInvoiceId } }); }}
+                                            onClick={() => {
+                                                setEnrollWizard(w => ({ ...w, open: false }));
+                                                setActiveTab('finance');
+                                                setFinanceTab('payments');
+                                                setActionModal({ type: 'payment', initialData: { studentId: enrollWizard.student?.id, invoiceId: enrollWizard.createdInvoiceId } });
+                                            }}
                                             className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
                                         >
                                             Record Payment →
@@ -10434,7 +10447,11 @@ END $$;
                                             <p className="text-xs text-slate-400 font-medium mt-1">Assign an instructor, vehicle and time slot for the student's first lesson.</p>
                                         </div>
                                         <button
-                                            onClick={() => { setActiveTab('lessons'); setActionModal({ type: 'lesson', initialData: { studentId: enrollWizard.student?.id } }); }}
+                                            onClick={() => {
+                                                setEnrollWizard(w => ({ ...w, open: false }));
+                                                setActiveTab('lessons');
+                                                setActionModal({ type: 'lesson', initialData: { studentId: enrollWizard.student?.id } });
+                                            }}
                                             className="w-full py-4 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-violet-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
                                         >
                                             Schedule Lesson →
