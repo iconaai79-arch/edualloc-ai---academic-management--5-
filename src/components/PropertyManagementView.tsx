@@ -4785,6 +4785,7 @@ const ArrearsManager: React.FC<{
     const [arrLandlord, setArrLandlord] = useState('all');
     const [arrMin, setArrMin] = useState('');
     const [arrMax, setArrMax] = useState('');
+    const [arrPeriod, setArrPeriod] = useState(new Date().toISOString().slice(0, 7));
     const [sendingReminder, setSendingReminder] = useState<string | null>(null);
     const [exporting, setExporting] = useState(false);
 
@@ -4810,6 +4811,13 @@ const ArrearsManager: React.FC<{
     };
 
     const arrearsList = useMemo(() => {
+        const targetDate = arrPeriod 
+            ? (() => {
+                const [y, m] = arrPeriod.split('-');
+                return new Date(parseInt(y), parseInt(m), 0); // Last day of that month
+              })()
+            : new Date();
+
         return leases.filter(l => l.status === 'Active').map(lease => {
             const tenant = tenants.find(t => t.id === lease.tenantId);
             const unit = units.find(u => u.id === lease.unitId);
@@ -4817,22 +4825,21 @@ const ArrearsManager: React.FC<{
             const landlord = property?.landlordId ? landlords.find(la => la.id === property.landlordId) : null;
 
             const start = new Date(lease.startDate);
-            const today = new Date();
             let expectedRent = 0;
             let curr = new Date(start);
-            while (curr <= today) {
+            while (curr <= targetDate) {
                 expectedRent += lease.rentAmount;
                 curr.setMonth(curr.getMonth() + 1);
             }
 
             const paidRent = payments
-                .filter(p => p.leaseId === lease.id && p.paymentType === 'Rent')
+                .filter(p => p.leaseId === lease.id && p.paymentType === 'Rent' && new Date(p.paymentDate) <= targetDate)
                 .reduce((sum, p) => sum + p.amount, 0);
 
             const periodArrears = expectedRent - paidRent;
 
             const unpaidInvoicesAmount = invoices
-                .filter(inv => inv.leaseId === lease.id && inv.status !== 'Paid')
+                .filter(inv => inv.leaseId === lease.id && inv.status !== 'Paid' && new Date(inv.issueDate) <= targetDate)
                 .reduce((sum, inv) => sum + inv.amount, 0);
 
             return {
@@ -4847,7 +4854,7 @@ const ArrearsManager: React.FC<{
                 paidRent
             };
         });
-    }, [leases, tenants, units, properties, landlords, payments, invoices]);
+    }, [leases, tenants, units, properties, landlords, payments, invoices, arrPeriod]);
 
     const filteredArrears = useMemo(() => {
         return arrearsList.filter(item => {
@@ -4908,6 +4915,14 @@ const ArrearsManager: React.FC<{
         const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
         let nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
 
+        const billingPeriodLabel = arrPeriod 
+            ? (() => {
+                const [y, m] = arrPeriod.split('-');
+                const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+                return date.toLocaleDateString('default', { month: 'long', year: 'numeric' });
+              })()
+            : new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' });
+
         for (const item of listWithArrears) {
             const alreadyExists = invoices.some(inv => 
                 inv.leaseId === item.lease.id && 
@@ -4922,7 +4937,7 @@ const ArrearsManager: React.FC<{
                 leaseId: item.lease.id,
                 tenantId: item.lease.tenantId,
                 unitId: item.lease.unitId,
-                description: `Outstanding Arrears Adjustment - ${new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' })}`,
+                description: `Outstanding Arrears Adjustment - ${billingPeriodLabel}`,
                 amount: item.periodArrears,
                 issueDate: todayStr,
                 dueDate: todayStr,
@@ -4959,7 +4974,16 @@ const ArrearsManager: React.FC<{
             {/* Advanced Filter Panel */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg space-y-4">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Advanced Arrears Filters</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Billing Period</label>
+                        <input 
+                            type="month"
+                            value={arrPeriod}
+                            onChange={(e) => setArrPeriod(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                        />
+                    </div>
                     <div className="space-y-1">
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Tenant</label>
                         <input 
@@ -5117,13 +5141,21 @@ const ArrearsManager: React.FC<{
                                                             const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
                                                             const invoiceNumber = `${prefix}-${nextNum}`;
 
+                                                            const billingPeriodLabel = arrPeriod 
+                                                                ? (() => {
+                                                                    const [y, m] = arrPeriod.split('-');
+                                                                    const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+                                                                    return date.toLocaleDateString('default', { month: 'long', year: 'numeric' });
+                                                                  })()
+                                                                : new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' });
+
                                                             await apiService.saveModuleRecord('pm_invoices', {
                                                                     id: `inv_${Date.now()}`,
                                                                     invoiceNumber,
                                                                     leaseId: item.lease.id,
                                                                     tenantId: item.lease.tenantId,
                                                                     unitId: item.lease.unitId,
-                                                                    description: `Outstanding Arrears Adjustment - ${new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' })}`,
+                                                                    description: `Outstanding Arrears Adjustment - ${billingPeriodLabel}`,
                                                                     amount: item.periodArrears,
                                                                     issueDate: new Date().toISOString().split('T')[0],
                                                                     dueDate: new Date().toISOString().split('T')[0],
