@@ -2970,7 +2970,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 institutionId,
                 loadData,
                 pmSettings,
-                setPmSettings
+                setPmSettings,
+                companyDetails
             })}
 
             {reportsSubTab === 'commission' && (() => {
@@ -4777,8 +4778,9 @@ const ArrearsManager: React.FC<{
     loadData: () => void;
     pmSettings: PMSettings | null;
     setPmSettings: (settings: PMSettings) => void;
+    companyDetails: CompanyDetails;
 }> = ({
-    leases, tenants, units, properties, landlords, payments, invoices, currentInstitution, institutionId, loadData, pmSettings, setPmSettings
+    leases, tenants, units, properties, landlords, payments, invoices, currentInstitution, institutionId, loadData, pmSettings, setPmSettings, companyDetails
 }) => {
     const [arrSearch, setArrSearch] = useState('');
     const [arrProperty, setArrProperty] = useState('all');
@@ -4786,6 +4788,28 @@ const ArrearsManager: React.FC<{
     const [arrMin, setArrMin] = useState('');
     const [arrMax, setArrMax] = useState('');
     const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+    const [exporting, setExporting] = useState(false);
+
+    const handleExportPdf = async () => {
+        setExporting(true);
+        try {
+            const dataUri = await pdfService.generateArrearsReportPdf(
+                filteredArrears,
+                currentInstitution,
+                companyDetails,
+                currentInstitution.logoUrl || null
+            );
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `Arrears-Report-${new Date().toISOString().split('T')[0]}.pdf`;
+            link.click();
+        } catch (err) {
+            alert("Failed to export arrears report PDF.");
+            console.error(err);
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const arrearsList = useMemo(() => {
         return leases.filter(l => l.status === 'Active').map(lease => {
@@ -5009,18 +5033,25 @@ const ArrearsManager: React.FC<{
                         <p className="text-2xl font-black text-slate-900 dark:text-white italic">{filteredArrears.filter(a => a.periodArrears > 0).length} Residents</p>
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex gap-2 items-center">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex flex-col sm:flex-row gap-2 items-center justify-stretch">
                     <button 
                         onClick={handleBulkInvoiceArrears}
-                        className="flex-1 bg-blue-600 hover:bg-blue-750 text-white font-black uppercase tracking-widest text-[9px] py-4 rounded-xl shadow-lg transition-all"
+                        className="flex-grow w-full bg-blue-600 hover:bg-blue-750 text-white font-black uppercase tracking-widest text-[8px] py-4 rounded-xl shadow-lg transition-all"
                     >
-                        Generate Arrears Invoices
+                        Invoice Arrears
                     </button>
                     <button 
                         onClick={handleBulkReminder}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-750 text-white font-black uppercase tracking-widest text-[9px] py-4 rounded-xl shadow-lg transition-all"
+                        className="flex-grow w-full bg-emerald-600 hover:bg-emerald-750 text-white font-black uppercase tracking-widest text-[8px] py-4 rounded-xl shadow-lg transition-all"
                     >
-                        Bulk SMS Reminders
+                        SMS Reminders
+                    </button>
+                    <button 
+                        onClick={handleExportPdf}
+                        disabled={exporting}
+                        className="flex-grow w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-widest text-[8px] py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-1"
+                    >
+                        {exporting ? 'Exporting...' : 'Export PDF'}
                     </button>
                 </div>
             </div>

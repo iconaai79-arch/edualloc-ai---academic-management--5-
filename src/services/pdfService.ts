@@ -7529,3 +7529,74 @@ export const generateStudentVotersCardsPdf = async (
     return doc.output('datauristring');
 };
 
+export const generateArrearsReportPdf = async (
+    arrearsList: Array<{
+        tenant: PMTenant | undefined;
+        unit: PMUnit | undefined;
+        property: PMProperty | null;
+        landlord: PMLandlord | null;
+        periodArrears: number;
+        paidRent: number;
+        lease: PMLease;
+    }>,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+
+    const margin = 14;
+
+    // Setup branding header
+    const tableStartY = createPdfWithLetterhead(
+        doc,
+        'RENT ARREARS REPORT',
+        companyDetails,
+        institution,
+        logoImg
+    );
+
+    // Summary Statistics Header
+    const totalArrears = arrearsList.reduce((sum, item) => sum + item.periodArrears, 0);
+    const totalTenants = arrearsList.filter(item => item.periodArrears > 0).length;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(45, 55, 72);
+    doc.text(`Report Date: ${new Date().toLocaleDateString()}`, margin, tableStartY + 5);
+    doc.text(`Total Unpaid Arrears: KES ${totalArrears.toLocaleString()}`, margin, tableStartY + 11);
+    doc.text(`Tenants with Balance: ${totalTenants}`, margin, tableStartY + 17);
+
+    // Draw Arrears List Table
+    const head = [['Tenant', 'Unit / Property', 'Landlord', 'Monthly Rent', 'Total Paid', 'Rent Arrears']];
+    const body = arrearsList.map(item => [
+        item.tenant?.name || 'N/A',
+        `Unit ${item.unit?.unitNumber || 'N/A'} - ${item.property?.name || 'N/A'}`,
+        item.landlord?.name || 'N/A',
+        `KES ${item.lease.rentAmount.toLocaleString()}`,
+        `KES ${item.paidRent.toLocaleString()}`,
+        `KES ${item.periodArrears.toLocaleString()}`
+    ]);
+
+    doc.autoTable({
+        head,
+        body,
+        startY: tableStartY + 24,
+        theme: 'striped',
+        headStyles: { fillColor: [185, 28, 28] }, // Dark Red
+        styles: { fontSize: 8 },
+        columnStyles: {
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    setupPdfFooter(doc, null, `${institution.name || 'Property ERP'} — Automated Arrears Registry`);
+
+    return doc.output('datauristring');
+};
+
