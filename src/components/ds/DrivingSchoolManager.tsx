@@ -5508,7 +5508,6 @@ END $$;
                             { id: 'finance', label: 'Finance', icon: CurrencyIcon },
                             { id: 'broadcaster', label: 'Broadcaster', icon: SparklesIcon },
                             { id: 'reports', label: 'Reports', icon: ClipboardListIcon },
-                            { id: 'showcase', label: 'Showcase', icon: SparklesIcon },
                             { id: 'settings', label: 'Config', icon: SettingsIcon }
                         ].map(tab => (
                             <button
