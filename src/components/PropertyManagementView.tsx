@@ -107,7 +107,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const institutionId = currentInstitution?.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices'>('properties');
-    const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission'>('analytics');
+    const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission' | 'arrears'>('analytics');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
 
@@ -868,12 +868,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
             )}
 
-            {propertyActiveSubTab === 'landlords' && <LandlordsTab />}
-            {propertyActiveSubTab === 'tenants' && <TenantsTab />}
-            {propertyActiveSubTab === 'leases' && <LeasesTab />}
-            {propertyActiveSubTab === 'payments' && <PaymentsTab />}
-            {propertyActiveSubTab === 'maintenance' && <MaintenanceTab />}
-            {propertyActiveSubTab === 'invoices' && <InvoicesTab />}
+            {propertyActiveSubTab === 'landlords' && LandlordsTab()}
+            {propertyActiveSubTab === 'tenants' && TenantsTab()}
+            {propertyActiveSubTab === 'leases' && LeasesTab()}
+            {propertyActiveSubTab === 'payments' && PaymentsTab()}
+            {propertyActiveSubTab === 'maintenance' && MaintenanceTab()}
+            {propertyActiveSubTab === 'invoices' && InvoicesTab()}
         </div>
     );
 
@@ -2842,6 +2842,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         { id: 'analytics', label: 'Analytics', icon: ChartPieIcon },
                         { id: 'statements', label: 'Financial Statements', icon: CurrencyIcon },
                         { id: 'commission', label: 'Commission Report', icon: ChartBarIcon },
+                        { id: 'arrears', label: 'Arrears Manager', icon: DocumentTextIcon },
                     ].map(sub => (
                         <button
                             key={sub.id}
@@ -2888,7 +2889,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
             )}
 
-            {reportsSubTab === 'statements' && <StatementsManager />}
+            {reportsSubTab === 'statements' && StatementsManager()}
+
+            {reportsSubTab === 'arrears' && ArrearsManager({
+                leases,
+                tenants,
+                units,
+                properties,
+                landlords,
+                payments,
+                invoices,
+                currentInstitution,
+                institutionId,
+                loadData
+            })}
 
             {reportsSubTab === 'commission' && (() => {
                 // Apply date range filter
@@ -4675,6 +4689,343 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                         <input name="amount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Amount Paid" />
                         <button type="submit" className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Finalize Payment</button>
                     </form>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ArrearsManager: React.FC<{
+    leases: PMLease[];
+    tenants: PMTenant[];
+    units: PMUnit[];
+    properties: PMProperty[];
+    landlords: PMLandlord[];
+    payments: PMPayment[];
+    invoices: PMInvoice[];
+    currentInstitution: Institution;
+    institutionId: string;
+    loadData: () => void;
+}> = ({
+    leases, tenants, units, properties, landlords, payments, invoices, currentInstitution, institutionId, loadData
+}) => {
+    const [arrSearch, setArrSearch] = useState('');
+    const [arrProperty, setArrProperty] = useState('all');
+    const [arrLandlord, setArrLandlord] = useState('all');
+    const [arrMin, setArrMin] = useState('');
+    const [arrMax, setArrMax] = useState('');
+    const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+
+    const arrearsList = useMemo(() => {
+        return leases.filter(l => l.status === 'Active').map(lease => {
+            const tenant = tenants.find(t => t.id === lease.tenantId);
+            const unit = units.find(u => u.id === lease.unitId);
+            const property = unit ? properties.find(p => p.id === unit.propertyId) : null;
+            const landlord = property?.landlordId ? landlords.find(la => la.id === property.landlordId) : null;
+
+            const start = new Date(lease.startDate);
+            const today = new Date();
+            let expectedRent = 0;
+            let curr = new Date(start);
+            while (curr <= today) {
+                expectedRent += lease.rentAmount;
+                curr.setMonth(curr.getMonth() + 1);
+            }
+
+            const paidRent = payments
+                .filter(p => p.leaseId === lease.id && p.paymentType === 'Rent')
+                .reduce((sum, p) => sum + p.amount, 0);
+
+            const periodArrears = expectedRent - paidRent;
+
+            const unpaidInvoicesAmount = invoices
+                .filter(inv => inv.leaseId === lease.id && inv.status !== 'Paid')
+                .reduce((sum, inv) => sum + inv.amount, 0);
+
+            return {
+                lease,
+                tenant,
+                unit,
+                property,
+                landlord,
+                periodArrears: periodArrears > 0 ? periodArrears : 0,
+                unpaidInvoicesAmount,
+                expectedRent,
+                paidRent
+            };
+        });
+    }, [leases, tenants, units, properties, landlords, payments, invoices]);
+
+    const filteredArrears = useMemo(() => {
+        return arrearsList.filter(item => {
+            if (!item.tenant) return false;
+            const matchesSearch = item.tenant.name.toLowerCase().includes(arrSearch.toLowerCase()) ||
+                                 item.unit?.unitNumber.toLowerCase().includes(arrSearch.toLowerCase());
+            const matchesProperty = arrProperty === 'all' || item.unit?.propertyId === arrProperty;
+            const matchesLandlord = arrLandlord === 'all' || item.property?.landlordId === arrLandlord;
+            
+            const arrearsVal = item.periodArrears;
+            const matchesMin = arrMin === '' || arrearsVal >= parseFloat(arrMin);
+            const matchesMax = arrMax === '' || arrearsVal <= parseFloat(arrMax);
+
+            return matchesSearch && matchesProperty && matchesLandlord && matchesMin && matchesMax;
+        });
+    }, [arrearsList, arrSearch, arrProperty, arrLandlord, arrMin, arrMax]);
+
+    const totalFilteredArrears = filteredArrears.reduce((sum, item) => sum + item.periodArrears, 0);
+
+    const handleSendReminder = async (item: typeof filteredArrears[0]) => {
+        if (!item.tenant?.phoneNumber) return alert("Tenant has no phone number registered.");
+        setSendingReminder(item.lease.id);
+        try {
+            const msg = `Dear ${item.tenant.name}, this is a friendly reminder that you have outstanding rent arrears of KES ${item.periodArrears.toLocaleString()} for Unit ${item.unit?.unitNumber}. Please clear this balance as soon as possible.`;
+            await apiService.sendSms(item.tenant.phoneNumber, msg, currentInstitution.smsConfig, 1, institutionId);
+            alert("Payment reminder sent successfully via SMS.");
+        } catch (err) {
+            alert("Failed to send reminder SMS.");
+        } finally {
+            setSendingReminder(null);
+        }
+    };
+
+    const handleBulkReminder = async () => {
+        const listWithArrears = filteredArrears.filter(item => item.periodArrears > 0 && item.tenant?.phoneNumber);
+        if (listWithArrears.length === 0) return alert("No tenants in the filtered list have outstanding arrears and a registered phone number.");
+        if (!confirm(`Send automated SMS arrears reminders to ${listWithArrears.length} tenants?`)) return;
+
+        let sent = 0;
+        for (const item of listWithArrears) {
+            try {
+                const msg = `Dear ${item.tenant!.name}, you have outstanding rent arrears of KES ${item.periodArrears.toLocaleString()} for Unit ${item.unit?.unitNumber}. Please clear this balance.`;
+                await apiService.sendSms(item.tenant!.phoneNumber!, msg, currentInstitution.smsConfig, 1, institutionId);
+                sent++;
+            } catch (_) {}
+        }
+        alert(`Reminders dispatch completed! Sent: ${sent}`);
+    };
+
+    const handleBulkInvoiceArrears = async () => {
+        const listWithArrears = filteredArrears.filter(item => item.periodArrears > 0);
+        if (listWithArrears.length === 0) return alert("No tenants in the filtered list have outstanding arrears to invoice.");
+        if (!confirm(`Generate individual arrears adjustment invoices for ${listWithArrears.length} tenants?`)) return;
+
+        const newInvoices: PMInvoice[] = [];
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        for (const item of listWithArrears) {
+            const alreadyExists = invoices.some(inv => 
+                inv.leaseId === item.lease.id && 
+                inv.description.includes('Outstanding Arrears Adjustment') &&
+                inv.issueDate === todayStr
+            );
+            if (alreadyExists) continue;
+
+            newInvoices.push({
+                id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                invoiceNumber: `INV-${Date.now().toString().slice(-6)}-A${Math.floor(Math.random()*100)}`,
+                leaseId: item.lease.id,
+                tenantId: item.lease.tenantId,
+                unitId: item.lease.unitId,
+                description: `Outstanding Arrears Adjustment - ${new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' })}`,
+                amount: item.periodArrears,
+                issueDate: todayStr,
+                dueDate: todayStr,
+                status: 'Sent',
+                institutionId,
+                createdAt: new Date().toISOString()
+            });
+        }
+
+        if (newInvoices.length === 0) {
+            return alert("All eligible tenants already have arrears invoices generated for today.");
+        }
+
+        await apiService.saveModuleRecords('pm_invoices', newInvoices);
+        alert(`Successfully generated ${newInvoices.length} arrears invoices.`);
+        loadData();
+    };
+
+    return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Advanced Filter Panel */}
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg space-y-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Advanced Arrears Filters</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Tenant</label>
+                        <input 
+                            type="text"
+                            placeholder="Search by name/unit..."
+                            value={arrSearch}
+                            onChange={(e) => setArrSearch(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Property</label>
+                        <select 
+                            value={arrProperty}
+                            onChange={(e) => setArrProperty(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                        >
+                            <option value="all">All Properties</option>
+                            {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Landlord</label>
+                        <select 
+                            value={arrLandlord}
+                            onChange={(e) => setArrLandlord(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                        >
+                            <option value="all">All Landlords</option>
+                            {landlords.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1 col-span-1 md:col-span-2 lg:col-span-2 flex gap-2">
+                        <div className="flex-1 space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Min Arrears (KES)</label>
+                            <input 
+                                type="number"
+                                placeholder="0"
+                                value={arrMin}
+                                onChange={(e) => setArrMin(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                            />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Max Arrears (KES)</label>
+                            <input 
+                                type="number"
+                                placeholder="No Max"
+                                value={arrMax}
+                                onChange={(e) => setArrMax(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Statistics Banner */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex justify-between items-center">
+                    <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Outstanding Arrears</p>
+                        <p className="text-2xl font-black text-rose-600 italic">KES {totalFilteredArrears.toLocaleString()}</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex justify-between items-center">
+                    <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tenants in Arrears</p>
+                        <p className="text-2xl font-black text-slate-900 dark:text-white italic">{filteredArrears.filter(a => a.periodArrears > 0).length} Residents</p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex gap-2 items-center">
+                    <button 
+                        onClick={handleBulkInvoiceArrears}
+                        className="flex-1 bg-blue-600 hover:bg-blue-750 text-white font-black uppercase tracking-widest text-[9px] py-4 rounded-xl shadow-lg transition-all"
+                    >
+                        Generate Arrears Invoices
+                    </button>
+                    <button 
+                        onClick={handleBulkReminder}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-750 text-white font-black uppercase tracking-widest text-[9px] py-4 rounded-xl shadow-lg transition-all"
+                    >
+                        Bulk SMS Reminders
+                    </button>
+                </div>
+            </div>
+
+            {/* Arrears List Table */}
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                <div className="p-6 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Arrears Analysis Ledger</h4>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50 dark:bg-slate-900/50 font-bold border-b border-slate-100 dark:border-slate-700">
+                            <tr>
+                                <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Resident / Unit</th>
+                                <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Asset Details</th>
+                                <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Monthly Rent</th>
+                                <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Rent Paid</th>
+                                <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Rent Arrears</th>
+                                <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredArrears.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No matching tenants found with arrears</td>
+                                </tr>
+                            ) : (
+                                filteredArrears.map(item => (
+                                    <tr key={item.lease.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                        <td className="p-5">
+                                            <div className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{item.tenant?.name}</div>
+                                            <div className="text-[10px] text-blue-600 font-bold uppercase">Unit {item.unit?.unitNumber}</div>
+                                        </td>
+                                        <td className="p-5">
+                                            <div className="text-xs font-bold text-slate-700 dark:text-slate-300">{item.property?.name}</div>
+                                            <div className="text-[9px] text-slate-400 font-bold uppercase">Landlord: {item.landlord?.name || 'N/A'}</div>
+                                        </td>
+                                        <td className="p-5 text-xs font-bold text-slate-800 dark:text-white">KES {item.lease.rentAmount.toLocaleString()}</td>
+                                        <td className="p-5 text-xs font-bold text-emerald-600">KES {item.paidRent.toLocaleString()}</td>
+                                        <td className="p-5">
+                                            <span className={`text-sm font-black italic ${item.periodArrears > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                                                KES {item.periodArrears.toLocaleString()}
+                                            </span>
+                                        </td>
+                                        <td className="p-5 text-right flex justify-end gap-2">
+                                            {item.periodArrears > 0 && (
+                                                <>
+                                                    <button 
+                                                        disabled={sendingReminder === item.lease.id}
+                                                        onClick={() => handleSendReminder(item)}
+                                                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                                                    >
+                                                        {sendingReminder === item.lease.id ? "Sending..." : "SMS Reminder"}
+                                                    </button>
+                                                    <button 
+                                                        onClick={async () => {
+                                                            const alreadyExists = invoices.some(inv => 
+                                                                inv.leaseId === item.lease.id && 
+                                                                inv.description.includes('Outstanding Arrears Adjustment') &&
+                                                                inv.issueDate === new Date().toISOString().split('T')[0]
+                                                            );
+                                                            if (alreadyExists) return alert("Arrears invoice already generated for today.");
+                                                            
+                                                            await apiService.saveModuleRecord('pm_invoices', {
+                                                                    id: `inv_${Date.now()}`,
+                                                                    invoiceNumber: `INV-${Date.now().toString().slice(-6)}-A`,
+                                                                    leaseId: item.lease.id,
+                                                                    tenantId: item.lease.tenantId,
+                                                                    unitId: item.lease.unitId,
+                                                                    description: `Outstanding Arrears Adjustment - ${new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' })}`,
+                                                                    amount: item.periodArrears,
+                                                                    issueDate: new Date().toISOString().split('T')[0],
+                                                                    dueDate: new Date().toISOString().split('T')[0],
+                                                                    status: 'Sent',
+                                                                    institutionId,
+                                                                    createdAt: new Date().toISOString()
+                                                            });
+                                                            alert("Arrears invoice generated successfully.");
+                                                            loadData();
+                                                        }}
+                                                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                                                    >
+                                                        Invoice Arrears
+                                                    </button>
+                                                </>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
