@@ -870,6 +870,20 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         let filteredTabs = baseTabs.filter(tab => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
+            if (isBC) {
+                const allowed = ['dashboard', 'beauty_college', 'users', 'fiscal_guard', 'settings'];
+                if (!allowed.includes(tab.id)) return false;
+                if (tab.id === 'fiscal_guard') return isModuleActive('fiscal_guard');
+                return true;
+            }
+
+            if (isDS) {
+                const allowed = ['dashboard', 'driving_school', 'users', 'fiscal_guard', 'settings'];
+                if (!allowed.includes(tab.id)) return false;
+                if (tab.id === 'fiscal_guard') return isModuleActive('fiscal_guard');
+                return true;
+            }
+
             if (['enrollment_students', 'enrollment_teachers', 'enrollment_support_staff', 'enrollment_broadcaster', 'enrollment_calendar', 'enrollment_guests'].includes(tab.id)) {
                 return isEdu && activeScope === 'academics';
             }
