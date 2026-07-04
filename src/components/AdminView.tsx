@@ -39,6 +39,7 @@ const LogisticsManager = lazy(() => import('./LogisticsManager').then(m => ({ de
 const LawManager = lazy(() => import('./law/LawManager').then(m => ({ default: m.LawManager })));
 const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 const BeautyCollegeManager = lazy(() => import('./bc/BeautyCollegeManager').then(m => ({ default: m.BeautyCollegeManager })));
+const FiscalGuard = lazy(() => import('./Finance/FiscalGuard').then(m => ({ default: m.FiscalGuard })));
 import { TimetableUserDirectory } from './timetable/TimetableUserDirectory';
 const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ default: m.CommunityManager })));
 const AlumniManager = lazy(() => import('./AlumniManager').then(m => ({ default: m.AlumniManager })));
@@ -797,6 +798,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'enrollment', label: 'Enrollments', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
             { id: 'eduflow', label: 'EduFlow Tasks', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
             { id: 'eduvote', label: 'EduVote AI', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
+            { id: 'fiscal_guard', label: 'FiscalGuard AI', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
         ];
 
 
@@ -974,6 +976,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
             if (tab.id === 'auto_marketplace') return isAutoMarket;
             if (tab.id === 'fuel_station') return isFuelStation;
+            if (tab.id === 'fiscal_guard') return isModuleActive('fiscal_guard');
 
             if (tab.id === 'reports') {
                 if (props.currentUser?.role === 'super_admin' || !!localStorage.getItem('eduai_super_admin_session')) return true;
@@ -3233,6 +3236,23 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         currentInstitution={props.currentInstitution!}
                         users={props.users || []}
                     />
+                )}
+                {activeTab === 'fiscal_guard' && (
+                    <ModuleAccessGuard
+                        moduleId="fiscal_guard"
+                        moduleName="FiscalGuard AI Auditor"
+                        description="Independent fiscal audit dashboard monitoring transaction logs, duplicate entries, sequence gaps, and statistical anomalies."
+                        institution={props.currentInstitution}
+                        onActivateTrial={props.onActivateModuleTrial}
+                    >
+                        <FiscalGuard
+                            invoices={props.invoices || []}
+                            receipts={props.receipts || []}
+                            expenses={props.expenses || []}
+                            institutionId={props.currentInstitution?.id || ''}
+                            onRefreshData={loadData}
+                        />
+                    </ModuleAccessGuard>
                 )}
                 {activeTab === 'community' && (
                     <CommunityManager 
