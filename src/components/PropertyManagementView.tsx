@@ -2441,6 +2441,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             if (selectedInvoiceIds.length === 0) return;
             if (!confirm(`Are you sure you want to delete ${selectedInvoiceIds.length} selected invoice(s)? This action cannot be undone.`)) return;
 
+            // Optimistically remove from UI immediately
+            const deletedSet = new Set(selectedInvoiceIds);
+            const prevInvoices = invoices;
+            setInvoices(prev => prev.filter(inv => !deletedSet.has(inv.id)));
+            setSelectedInvoiceIds([]);
+
             try {
                 const chunks: string[][] = [];
                 for (let i = 0; i < selectedInvoiceIds.length; i += 50) {
@@ -2451,10 +2457,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     await apiService.deleteModuleRecord('pm_invoices', chunk.join(','));
                 }
 
-                alert(`Successfully deleted ${selectedInvoiceIds.length} invoice(s).`);
-                setSelectedInvoiceIds([]);
+                alert(`Successfully deleted ${prevInvoices.filter(inv => deletedSet.has(inv.id)).length} invoice(s).`);
                 loadData();
             } catch (e: any) {
+                // Restore on failure
+                setInvoices(prevInvoices);
+                setSelectedInvoiceIds(Array.from(deletedSet));
                 alert(e.message || "Failed to delete invoices.");
                 console.error(e);
             }
@@ -2728,8 +2736,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             </button>
                                             <button onClick={async () => {
                                                 if (confirm("Delete this invoice?")) {
-                                                    await apiService.deleteModuleRecord('pm_invoices', inv.id);
-                                                    loadData();
+                                                    // Optimistically remove from UI
+                                                    const prevInvoices = invoices;
+                                                    setInvoices(prev => prev.filter(i => i.id !== inv.id));
+                                                    try {
+                                                        await apiService.deleteModuleRecord('pm_invoices', inv.id);
+                                                        loadData();
+                                                    } catch (e: any) {
+                                                        setInvoices(prevInvoices);
+                                                        alert(e.message || "Failed to delete invoice.");
+                                                    }
                                                 }
                                             }} title="Delete" className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-rose-600 hover:text-white transition-all">
                                                 <TrashIcon className="w-3 h-3" />
