@@ -1016,14 +1016,14 @@ export const apiService = {
                 p_table: module,
                 p_ids: idsArray
             });
-            if (!rpcErr) {
+            if (!rpcErr && rpcResult && typeof rpcResult === 'number' && rpcResult > 0) {
                 console.log(`[deleteModuleRecord] RPC OK: ${module} x${idsArray.length} → ${rpcResult} deleted`);
                 return;
             }
-            // RPC not available (migration not yet applied) — fall through to API
-            console.warn(`[deleteModuleRecord] RPC failed (${rpcErr.message}), falling back to API...`);
+            // RPC did not delete anything or failed; fall through to direct client-side delete
+            console.warn(`[deleteModuleRecord] RPC returned 0 or error for ${module}: ${rpcErr?.message || '0 deleted'}. Falling back to direct client-side delete...`);
         } catch (rpcEx: any) {
-            console.warn(`[deleteModuleRecord] RPC exception (${rpcEx.message}), falling back to API...`);
+            console.warn(`[deleteModuleRecord] RPC exception (${rpcEx.message}), falling back to direct client-side delete...`);
         }
 
         // ── Tier 1.5: Client-side direct Supabase delete (respects RLS) ──
