@@ -192,9 +192,10 @@ export const Header: React.FC<HeaderProps> = ({
 
                         {(currentInstitution?.institutionType === 'HIS' || isEduInstitution(currentInstitution)) && (() => {
                             const isPropertyManagement = activeRole === 'property_admin' || 
-                                                        activeRole === 'landlord' || 
-                                                        activeRole === 'tenant' || 
-                                                        currentInstitution?.businessSubType?.toLowerCase().includes('property management');
+                                                         activeRole === 'landlord' || 
+                                                         activeRole === 'tenant' || 
+                                                         currentInstitution?.businessSubType?.toLowerCase().includes('property management') ||
+                                                         currentInstitution?.institutionType?.toLowerCase().includes('property management');
                             
                             if (isPropertyManagement) return null;
 

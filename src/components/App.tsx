@@ -2783,7 +2783,7 @@ export const App: React.FC = () => {
                 const targetInstitution = institutions.find(i => i.id === institutionId);
                 const registryEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId);
                 
-                const isPM = targetInstitution?.businessSubType?.toLowerCase().includes('property management');
+                const isPM = targetInstitution?.businessSubType?.toLowerCase().includes('property management') || targetInstitution?.institutionType?.toLowerCase().includes('property management');
                 const fallbackRole = (targetInstitution?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') ? 'reseller' : isPM ? 'property_admin' : (initialRole || 'admin');
 
                 admin = {
@@ -2811,7 +2811,7 @@ export const App: React.FC = () => {
                 // For Property Management institutions, always use property_admin so routing
                 // lands on PropertyManagementView rather than LandlordPortalView
                 const targetInst = institutions.find(i => i.id === institutionId);
-                const isPMInstitution = targetInst?.businessSubType?.toLowerCase().includes('property management');
+                const isPMInstitution = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
                 const resolvedRole = initialRole
                     ? initialRole
                     : isPMInstitution && (admin.role === 'landlord' || admin.role === 'admin')
@@ -5969,7 +5969,7 @@ export const App: React.FC = () => {
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         onLogAction={handleLogAction}
                                     />
-                                ) : (activeRole === 'landlord' || activeRole === 'tenant' || activeRole === 'property_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
+                                ) : (activeRole === 'landlord' || activeRole === 'tenant' || activeRole === 'property_admin' || (isAdminCatchAll && (activeInstitution?.businessSubType?.toLowerCase().includes('property management') || activeInstitution?.institutionType?.toLowerCase().includes('property management')))) ? (
                                     activeRole === 'tenant' ? (
                                         <TenantPortalView {...({} as any)} {...tenantPortalProps as any} 
                                             currentUser={currentUser}

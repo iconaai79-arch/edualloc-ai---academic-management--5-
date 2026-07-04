@@ -2745,7 +2745,7 @@ Please change it after login.`;
                                                                 <CreditCardIcon className="w-3 h-3" />
                                                                 SMS Units
                                                             </button>
-                                                            {inst.businessSubType === 'Property Management' && (
+                                                            {(inst.businessSubType === 'Property Management' || inst.institutionType === 'Property Management') && (
                                                                 <button
                                                                     onClick={() => setManagingMarketplaceFor(inst)}
                                                                     className="flex items-center gap-1 text-orange-600 hover:text-orange-900 font-black text-[10px] uppercase tracking-tighter bg-orange-50 px-2 py-1 rounded-lg"
