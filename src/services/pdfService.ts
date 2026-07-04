@@ -5028,8 +5028,12 @@ export const generatePMInvoicePdfDataUri = async (
     const finalY = (doc as any).lastAutoTable.finalY;
     const pageHeight = doc.internal.pageSize.getHeight();
     
-    // We need about 30pt space for totals, and up to 60pt if landlord details are present
-    const neededSpace = landlord ? 60 : 30;
+    const rentAmount = invoice.amount || 0;
+    const openingBalance = invoice.openingBalance || 0;
+    const totalDue = rentAmount + openingBalance;
+
+    // Budget space: 15pt more space if there is an opening balance
+    const neededSpace = (landlord ? 60 : 30) + (openingBalance > 0 ? 15 : 0);
     let contentY = finalY;
 
     if (finalY + neededSpace > pageHeight - margin) {
@@ -5037,14 +5041,45 @@ export const generatePMInvoicePdfDataUri = async (
         contentY = margin + 10;
     }
 
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL AMOUNT DUE:', pageWidth - margin - 60, contentY + 15);
-    doc.text(`KES ${invoice.amount?.toLocaleString()}`, pageWidth - margin, contentY + 15, { align: 'right' });
+    let currentY = contentY + 15;
+
+    if (openingBalance > 0) {
+        // Draw Rent Row
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(80, 80, 80);
+        doc.text('Rent Amount:', margin, currentY);
+        doc.text(`KES ${rentAmount.toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
+        
+        // Draw Arrears Row
+        currentY += 7;
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(220, 38, 38); // Red color for arrears
+        doc.text('Arrears (Balance B/F):', margin, currentY);
+        doc.text(`KES ${openingBalance.toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
+        
+        // Draw Total Row
+        currentY += 8;
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 0);
+        doc.text('TOTAL AMOUNT DUE:', margin, currentY);
+        doc.text(`KES ${totalDue.toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
+        
+        // Offset contentY so landlord details are positioned correctly below
+        contentY = currentY - 15;
+    } else {
+        // Just draw Total Row
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('TOTAL AMOUNT DUE:', margin, currentY);
+        doc.text(`KES ${totalDue.toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
+    }
 
     if (landlord) {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
         doc.text('PAYMENT INSTRUCTIONS:', margin, contentY + 35);
         doc.setFont('helvetica', 'normal');
         const method = landlord.preferredPaymentMethod || 'Not Specified';
