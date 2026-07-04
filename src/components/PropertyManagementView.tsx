@@ -1871,6 +1871,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         const [propertyFilter, setPropertyFilter] = useState('all');
         const [monthFilter, setMonthFilter] = useState('all');
         const [sendingBulk, setSendingBulk] = useState(false);
+        const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
         const [page, setPage] = useState(1);
         const PAGE_SIZE = 15;
 
@@ -1941,6 +1942,30 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         const handlePropertyChange = (v: string) => { setPropertyFilter(v); setPage(1); };
         const handleMonthChange = (v: string) => { setMonthFilter(v); setPage(1); };
 
+
+        const handlePreview = async (inv: PMInvoice) => {
+            const tenant = tenants.find(t => t.id === inv.tenantId);
+            const unit = units.find(u => u.id === inv.unitId);
+            if (!tenant || !unit) return alert("Tenant or Unit data missing.");
+
+            const property = properties.find(p => p.id === unit.propertyId);
+            const landlord = property?.landlordId ? landlords.find(l => l.id === property.landlordId) : undefined;
+
+            setPreviewLoadingId(inv.id);
+            try {
+                const dataUri = await pdfService.generatePMInvoicePdfDataUri(
+                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null, landlord,
+                    pmSettings?.branding?.letterheadUrl || null
+                );
+                setPreviewPdfUrl(dataUri);
+                setPreviewPdfTitle(`Invoice ${inv.invoiceNumber}`);
+                setShowPdfPreview(true);
+            } catch (err) {
+                alert("Failed to generate PDF preview.");
+            } finally {
+                setPreviewLoadingId(null);
+            }
+        };
 
         const handleDownload = async (inv: PMInvoice) => {
             const tenant = tenants.find(t => t.id === inv.tenantId);
@@ -2234,6 +2259,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                                         {/* Actions */}
                                         <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button 
+                                                onClick={() => handlePreview(inv)} 
+                                                title="Preview on Screen" 
+                                                disabled={previewLoadingId === inv.id}
+                                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-50"
+                                            >
+                                                {previewLoadingId === inv.id ? (
+                                                    <ArrowPathIcon className="w-3 h-3 animate-spin" />
+                                                ) : (
+                                                    <EyeIcon className="w-3 h-3" />
+                                                )}
+                                            </button>
                                             <button onClick={() => handleDownload(inv)} title="Download" className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-blue-600 hover:text-white transition-all">
                                                 <DownloadIcon className="w-3 h-3" />
                                             </button>
