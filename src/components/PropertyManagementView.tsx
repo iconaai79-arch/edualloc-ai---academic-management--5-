@@ -1481,6 +1481,29 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             };
             await apiService.saveModuleRecord('pm_payments', p);
 
+            // Auto-allocate rent payment to oldest unpaid rent/arrears invoices
+            if (paymentType === 'Rent' && data.leaseId) {
+                let paymentRemaining = amount;
+                const unpaidLeaseInvoices = invoices
+                    .filter(inv => inv.leaseId === data.leaseId &&
+                        inv.status !== 'Paid' && inv.status !== 'Cancelled' &&
+                        (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')))
+                    .sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
+
+                for (const inv of unpaidLeaseInvoices) {
+                    if (paymentRemaining <= 0) break;
+                    if (paymentRemaining >= inv.amount) {
+                        paymentRemaining -= inv.amount;
+                        await apiService.saveModuleRecord('pm_invoices', {
+                            ...inv,
+                            status: 'Paid'
+                        });
+                    } else {
+                        break;
+                    }
+                }
+            }
+
             if (pmSettings) {
                 const updatedSettings = {
                     ...pmSettings,
@@ -1721,7 +1744,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     );
                     const newlyAddedRentAmount = newlyAddedRent ? (Number(newlyAddedRent.amount) || 0) : 0;
 
-                    const unInvoicedArrears = expectedRent - totalPaid - totalInvoiced - newlyAddedRentAmount;
+                    const unInvoicedArrears = expectedRent - Math.max(totalPaid, totalInvoiced) - newlyAddedRentAmount;
 
                     if (unInvoicedArrears > 0) {
                         const todayStr = new Date().toISOString().split('T')[0];
@@ -5798,7 +5821,8 @@ const ArrearsManager: React.FC<{
             if (start > targetDate) {
                 return {
                     lease, tenant, unit, property, landlord,
-                    periodArrears: 0, unpaidInvoicesAmount: 0, expectedRent: 0, paidRent: 0
+                    periodArrears: 0, unpaidInvoicesAmount: 0, expectedRent: 0, paidRent: 0,
+                    unInvoicedArrears: 0
                 };
             }
 
@@ -5833,8 +5857,8 @@ const ArrearsManager: React.FC<{
                     new Date(inv.issueDate) <= targetDate)
                 .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
-            const unInvoicedArrears = Math.max(0, expectedRent - paidRent - totalInvoicedAmount);
-            const periodArrears = unInvoicedArrears + unpaidInvoicesAmount;
+            const unInvoicedArrears = Math.max(0, expectedRent - Math.max(paidRent, totalInvoicedAmount));
+            const periodArrears = Math.max(0, Math.max(expectedRent, totalInvoicedAmount) - paidRent);
 
             return {
                 lease,

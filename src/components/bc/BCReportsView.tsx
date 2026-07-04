@@ -246,7 +246,7 @@ export const BCReportsView: React.FC<BCReportsViewProps> = ({
                     {previewUrl ? (
                         <div className="flex-1 bg-slate-50 dark:bg-slate-950 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 relative">
                             <PdfViewer
-                                url={previewUrl}
+                                src={previewUrl}
                                 title={reportMode === 'statements' ? "Financial Statement" : "Practical Hours Log"}
                             />
                         </div>
