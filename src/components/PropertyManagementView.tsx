@@ -5424,7 +5424,8 @@ const ArrearsManager: React.FC<{
                     <table className="w-full text-left">
                         <thead className="bg-slate-50 dark:bg-slate-900/50 font-bold border-b border-slate-100 dark:border-slate-700">
                             <tr>
-                                <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Resident / Unit</th>
+                                <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Tenant Name</th>
+                                <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Unit</th>
                                 <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Asset Details</th>
                                 <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Monthly Rent</th>
                                 <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Rent Paid</th>
@@ -5435,15 +5436,23 @@ const ArrearsManager: React.FC<{
                         <tbody>
                             {filteredArrears.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No matching tenants found with arrears</td>
+                                    <td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No matching tenants found with arrears</td>
                                 </tr>
                             ) : (
                                 filteredArrears.map(item => (
                                     <tr key={item.lease.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                        {/* Tenant Name */}
                                         <td className="p-5">
-                                            <div className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{item.tenant?.name}</div>
-                                            <div className="text-[10px] text-blue-600 font-bold uppercase">Unit {item.unit?.unitNumber}</div>
+                                            <div className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{item.tenant?.name || '—'}</div>
+                                            {item.tenant?.phoneNumber && (
+                                                <div className="text-[9px] text-slate-400 font-bold mt-0.5">{item.tenant.phoneNumber}</div>
+                                            )}
                                         </td>
+                                        {/* Unit */}
+                                        <td className="p-5">
+                                            <div className="text-xs font-black text-blue-600 uppercase">{item.unit?.unitNumber || '—'}</div>
+                                        </td>
+                                        {/* Asset Details */}
                                         <td className="p-5">
                                             <div className="text-xs font-bold text-slate-700 dark:text-slate-300">{item.property?.name}</div>
                                             <div className="text-[9px] text-slate-400 font-bold uppercase">Landlord: {item.landlord?.name || 'N/A'}</div>
