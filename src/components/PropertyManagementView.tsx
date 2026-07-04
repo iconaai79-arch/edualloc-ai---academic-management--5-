@@ -2082,14 +2082,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 {/* List Table */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
                     {/* Header */}
-                    <div className="grid grid-cols-12 gap-2 px-5 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
-                        <div className="col-span-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Invoice #</div>
-                        <div className="col-span-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Tenant</div>
-                        <div className="col-span-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Unit</div>
-                        <div className="col-span-2 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Amount (KES)</div>
-                        <div className="col-span-1 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</div>
-                        <div className="col-span-1 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Due Date</div>
-                        <div className="col-span-1 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</div>
+                    <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,2.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] gap-x-2 px-5 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Invoice #</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tenant</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unit</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Month</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">B/F (KES)</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Rent (KES)</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Total Due</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Due Date</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</div>
                     </div>
 
                     {/* Rows */}
@@ -2103,34 +2106,58 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             {pagedInvoices.map(inv => {
                                 const tenant = tenants.find(t => t.id === inv.tenantId);
                                 const unit = units.find(u => u.id === inv.unitId);
-                                const totalDue = (inv.amount || 0) + (inv.openingBalance || 0);
+                                const bf = inv.openingBalance || 0;
+                                const rent = inv.amount || 0;
+                                const totalDue = rent + bf;
+                                const monthName = inv.dueDate
+                                    ? new Date(inv.dueDate).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+                                    : '—';
                                 return (
-                                    <div key={inv.id} className="grid grid-cols-12 gap-2 px-5 py-3.5 items-center hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
+                                    <div key={inv.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,2.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] gap-x-2 px-5 py-3.5 items-center hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
                                         {/* Invoice # */}
-                                        <div className="col-span-2">
+                                        <div>
                                             <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 font-mono">{inv.invoiceNumber}</span>
                                         </div>
 
                                         {/* Tenant */}
-                                        <div className="col-span-3 min-w-0">
+                                        <div className="min-w-0">
                                             <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{tenant?.name || '—'}</p>
                                         </div>
 
                                         {/* Unit */}
-                                        <div className="col-span-2 min-w-0">
+                                        <div className="min-w-0">
                                             <p className="text-xs font-bold text-blue-600 truncate">{unit?.unitNumber || '—'}</p>
                                         </div>
 
-                                        {/* Amount */}
-                                        <div className="col-span-2 text-right">
-                                            <p className="text-xs font-black text-slate-900 dark:text-white italic">{totalDue.toLocaleString()}</p>
-                                            {(inv.openingBalance || 0) > 0 && (
-                                                <p className="text-[9px] text-rose-500 font-bold">(+{inv.openingBalance?.toLocaleString()} arrears)</p>
+                                        {/* Month */}
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wide">{monthName}</p>
+                                        </div>
+
+                                        {/* B/F */}
+                                        <div className="text-right">
+                                            {bf > 0 ? (
+                                                <p className="text-xs font-black text-rose-500 italic">{bf.toLocaleString()}</p>
+                                            ) : (
+                                                <p className="text-[10px] font-bold text-slate-300 dark:text-slate-600">—</p>
+                                            )}
+                                        </div>
+
+                                        {/* Rent */}
+                                        <div className="text-right">
+                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{rent.toLocaleString()}</p>
+                                        </div>
+
+                                        {/* Total Due */}
+                                        <div className="text-right">
+                                            <p className={`text-xs font-black italic ${totalDue > 0 ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>{totalDue.toLocaleString()}</p>
+                                            {bf > 0 && (
+                                                <p className="text-[8px] text-rose-400 font-bold">incl. arrears</p>
                                             )}
                                         </div>
 
                                         {/* Status */}
-                                        <div className="col-span-1 flex justify-center">
+                                        <div className="flex justify-center">
                                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${
                                                 inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' :
                                                 inv.status === 'Overdue' ? 'bg-rose-100 text-rose-600' :
@@ -2140,12 +2167,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         </div>
 
                                         {/* Due Date */}
-                                        <div className="col-span-1 text-center">
+                                        <div className="text-center">
                                             <p className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{new Date(inv.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                                         </div>
 
                                         {/* Actions */}
-                                        <div className="col-span-1 flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => handleDownload(inv)} title="Download" className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-blue-600 hover:text-white transition-all">
                                                 <DownloadIcon className="w-3 h-3" />
                                             </button>
