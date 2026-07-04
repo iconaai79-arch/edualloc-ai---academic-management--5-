@@ -2817,6 +2817,7 @@ export interface PMInvoice {
     unitId: string;
     description: string;
     amount: number;
+    openingBalance?: number;
     items?: PMInvoiceItem[];
     issueDate: string;
     dueDate: string;

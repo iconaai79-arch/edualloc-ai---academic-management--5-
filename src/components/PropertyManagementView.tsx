@@ -1781,95 +1781,410 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         } catch (e) { console.error(e); }
     };
 
-    const PaymentsTab = () => (
-        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
-                <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/30">
-                    <div>
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Collection Ledger</h3>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Real-time financial tracking</p>
+    const PaymentsTab = () => {
+        const [search, setSearch] = useState('');
+        const [methodFilter, setMethodFilter] = useState('all');
+        const [typeFilter, setTypeFilter] = useState('all');
+        const [propertyFilter, setPropertyFilter] = useState('all');
+        const [monthFilter, setMonthFilter] = useState('all');
+        const [page, setPage] = useState(1);
+        const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
+        const PAGE_SIZE = 15;
+
+        const getMonthName = (dateStr?: string) => {
+            if (!dateStr) return '—';
+            const parts = dateStr.split('-');
+            if (parts.length < 2) return '—';
+            const monthIndex = parseInt(parts[1], 10) - 1;
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[monthIndex] || ''} '${parts[0].slice(2)}`;
+        };
+
+        const formatMonthYear = (monthStr: string) => {
+            const [year, month] = monthStr.split('-');
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthIndex = parseInt(month, 10) - 1;
+            return `${months[monthIndex] || ''} ${year}`;
+        };
+
+        const handleSearchChange = (v: string) => { setSearch(v); setPage(1); };
+        const handleMethodChange = (v: string) => { setMethodFilter(v); setPage(1); };
+        const handleTypeChange = (v: string) => { setTypeFilter(v); setPage(1); };
+        const handlePropertyChange = (v: string) => { setPropertyFilter(v); setPage(1); };
+        const handleMonthChange = (v: string) => { setMonthFilter(v); setPage(1); };
+
+        const uniqueMethods = useMemo(() => {
+            const methods = new Set<string>();
+            payments.forEach(p => {
+                if (p.paymentMethod) methods.add(p.paymentMethod);
+            });
+            return Array.from(methods).sort();
+        }, [payments]);
+
+        const uniqueTypes = useMemo(() => {
+            const types = new Set<string>();
+            payments.forEach(p => {
+                if (p.paymentType) types.add(p.paymentType);
+            });
+            return Array.from(types).sort();
+        }, [payments]);
+
+        const uniqueMonths = useMemo(() => {
+            const months = new Set<string>();
+            payments.forEach(p => {
+                if (p.paymentDate && typeof p.paymentDate === 'string') {
+                    const parts = p.paymentDate.split('-');
+                    if (parts.length >= 2) {
+                        const year = parts[0];
+                        const month = parts[1];
+                        if (year.length === 4 && month.length === 2) {
+                            months.add(`${year}-${month}`);
+                        }
+                    }
+                }
+            });
+            return Array.from(months).sort((a, b) => b.localeCompare(a));
+        }, [payments]);
+
+        const handlePreview = async (payment: PMPayment) => {
+            const lease = leases.find(l => l.id === payment.leaseId);
+            const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : undefined;
+            const unit = lease ? units.find(u => u.id === lease.unitId) : undefined;
+            if (!tenant || !unit) return alert("Tenant or Unit data missing for this payment.");
+
+            setPreviewLoadingId(payment.id);
+            try {
+                const dataUri = await pdfService.generatePMReceiptPdfDataUri(
+                    payment, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                    pmSettings?.branding?.letterheadUrl || null
+                );
+                setPreviewPdfUrl(dataUri);
+                setPreviewPdfTitle(`Receipt ${payment.receiptNumber || payment.id}`);
+                setShowPdfPreview(true);
+            } catch (err) {
+                console.error(err);
+                alert("Failed to generate PDF receipt preview.");
+            } finally {
+                setPreviewLoadingId(null);
+            }
+        };
+
+        const handleDownload = async (payment: PMPayment) => {
+            const lease = leases.find(l => l.id === payment.leaseId);
+            const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : undefined;
+            const unit = lease ? units.find(u => u.id === lease.unitId) : undefined;
+            if (!tenant || !unit) return alert("Tenant or Unit data missing for this payment.");
+
+            try {
+                const dataUri = await pdfService.generatePMReceiptPdfDataUri(
+                    payment, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                    pmSettings?.branding?.letterheadUrl || null
+                );
+                const link = document.createElement('a');
+                link.href = dataUri;
+                link.download = `Receipt-${payment.receiptNumber || payment.id}.pdf`;
+                link.click();
+            } catch (err) { 
+                console.error(err);
+                alert("Failed to generate PDF receipt."); 
+            }
+        };
+
+        const filteredPayments = useMemo(() => {
+            return payments.filter(payment => {
+                const lease = leases.find(l => l.id === payment.leaseId);
+                const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
+                const unit = lease ? units.find(u => u.id === lease.unitId) : null;
+
+                const matchesSearch = 
+                    (payment.receiptNumber || '').toLowerCase().includes(search.toLowerCase()) ||
+                    (tenant?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+                    (unit?.unitNumber || '').toLowerCase().includes(search.toLowerCase()) ||
+                    (payment.reference || '').toLowerCase().includes(search.toLowerCase());
+
+                const matchesMethod = methodFilter === 'all' || payment.paymentMethod === methodFilter;
+                const matchesType = typeFilter === 'all' || payment.paymentType === typeFilter;
+                const matchesProperty = propertyFilter === 'all' || unit?.propertyId === propertyFilter;
+                const matchesMonth = monthFilter === 'all' || (payment.paymentDate && payment.paymentDate.startsWith(monthFilter));
+
+                return matchesSearch && matchesMethod && matchesType && matchesProperty && matchesMonth;
+            });
+        }, [payments, leases, tenants, units, search, methodFilter, typeFilter, propertyFilter, monthFilter]);
+
+        const sortedPayments = useMemo(() => {
+            return [...filteredPayments].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+        }, [filteredPayments]);
+
+        const totalPages = Math.max(1, Math.ceil(sortedPayments.length / PAGE_SIZE));
+        const pagedPayments = sortedPayments.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+        return (
+            <div className="space-y-6 animate-in fade-in duration-500">
+                {/* Search & Filters */}
+                <div className="flex bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm gap-4 items-center flex-wrap">
+                    <div className="flex flex-1 items-center gap-4 min-w-[200px]">
+                        <SearchIcon className="w-5 h-5 text-slate-400 ml-2" />
+                        <input 
+                            type="search" 
+                            placeholder="Search payments by receipt, tenant, unit or ref..."
+                            className="flex-1 bg-transparent font-bold outline-none text-sm dark:text-white"
+                            value={search}
+                            onChange={(e) => handleSearchChange(e.target.value)}
+                        />
+                    </div>
+                    
+                    {/* Method Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Method</label>
+                        <select 
+                            value={methodFilter} 
+                            onChange={(e) => handleMethodChange(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                        >
+                            <option value="all">All Methods</option>
+                            {uniqueMethods.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Type Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Type</label>
+                        <select 
+                            value={typeFilter} 
+                            onChange={(e) => handleTypeChange(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                        >
+                            <option value="all">All Types</option>
+                            {uniqueTypes.map(t => (
+                                <option key={t} value={t}>{t}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Month Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Month</label>
+                        <select 
+                            value={monthFilter} 
+                            onChange={(e) => handleMonthChange(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                        >
+                            <option value="all">All Months</option>
+                            {uniqueMonths.map(m => (
+                                <option key={m} value={m}>{formatMonthYear(m)}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Property Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Property</label>
+                        <select 
+                            value={propertyFilter} 
+                            onChange={(e) => handlePropertyChange(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none max-w-[150px] truncate dark:text-white"
+                        >
+                            <option value="all">All Properties</option>
+                            {properties.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
                     </div>
                 </div>
-                {/* Desktop Table View */}
-                <div className="hidden lg:block overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="border-b border-slate-100 dark:border-slate-700">
-                            <tr>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction ID</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lease Ref</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {payments.map(payment => {
-                                const lease = leases.find(l => l.id === payment.leaseId);
-                                const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
-                                return (
-                                    <tr key={payment.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                        <td className="p-6 font-mono text-xs font-bold text-slate-400">{payment.receiptNumber || `#${payment.id.split('_')[1]}`}</td>
-                                        <td className="p-6">
-                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">{tenant?.name || 'N/A'}</p>
-                                            <p className="text-[9px] text-blue-600 font-bold uppercase">{payment.paymentType}</p>
-                                            {payment.reference && (
-                                                <p className="text-[9px] text-purple-650 font-black uppercase tracking-wider mt-0.5">Ref: {payment.reference}</p>
-                                            )}
-                                        </td>
-                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</td>
-                                        <td className="p-6 font-bold text-slate-500 uppercase text-[10px]">{payment.paymentMethod}</td>
-                                        <td className="p-6 text-xs font-bold text-slate-500 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</td>
-                                        <td className="p-6 text-right">
-                                            <span className="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic">Success</span>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
 
-                {/* Mobile Card View */}
-                <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
-                    {payments.map(payment => {
-                        const lease = leases.find(l => l.id === payment.leaseId);
-                        const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
-                        return (
-                            <div key={payment.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[9px] font-mono font-bold text-slate-400">{payment.receiptNumber || `#${payment.id.split('_')[1]}`}</span>
-                                        <span className="bg-emerald-50 text-emerald-600 text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase">Success</span>
-                                    </div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</p>
-                                </div>
-                                <div className="flex justify-between items-end">
-                                    <div>
-                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</h4>
-                                        <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{payment.paymentType}</p>
-                                        {payment.reference && (
-                                            <p className="text-[9px] text-purple-650 font-black uppercase tracking-wider mt-0.5">Ref: {payment.reference}</p>
-                                        )}
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</p>
-                                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">{payment.paymentMethod}</p>
-                                    </div>
-                                </div>
+                {/* Ledger Table */}
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/30">
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Collection Ledger</h3>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">
+                                {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''} found
+                            </p>
+                        </div>
+                    </div>
+
+                    {pagedPayments.length === 0 ? (
+                        <div className="py-16 text-center">
+                            <p className="text-slate-400 font-bold text-sm">No payments found</p>
+                            <p className="text-slate-300 dark:text-slate-600 text-xs mt-1">Try adjusting your filters or record a new payment</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Desktop Table View */}
+                            <div className="hidden lg:block overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="border-b border-slate-100 dark:border-slate-700">
+                                        <tr>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction ID</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lease Ref</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {pagedPayments.map(payment => {
+                                            const lease = leases.find(l => l.id === payment.leaseId);
+                                            const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
+                                            return (
+                                                <tr key={payment.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                                    <td className="p-6 font-mono text-xs font-bold text-slate-400">{payment.receiptNumber || `#${payment.id.split('_')[1]}`}</td>
+                                                    <td className="p-6">
+                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">{tenant?.name || 'N/A'}</p>
+                                                        <p className="text-[9px] text-blue-600 font-bold uppercase">{payment.paymentType}</p>
+                                                        {payment.reference && (
+                                                            <p className="text-[9px] text-purple-650 font-black uppercase tracking-wider mt-0.5">Ref: {payment.reference}</p>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</td>
+                                                    <td className="p-6 font-bold text-slate-500 uppercase text-[10px]">{payment.paymentMethod}</td>
+                                                    <td className="p-6 text-xs font-bold text-slate-500 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                                    <td className="p-6">
+                                                        <span className="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic">Success</span>
+                                                    </td>
+                                                    <td className="p-6">
+                                                        <div className="flex gap-2 justify-end items-center">
+                                                            <button 
+                                                                onClick={() => handlePreview(payment)} 
+                                                                title="Preview Receipt" 
+                                                                disabled={previewLoadingId === payment.id}
+                                                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-50"
+                                                            >
+                                                                {previewLoadingId === payment.id ? (
+                                                                    <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                                                                ) : (
+                                                                    <EyeIcon className="w-3.5 h-3.5" />
+                                                                )}
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleDownload(payment)} 
+                                                                title="Download Receipt" 
+                                                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-blue-600 hover:text-white transition-all"
+                                                            >
+                                                                <DownloadIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
-                        );
-                    })}
+
+                            {/* Mobile Card View */}
+                            <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
+                                {pagedPayments.map(payment => {
+                                    const lease = leases.find(l => l.id === payment.leaseId);
+                                    const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
+                                    return (
+                                        <div key={payment.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[9px] font-mono font-bold text-slate-400">{payment.receiptNumber || `#${payment.id.split('_')[1]}`}</span>
+                                                    <span className="bg-emerald-50 text-emerald-600 text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase">Success</span>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</p>
+                                            </div>
+                                            <div className="flex justify-between items-end">
+                                                <div>
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</h4>
+                                                    <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{payment.paymentType}</p>
+                                                    {payment.reference && (
+                                                        <p className="text-[9px] text-purple-650 font-black uppercase tracking-wider mt-0.5">Ref: {payment.reference}</p>
+                                                    )}
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</p>
+                                                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">{payment.paymentMethod}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 mt-4 pt-3 border-t border-slate-50 dark:border-slate-700/50">
+                                                <button 
+                                                    onClick={() => handlePreview(payment)} 
+                                                    disabled={previewLoadingId === payment.id}
+                                                    className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-indigo-600 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest flex items-center gap-1"
+                                                >
+                                                    {previewLoadingId === payment.id ? (
+                                                        <ArrowPathIcon className="w-3 h-3 animate-spin" />
+                                                    ) : (
+                                                        <EyeIcon className="w-3 h-3" />
+                                                    )}
+                                                    Preview
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDownload(payment)} 
+                                                    className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-blue-600 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest flex items-center gap-1"
+                                                >
+                                                    <DownloadIcon className="w-3 h-3" />
+                                                    Download
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                                <div className="flex items-center justify-between px-6 py-4 border-t border-slate-50 dark:border-slate-700/50">
+                                    <p className="text-xs font-bold text-slate-400">Page {page} of {totalPages}</p>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => setPage(1)}
+                                            disabled={page === 1}
+                                            className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-500 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-all"
+                                        >«</button>
+                                        <button
+                                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                                            disabled={page === 1}
+                                            className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-500 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-all"
+                                        >‹ Prev</button>
+                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                            const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                                            const p = start + i;
+                                            return p <= totalPages ? (
+                                                <button
+                                                    key={p}
+                                                    onClick={() => setPage(p)}
+                                                    className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${
+                                                        p === page
+                                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                                                            : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-indigo-100 hover:text-indigo-600'
+                                                    }`}
+                                                >{p}</button>
+                                            ) : null;
+                                        })}
+                                        <button
+                                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                            disabled={page === totalPages}
+                                            className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-500 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-all"
+                                        >Next ›</button>
+                                        <button
+                                            onClick={() => setPage(totalPages)}
+                                            disabled={page === totalPages}
+                                            className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-500 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-all"
+                                        >»</button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const InvoicesTab = () => {
         const [search, setSearch] = useState('');
         const [statusFilter, setStatusFilter] = useState('all');
         const [propertyFilter, setPropertyFilter] = useState('all');
         const [monthFilter, setMonthFilter] = useState('all');
+        const [sortOrder, setSortOrder] = useState<'default' | 'amount_desc' | 'amount_asc'>('default');
         const [sendingBulk, setSendingBulk] = useState(false);
         const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
         const [page, setPage] = useState(1);
@@ -1933,14 +2248,25 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             return matchesSearch && matchesStatus && matchesProperty && matchesMonth;
         });
 
-        const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / PAGE_SIZE));
-        const pagedInvoices = filteredInvoices.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+        const sortedInvoices = useMemo(() => {
+            const list = [...filteredInvoices];
+            if (sortOrder === 'amount_desc') {
+                return list.sort((a, b) => (b.amount || 0) - (a.amount || 0));
+            } else if (sortOrder === 'amount_asc') {
+                return list.sort((a, b) => (a.amount || 0) - (b.amount || 0));
+            }
+            return list;
+        }, [filteredInvoices, sortOrder]);
+
+        const totalPages = Math.max(1, Math.ceil(sortedInvoices.length / PAGE_SIZE));
+        const pagedInvoices = sortedInvoices.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
         // Reset to page 1 whenever filters change
         const handleSearchChange = (v: string) => { setSearch(v); setPage(1); };
         const handleStatusChange = (v: string) => { setStatusFilter(v); setPage(1); };
         const handlePropertyChange = (v: string) => { setPropertyFilter(v); setPage(1); };
         const handleMonthChange = (v: string) => { setMonthFilter(v); setPage(1); };
+        const handleSortChange = (v: 'default' | 'amount_desc' | 'amount_asc') => { setSortOrder(v); setPage(1); };
 
 
         const handlePreview = async (inv: PMInvoice) => {
@@ -2139,6 +2465,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         </select>
                     </div>
 
+                    {/* Sort Order Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Sort By</label>
+                        <select 
+                            value={sortOrder} 
+                            onChange={(e) => handleSortChange(e.target.value as any)}
+                            className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                        >
+                            <option value="default">Default</option>
+                            <option value="amount_desc">Amount (Highest to Lowest)</option>
+                            <option value="amount_asc">Amount (Lowest to Highest)</option>
+                        </select>
+                    </div>
+
                     <div className="flex gap-2 ml-auto">
                         <button
                             onClick={() => setShowGenerateArrearsModal(true)}
@@ -2176,7 +2516,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unit</div>
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Month</div>
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">B/F (KES)</div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Rent (KES)</div>
+                        <button 
+                            onClick={() => {
+                                if (sortOrder === 'amount_desc') {
+                                    handleSortChange('amount_asc');
+                                } else {
+                                    handleSortChange('amount_desc');
+                                }
+                            }}
+                            className="w-full text-right text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-white outline-none flex items-center justify-end gap-1"
+                        >
+                            Rent (KES) {sortOrder === 'amount_desc' ? '▼' : sortOrder === 'amount_asc' ? '▲' : ''}
+                        </button>
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Total Due</div>
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</div>
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Due Date</div>

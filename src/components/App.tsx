@@ -5206,11 +5206,14 @@ export const App: React.FC = () => {
     }
 
 
-    if (currentUser && activeRole !== 'super_admin' && !currentUser.isImpersonated) {
+    if (currentUser && activeRole !== 'super_admin' && activeRole !== 'reseller' && !currentUser.isImpersonated) {
         const inst = institutions.find(i => i.id === currentUser.institutionId) || (activeInstitution ? activeInstitution : undefined);
-        const subscriptionExpired = inst && inst.status === 'active' && inst.subscriptionEndsAt && new Date(inst.subscriptionEndsAt) < new Date();
-        const hasOverdueBill = inst && inst.billingModel === 'postpaid_student' && inst.isSuspendedForBilling;
-        if (inst && (inst.status === 'suspended' || subscriptionExpired || hasOverdueBill)) {
+        const isReseller = inst?.institutionType === 'Reseller';
+        const subscriptionExpired = !isReseller && inst && inst.status === 'active' && inst.subscriptionEndsAt && new Date(inst.subscriptionEndsAt) < new Date();
+        const hasOverdueBill = !isReseller && inst && inst.billingModel === 'postpaid_student' && inst.isSuspendedForBilling;
+        const isSuspended = !isReseller && inst && inst.status === 'suspended';
+
+        if (inst && (isSuspended || subscriptionExpired || hasOverdueBill)) {
             return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
                 await apiService.saveModuleRecord('institution_extension_requests', {
                     id: `ext_${Date.now()}`,
@@ -5224,7 +5227,7 @@ export const App: React.FC = () => {
             }} />;
         }
 
-        const trialEnded = inst && inst.status === 'trial' && inst.trialEndsAt && new Date(inst.trialEndsAt) < new Date();
+        const trialEnded = !isReseller && inst && inst.status === 'trial' && inst.trialEndsAt && new Date(inst.trialEndsAt) < new Date();
         if (trialEnded) {
             return (
                 <TrialExpiredView
@@ -6531,7 +6534,7 @@ export const App: React.FC = () => {
                                             console.error("[Login Discovery] Institution lookup failed:", err);
                                         }
                                     }
-                                    if (inst?.status === 'suspended' && u.role !== 'super_admin') {
+                                    if (inst?.status === 'suspended' && u.role !== 'super_admin' && u.role !== 'reseller' && inst?.institutionType !== 'Reseller') {
                                         setCurrentUser(u);
                                         apiService.storeSession(u);
                                         return 'suspended';
