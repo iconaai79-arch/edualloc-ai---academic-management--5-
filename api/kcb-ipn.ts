@@ -551,10 +551,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const channelCode = getParam(body, req.query, 'channelCode') || '';
         
-        const timestamp = getParam(body, req.query, 'timestamp') ||
-                          primaryData.timestamp ||
-                          notificationData.transactionDate ||
-                          '';
+        const rawTimestamp = getParam(body, req.query, 'timestamp') ||
+                             primaryData.timestamp ||
+                             notificationData.transactionDate ||
+                             '';
+
+        let timestamp = rawTimestamp;
+        if (rawTimestamp && /^\d{14}$/.test(rawTimestamp)) {
+            const y = rawTimestamp.substring(0, 4);
+            const m = rawTimestamp.substring(4, 6);
+            const d = rawTimestamp.substring(6, 8);
+            const h = rawTimestamp.substring(8, 10);
+            const min = rawTimestamp.substring(10, 12);
+            const s = rawTimestamp.substring(12, 14);
+            timestamp = `${y}-${m}-${d}T${h}:${min}:${s}Z`;
+        } else if (rawTimestamp && /^\d{8}$/.test(rawTimestamp)) {
+            const y = rawTimestamp.substring(0, 4);
+            const m = rawTimestamp.substring(4, 6);
+            const d = rawTimestamp.substring(6, 8);
+            timestamp = `${y}-${m}-${d}T00:00:00Z`;
+        }
 
         const currency = getParam(body, req.query, 'currency') || '';
         const balance = getParam(body, req.query, 'balance') || '';
