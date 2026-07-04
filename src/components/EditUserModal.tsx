@@ -115,6 +115,20 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
     e.preventDefault();
     const expertiseArray = expertise.split(',').map(item => item.trim()).filter(Boolean);
 
+    if (!name.trim()) {
+      alert("Full Name is required.");
+      return;
+    }
+    if (!email.trim()) {
+      alert("Email Address is required.");
+      return;
+    }
+    const finalPhone = phoneNumber.trim() || user.phoneNumber;
+    if (!finalPhone) {
+      alert("Phone Contact is required.");
+      return;
+    }
+
     if (roles.length === 0) {
       alert("Please select at least one role.");
       return;
@@ -136,41 +150,49 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       }
     }
 
-    if (name.trim() && email.trim() && (phoneNumber.trim() || user.phoneNumber) && staffId.trim()) {
-      const uniqueRoles = [...new Set(roles)];
+    if (!staffId.trim()) {
+      alert("ID / Member Number is required under Professional details.");
+      return;
+    }
 
-      let finalInstitutionId = currentInstitution?.id || user.institutionId || '';
-      let finalCountyId = user.countyId;
+    const isStudent = roles.includes('student') || user.role === 'student';
+    if (!isStudent && (isEdu || isRetailAgency || isCoop) && !expertise.trim()) {
+      alert("Skills / Experience is required under Professional details.");
+      return;
+    }
 
-      if (isSuperAdmin) {
-        if (roles.some(r => r.startsWith('constituency_'))) {
-          finalInstitutionId = selectedConstituency;
-          finalCountyId = constituencies.find(c => c.name === selectedConstituency)?.countyId;
-        } else if (roles.some(r => r.startsWith('county_'))) {
-          finalInstitutionId = selectedCounty;
-          finalCountyId = selectedCounty;
-        }
+    const uniqueRoles = [...new Set(roles)];
+    let finalInstitutionId = currentInstitution?.id || user.institutionId || '';
+    let finalCountyId = user.countyId;
+
+    if (isSuperAdmin) {
+      if (roles.some(r => r.startsWith('constituency_'))) {
+        finalInstitutionId = selectedConstituency;
+        finalCountyId = constituencies.find(c => c.name === selectedConstituency)?.countyId;
+      } else if (roles.some(r => r.startsWith('county_'))) {
+        finalInstitutionId = selectedCounty;
+        finalCountyId = selectedCounty;
       }
+    }
 
-      try {
-        await onSave(user.id, {
-          name,
-          email,
-          phoneNumber: phoneNumber || user.phoneNumber,
-          staffId,
-          expertise: expertiseArray,
-          role: uniqueRoles[0], // Keep first as primary
-          roles: uniqueRoles,
-          departmentId: (needsDepartment && !isCoop && !isPm && isEdu && !isDS) ? assignedDepartmentId : undefined,
-          gender,
-          driverType: roles.includes('driver') ? driverType : undefined,
-          institutionId: finalInstitutionId,
-          countyId: finalCountyId
-        });
-        onClose();
-      } catch (err: any) {
-        alert("Persistence Failure: " + (err.message || "The records could not be synchronized with the cloud registry."));
-      }
+    try {
+      await onSave(user.id, {
+        name,
+        email,
+        phoneNumber: finalPhone,
+        staffId,
+        expertise: expertiseArray,
+        role: uniqueRoles[0], // Keep first as primary
+        roles: uniqueRoles,
+        departmentId: (needsDepartment && !isCoop && !isPm && isEdu && !isDS) ? assignedDepartmentId : undefined,
+        gender,
+        driverType: roles.includes('driver') ? driverType : undefined,
+        institutionId: finalInstitutionId,
+        countyId: finalCountyId
+      });
+      onClose();
+    } catch (err: any) {
+      alert("Persistence Failure: " + (err.message || "The records could not be synchronized with the cloud registry."));
     }
   };
 
@@ -241,12 +263,12 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
               <div className="space-y-6 animate-fade-in-up">
                 <div>
                   <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'ID Number' : (isCoop ? 'ID / Member Number' : 'Staff / Student ID')}</label>
-                  <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : "EMP-001"} required />
+                  <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : "EMP-001"} />
                 </div>
                 {(isEdu || isRetailAgency || isCoop) && (
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'Skills / Experience' : (isCoop ? 'Farmer Stats / Expertise' : 'Expertise / Skills (comma separated)')}</label>
-                    <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder={isRetailAgency ? "e.g. Sales, Customer Service, Field Operations" : "e.g. Mathematics, Pedagogy, Sports Coaching"} required={user.role !== 'student'} />
+                    <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder={isRetailAgency ? "e.g. Sales, Customer Service, Field Operations" : "e.g. Mathematics, Pedagogy, Sports Coaching"} />
                   </div>
                 )}
                 {roles.includes('driver') && (
@@ -286,7 +308,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   {isSuperAdmin && roles.some(r => r.startsWith('constituency_')) && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Constituency</label>
-                      <select value={selectedConstituency} onChange={e => setSelectedConstituency(e.target.value)} required className="form-select">
+                      <select value={selectedConstituency} onChange={e => setSelectedConstituency(e.target.value)} className="form-select">
                         <option value="">-- Select Constituency --</option>
                         {(constituencies || []).map(c => (
                           <option key={c.id} value={c.name}>{c.name}</option>
@@ -298,7 +320,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   {isSuperAdmin && roles.some(r => r.startsWith('county_')) && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned County</label>
-                      <select value={selectedCounty} onChange={e => setSelectedCounty(e.target.value)} required className="form-select">
+                      <select value={selectedCounty} onChange={e => setSelectedCounty(e.target.value)} className="form-select">
                         <option value="">-- Select County --</option>
                         {(counties || []).map(c => (
                           <option key={c.id} value={c.id}>{c.name}</option>
@@ -310,7 +332,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   {needsDepartment && !isRetailAgency && isEdu && !isDS && !isCoop && !isPm && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
-                      <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">
+                      <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">
                         <option value="" disabled>Select Department</option>
                         {departments.map(dept => (
                           <option key={dept.id} value={dept.id}>{dept.name}</option>
