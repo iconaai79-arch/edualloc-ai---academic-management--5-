@@ -1728,7 +1728,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         const billingPeriodLabel = `${monthName} ${targetYear}`;
                         const alreadyExistsArrears = invoices.some(inv => 
                             inv.leaseId === lease.id && 
-                            inv.description.includes(`Outstanding Arrears Adjustment - ${billingPeriodLabel}`)
+                            inv.description.includes(billingPeriodLabel)
                         );
 
                         if (!alreadyExistsArrears) {
@@ -5905,7 +5905,7 @@ const ArrearsManager: React.FC<{
         for (const item of listWithArrears) {
             const alreadyExists = invoices.some(inv => 
                 inv.leaseId === item.lease.id && 
-                inv.description.includes(`Outstanding Arrears Adjustment - ${billingPeriodLabel}`)
+                inv.description.includes(billingPeriodLabel)
             );
             if (alreadyExists) continue;
 
@@ -6128,9 +6128,9 @@ const ArrearsManager: React.FC<{
 
                                                          const alreadyExists = invoices.some(inv => 
                                                              inv.leaseId === item.lease.id && 
-                                                             inv.description.includes(`Outstanding Arrears Adjustment - ${billingPeriodLabel}`)
+                                                             inv.description.includes(billingPeriodLabel)
                                                          );
-                                                         if (alreadyExists) return alert(`Arrears invoice already generated for ${billingPeriodLabel}.`);
+                                                         if (alreadyExists) return alert(`An invoice has already been generated for ${billingPeriodLabel}.`);
                                                          
                                                          const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
                                                          const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
@@ -6171,7 +6171,8 @@ const ArrearsManager: React.FC<{
                                                      Invoice Arrears
                                                  </button>
                                              )}
-                                         </td>\n                                    </tr>
+                                         </td>
+                                     </tr>
                                 ))
                             )}
                         </tbody>
