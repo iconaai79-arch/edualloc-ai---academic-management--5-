@@ -152,6 +152,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [commStartDate, setCommStartDate] = useState('');
     const [commEndDate, setCommEndDate] = useState('');
     const [showGenerateArrearsModal, setShowGenerateArrearsModal] = useState(false);
+    const [showBulkDateModal, setShowBulkDateModal] = useState(false);
+    const [bulkUpdateDate, setBulkUpdateDate] = useState(new Date().toISOString().split('T')[0]);
+    const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
     const [search, setSearch] = useState('');
     const [showPdfPreview, setShowPdfPreview] = useState(false);
@@ -1354,11 +1357,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const LeasesTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center gap-4 flex-wrap">
                 <div>
                     <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Lease Agreement Registry</h3>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Manage tenant contracts and occupancy terms</p>
                 </div>
+                <button
+                    onClick={() => setShowBulkDateModal(true)}
+                    className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white px-4 py-2 rounded-xl font-bold text-xs transition-all"
+                >
+                    <CalendarIcon className="w-4 h-4" /> Bulk Update Start Dates
+                </button>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
                 {/* Desktop Table View */}
@@ -4045,7 +4054,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     propertyName: row[mappings.propertyName] || '—',
                     unitNumber: row[mappings.unitNumber] || '—',
                     monthlyRent: row[mappings.monthlyRent] || '—',
-                    openingBalance: row[mappings.openingBalance] || '—'
+                    openingBalance: row[mappings.openingBalance] || '—',
+                    startDate: row[mappings.startDate] || '—'
                 };
             });
         }, [rawData, mappings]);
@@ -4447,6 +4457,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                     <th className="p-4 uppercase">Unit</th>
                                                     <th className="p-4 uppercase">Rent</th>
                                                     <th className="p-4 uppercase">Opening Bal</th>
+                                                    <th className="p-4 uppercase">Start Date</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -4460,6 +4471,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                         <td className={`p-4 font-black ${parseFloat(row.openingBalance) > 0 ? 'text-rose-500' : parseFloat(row.openingBalance) < 0 ? 'text-emerald-500' : 'text-slate-400'}`}>
                                                             KES {parseFloat(row.openingBalance)?.toLocaleString() || '0'}
                                                         </td>
+                                                        <td className="p-4 font-mono text-slate-500">{row.startDate}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -5292,6 +5304,53 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     <button type="submit" className="btn-primary w-full h-14 mt-4 text-[10px]">Create Advertisement</button>
                 </form>
             </Modal>
+
+            {showBulkDateModal && (
+                <Modal show={showBulkDateModal} onClose={() => setShowBulkDateModal(false)} title="Bulk Update Lease Start Dates">
+                    <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        setIsBulkUpdating(true);
+                        try {
+                            const activeLeases = leases.filter(l => l.status === 'Active');
+                            const updatedLeases = activeLeases.map(l => ({ ...l, startDate: bulkUpdateDate }));
+                            await apiService.saveModuleRecords('pm_leases', updatedLeases);
+                            alert(`Successfully updated start date for ${updatedLeases.length} leases.`);
+                            setShowBulkDateModal(false);
+                            loadData();
+                        } catch (err: any) {
+                            alert("Failed to bulk update lease start dates: " + err.message);
+                        } finally {
+                            setIsBulkUpdating(false);
+                        }
+                    }} className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select New Start Date</label>
+                            <input
+                                type="date"
+                                required
+                                value={bulkUpdateDate}
+                                onChange={(e) => setBulkUpdateDate(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                            />
+                        </div>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            This will set the start date of all <strong>{leases.filter(l => l.status === 'Active').length}</strong> active leases to the selected date. This is typically used to align the billing cycles of imported/onboarded leases.
+                        </p>
+                        <div className="flex gap-4 justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setShowBulkDateModal(false)}
+                                className="px-6 py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                            >Cancel</button>
+                            <button
+                                type="submit"
+                                disabled={isBulkUpdating}
+                                className="px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20"
+                            >{isBulkUpdating ? "Updating..." : "Confirm Bulk Update"}</button>
+                        </div>
+                    </form>
+                </Modal>
+            )}
 
             {showTenantImportModal && <SmartTenantImporterModal />}
             {showBankModal && <BankActionModal />}
