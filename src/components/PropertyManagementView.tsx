@@ -1870,6 +1870,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         const [statusFilter, setStatusFilter] = useState('all');
         const [propertyFilter, setPropertyFilter] = useState('all');
         const [sendingBulk, setSendingBulk] = useState(false);
+        const [page, setPage] = useState(1);
+        const PAGE_SIZE = 15;
 
         const filteredInvoices = invoices.filter(inv => {
             const tenant = tenants.find(t => t.id === inv.tenantId);
@@ -1882,6 +1884,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             return matchesSearch && matchesStatus && matchesProperty;
         });
+
+        const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / PAGE_SIZE));
+        const pagedInvoices = filteredInvoices.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+        // Reset to page 1 whenever filters change
+        const handleSearchChange = (v: string) => { setSearch(v); setPage(1); };
+        const handleStatusChange = (v: string) => { setStatusFilter(v); setPage(1); };
+        const handlePropertyChange = (v: string) => { setPropertyFilter(v); setPage(1); };
+
 
         const handleDownload = async (inv: PMInvoice) => {
             const tenant = tenants.find(t => t.id === inv.tenantId);
@@ -2005,7 +2016,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             placeholder="Search invoices by number or tenant name..."
                             className="flex-1 bg-transparent font-bold outline-none text-sm dark:text-white"
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={(e) => handleSearchChange(e.target.value)}
                         />
                     </div>
                     
@@ -2014,7 +2025,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Status</label>
                         <select 
                             value={statusFilter} 
-                            onChange={(e) => setStatusFilter(e.target.value)}
+                            onChange={(e) => handleStatusChange(e.target.value)}
                             className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
                         >
                             <option value="all">All Statuses</option>
@@ -2030,7 +2041,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Property</label>
                         <select 
                             value={propertyFilter} 
-                            onChange={(e) => setPropertyFilter(e.target.value)}
+                            onChange={(e) => handlePropertyChange(e.target.value)}
                             className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none max-w-[150px] truncate dark:text-white"
                         >
                             <option value="all">All Properties</option>
@@ -2060,76 +2071,153 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         )}
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredInvoices.map(inv => {
-                        const tenant = tenants.find(t => t.id === inv.tenantId);
-                        const unit = units.find(u => u.id === inv.unitId);
-                        return (
-                            <div key={inv.id} className="bg-white dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Invoice #{inv.invoiceNumber}</h4>
-                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-1">{tenant?.name}</h3>
-                                        <p className="text-xs font-bold text-blue-600 uppercase tracking-tight">{unit?.unitNumber}</p>
-                                    </div>
-                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                                        inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' :
-                                        inv.status === 'Overdue' ? 'bg-rose-100 text-rose-600' :
-                                        'bg-blue-100 text-blue-600'
-                                    }`}>
-                                        {inv.status}
-                                    </span>
-                                </div>
-                                
-                                <div className="space-y-2 mb-6">
-                                    {inv.openingBalance !== undefined && inv.openingBalance !== null && (
-                                        <div className="flex justify-between text-[11px] font-bold">
-                                            <span className="text-slate-400 uppercase">Opening Balance</span>
-                                            <span className={`uppercase italic font-black ${inv.openingBalance > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>KES {inv.openingBalance.toLocaleString()}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex justify-between text-[11px] font-bold">
-                                        <span className="text-slate-400 uppercase">Invoice Amount</span>
-                                        <span className="text-slate-900 dark:text-white uppercase italic">KES {inv.amount?.toLocaleString()}</span>
-                                    </div>
-                                    {inv.openingBalance !== undefined && inv.openingBalance !== null && (
-                                        <div className="flex justify-between text-[11px] font-bold border-t border-dashed border-slate-200 dark:border-slate-600 pt-1.5 mt-1">
-                                            <span className="text-slate-500 uppercase font-black">Total Due</span>
-                                            <span className="text-rose-600 uppercase italic font-black">KES {(inv.amount + inv.openingBalance).toLocaleString()}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex justify-between text-[11px] font-bold">
-                                        <span className="text-slate-400 uppercase">Due Date</span>
-                                        <span className="text-slate-900 dark:text-white uppercase italic">{new Date(inv.dueDate).toLocaleDateString()}</span>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-2 transition-opacity">
-                                    <button onClick={() => handleDownload(inv)} title="Download" className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-blue-600 hover:text-white transition-all">
-                                        <DownloadIcon className="w-4 h-4" />
-                                    </button>
-                                    <button onClick={() => handleSend(inv)} title="Send via SMS" className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-emerald-600 hover:text-white transition-all">
-                                        <PaperAirplaneIcon className="w-4 h-4" />
-                                    </button>
-                                    <button onClick={() => { setEditingInvoice(inv); setShowInvoiceModal(true); }} title="Edit Invoice" className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-orange-500 hover:text-white transition-all">
-                                        <PencilIcon className="w-4 h-4" />
-                                    </button>
-                                    <button onClick={async () => {
-                                        if (confirm("Delete this invoice?")) {
-                                            await apiService.deleteModuleRecord('pm_invoices', inv.id);
-                                            loadData();
-                                        }
-                                    }} title="Delete" className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-rose-600 hover:text-white transition-all ml-auto">
-                                        <TrashIcon className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
+                {/* Invoice Count */}
+                <div className="flex items-center justify-between px-1">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''}
+                        {filteredInvoices.length > 0 && ` — showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filteredInvoices.length)}`}
+                    </p>
                 </div>
+
+                {/* List Table */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
+                    {/* Header */}
+                    <div className="grid grid-cols-12 gap-2 px-5 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
+                        <div className="col-span-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Invoice #</div>
+                        <div className="col-span-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Tenant</div>
+                        <div className="col-span-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Unit</div>
+                        <div className="col-span-2 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Amount (KES)</div>
+                        <div className="col-span-1 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</div>
+                        <div className="col-span-1 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Due Date</div>
+                        <div className="col-span-1 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</div>
+                    </div>
+
+                    {/* Rows */}
+                    {pagedInvoices.length === 0 ? (
+                        <div className="py-16 text-center">
+                            <p className="text-slate-400 font-bold text-sm">No invoices found</p>
+                            <p className="text-slate-300 dark:text-slate-600 text-xs mt-1">Try adjusting your filters or generate new invoices</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                            {pagedInvoices.map(inv => {
+                                const tenant = tenants.find(t => t.id === inv.tenantId);
+                                const unit = units.find(u => u.id === inv.unitId);
+                                const totalDue = (inv.amount || 0) + (inv.openingBalance || 0);
+                                return (
+                                    <div key={inv.id} className="grid grid-cols-12 gap-2 px-5 py-3.5 items-center hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
+                                        {/* Invoice # */}
+                                        <div className="col-span-2">
+                                            <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 font-mono">{inv.invoiceNumber}</span>
+                                        </div>
+
+                                        {/* Tenant */}
+                                        <div className="col-span-3 min-w-0">
+                                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{tenant?.name || '—'}</p>
+                                        </div>
+
+                                        {/* Unit */}
+                                        <div className="col-span-2 min-w-0">
+                                            <p className="text-xs font-bold text-blue-600 truncate">{unit?.unitNumber || '—'}</p>
+                                        </div>
+
+                                        {/* Amount */}
+                                        <div className="col-span-2 text-right">
+                                            <p className="text-xs font-black text-slate-900 dark:text-white italic">{totalDue.toLocaleString()}</p>
+                                            {(inv.openingBalance || 0) > 0 && (
+                                                <p className="text-[9px] text-rose-500 font-bold">(+{inv.openingBalance?.toLocaleString()} arrears)</p>
+                                            )}
+                                        </div>
+
+                                        {/* Status */}
+                                        <div className="col-span-1 flex justify-center">
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${
+                                                inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' :
+                                                inv.status === 'Overdue' ? 'bg-rose-100 text-rose-600' :
+                                                inv.status === 'Cancelled' ? 'bg-slate-100 text-slate-500' :
+                                                'bg-blue-100 text-blue-600'
+                                            }`}>{inv.status}</span>
+                                        </div>
+
+                                        {/* Due Date */}
+                                        <div className="col-span-1 text-center">
+                                            <p className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{new Date(inv.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="col-span-1 flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => handleDownload(inv)} title="Download" className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-blue-600 hover:text-white transition-all">
+                                                <DownloadIcon className="w-3 h-3" />
+                                            </button>
+                                            <button onClick={() => handleSend(inv)} title="Send via SMS" className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-emerald-600 hover:text-white transition-all">
+                                                <PaperAirplaneIcon className="w-3 h-3" />
+                                            </button>
+                                            <button onClick={() => { setEditingInvoice(inv); setShowInvoiceModal(true); }} title="Edit" className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-orange-500 hover:text-white transition-all">
+                                                <PencilIcon className="w-3 h-3" />
+                                            </button>
+                                            <button onClick={async () => {
+                                                if (confirm("Delete this invoice?")) {
+                                                    await apiService.deleteModuleRecord('pm_invoices', inv.id);
+                                                    loadData();
+                                                }
+                                            }} title="Delete" className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-rose-600 hover:text-white transition-all">
+                                                <TrashIcon className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between px-2 py-1">
+                        <p className="text-xs font-bold text-slate-400">Page {page} of {totalPages}</p>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setPage(1)}
+                                disabled={page === 1}
+                                className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-500 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-all"
+                            >«</button>
+                            <button
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-500 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-all"
+                            >‹ Prev</button>
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                                const p = start + i;
+                                return p <= totalPages ? (
+                                    <button
+                                        key={p}
+                                        onClick={() => setPage(p)}
+                                        className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${
+                                            p === page
+                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                                                : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-indigo-100 hover:text-indigo-600'
+                                        }`}
+                                    >{p}</button>
+                                ) : null;
+                            })}
+                            <button
+                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                disabled={page === totalPages}
+                                className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-500 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-all"
+                            >Next ›</button>
+                            <button
+                                onClick={() => setPage(totalPages)}
+                                disabled={page === totalPages}
+                                className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-500 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-all"
+                            >»</button>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
+
 
     const MaintenanceTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
