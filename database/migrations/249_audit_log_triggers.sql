@@ -162,7 +162,8 @@ CREATE TRIGGER trg_audit_pm_leases
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. HELPER VIEW — flattened audit feed for the dashboard
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE OR REPLACE VIEW public.v_audit_feed AS
+CREATE OR REPLACE VIEW public.v_audit_feed
+WITH (security_invoker = true) AS
 SELECT
     al.id,
     al.table_name,
