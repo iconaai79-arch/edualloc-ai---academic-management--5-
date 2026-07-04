@@ -1709,21 +1709,21 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     const expectedRent = billableMonths * (lease.rentAmount || 0);
 
                     const totalPaid = payments
-                        .filter(p => p.leaseId === lease.id)
+                        .filter(p => p.leaseId === lease.id && p.paymentType !== 'Utility' && p.paymentType !== 'Deposit')
                         .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
                     const totalInvoiced = invoices
-                        .filter(inv => inv.leaseId === lease.id && inv.description.toLowerCase().includes('rent'))
+                        .filter(inv => inv.leaseId === lease.id && (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')))
                         .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
                     const unInvoicedArrears = expectedRent - totalPaid - totalInvoiced;
 
                     if (unInvoicedArrears > 0) {
                         const todayStr = new Date().toISOString().split('T')[0];
+                        const billingPeriodLabel = `${monthName} ${targetYear}`;
                         const alreadyExistsArrears = invoices.some(inv => 
                             inv.leaseId === lease.id && 
-                            inv.description.includes('Outstanding Arrears Adjustment') &&
-                            inv.issueDate === todayStr
+                            inv.description.includes(`Outstanding Arrears Adjustment - ${billingPeriodLabel}`)
                         );
 
                         if (!alreadyExistsArrears) {
@@ -1733,7 +1733,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 leaseId: lease.id,
                                 tenantId: lease.tenantId,
                                 unitId: lease.unitId,
-                                description: `Outstanding Arrears Adjustment - ${new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' })}`,
+                                description: `Outstanding Arrears Adjustment - ${billingPeriodLabel}`,
                                 amount: unInvoicedArrears,
                                 issueDate: todayStr,
                                 dueDate: data.dueDate,
@@ -5794,12 +5794,15 @@ const ArrearsManager: React.FC<{
 
             // Sum all cash payments against this lease up to targetDate
             const paidRent = payments
-                .filter(p => p.leaseId === lease.id && new Date(p.paymentDate) <= targetDate)
+                .filter(p => p.leaseId === lease.id && p.paymentType !== 'Utility' && p.paymentType !== 'Deposit' && new Date(p.paymentDate) <= targetDate)
                 .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
             // Sum credits from paid/partial invoices (to avoid double-counting if invoice-based)
             const invoiceCredits = invoices
-                .filter(inv => inv.leaseId === lease.id && (inv.status === 'Paid') && new Date(inv.issueDate) <= targetDate)
+                .filter(inv => inv.leaseId === lease.id && 
+                    (inv.status === 'Paid') && 
+                    (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')) &&
+                    new Date(inv.issueDate) <= targetDate)
                 .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
             // Total received = cash payments + fully-paid invoice amounts
@@ -5896,8 +5899,7 @@ const ArrearsManager: React.FC<{
         for (const item of listWithArrears) {
             const alreadyExists = invoices.some(inv => 
                 inv.leaseId === item.lease.id && 
-                inv.description.includes('Outstanding Arrears Adjustment') &&
-                inv.issueDate === todayStr
+                inv.description.includes(`Outstanding Arrears Adjustment - ${billingPeriodLabel}`)
             );
             if (alreadyExists) continue;
 
@@ -5918,7 +5920,7 @@ const ArrearsManager: React.FC<{
         }
 
         if (newInvoices.length === 0) {
-            return alert("All eligible tenants already have arrears invoices generated for today.");
+            return alert("All eligible tenants already have arrears invoices generated for the selected billing period.");
         }
 
         await apiService.saveModuleRecords('pm_invoices', newInvoices);
@@ -6109,17 +6111,6 @@ const ArrearsManager: React.FC<{
                                                     </button>
                                                     <button 
                                                         onClick={async () => {
-                                                            const alreadyExists = invoices.some(inv => 
-                                                                inv.leaseId === item.lease.id && 
-                                                                inv.description.includes('Outstanding Arrears Adjustment') &&
-                                                                inv.issueDate === new Date().toISOString().split('T')[0]
-                                                            );
-                                                            if (alreadyExists) return alert("Arrears invoice already generated for today.");
-                                                            
-                                                            const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
-                                                            const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
-                                                            const invoiceNumber = `${prefix}-${nextNum}`;
-
                                                             const billingPeriodLabel = arrPeriod 
                                                                 ? (() => {
                                                                     const [y, m] = arrPeriod.split('-');
@@ -6127,6 +6118,16 @@ const ArrearsManager: React.FC<{
                                                                     return date.toLocaleDateString('default', { month: 'long', year: 'numeric' });
                                                                   })()
                                                                 : new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' });
+
+                                                            const alreadyExists = invoices.some(inv => 
+                                                                inv.leaseId === item.lease.id && 
+                                                                inv.description.includes(`Outstanding Arrears Adjustment - ${billingPeriodLabel}`)
+                                                            );
+                                                            if (alreadyExists) return alert(`Arrears invoice already generated for ${billingPeriodLabel}.`);
+                                                            
+                                                            const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
+                                                            const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
+                                                            const invoiceNumber = `${prefix}-${nextNum}`;
 
                                                             await apiService.saveModuleRecord('pm_invoices', {
                                                                     id: `inv_${Date.now()}`,
