@@ -2783,7 +2783,8 @@ export const App: React.FC = () => {
                 const targetInstitution = institutions.find(i => i.id === institutionId);
                 const registryEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId);
                 
-                const fallbackRole = (targetInstitution?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') ? 'reseller' : (initialRole || 'admin');
+                const isPM = targetInstitution?.businessSubType?.toLowerCase().includes('property management');
+                const fallbackRole = (targetInstitution?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') ? 'reseller' : isPM ? 'property_admin' : (initialRole || 'admin');
 
                 admin = {
                     id: `temp_admin_${institutionId.replace(/\s+/g, '_')}_${Date.now()}`,
@@ -2807,10 +2808,20 @@ export const App: React.FC = () => {
                     localStorage.setItem('eduai_super_admin_session', JSON.stringify(currentUser));
                 }
 
+                // For Property Management institutions, always use property_admin so routing
+                // lands on PropertyManagementView rather than LandlordPortalView
+                const targetInst = institutions.find(i => i.id === institutionId);
+                const isPMInstitution = targetInst?.businessSubType?.toLowerCase().includes('property management');
+                const resolvedRole = initialRole
+                    ? initialRole
+                    : isPMInstitution && (admin.role === 'landlord' || admin.role === 'admin')
+                        ? 'property_admin'
+                        : admin.role;
+
                 const impersonatedUser = {
                     ...admin,
                     institutionId: institutionId,
-                    role: (initialRole || admin.role) as Role
+                    role: resolvedRole as Role
                 };
                 
                 console.log(`[Simulator] Impersonating ${impersonatedUser.role} for ${institutionId}`);
