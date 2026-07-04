@@ -65,7 +65,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Property Management
     if (type === 'Property Management' || subType.includes('property') || subType.includes('landlord')) {
-        return ['property_admin', 'landlord', 'tenant', 'lead'];
+        return ['property_admin', 'admin', 'finance', 'finance_officer', 'security', 'reception', 'caretaker', 'driver', 'landlord', 'tenant', 'lead'];
     }
 
     // Academic / Schools

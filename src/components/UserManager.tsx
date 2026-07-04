@@ -1069,11 +1069,10 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                 if (activeTab === 'staff') {
                     const baseFilter = u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead';
                     if (isPm) {
-                        return baseFilter
-                            && u.role !== 'landlord'
-                            && u.role !== 'tenant'
-                            && u.role !== 'visitor'
-                            && u.institutionId === (currentInstitution?.id || currentUser?.institutionId);
+                        const pmStaffRoles = ['property_admin', 'admin', 'finance', 'finance_officer', 'security', 'reception', 'caretaker', 'driver'];
+                        const instId = currentInstitution?.id || currentUser?.institutionId;
+                        return pmStaffRoles.includes(u.role)
+                            && (!instId || u.institutionId === instId);
                     }
                     return baseFilter;
                 }
@@ -1324,7 +1323,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     }, [institutions, destinyInstitutionId, currentInstitution]);
 
     const selectableRoles = useMemo(() => {
-        const list = getRolesForInstitution(destinyInstitution).filter(r => !['customer', 'lead'].includes(r));
+        const list = getRolesForInstitution(destinyInstitution).filter(r => !['customer', 'lead', 'landlord', 'tenant'].includes(r));
         if (isSuperAdmin) {
             const extras: Role[] = ['super_admin', 'reseller', 'county_admin', 'county_staff', 'constituency_admin', 'constituency_staff'];
             extras.forEach(r => {
