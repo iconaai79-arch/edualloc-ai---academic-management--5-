@@ -4,6 +4,41 @@
 --              with before/after snapshots, the acting user, and a timestamp.
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- 0. DEPENDENCY: GENERAL EXPENSES TABLE
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.expenses (
+    id                  TEXT        PRIMARY KEY,
+    institution_id      TEXT        NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    category            TEXT        NOT NULL,
+    amount              NUMERIC     NOT NULL,
+    description         TEXT        NOT NULL,
+    date                TEXT        NOT NULL,
+    recorded_by         TEXT,
+    status              TEXT        DEFAULT 'pending',
+    payment_method      TEXT,
+    attachment_url      TEXT,
+    reference_number    TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+
+-- Standard institutional policies
+DROP POLICY IF EXISTS "Institutional select: expenses" ON public.expenses;
+CREATE POLICY "Institutional select: expenses" 
+    ON public.expenses FOR SELECT 
+    USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Institutional manage: expenses" ON public.expenses;
+CREATE POLICY "Institutional manage: expenses" 
+    ON public.expenses FOR ALL 
+    USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+
+-- Permissions
+GRANT ALL ON public.expenses TO anon, authenticated, service_role;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- 1. AUDIT LOG TABLE
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.audit_log (
