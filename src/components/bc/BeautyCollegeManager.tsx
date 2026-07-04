@@ -384,18 +384,22 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
 
                 {/* Main Action buttons */}
                 <div className="flex flex-wrap gap-3">
-                    <button
-                        onClick={() => setShowStudentModal(true)}
-                        className="px-5 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all shadow-md flex items-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" /> Enroll Student
-                    </button>
-                    <button
-                        onClick={() => setShowPracticalModal(true)}
-                        className="px-5 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-355 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all flex items-center gap-2"
-                    >
-                        <Clock className="w-4 h-4 text-indigo-500" /> Log Practical
-                    </button>
+                    {['dashboard', 'students'].includes(activeTab) && (
+                        <button
+                            onClick={() => setShowStudentModal(true)}
+                            className="px-5 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all shadow-md flex items-center gap-2"
+                        >
+                            <Plus className="w-4 h-4" /> Enroll Student
+                        </button>
+                    )}
+                    {['dashboard', 'practicals'].includes(activeTab) && (
+                        <button
+                            onClick={() => setShowPracticalModal(true)}
+                            className="px-5 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-355 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all flex items-center gap-2"
+                        >
+                            <Clock className="w-4 h-4 text-indigo-500" /> Log Practical
+                        </button>
+                    )}
                 </div>
             </div>
 
