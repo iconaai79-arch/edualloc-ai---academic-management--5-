@@ -1697,13 +1697,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                 if (data.generateArrears) {
                     const start = new Date(lease.startDate);
-                    const today = new Date();
 
-                    // Precise month count from lease start to today
+                    // Precise month count from lease start to selected billing month
                     const startYear = start.getFullYear();
                     const startMonth = start.getMonth();
-                    const endYear = today.getFullYear();
-                    const endMonth = today.getMonth();
+                    const endYear = targetYear;
+                    const endMonth = targetMonth - 1; // 0-based month index
                     const monthsElapsed = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
                     const billableMonths = Math.max(1, monthsElapsed);
                     const expectedRent = billableMonths * (lease.rentAmount || 0);
@@ -1716,7 +1715,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         .filter(inv => inv.leaseId === lease.id && (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')))
                         .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
-                    const unInvoicedArrears = expectedRent - totalPaid - totalInvoiced;
+                    const newlyAddedRent = newInvoices.find(inv => 
+                        inv.leaseId === lease.id && 
+                        inv.description.toLowerCase().includes('rent')
+                    );
+                    const newlyAddedRentAmount = newlyAddedRent ? (Number(newlyAddedRent.amount) || 0) : 0;
+
+                    const unInvoicedArrears = expectedRent - totalPaid - totalInvoiced - newlyAddedRentAmount;
 
                     if (unInvoicedArrears > 0) {
                         const todayStr = new Date().toISOString().split('T')[0];
@@ -5797,23 +5802,23 @@ const ArrearsManager: React.FC<{
                 .filter(p => p.leaseId === lease.id && p.paymentType !== 'Utility' && p.paymentType !== 'Deposit' && new Date(p.paymentDate) <= targetDate)
                 .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-            // Sum credits from paid/partial invoices (to avoid double-counting if invoice-based)
-            const invoiceCredits = invoices
+            // Sum all rent/arrears invoices generated up to targetDate
+            const totalInvoicedAmount = invoices
                 .filter(inv => inv.leaseId === lease.id && 
-                    (inv.status === 'Paid') && 
                     (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')) &&
                     new Date(inv.issueDate) <= targetDate)
                 .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
-            // Total received = cash payments + fully-paid invoice amounts
-            // Use the larger of the two to avoid double-counting when both exist
-            const totalReceived = Math.max(paidRent, invoiceCredits);
-
-            const periodArrears = expectedRent - totalReceived;
-
+            // Sum unpaid rent/arrears invoices up to targetDate (Sent/Overdue, exclude Cancelled/Paid)
             const unpaidInvoicesAmount = invoices
-                .filter(inv => inv.leaseId === lease.id && inv.status !== 'Paid' && new Date(inv.issueDate) <= targetDate)
+                .filter(inv => inv.leaseId === lease.id && 
+                    inv.status !== 'Paid' && inv.status !== 'Cancelled' &&
+                    (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')) &&
+                    new Date(inv.issueDate) <= targetDate)
                 .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+
+            const unInvoicedArrears = Math.max(0, expectedRent - paidRent - totalInvoicedAmount);
+            const periodArrears = unInvoicedArrears + unpaidInvoicesAmount;
 
             return {
                 lease,
@@ -5822,9 +5827,10 @@ const ArrearsManager: React.FC<{
                 property,
                 landlord,
                 periodArrears: periodArrears > 0 ? periodArrears : 0,
+                unInvoicedArrears,
                 unpaidInvoicesAmount,
                 expectedRent,
-                paidRent: totalReceived
+                paidRent
             };
         });
     }, [leases, tenants, units, properties, landlords, payments, invoices, arrPeriod]);
@@ -5878,8 +5884,8 @@ const ArrearsManager: React.FC<{
     };
 
     const handleBulkInvoiceArrears = async () => {
-        const listWithArrears = filteredArrears.filter(item => item.periodArrears > 0);
-        if (listWithArrears.length === 0) return alert("No tenants in the filtered list have outstanding arrears to invoice.");
+        const listWithArrears = filteredArrears.filter(item => item.unInvoicedArrears > 0);
+        if (listWithArrears.length === 0) return alert("No tenants in the filtered list have un-invoiced arrears to invoice.");
         if (!confirm(`Generate individual arrears adjustment invoices for ${listWithArrears.length} tenants?`)) return;
 
         const newInvoices: PMInvoice[] = [];
@@ -5910,7 +5916,7 @@ const ArrearsManager: React.FC<{
                 tenantId: item.lease.tenantId,
                 unitId: item.lease.unitId,
                 description: `Outstanding Arrears Adjustment - ${billingPeriodLabel}`,
-                amount: item.periodArrears,
+                amount: item.unInvoicedArrears,
                 issueDate: todayStr,
                 dueDate: todayStr,
                 status: 'Sent',
@@ -6099,74 +6105,73 @@ const ArrearsManager: React.FC<{
                                                 KES {item.periodArrears.toLocaleString()}
                                             </span>
                                         </td>
-                                        <td className="p-5 text-right flex justify-end gap-2">
-                                            {item.periodArrears > 0 && (
-                                                <>
-                                                    <button 
-                                                        disabled={sendingReminder === item.lease.id}
-                                                        onClick={() => handleSendReminder(item)}
-                                                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-widest"
-                                                    >
-                                                        {sendingReminder === item.lease.id ? "Sending..." : "SMS Reminder"}
-                                                    </button>
-                                                    <button 
-                                                        onClick={async () => {
-                                                            const billingPeriodLabel = arrPeriod 
-                                                                ? (() => {
-                                                                    const [y, m] = arrPeriod.split('-');
-                                                                    const date = new Date(parseInt(y), parseInt(m) - 1, 1);
-                                                                    return date.toLocaleDateString('default', { month: 'long', year: 'numeric' });
-                                                                  })()
-                                                                : new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' });
+                                         <td className="p-5 text-right flex justify-end gap-2">
+                                             {item.periodArrears > 0 && (
+                                                 <button 
+                                                     disabled={sendingReminder === item.lease.id}
+                                                     onClick={() => handleSendReminder(item)}
+                                                     className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap"
+                                                 >
+                                                     {sendingReminder === item.lease.id ? "Sending..." : "SMS Reminder"}
+                                                 </button>
+                                             )}
+                                             {item.unInvoicedArrears > 0 && (
+                                                 <button 
+                                                     onClick={async () => {
+                                                         const billingPeriodLabel = arrPeriod 
+                                                             ? (() => {
+                                                                 const [y, m] = arrPeriod.split('-');
+                                                                 const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+                                                                 return date.toLocaleDateString('default', { month: 'long', year: 'numeric' });
+                                                               })()
+                                                             : new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' });
 
-                                                            const alreadyExists = invoices.some(inv => 
-                                                                inv.leaseId === item.lease.id && 
-                                                                inv.description.includes(`Outstanding Arrears Adjustment - ${billingPeriodLabel}`)
-                                                            );
-                                                            if (alreadyExists) return alert(`Arrears invoice already generated for ${billingPeriodLabel}.`);
-                                                            
-                                                            const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
-                                                            const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
-                                                            const invoiceNumber = `${prefix}-${nextNum}`;
+                                                         const alreadyExists = invoices.some(inv => 
+                                                             inv.leaseId === item.lease.id && 
+                                                             inv.description.includes(`Outstanding Arrears Adjustment - ${billingPeriodLabel}`)
+                                                         );
+                                                         if (alreadyExists) return alert(`Arrears invoice already generated for ${billingPeriodLabel}.`);
+                                                         
+                                                         const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
+                                                         const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
+                                                         const invoiceNumber = `${prefix}-${nextNum}`;
 
-                                                            await apiService.saveModuleRecord('pm_invoices', {
-                                                                    id: `inv_${Date.now()}`,
-                                                                    invoiceNumber,
-                                                                    leaseId: item.lease.id,
-                                                                    tenantId: item.lease.tenantId,
-                                                                    unitId: item.lease.unitId,
-                                                                    description: `Outstanding Arrears Adjustment - ${billingPeriodLabel}`,
-                                                                    amount: item.periodArrears,
-                                                                    issueDate: new Date().toISOString().split('T')[0],
-                                                                    dueDate: new Date().toISOString().split('T')[0],
-                                                                    status: 'Sent',
-                                                                    institutionId,
-                                                                    createdAt: new Date().toISOString()
-                                                            });
+                                                         await apiService.saveModuleRecord('pm_invoices', {
+                                                                 id: `inv_${Date.now()}`,
+                                                                 invoiceNumber,
+                                                                 leaseId: item.lease.id,
+                                                                 tenantId: item.lease.tenantId,
+                                                                 unitId: item.lease.unitId,
+                                                                 description: `Outstanding Arrears Adjustment - ${billingPeriodLabel}`,
+                                                                 amount: item.unInvoicedArrears,
+                                                                 issueDate: new Date().toISOString().split('T')[0],
+                                                                 dueDate: new Date().toISOString().split('T')[0],
+                                                                 status: 'Sent',
+                                                                 institutionId,
+                                                                 createdAt: new Date().toISOString()
+                                                         });
 
-                                                            if (pmSettings) {
-                                                                const updatedSettings = {
-                                                                    ...pmSettings,
-                                                                    numbering: {
-                                                                        ...(pmSettings.numbering || {}),
-                                                                        invoiceNextNumber: nextNum + 1
-                                                                    }
-                                                                };
-                                                                await apiService.saveModuleRecord('pm_settings', updatedSettings);
-                                                                setPmSettings(updatedSettings);
-                                                            }
+                                                         if (pmSettings) {
+                                                             const updatedSettings = {
+                                                                 ...pmSettings,
+                                                                 numbering: {
+                                                                     ...(pmSettings.numbering || {}),
+                                                                     invoiceNextNumber: nextNum + 1
+                                                                 }
+                                                             };
+                                                             await apiService.saveModuleRecord('pm_settings', updatedSettings);
+                                                             setPmSettings(updatedSettings);
+                                                         }
 
-                                                            alert("Arrears invoice generated successfully.");
-                                                            loadData();
-                                                        }}
-                                                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest"
-                                                    >
-                                                        Invoice Arrears
-                                                    </button>
-                                                </>
-                                            )}
-                                        </td>
-                                    </tr>
+                                                         alert("Arrears invoice generated successfully.");
+                                                         loadData();
+                                                     }}
+                                                     className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap"
+                                                 >
+                                                     Invoice Arrears
+                                                 </button>
+                                             )}
+                                         </td>\n                                    </tr>
                                 ))
                             )}
                         </tbody>
