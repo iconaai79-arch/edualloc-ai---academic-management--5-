@@ -1038,28 +1038,56 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     }, [currentUser]);
 
     const filteredUsers = useMemo(() => {
-        let list = (users || []).filter(u => {
-            if (!u) return false;
-            if (activeTab === 'staff') {
-                const baseFilter = u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead';
-                if (isPm) {
-                    // For PM: restrict to this institution and exclude PM-specific roles managed elsewhere
-                    return baseFilter
-                        && u.role !== 'landlord'
-                        && u.role !== 'tenant'
-                        && u.role !== 'visitor'
-                        && u.institutionId === (currentInstitution?.id || currentUser?.institutionId);
+        let list = [];
+
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            list = (users || []).filter(u => {
+                if (!u) return false;
+
+                if (isSuperAdmin && institutionFilter !== 'all' && u.institutionId !== institutionFilter) {
+                    return false;
                 }
-                return baseFilter;
+
+                const instName = institutionMap.get(u.institutionId) || '';
+
+                return (
+                    (u.name || '').toLowerCase().includes(q) ||
+                    (u.email || '').toLowerCase().includes(q) ||
+                    (u.phoneNumber || '').toLowerCase().includes(q) ||
+                    (u.phone || '').toLowerCase().includes(q) ||
+                    (u.staffId || '').toLowerCase().includes(q) ||
+                    (u.role || '').toLowerCase().includes(q) ||
+                    instName.toLowerCase().includes(q)
+                );
+            });
+        } else {
+            list = (users || []).filter(u => {
+                if (!u) return false;
+                if (activeTab === 'staff') {
+                    const baseFilter = u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead';
+                    if (isPm) {
+                        return baseFilter
+                            && u.role !== 'landlord'
+                            && u.role !== 'tenant'
+                            && u.role !== 'visitor'
+                            && u.institutionId === (currentInstitution?.id || currentUser?.institutionId);
+                    }
+                    return baseFilter;
+                }
+                if (activeTab === 'customer') {
+                    return u.role === 'customer' || u.role === 'lead';
+                }
+                if (activeTab === 'visitors') {
+                    return u.role === 'visitor';
+                }
+                return u.role === 'student' || u.role === 'member' || u.role === 'church_member';
+            });
+
+            if (isSuperAdmin && institutionFilter !== 'all') {
+                list = list.filter(u => u.institutionId === institutionFilter);
             }
-            if (activeTab === 'customer') {
-                return u.role === 'customer' || u.role === 'lead';
-            }
-            if (activeTab === 'visitors') {
-                return u.role === 'visitor';
-            }
-            return u.role === 'student' || u.role === 'member' || u.role === 'church_member';
-        });
+        }
 
         if (timeFilter !== 'all') {
             const now = new Date();
@@ -1072,7 +1100,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         }
 
         // For Retail Agency and Auto Market, we only show specific roles in Staff tab
-        if ((isRetailAgency || isAutoMarket) && activeTab === 'staff') {
+        if ((isRetailAgency || isAutoMarket) && activeTab === 'staff' && !searchQuery.trim()) {
             const retailRoles: Role[] = isAutoMarket 
                 ? ['admin', 'director', 'finance', 'finance_officer', 'sales', 'reception'] 
                 : ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'];
@@ -1084,20 +1112,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             list = list.filter(u => u.departmentId === currentUser.departmentId);
         }
 
-        if (isSuperAdmin && institutionFilter !== 'all') {
-            list = list.filter(u => u.institutionId === institutionFilter);
-        }
-
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            list = list.filter(u =>
-                (u.name || '').toLowerCase().includes(q) ||
-                (u.email || '').toLowerCase().includes(q) ||
-                (u.staffId || '').toLowerCase().includes(q)
-            );
-        }
         return list;
-    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId, isRetailAgency, isPm, currentInstitution?.id, currentUser?.institutionId]);
+    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId, isRetailAgency, isPm, currentInstitution?.id, currentUser?.institutionId, institutionMap]);
 
 
     const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1602,7 +1618,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             </span>
                         </button>
                     )}
-                    {((!isRetailAgency && isEdu) || isCoop || isChurch) && (!showOnly || showOnly === 'student') && (
+                    {((!isRetailAgency && isEdu) || isCoop || isChurch || isSuperAdmin) && (!showOnly || showOnly === 'student') && (
                         <button
                             onClick={() => setActiveTab('student')}
                             className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'student' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
@@ -1613,7 +1629,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             </span>
                         </button>
                     )}
-                    {(isRetailAgency || isChurch) && (!showOnly || showOnly === 'customer') && (
+                    {(isRetailAgency || isChurch || isSuperAdmin) && (!showOnly || showOnly === 'customer') && (
                         <button
                             onClick={() => setActiveTab(isChurch ? 'visitors' : 'customer')}
                             className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === (isChurch ? 'visitors' : 'customer') ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
