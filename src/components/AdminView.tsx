@@ -478,7 +478,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'eduvote'>('console_hub');
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
@@ -832,6 +832,24 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             return dsTabs;
         }
 
+        if (isBC || activeScope === 'bc') {
+            const bcTabs = [
+                { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
+                { id: 'bc_students', label: 'Students', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'bc_courses', label: 'Courses', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> },
+                { id: 'bc_finance', label: 'Finance', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> },
+                { id: 'bc_practicals', label: 'Practicals', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
+                { id: 'bc_trainers', label: 'Trainers', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
+            ];
+            if (isModuleActive('fiscal_guard')) {
+                bcTabs.push({ id: 'fiscal_guard', label: 'FiscalGuard AI', icon: <ShieldCheckIcon className="w-5 h-5 mr-2" /> });
+            }
+            bcTabs.push(
+                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> }
+            );
+            return bcTabs;
+        }
+
         if (isCoop) {
             return [
                 { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
@@ -871,7 +889,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
             if (isBC) {
-                const allowed = ['dashboard', 'beauty_college', 'users', 'fiscal_guard', 'settings'];
+                const allowed = ['dashboard', 'bc_students', 'bc_courses', 'bc_finance', 'bc_practicals', 'bc_trainers', 'users', 'fiscal_guard', 'settings'];
                 if (!allowed.includes(tab.id)) return false;
                 if (tab.id === 'fiscal_guard') return isModuleActive('fiscal_guard');
                 return true;
@@ -3241,6 +3259,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     <BeautyCollegeManager
                         currentUser={props.currentUser!}
                         currentInstitution={props.currentInstitution!}
+                        activeTab={
+                            activeTab === 'dashboard' ? 'dashboard' :
+                            activeTab === 'beauty_college' ? 'dashboard' :
+                            activeTab.startsWith('bc_') ? activeTab.replace('bc_', '') as any :
+                            activeTab as any
+                        }
                         onRefreshData={props.onRefreshData}
                     />
                 )}

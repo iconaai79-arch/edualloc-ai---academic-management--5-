@@ -11,14 +11,18 @@ interface BeautyCollegeManagerProps {
     currentUser: AppUser;
     currentInstitution: any;
     onRefreshData?: () => void;
+    activeTab?: 'dashboard' | 'students' | 'courses' | 'finance' | 'practicals' | 'trainers';
 }
 
 export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({ 
     currentUser, 
     currentInstitution,
-    onRefreshData 
+    onRefreshData,
+    activeTab: externalTab
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'courses' | 'finance' | 'practicals' | 'trainers'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'courses' | 'finance' | 'practicals' | 'trainers'>('dashboard');
+    const activeTab = externalTab || internalTab;
+    const setActiveTab = (tab: any) => setInternalTab(tab);
     const [loading, setLoading] = useState(true);
 
     // Module Data States
@@ -396,21 +400,23 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
             </div>
 
             {/* Switch tabs */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 overflow-x-auto scrollbar-hide pb-0.5">
-                {(['dashboard', 'students', 'courses', 'finance', 'practicals', 'trainers'] as const).map(tab => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`pb-4 text-[10px] uppercase font-black tracking-widest border-b-2 transition-all shrink-0 ${
-                            activeTab === tab 
-                                ? 'border-indigo-600 text-indigo-600' 
-                                : 'border-transparent text-slate-450 hover:text-slate-600 dark:hover:text-white'
-                        }`}
-                    >
-                        {tab}
-                    </button>
-                ))}
-            </div>
+            {!externalTab && (
+                <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 overflow-x-auto scrollbar-hide pb-0.5">
+                    {(['dashboard', 'students', 'courses', 'finance', 'practicals', 'trainers'] as const).map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`pb-4 text-[10px] uppercase font-black tracking-widest border-b-2 transition-all shrink-0 ${
+                                activeTab === tab 
+                                    ? 'border-indigo-600 text-indigo-600' 
+                                    : 'border-transparent text-slate-450 hover:text-slate-600 dark:hover:text-white'
+                            }`}
+                        >
+                            {tab}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* TAB CONTENTS */}
             {loading ? (
