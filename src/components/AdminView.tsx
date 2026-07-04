@@ -39,6 +39,7 @@ const LogisticsManager = lazy(() => import('./LogisticsManager').then(m => ({ de
 const LawManager = lazy(() => import('./law/LawManager').then(m => ({ default: m.LawManager })));
 const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 const BeautyCollegeManager = lazy(() => import('./bc/BeautyCollegeManager').then(m => ({ default: m.BeautyCollegeManager })));
+const BCReportsView = lazy(() => import('./bc/BCReportsView').then(m => ({ default: m.BCReportsView })));
 const FiscalGuard = lazy(() => import('./Finance/FiscalGuard').then(m => ({ default: m.FiscalGuard })));
 import { TimetableUserDirectory } from './timetable/TimetableUserDirectory';
 const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ default: m.CommunityManager })));
@@ -841,6 +842,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 { id: 'bc_practicals', label: 'Practicals', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
                 { id: 'bc_trainers', label: 'Trainers', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             ];
+            bcTabs.push(
+                { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> }
+            );
             if (isModuleActive('fiscal_guard')) {
                 bcTabs.push({ id: 'fiscal_guard', label: 'FiscalGuard AI', icon: <ShieldCheckIcon className="w-5 h-5 mr-2" /> });
             }
@@ -889,7 +893,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
             if (isBC) {
-                const allowed = ['dashboard', 'bc_students', 'bc_courses', 'bc_finance', 'bc_practicals', 'bc_trainers', 'users', 'fiscal_guard', 'settings'];
+                const allowed = ['dashboard', 'bc_students', 'bc_courses', 'bc_finance', 'bc_practicals', 'bc_trainers', 'users', 'reports', 'fiscal_guard', 'settings'];
                 if (!allowed.includes(tab.id)) return false;
                 if (tab.id === 'fiscal_guard') return isModuleActive('fiscal_guard');
                 return true;
@@ -3505,6 +3509,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             <DSAnalyticsView 
                                 institution={props.currentInstitution!}
                                 letterheadConfig={props.letterheadConfig}
+                            />
+                        ) : (isBC || activeScope === 'bc') ? (
+                            <BCReportsView 
+                                currentUser={props.currentUser!}
+                                currentInstitution={props.currentInstitution!}
                             />
                         ) : isAutoMarket ? (
                             ['director', 'finance', 'super_admin'].includes(roleToUse || '') || props.currentUser?.role === 'super_admin' || !!localStorage.getItem('eduai_super_admin_session') ? (
