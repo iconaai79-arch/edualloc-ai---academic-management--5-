@@ -1571,6 +1571,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         } catch (e: any) { alert(e.message || "Failed to save payment"); }
     };
 
+    const handleDeletePayment = async (paymentId: string) => {
+        if (!confirm("Are you sure you want to delete this payment record? This action cannot be undone.")) return;
+        try {
+            await apiService.deleteModuleRecord('pm_payments', paymentId);
+            alert("Payment deleted successfully.");
+            loadData();
+        } catch (e: any) {
+            alert(e.message || "Failed to delete payment.");
+            console.error(e);
+        }
+    };
+
     const handleSaveInvoice = async (data: Partial<PMInvoice>) => {
         try {
             if (editingInvoice) {
@@ -2067,6 +2079,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                             >
                                                                 <DownloadIcon className="w-3.5 h-3.5" />
                                                             </button>
+                                                            <button 
+                                                                onClick={() => handleDeletePayment(payment.id)} 
+                                                                title="Delete Payment" 
+                                                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-rose-600 hover:text-white transition-all"
+                                                            >
+                                                                <TrashIcon className="w-3.5 h-3.5" />
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -2122,6 +2141,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 >
                                                     <DownloadIcon className="w-3 h-3" />
                                                     Download
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDeletePayment(payment.id)} 
+                                                    className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-rose-600 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest flex items-center gap-1"
+                                                >
+                                                    <TrashIcon className="w-3 h-3" />
+                                                    Delete
                                                 </button>
                                             </div>
                                         </div>
@@ -2188,6 +2214,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         const [sendingBulk, setSendingBulk] = useState(false);
         const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
         const [page, setPage] = useState(1);
+        const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
         const PAGE_SIZE = 15;
 
         const getMonthName = (dateStr?: string) => {
@@ -2405,6 +2432,29 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             }
         };
 
+        const handleBulkDeleteInvoices = async () => {
+            if (selectedInvoiceIds.length === 0) return;
+            if (!confirm(`Are you sure you want to delete ${selectedInvoiceIds.length} selected invoice(s)? This action cannot be undone.`)) return;
+
+            try {
+                const chunks: string[][] = [];
+                for (let i = 0; i < selectedInvoiceIds.length; i += 50) {
+                    chunks.push(selectedInvoiceIds.slice(i, i + 50));
+                }
+
+                for (const chunk of chunks) {
+                    await apiService.deleteModuleRecord('pm_invoices', chunk.join(','));
+                }
+
+                alert(`Successfully deleted ${selectedInvoiceIds.length} invoice(s).`);
+                setSelectedInvoiceIds([]);
+                loadData();
+            } catch (e: any) {
+                alert(e.message || "Failed to delete invoices.");
+                console.error(e);
+            }
+        };
+
         return (
             <div className="space-y-6 animate-in fade-in duration-500">
                 <div className="flex bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm gap-4 items-center flex-wrap">
@@ -2480,6 +2530,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     </div>
 
                     <div className="flex gap-2 ml-auto">
+                        {selectedInvoiceIds.length > 0 && (
+                            <button
+                                onClick={handleBulkDeleteInvoices}
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-widest text-[10px] py-3.5 px-6 rounded-2xl flex items-center gap-2 transition-all shadow-md shadow-rose-600/10 shrink-0"
+                            >
+                                <TrashIcon className="w-4.5 h-4.5" />
+                                Delete Selected ({selectedInvoiceIds.length})
+                            </button>
+                        )}
                         <button
                             onClick={() => setShowGenerateArrearsModal(true)}
                             className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest text-[10px] py-3.5 px-6 rounded-2xl flex items-center gap-2 transition-all shadow-md shadow-blue-600/10 shrink-0"
@@ -2510,7 +2569,23 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 {/* List Table */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
                     {/* Header */}
-                    <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,2.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] gap-x-2 px-5 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
+                    <div className="grid grid-cols-[40px_minmax(0,1.5fr)_minmax(0,2.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] gap-x-2 px-5 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center">
+                            <input 
+                                type="checkbox"
+                                checked={pagedInvoices.length > 0 && pagedInvoices.every(inv => selectedInvoiceIds.includes(inv.id))}
+                                onChange={(e) => {
+                                    if (e.target.checked) {
+                                        const toAdd = pagedInvoices.map(inv => inv.id);
+                                        setSelectedInvoiceIds(prev => Array.from(new Set([...prev, ...toAdd])));
+                                    } else {
+                                        const toRemove = pagedInvoices.map(inv => inv.id);
+                                        setSelectedInvoiceIds(prev => prev.filter(id => !toRemove.includes(id)));
+                                    }
+                                }}
+                                className="rounded border-slate-300 dark:border-slate-650 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                            />
+                        </div>
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Invoice #</div>
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tenant</div>
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unit</div>
@@ -2550,7 +2625,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 const totalDue = rent + bf;
                                 const monthName = getMonthName(inv.dueDate);
                                 return (
-                                    <div key={inv.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,2.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] gap-x-2 px-5 py-3.5 items-center hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
+                                    <div key={inv.id} className="grid grid-cols-[40px_minmax(0,1.5fr)_minmax(0,2.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] gap-x-2 px-5 py-3.5 items-center hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
+                                        {/* Checkbox */}
+                                        <div className="flex items-center">
+                                            <input 
+                                                type="checkbox"
+                                                checked={selectedInvoiceIds.includes(inv.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedInvoiceIds(prev => [...prev, inv.id]);
+                                                    } else {
+                                                        setSelectedInvoiceIds(prev => prev.filter(id => id !== inv.id));
+                                                    }
+                                                }}
+                                                className="rounded border-slate-300 dark:border-slate-650 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                            />
+                                        </div>
                                         {/* Invoice # */}
                                         <div>
                                             <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 font-mono">{inv.invoiceNumber}</span>
@@ -2822,7 +2912,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     );
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
+        const files = Array.from(e.target.files || []) as File[];
         if (newListingImages.length + files.length > 5) {
             alert('You can only upload up to 5 images per listing.');
             return;
@@ -3047,7 +3137,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         </div>
     );
 
-    const StatementsManager = () => {
+    const StatementsManager = (): React.ReactElement => {
         const [targetType, setTargetType] = useState<'tenant' | 'landlord'>('tenant');
         const [targetId, setTargetId] = useState('');
         const [searchTerm, setSearchTerm] = useState('');
@@ -3554,21 +3644,23 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             {reportsSubTab === 'statements' && StatementsManager()}
 
-            {reportsSubTab === 'arrears' && ArrearsManager({
-                leases,
-                tenants,
-                units,
-                properties,
-                landlords,
-                payments,
-                invoices,
-                currentInstitution,
-                institutionId,
-                loadData,
-                pmSettings,
-                setPmSettings,
-                companyDetails
-            })}
+            {reportsSubTab === 'arrears' && (
+                <ArrearsManager
+                    leases={leases}
+                    tenants={tenants}
+                    units={units}
+                    properties={properties}
+                    landlords={landlords}
+                    payments={payments}
+                    invoices={invoices}
+                    currentInstitution={currentInstitution}
+                    institutionId={institutionId}
+                    loadData={loadData}
+                    pmSettings={pmSettings}
+                    setPmSettings={setPmSettings}
+                    companyDetails={companyDetails}
+                />
+            )}
 
             {reportsSubTab === 'commission' && (() => {
                 // Apply date range filter
@@ -5044,6 +5136,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     onSave={handleSavePayment}
                     pmSettings={pmSettings}
                     getNextRentDueDate={getNextRentDueDate}
+                    invoices={invoices}
                 />
             )}
 
@@ -5375,14 +5468,27 @@ interface RecordPaymentModalProps {
     onSave: (data: Partial<PMPayment>) => void;
     pmSettings: PMSettings | null;
     getNextRentDueDate: (dueDay: number) => string;
+    invoices: PMInvoice[];
 }
 
 const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
-    show, onClose, leases, tenants, units, properties, onSave, pmSettings, getNextRentDueDate
+    show, onClose, leases, tenants, units, properties, onSave, pmSettings, getNextRentDueDate, invoices
 }) => {
     const [tenantSearchQuery, setTenantSearchQuery] = useState('');
     const [selectedLeaseId, setSelectedLeaseId] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [amountVal, setAmountVal] = useState('');
+
+    useEffect(() => {
+        if (selectedLeaseId) {
+            const lease = leases.find(l => l.id === selectedLeaseId);
+            if (lease) {
+                setAmountVal(lease.rentAmount.toString());
+            }
+        } else {
+            setAmountVal('');
+        }
+    }, [selectedLeaseId, leases]);
 
     if (!show) return null;
 
@@ -5448,10 +5554,49 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                                 const lease = leases.find(l => l.id === selectedLeaseId);
                                 const tenant = tenants.find(t => t.id === lease?.tenantId);
                                 const unit = units.find(u => u.id === lease?.unitId);
+                                const expectedRent = lease?.rentAmount || 0;
+                                const unpaidInvoices = invoices
+                                    ? invoices.filter(inv => inv.leaseId === selectedLeaseId && inv.status !== 'Paid' && inv.status !== 'Cancelled')
+                                    : [];
+                                const totalOutstanding = unpaidInvoices.reduce((sum, inv) => sum + (inv.amount || 0) + (inv.openingBalance || 0), 0);
                                 return (
-                                    <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-100 dark:border-indigo-900/50 flex justify-between items-center">
-                                        <span>Selected: {tenant?.name || 'Unknown'} (Unit {unit?.unitNumber || 'N/A'})</span>
-                                        <span className="text-[9px] bg-indigo-200 dark:bg-indigo-900 text-indigo-850 px-2 py-0.5 rounded-full uppercase tracking-wider">Active Lease</span>
+                                    <div className="mt-2 p-4 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 rounded-2xl text-xs border border-indigo-100 dark:border-indigo-900/50 space-y-3">
+                                        <div className="flex justify-between items-center font-bold">
+                                            <span>Selected: {tenant?.name || 'Unknown'} (Unit {unit?.unitNumber || 'N/A'})</span>
+                                            <span className="text-[9px] bg-indigo-200 dark:bg-indigo-900 text-indigo-850 px-2 py-0.5 rounded-full uppercase tracking-wider font-black">Active Lease</span>
+                                        </div>
+                                        <div className="pt-2.5 border-t border-indigo-100 dark:border-indigo-900/30 grid grid-cols-2 gap-4">
+                                            <div>
+                                                <p className="text-[9px] text-slate-400 uppercase font-black tracking-wider">Expected Rent</p>
+                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white">KES {expectedRent.toLocaleString()}</p>
+                                                    {amountVal !== expectedRent.toString() && (
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => setAmountVal(expectedRent.toString())}
+                                                            className="text-[8px] bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded font-black uppercase tracking-wider transition-all"
+                                                        >
+                                                            Use
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] text-slate-400 uppercase font-black tracking-wider">Outstanding Balance</p>
+                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                    <p className={`text-sm font-black ${totalOutstanding > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>KES {totalOutstanding.toLocaleString()}</p>
+                                                    {totalOutstanding > 0 && amountVal !== totalOutstanding.toString() && (
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => setAmountVal(totalOutstanding.toString())}
+                                                            className="text-[8px] bg-rose-100 hover:bg-rose-200 text-rose-700 px-1.5 py-0.5 rounded font-black uppercase tracking-wider transition-all"
+                                                        >
+                                                            Use
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 );
                             })() : (
@@ -5544,7 +5689,19 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                         </div>
 
                         <select name="paymentType" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"><option value="Rent">Rent</option><option value="Utility">Utility Bill</option><option value="Deposit">Deposit</option></select>
-                        <input name="amount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Amount Paid" />
+                        
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Amount Paid (KES)</label>
+                            <input 
+                                name="amount" 
+                                type="number" 
+                                required 
+                                value={amountVal}
+                                onChange={(e) => setAmountVal(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-sm" 
+                                placeholder="Amount Paid" 
+                            />
+                        </div>
                         <button type="submit" className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Finalize Payment</button>
                     </form>
                 </div>
@@ -5611,8 +5768,8 @@ const ArrearsManager: React.FC<{
         return leases.filter(l => l.status === 'Active').map(lease => {
             const tenant = tenants.find(t => t.id === lease.tenantId);
             const unit = units.find(u => u.id === lease.unitId);
-            const property = unit ? properties.find(p => p.id === unit.propertyId) : null;
-            const landlord = property?.landlordId ? landlords.find(la => la.id === property.landlordId) : null;
+            const property = unit ? (properties.find(p => p.id === unit.propertyId) || null) : null;
+            const landlord = (property && property.landlordId) ? (landlords.find(la => la.id === property.landlordId) || null) : null;
 
             const start = new Date(lease.startDate);
 
