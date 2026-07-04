@@ -1720,22 +1720,28 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                 if (data.generateArrears) {
                     const start = new Date(lease.startDate);
+                    const leaseEnd = lease.endDate ? new Date(lease.endDate) : null;
+                    const billingMonthStart = new Date(targetYear, targetMonth - 1, 1);
+                    const billingMonthEnd = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
-                    // Precise month count from lease start to selected billing month
-                    const startYear = start.getFullYear();
-                    const startMonth = start.getMonth();
-                    const endYear = targetYear;
-                    const endMonth = targetMonth - 1; // 0-based month index
-                    const monthsElapsed = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
-                    const billableMonths = Math.max(1, monthsElapsed);
-                    const expectedRent = billableMonths * (lease.rentAmount || 0);
+                    const isLeaseActiveInPeriod = start <= billingMonthEnd && (!leaseEnd || leaseEnd >= billingMonthStart);
+                    const expectedRent = isLeaseActiveInPeriod ? (lease.rentAmount || 0) : 0;
 
                     const totalPaid = payments
-                        .filter(p => p.leaseId === lease.id && p.paymentType !== 'Utility' && p.paymentType !== 'Deposit')
+                        .filter(p => {
+                            if (p.leaseId !== lease.id || p.paymentType === 'Utility' || p.paymentType === 'Deposit') return false;
+                            const pDate = new Date(p.paymentDate);
+                            return pDate >= billingMonthStart && pDate <= billingMonthEnd;
+                        })
                         .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
                     const totalInvoiced = invoices
-                        .filter(inv => inv.leaseId === lease.id && (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')))
+                        .filter(inv => {
+                            if (inv.leaseId !== lease.id) return false;
+                            if (!inv.description.toLowerCase().includes('rent') && !inv.description.toLowerCase().includes('arrears')) return false;
+                            const iDate = new Date(inv.issueDate);
+                            return iDate >= billingMonthStart && iDate <= billingMonthEnd;
+                        })
                         .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
                     const newlyAddedRent = newInvoices.find(inv => 
@@ -1744,7 +1750,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     );
                     const newlyAddedRentAmount = newlyAddedRent ? (Number(newlyAddedRent.amount) || 0) : 0;
 
-                    const unInvoicedArrears = expectedRent - Math.max(totalPaid, totalInvoiced) - newlyAddedRentAmount;
+                    const unInvoicedArrears = Math.max(0, expectedRent - Math.max(totalPaid, totalInvoiced) - newlyAddedRentAmount);
 
                     if (unInvoicedArrears > 0) {
                         const todayStr = new Date().toISOString().split('T')[0];
@@ -5802,12 +5808,10 @@ const ArrearsManager: React.FC<{
     };
 
     const arrearsList = useMemo(() => {
-        const targetDate = arrPeriod 
-            ? (() => {
-                const [y, m] = arrPeriod.split('-');
-                return new Date(parseInt(y), parseInt(m), 0); // Last day of that month
-              })()
-            : new Date();
+        const targetYear = arrPeriod ? parseInt(arrPeriod.split('-')[0]) : new Date().getFullYear();
+        const targetMonth = arrPeriod ? parseInt(arrPeriod.split('-')[1]) - 1 : new Date().getMonth();
+        const periodStart = new Date(targetYear, targetMonth, 1);
+        const periodEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
 
         return leases.filter(l => l.status === 'Active').map(lease => {
             const tenant = tenants.find(t => t.id === lease.tenantId);
@@ -5816,9 +5820,12 @@ const ArrearsManager: React.FC<{
             const landlord = (property && property.landlordId) ? (landlords.find(la => la.id === property.landlordId) || null) : null;
 
             const start = new Date(lease.startDate);
+            const leaseEnd = lease.endDate ? new Date(lease.endDate) : null;
 
-            // Cap start to targetDate — leases that haven't started yet have 0 expected rent
-            if (start > targetDate) {
+            // Check if lease is active during the selected period
+            const isLeaseActiveInPeriod = start <= periodEnd && (!leaseEnd || leaseEnd >= periodStart);
+
+            if (!isLeaseActiveInPeriod) {
                 return {
                     lease, tenant, unit, property, landlord,
                     periodArrears: 0, unpaidInvoicesAmount: 0, expectedRent: 0, paidRent: 0,
@@ -5826,39 +5833,40 @@ const ArrearsManager: React.FC<{
                 };
             }
 
-            // Precise month count: how many full or partial billing months have elapsed
-            // from lease start up to and including the target month
-            const startYear = start.getFullYear();
-            const startMonth = start.getMonth();
-            const endYear = targetDate.getFullYear();
-            const endMonth = targetDate.getMonth();
-            const monthsElapsed = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
-            // Never count negative or zero months
-            const billableMonths = Math.max(1, monthsElapsed);
-            const expectedRent = billableMonths * (lease.rentAmount || 0);
+            const expectedRent = lease.rentAmount || 0;
 
-            // Sum all cash payments against this lease up to targetDate
+            // Sum all cash payments against this lease during the selected period
             const paidRent = payments
-                .filter(p => p.leaseId === lease.id && p.paymentType !== 'Utility' && p.paymentType !== 'Deposit' && new Date(p.paymentDate) <= targetDate)
+                .filter(p => {
+                    if (p.leaseId !== lease.id || p.paymentType === 'Utility' || p.paymentType === 'Deposit') return false;
+                    const pDate = new Date(p.paymentDate);
+                    return pDate >= periodStart && pDate <= periodEnd;
+                })
                 .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-            // Sum all rent/arrears invoices generated up to targetDate
+            // Sum all rent/arrears invoices generated during the selected period
             const totalInvoicedAmount = invoices
-                .filter(inv => inv.leaseId === lease.id && 
-                    (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')) &&
-                    new Date(inv.issueDate) <= targetDate)
+                .filter(inv => {
+                    if (inv.leaseId !== lease.id) return false;
+                    if (!inv.description.toLowerCase().includes('rent') && !inv.description.toLowerCase().includes('arrears')) return false;
+                    const iDate = new Date(inv.issueDate);
+                    return iDate >= periodStart && iDate <= periodEnd;
+                })
                 .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
-            // Sum unpaid rent/arrears invoices up to targetDate (Sent/Overdue, exclude Cancelled/Paid)
+            // Sum unpaid rent/arrears invoices up to periodEnd (Sent/Overdue, exclude Cancelled/Paid)
             const unpaidInvoicesAmount = invoices
-                .filter(inv => inv.leaseId === lease.id && 
-                    inv.status !== 'Paid' && inv.status !== 'Cancelled' &&
-                    (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')) &&
-                    new Date(inv.issueDate) <= targetDate)
+                .filter(inv => {
+                    if (inv.leaseId !== lease.id) return false;
+                    if (inv.status === 'Paid' || inv.status === 'Cancelled') return false;
+                    if (!inv.description.toLowerCase().includes('rent') && !inv.description.toLowerCase().includes('arrears')) return false;
+                    const iDate = new Date(inv.issueDate);
+                    return iDate <= periodEnd;
+                })
                 .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
             const unInvoicedArrears = Math.max(0, expectedRent - Math.max(paidRent, totalInvoicedAmount));
-            const periodArrears = Math.max(0, Math.max(expectedRent, totalInvoicedAmount) - paidRent);
+            const periodArrears = unpaidInvoicesAmount + unInvoicedArrears;
 
             return {
                 lease,
