@@ -4989,25 +4989,28 @@ export const generatePMInvoicePdfDataUri = async (
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Tenant info
+    // Dynamically place metadata below header/title start position
+    let yPos = tableStartY + 5;
+
+    // Tenant info (Left side)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('BILL TO:', margin, tableStartY - 15);
+    doc.text('BILL TO:', margin, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(tenant.name, margin, tableStartY - 10);
-    doc.text(`Unit: ${unit.unitNumber}`, margin, tableStartY - 5);
-    doc.text(`Phone: ${tenant.phoneNumber}`, margin, tableStartY);
+    doc.text(tenant.name, margin, yPos + 5);
+    doc.text(`Unit: ${unit.unitNumber}`, margin, yPos + 10);
+    doc.text(`Phone: ${tenant.phoneNumber}`, margin, yPos + 15);
 
-    // Invoice Meta
+    // Invoice Meta (Right side)
     doc.setFont('helvetica', 'bold');
-    doc.text('INVOICE #:', pageWidth - margin - 50, tableStartY - 15);
-    doc.text('DATE:', pageWidth - margin - 50, tableStartY - 10);
-    doc.text('DUE DATE:', pageWidth - margin - 50, tableStartY - 5);
+    doc.text('INVOICE #:', pageWidth - margin - 50, yPos);
+    doc.text('DATE:', pageWidth - margin - 50, yPos + 5);
+    doc.text('DUE DATE:', pageWidth - margin - 50, yPos + 10);
     
     doc.setFont('helvetica', 'normal');
-    doc.text(invoice.invoiceNumber, pageWidth - margin, tableStartY - 15, { align: 'right' });
-    doc.text(new Date(invoice.issueDate).toLocaleDateString(), pageWidth - margin, tableStartY - 10, { align: 'right' });
-    doc.text(new Date(invoice.dueDate).toLocaleDateString(), pageWidth - margin, tableStartY - 5, { align: 'right' });
+    doc.text(invoice.invoiceNumber, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(new Date(invoice.issueDate).toLocaleDateString(), pageWidth - margin, yPos + 5, { align: 'right' });
+    doc.text(new Date(invoice.dueDate).toLocaleDateString(), pageWidth - margin, yPos + 10, { align: 'right' });
 
     const head = [['#', 'DESCRIPTION', 'AMOUNT (KES)']];
     const body = [
@@ -5017,30 +5020,40 @@ export const generatePMInvoicePdfDataUri = async (
     doc.autoTable({
         head: head,
         body: body,
-        startY: tableStartY + 10,
+        startY: yPos + 25,
         theme: 'striped',
-        headStyles: { fillColor: [45, 55, 72] },
-        didDrawPage: (data: any) => {
-            const finalY = data.cursor.y;
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text('TOTAL AMOUNT DUE:', pageWidth - margin - 60, finalY + 15);
-            doc.text(`KES ${invoice.amount?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
-
-            if (landlord) {
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'bold');
-                doc.text('PAYMENT INSTRUCTIONS:', margin, finalY + 35);
-                doc.setFont('helvetica', 'normal');
-                const method = landlord.preferredPaymentMethod || 'Not Specified';
-                doc.text(`Preferred Payment Method: ${method}`, margin, finalY + 42);
-                if (landlord.bankDetails) {
-                    const lines = doc.splitTextToSize(`Details: ${landlord.bankDetails}`, pageWidth - (margin * 2));
-                    doc.text(lines, margin, finalY + 49);
-                }
-            }
-        }
+        headStyles: { fillColor: [45, 55, 72] }
     });
+
+    const finalY = (doc as any).lastAutoTable.finalY;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // We need about 30pt space for totals, and up to 60pt if landlord details are present
+    const neededSpace = landlord ? 60 : 30;
+    let contentY = finalY;
+
+    if (finalY + neededSpace > pageHeight - margin) {
+        doc.addPage();
+        contentY = margin + 10;
+    }
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL AMOUNT DUE:', pageWidth - margin - 60, contentY + 15);
+    doc.text(`KES ${invoice.amount?.toLocaleString()}`, pageWidth - margin, contentY + 15, { align: 'right' });
+
+    if (landlord) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PAYMENT INSTRUCTIONS:', margin, contentY + 35);
+        doc.setFont('helvetica', 'normal');
+        const method = landlord.preferredPaymentMethod || 'Not Specified';
+        doc.text(`Preferred Payment Method: ${method}`, margin, contentY + 42);
+        if (landlord.bankDetails) {
+            const lines = doc.splitTextToSize(`Details: ${landlord.bankDetails}`, pageWidth - (margin * 2));
+            doc.text(lines, margin, contentY + 49);
+        }
+    }
 
     return doc.output('datauristring');
 };
@@ -5063,20 +5076,24 @@ export const generatePMReceiptPdfDataUri = async (
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Receipt Meta
+    // Dynamically place metadata below header/title start position
+    let yPos = tableStartY + 5;
+
+    // Receipt Meta (Left side)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('RECEIPT FOR:', margin, tableStartY - 15);
+    doc.text('RECEIPT FOR:', margin, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(tenant.name, margin, tableStartY - 10);
-    doc.text(`Unit: ${unit.unitNumber}`, margin, tableStartY - 5);
+    doc.text(tenant.name, margin, yPos + 5);
+    doc.text(`Unit: ${unit.unitNumber}`, margin, yPos + 10);
 
+    // Receipt details (Right side)
     doc.setFont('helvetica', 'bold');
-    doc.text('DATE:', pageWidth - margin - 40, tableStartY - 15);
-    doc.text('STATUS:', pageWidth - margin - 40, tableStartY - 10);
+    doc.text('DATE:', pageWidth - margin - 40, yPos);
+    doc.text('STATUS:', pageWidth - margin - 40, yPos + 5);
     doc.setFont('helvetica', 'normal');
-    doc.text(new Date(payment.paymentDate).toLocaleDateString(), pageWidth - margin, tableStartY - 15, { align: 'right' });
-    doc.text(payment.status.toUpperCase(), pageWidth - margin, tableStartY - 10, { align: 'right' });
+    doc.text(new Date(payment.paymentDate).toLocaleDateString(), pageWidth - margin, yPos, { align: 'right' });
+    doc.text(payment.status.toUpperCase(), pageWidth - margin, yPos + 5, { align: 'right' });
 
     const body = [
         ['Payment Method', payment.paymentMethod],
@@ -5087,21 +5104,30 @@ export const generatePMReceiptPdfDataUri = async (
 
     doc.autoTable({
         body: body,
-        startY: tableStartY + 10,
+        startY: yPos + 20,
         theme: 'plain',
         styles: { fontSize: 10 },
         columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { halign: 'right' } },
     });
 
     const finalY = (doc as any).lastAutoTable.finalY;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // We need about 45pt space for Amount Received + Thank You note
+    let contentY = finalY;
+    if (finalY + 45 > pageHeight - margin) {
+        doc.addPage();
+        contentY = margin + 10;
+    }
+
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('AMOUNT RECEIVED:', margin, finalY + 20);
-    doc.text(`KES ${payment.amount?.toLocaleString()}`, pageWidth - margin, finalY + 20, { align: 'right' });
+    doc.text('AMOUNT RECEIVED:', margin, contentY + 20);
+    doc.text(`KES ${payment.amount?.toLocaleString()}`, pageWidth - margin, contentY + 20, { align: 'right' });
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'italic');
-    doc.text('Thank you for choosing us!', pageWidth / 2, finalY + 40, { align: 'center' });
+    doc.text('Thank you for choosing us!', pageWidth / 2, contentY + 40, { align: 'center' });
 
     return doc.output('datauristring');
 };
