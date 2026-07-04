@@ -661,6 +661,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     if (type === 'Political Campaign') cat = 'Political Campaign Management';
                                                     if (type === 'Fuel Station') cat = 'Fuel Station';
                                                     if (type === 'Construction') cat = 'Construction';
+                                                    if (type === 'Constituency') cat = 'Constituency';
+                                                    if (type === 'Driving School') cat = 'Driving School';
                                                     setRegData({ ...regData, institutionType: type as any, category: cat, businessSubType: cat });
                                                 }}
                                             >
@@ -681,6 +683,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Hospitality">Tourism & Hospitality</option>
                                                 <option value="Fuel Station">Energy / Fuel Station</option>
                                                 <option value="Construction">Engineering / Construction Hub</option>
+                                                <option value="Driving School">Driving School</option>
+                                                <option value="Constituency">Constituency (NG-CDF)</option>
                                             </select>
 
                                             {regData.institutionType === 'HIS' && (

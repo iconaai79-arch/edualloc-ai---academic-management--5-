@@ -153,6 +153,11 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         if (type === 'Education') cat = 'Primary';
                         if (type === 'Business') cat = 'Agrovet';
                         if (type === 'Hospitality') cat = 'Hotel';
+                        if (type === 'Law Firm') cat = 'Law Firm';
+                        if (type === 'Driving School') cat = 'Driving School';
+                        if (type === 'Beauty College') cat = 'Beauty College';
+                        if (type === 'Logistics') cat = 'Logistics';
+                        if (type === 'Constituency') cat = 'Constituency';
                         setFormData({ ...formData, institutionType: type, category: cat });
                       }} 
                       className="form-select font-black text-indigo-600 border-indigo-100"
@@ -169,6 +174,11 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option value="Community">Community & Politics</option>
                       <option value="Political Campaign">Political / Election Campaign</option>
                       <option value="Hospitality">Tourism & Hospitality</option>
+                      <option value="Law Firm">Legal / Law Firm</option>
+                      <option value="Logistics">Transport & Logistics</option>
+                      <option value="Driving School">Driving School</option>
+                      <option value="Beauty College">Beauty College</option>
+                      <option value="Constituency">Constituency (NG-CDF)</option>
                     </select>
                   </div>
                   {(formData.institutionType === 'Education') && (

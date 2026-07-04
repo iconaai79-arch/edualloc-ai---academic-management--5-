@@ -2435,18 +2435,23 @@ Please change it after login.`;
                                                 <select
                                                     value={newInstData.institutionType}
                                                     onChange={e => {
-                                                        const type = e.target.value as any;
-                                                        let category = '';
-                                                        if (type === 'Education') category = 'Primary';
-                                                        if (type === 'Business') category = 'Agrovet';
-                                                        if (type === 'HIS') category = 'Hospital/Clinic';
-                                                        if (type === 'Law Firm') category = 'Law Firm';
-                                                        if (type === 'Broadcaster') category = 'TV/Radio Station';
-                                                        if (type === 'Political Campaign') category = 'Political Campaign Management';
-                                                        setNewInstData({ ...newInstData, institutionType: type, category: category, businessSubType: category });
-                                                    }}
+                                                         const type = e.target.value as any;
+                                                         let category = '';
+                                                         if (type === 'Education') category = 'Primary';
+                                                         if (type === 'Business') category = 'Agrovet';
+                                                         if (type === 'HIS') category = 'Hospital/Clinic';
+                                                         if (type === 'Law Firm') category = 'Law Firm';
+                                                         if (type === 'Broadcaster') category = 'TV/Radio Station';
+                                                         if (type === 'Political Campaign') category = 'Political Campaign Management';
+                                                         if (type === 'Driving School') category = 'Driving School';
+                                                         if (type === 'Beauty College') category = 'Beauty College';
+                                                         if (type === 'Logistics') category = 'Logistics';
+                                                         if (type === 'Constituency') category = 'Constituency';
+                                                         setNewInstData({ ...newInstData, institutionType: type, category: category, businessSubType: category });
+                                                     }}
                                                     className="form-select font-black text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30 bg-white dark:bg-slate-800"
-                                                >                                                    <option value="Education">Education Sector</option>
+                                                >
+                                                    <option value="Education">Education Sector</option>
                                                     <option value="HIS">Health Sector (HIS)</option>
                                                     <option value="Pharmacy">Pharmacy / Chemist</option>
                                                     <option value="Business">Business Ecosystem</option>
@@ -2460,7 +2465,9 @@ Please change it after login.`;
                                                     <option value="Broadcaster">Media / Broadcaster</option>
                                                     <option value="Hospitality">Tourism & Hospitality</option>
                                                     <option value="Reseller">Reseller Agency</option>
-
+                                                    <option value="Driving School">Driving School</option>
+                                                    <option value="Beauty College">Beauty College</option>
+                                                    <option value="Constituency">Constituency (NG-CDF)</option>
                                                 </select>
                                             </div>
                                             <div>
