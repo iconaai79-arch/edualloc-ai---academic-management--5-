@@ -987,6 +987,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
     const [role, setRole] = useState<Role>(defaultRole || 'lecturer');
     const [roles, setRoles] = useState<Role[]>([defaultRole || 'teacher']);
+    const [destinyInstitutionId, setDestinyInstitutionId] = useState(currentInstitution?.id || '');
     const [departmentId, setDepartmentId] = useState('');
     const [courseId, setCourseId] = useState('');
     const [courseLevelId, setCourseLevelId] = useState('');
@@ -1003,6 +1004,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         setSendWelcomeEmail(false);
         setSelectedConstituency('');
         setSelectedCounty('');
+        setDestinyInstitutionId(currentInstitution?.id || '');
     };
 
     const toggleRole = (r: Role) => {
@@ -1171,7 +1173,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             }
         }
 
-        let finalInstitutionId = currentInstitution?.id || currentUser?.institutionId || '';
+        let finalInstitutionId = isSuperAdmin ? (destinyInstitutionId || currentInstitution?.id || currentUser?.institutionId || '') : (currentInstitution?.id || currentUser?.institutionId || '');
         let finalCountyId = undefined;
 
         if (isSuperAdmin && activeTab === 'staff') {
@@ -1300,8 +1302,13 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     const institutionMap = useMemo(() => new Map((institutions || []).filter(i => i && i.id).map(i => [i.id, i.name])), [institutions]);
 
+    const destinyInstitution = useMemo(() => {
+        if (!destinyInstitutionId) return currentInstitution;
+        return (institutions || []).find(i => i.id === destinyInstitutionId) || currentInstitution;
+    }, [institutions, destinyInstitutionId, currentInstitution]);
+
     const selectableRoles = useMemo(() => {
-        const list = getRolesForInstitution(currentInstitution).filter(r => !['customer', 'lead'].includes(r));
+        const list = getRolesForInstitution(destinyInstitution).filter(r => !['customer', 'lead'].includes(r));
         if (isSuperAdmin) {
             const extras: Role[] = ['super_admin', 'reseller', 'county_admin', 'county_staff', 'constituency_admin', 'constituency_staff'];
             extras.forEach(r => {
@@ -1309,7 +1316,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             });
         }
         return list;
-    }, [currentInstitution, isSuperAdmin]);
+    }, [destinyInstitution, isSuperAdmin]);
 
     return (
         <div className="space-y-6">
@@ -1414,6 +1421,25 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                     <option value="Other">Other</option>
                                 </select>
                             </div>
+                            {isSuperAdmin && (
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 text-indigo-600 dark:text-indigo-400 font-bold">Destiny Institution</label>
+                                    <select
+                                        value={destinyInstitutionId}
+                                        onChange={e => {
+                                            setDestinyInstitutionId(e.target.value);
+                                            setRoles([]);
+                                        }}
+                                        className="form-select w-full border-indigo-350 dark:border-indigo-800 font-bold"
+                                        required
+                                    >
+                                        <option value="">-- Select Destiny Institution --</option>
+                                        {(institutions || []).map(i => (
+                                            <option key={i.id} value={i.id}>{i.name} ({i.institutionType || 'Other'})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             {(activeTab === 'staff' || activeTab === 'customer') ? (
                                 <>
                                     <div className="md:col-span-2 lg:col-span-3">
@@ -1826,7 +1852,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     departments={departments}
                     onClose={() => setEditingUser(null)}
                     onSave={async (id, data) => { if (onEditUser) { await onEditUser(id, data); } setEditingUser(null); }}
-                    currentInstitution={currentInstitution}
+                    currentInstitution={(institutions || []).find(i => i.id === editingUser.institutionId) || currentInstitution}
                     isCoop={isCoop}
                     fixedDepartmentId={currentUser?.role === 'hod' || currentUser?.role === 'tto' ? currentUser.departmentId : undefined}
                     isSuperAdmin={isSuperAdmin}
