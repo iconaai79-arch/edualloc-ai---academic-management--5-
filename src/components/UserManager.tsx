@@ -206,7 +206,9 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
 
     const isPm = useMemo(() => {
         if (typeof isPmProp === 'boolean') return isPmProp;
-        return currentInstitution?.institutionType === 'Property Management';
+        const type = currentInstitution?.institutionType;
+        const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
+        return type === 'Property Management' || subType.includes('property management');
     }, [currentInstitution, isPmProp]);
 
     const availableRolesForImport = useMemo(() => {
