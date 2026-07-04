@@ -12,6 +12,7 @@ import type {
     DSSettings, DSFeeStructure, KcbConfig, CoopB2bConfig
 } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
+import { generateBCFeeStructure } from '../utils/bcReportGenerator';
 import { AcademicYearManager } from './AcademicYearManager';
 import { LocationSettings } from './LocationSettings';
 import { BrandedPaper } from './BrandedPaper';
@@ -223,7 +224,60 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         return type.includes('driving school') || category.includes('driving school');
     }, [props.currentInstitution, props.isDS]);
 
-    const [activeTab, setActiveTab] = useState<SettingsTab | 'driving_school'>((isSuperAdmin && !isCoop) ? 'global_config' : isDS ? 'driving_school' : 'general');
+    const isBC = useMemo(() => {
+        const type = props.currentInstitution?.institutionType?.toLowerCase() || '';
+        const category = props.currentInstitution?.category?.toLowerCase() || '';
+        return type.includes('beauty college') || category.includes('beauty college');
+    }, [props.currentInstitution]);
+
+    const [activeTab, setActiveTab] = useState<SettingsTab | 'driving_school' | 'beauty_college'>((isSuperAdmin && !isCoop) ? 'global_config' : isDS ? 'driving_school' : isBC ? 'beauty_college' : 'general');
+    
+    // Beauty College config states
+    const [bcCourses, setBcCourses] = useState<any[]>([]);
+    const [selectedBcCourseId, setSelectedBcCourseId] = useState<string>('');
+    const [bcInstallments, setBcInstallments] = useState<{ label: string; amount: number }[]>([
+        { label: 'Deposit (On Registration)', amount: 15000 },
+        { label: 'Second Installment (Month 2)', amount: 10000 },
+        { label: 'Final Balance (Month 3)', amount: 5000 }
+    ]);
+    const [loadingBcCourses, setLoadingBcCourses] = useState(false);
+    const [isGeneratingBcFee, setIsGeneratingBcFee] = useState(false);
+
+    const handleAddBcInstallment = () => {
+        setBcInstallments(prev => [...prev, { label: `Installment ${prev.length + 1}`, amount: 5000 }]);
+    };
+
+    const handleRemoveBcInstallment = (index: number) => {
+        setBcInstallments(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleBcInstallmentChange = (index: number, field: 'label' | 'amount', value: any) => {
+        setBcInstallments(prev => prev.map((item, i) => {
+            if (i === index) {
+                return { ...item, [field]: field === 'amount' ? (parseFloat(value) || 0) : value };
+            }
+            return item;
+        }));
+    };
+
+    const handleDownloadBcFeeStructure = async () => {
+        const course = bcCourses.find(c => c.id === selectedBcCourseId);
+        if (!course) {
+            alert('Please select a course first.');
+            return;
+        }
+        setIsGeneratingBcFee(true);
+        try {
+            const doc = await generateBCFeeStructure(course, bcInstallments, props.currentInstitution);
+            doc.save(`${course.name.replace(/\s+/g, '_')}_Fee_Structure.pdf`);
+        } catch (err) {
+            console.error('Failed to generate fee structure PDF:', err);
+            alert('Failed to generate PDF.');
+        } finally {
+            setIsGeneratingBcFee(false);
+        }
+    };
+
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive'>('profile');
@@ -253,6 +307,26 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             setFacilitiesSubTab('buildings');
         }
     }, [isDS, facilitiesSubTab]);
+
+    useEffect(() => {
+        if (!isBC) return;
+        const loadBcCourses = async () => {
+            setLoadingBcCourses(true);
+            try {
+                const instId = props.currentInstitution?.id || 'GLOBAL';
+                const list = await apiService.fetchModuleRecords('bc_courses', instId).catch(() => []);
+                setBcCourses(list || []);
+                if (list && list.length > 0) {
+                    setSelectedBcCourseId(list[0].id);
+                }
+            } catch (err) {
+                console.error('[SettingsManager] Failed to load BC courses:', err);
+            } finally {
+                setLoadingBcCourses(false);
+            }
+        };
+        loadBcCourses();
+    }, [isBC, props.currentInstitution]);
 
     // --- Timetable Rules State ---
     const [selectedProfileId, setSelectedProfileId] = useState<string>('default');
@@ -877,6 +951,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const mainTabs = useMemo(() => {
         const tabs = [];
+
+        if (isBC) {
+            tabs.push({ id: 'beauty_college', label: 'Beauty College', icon: <SparklesIcon className="w-5 h-5 mr-2" /> });
+            tabs.push({ id: 'general', label: 'General Settings', icon: <InformationCircleIcon className="w-5 h-5 mr-2" /> });
+            tabs.push({ id: 'staff', label: 'Staff & Roles', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
+            return tabs;
+        }
 
         if (isDS) {
             tabs.push({ id: 'driving_school', label: 'Driving School', icon: <TruckIcon className="w-5 h-5 mr-2" /> });
@@ -2299,6 +2380,149 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+
+            {activeTab === 'beauty_college' && (
+                <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in space-y-10">
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Beauty College <span className="text-indigo-600">Configuration</span></h2>
+                        <p className="text-slate-500 font-medium uppercase text-[10px] tracking-widest">Manage classes, tuition, and generate custom fee structures</p>
+                    </div>
+
+                    <div className="bg-slate-50/50 dark:bg-slate-950/20 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
+                        <div>
+                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Structure Generator</h3>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Select a course to view cost breakdown and generate installment schedule PDFs</p>
+                        </div>
+
+                        {loadingBcCourses ? (
+                            <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                                <span className="w-8 h-8 border-4 border-slate-200 border-t-indigo-650 rounded-full animate-spin mb-3" />
+                                <p className="text-[10px] font-black uppercase tracking-widest">Loading courses...</p>
+                            </div>
+                        ) : bcCourses.length === 0 ? (
+                            <div className="p-8 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-slate-400 text-xs font-black uppercase tracking-widest">
+                                ⚠️ No courses registered. Add courses in the Beauty College dashboard first.
+                            </div>
+                        ) : (() => {
+                            const course = bcCourses.find(c => c.id === selectedBcCourseId) || bcCourses[0];
+                            const baseFee = parseFloat(course?.baseFee) || 0;
+                            const kitFee = parseFloat(course?.kitFee) || 0;
+                            const examFee = parseFloat(course?.examFee) || 0;
+                            const totalCourseCost = baseFee + kitFee + examFee;
+                            const installmentSum = bcInstallments.reduce((sum, item) => sum + item.amount, 0);
+                            const sumMismatch = installmentSum !== totalCourseCost;
+
+                            return (
+                                <div className="space-y-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Target Course</label>
+                                            <select
+                                                value={selectedBcCourseId}
+                                                onChange={e => setSelectedBcCourseId(e.target.value)}
+                                                className="w-full px-5 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs text-slate-900 dark:text-slate-100"
+                                            >
+                                                {bcCourses.map(c => (
+                                                    <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="p-6 bg-slate-50 dark:bg-slate-950 rounded-2.5xl border border-slate-150 dark:border-slate-800 space-y-2">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Course Fee Highlights</span>
+                                            <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-350">
+                                                <span>Tuition:</span>
+                                                <span>KES {baseFee.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-350">
+                                                <span>Starter Kit:</span>
+                                                <span>KES {kitFee.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-350">
+                                                <span>Cert & Exams:</span>
+                                                <span>KES {examFee.toLocaleString()}</span>
+                                            </div>
+                                            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                <span>Total Cost:</span>
+                                                <span>KES {totalCourseCost.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Installments Table */}
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest ml-1">Installment Schedule Milestones</label>
+                                            <button
+                                                type="button"
+                                                onClick={handleAddBcInstallment}
+                                                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-650 dark:bg-indigo-950/40 dark:text-indigo-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                            >
+                                                + Add Milestone
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            {bcInstallments.map((inst, index) => (
+                                                <div key={index} className="flex gap-4 items-center">
+                                                    <input
+                                                        type="text"
+                                                        value={inst.label}
+                                                        onChange={e => handleBcInstallmentChange(index, 'label', e.target.value)}
+                                                        placeholder="e.g. Deposit"
+                                                        className="flex-1 px-5 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        value={inst.amount || ''}
+                                                        onChange={e => handleBcInstallmentChange(index, 'amount', e.target.value)}
+                                                        placeholder="KES Amount"
+                                                        className="w-40 px-5 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-right"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveBcInstallment(index)}
+                                                        className="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl flex justify-between items-center text-xs">
+                                            <span className="font-bold text-slate-500 uppercase tracking-widest text-[9px]">Sum of Milestones:</span>
+                                            <div className="flex items-center gap-3">
+                                                <span className={`font-black text-sm ${sumMismatch ? 'text-rose-550' : 'text-emerald-500'}`}>
+                                                    KES {installmentSum.toLocaleString()}
+                                                </span>
+                                                {sumMismatch && (
+                                                    <span className="bg-rose-50 text-rose-600 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                                                        ⚠️ Sum must equal Total Cost (KES {totalCourseCost.toLocaleString()})
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action button */}
+                                    <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                                        <button
+                                            type="button"
+                                            disabled={isGeneratingBcFee || sumMismatch}
+                                            onClick={handleDownloadBcFeeStructure}
+                                            className="px-8 py-4 bg-slate-900 dark:bg-slate-800 hover:scale-[1.02] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        >
+                                            💾 {isGeneratingBcFee ? 'Generating...' : 'Download Official Fee Structure PDF'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

@@ -193,3 +193,95 @@ export const generatePracticalHoursLog = async (
 
     return doc;
 };
+
+export const generateBCFeeStructure = async (
+    course: any,
+    installments: { label: string; amount: number }[],
+    institution: any
+) => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    let currentY = await renderHeader(doc, institution, 'OFFICIAL COURSE FEE STRUCTURE');
+
+    // Course Info
+    doc.setFontSize(14);
+    doc.setTextColor(79, 70, 229); // indigo
+    doc.text(String(course.name || 'N/A').toUpperCase(), margin, currentY);
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.text(`Course Code: ${String(course.code || 'N/A')}`, margin, currentY + 6);
+    doc.text(`Required Practical Training: ${course.practicalHoursRequired || 0} hrs`, margin, currentY + 11);
+    
+    currentY += 20;
+
+    // Itemized Fees Table
+    const baseFee = parseFloat(course.baseFee) || 0;
+    const kitFee = parseFloat(course.kitFee) || 0;
+    const examFee = parseFloat(course.examFee) || 0;
+    const totalFee = baseFee + kitFee + examFee;
+
+    const feeBreakdown = [
+        ['Tuition & Practical Instruction Fee', baseFee.toLocaleString()],
+        ['Student Starter Kit & Tools Pack', kitFee.toLocaleString()],
+        ['Examination & Certification Licensing Fee', examFee.toLocaleString()],
+        ['TOTAL ESTIMATED INVESTMENT', totalFee.toLocaleString()]
+    ];
+
+    autoTable(doc, {
+        startY: currentY,
+        head: [['Fee Item / Description', 'Amount (KES)']],
+        body: feeBreakdown,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: 255 },
+        columnStyles: {
+            1: { halign: 'right', fontStyle: 'bold' }
+        },
+        didParseCell: (data) => {
+            if (data.row.index === 3) {
+                data.cell.styles.fillColor = [243, 244, 246]; // gray background for total
+                data.cell.styles.fontStyle = 'bold';
+            }
+        }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 15;
+
+    // Installment Plan
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text('RECOMMENDED PAYMENT SCHEDULE PLAN', margin, currentY);
+    currentY += 8;
+
+    const installmentData = installments.map(inst => [
+        inst.label,
+        inst.amount.toLocaleString()
+    ]);
+
+    autoTable(doc, {
+        startY: currentY,
+        head: [['Milestone / Installment Period', 'Amount Payable (KES)']],
+        body: installmentData,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+        columnStyles: {
+            1: { halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 15;
+
+    // Important Notice Rules
+    doc.setFillColor(254, 243, 199); // amber-100
+    doc.roundedRect(margin, currentY, pageWidth - (margin * 2), 25, 3, 3, 'F');
+    doc.setTextColor(180, 83, 9); // amber-800
+    doc.setFontSize(9);
+    doc.text('IMPORTANT POLICIES & GUIDELINES:', margin + 5, currentY + 6);
+    doc.setFontSize(8);
+    doc.text('1. All fees must be paid in accordance with the schedule specified above to ensure student status remains active.', margin + 5, currentY + 12);
+    doc.text('2. Starter Kits are issued only upon clearing the full kit fee amount.', margin + 5, currentY + 18);
+
+    return doc;
+};
+
