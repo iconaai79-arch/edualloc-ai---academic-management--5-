@@ -3255,6 +3255,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
         const [rawData, setRawData] = useState<any[]>([]);
 
+        // ── Bulk Undo State ──────────────────────────────────────────────────
+        type ImportLog = { module: string; ids: string[] }[];
+        const [lastImportLog, setLastImportLog] = useState<ImportLog | null>(null);
+        const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+        const [isUndoing, setIsUndoing] = useState(false);
+        const [undoProgress, setUndoProgress] = useState({ done: 0, total: 0 });
+        // ─────────────────────────────────────────────────────────────────────
+
         const [mappings, setMappings] = useState<Record<string, string>>({
             tenantName: '',
             phone: '',
@@ -3546,6 +3554,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 await saveBatch('pm_invoices', invoicePayloads);
                 await saveBatch('pm_payments', paymentPayloads);
 
+                // ── Record import log for bulk undo ──────────────────────────
+                const importLog: { module: string; ids: string[] }[] = [];
+                if (paymentPayloads.length > 0)  importLog.push({ module: 'pm_payments',   ids: paymentPayloads.map((p: any) => p.id) });
+                if (invoicePayloads.length > 0)   importLog.push({ module: 'pm_invoices',   ids: invoicePayloads.map((i: any) => i.id) });
+                if (leasePayloads.length > 0)     importLog.push({ module: 'pm_leases',     ids: leasePayloads.map((l: any) => l.id) });
+                if (userPayloads.length > 0)      importLog.push({ module: 'users',          ids: userPayloads.map((u: any) => u.id) });
+                if (tenantPayloads.length > 0)    importLog.push({ module: 'pm_tenants',    ids: tenantPayloads.map((t: any) => t.id) });
+                if (unitPayloads.length > 0)      importLog.push({ module: 'pm_units',      ids: unitPayloads.map((u: any) => u.id) });
+                if (propertyPayloads.length > 0)  importLog.push({ module: 'pm_properties', ids: propertyPayloads.map((p: any) => p.id) });
+                setLastImportLog(importLog);
+                // ─────────────────────────────────────────────────────────────
+
                 alert(`Import completed successfully! Registered: ${tenantPayloads.length} tenants, ${propertyPayloads.length} properties, ${unitPayloads.length} units, and ${leasePayloads.length} leases.`);
                 await loadData();
                 setShowTenantImportModal(false);
@@ -3556,6 +3576,42 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 setIsProcessing(false);
             }
         };
+
+        // ── Bulk Undo Handler ────────────────────────────────────────────────
+        const handleBulkUndo = async () => {
+            if (!lastImportLog || lastImportLog.length === 0) return;
+            setIsUndoing(true);
+            setShowUndoConfirm(false);
+            const totalIds = lastImportLog.reduce((sum, entry) => sum + entry.ids.length, 0);
+            setUndoProgress({ done: 0, total: totalIds });
+            let done = 0;
+            try {
+                for (const entry of lastImportLog) {
+                    if (entry.ids.length === 0) continue;
+                    // Delete in batches of 50 to avoid URI-too-long issues
+                    const BATCH = 50;
+                    for (let i = 0; i < entry.ids.length; i += BATCH) {
+                        const chunk = entry.ids.slice(i, i + BATCH);
+                        await apiService.deleteModuleRecord(entry.module, chunk.join(','));
+                        done += chunk.length;
+                        setUndoProgress({ done, total: totalIds });
+                    }
+                }
+                alert('Bulk undo completed. All imported records have been removed.');
+                setLastImportLog(null);
+                await loadData();
+                setShowTenantImportModal(false);
+            } catch (err: any) {
+                alert('Bulk undo failed: ' + err.message);
+                console.error(err);
+            } finally {
+                setIsUndoing(false);
+            }
+        };
+        // ────────────────────────────────────────────────────────────────────
+
+        // Total count of records that can be undone
+        const undoableCount = lastImportLog ? lastImportLog.reduce((s, e) => s + e.ids.length, 0) : 0;
 
         return (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -3571,10 +3627,68 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">Onboard properties, units, tenants, and opening balances in one click</p>
                             </div>
                         </div>
-                        <button onClick={() => setShowTenantImportModal(false)} disabled={isProcessing} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-full transition-colors text-slate-400">
-                            <XIcon className="w-6 h-6" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {/* Undo Last Import Button – visible only when a log exists */}
+                            {lastImportLog && lastImportLog.length > 0 && !isUndoing && (
+                                <button
+                                    onClick={() => setShowUndoConfirm(true)}
+                                    title={`Undo last import (${undoableCount} records)`}
+                                    className="flex items-center gap-2 px-4 py-2 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-100 dark:hover:bg-rose-800/30 transition-all"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 7v6h6"/><path d="M3 13C5.33 7.44 11.19 4 18 4a15 15 0 0 1 3 .3"/></svg>
+                                    Undo Import
+                                </button>
+                            )}
+                            <button onClick={() => setShowTenantImportModal(false)} disabled={isProcessing || isUndoing} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-full transition-colors text-slate-400">
+                                <XIcon className="w-6 h-6" />
+                            </button>
+                        </div>
                     </div>
+
+                    {/* ── Undo Confirm Banner ── */}
+                    {showUndoConfirm && (
+                        <div className="mx-8 mt-6 p-5 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-700 rounded-3xl flex flex-col md:flex-row items-start md:items-center gap-4">
+                            <div className="flex-1">
+                                <p className="text-sm font-black text-rose-700 dark:text-rose-300 uppercase tracking-tight">⚠ Confirm Bulk Undo</p>
+                                <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
+                                    This will permanently delete <strong>{undoableCount}</strong> records created in the last import:
+                                </p>
+                                <ul className="mt-2 flex flex-wrap gap-2">
+                                    {lastImportLog!.map(entry => (
+                                        <li key={entry.module} className="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-rose-100 dark:bg-rose-800/30 text-rose-700 dark:text-rose-300 rounded-full">
+                                            {entry.ids.length} × {entry.module.replace('pm_', '').replace('_', ' ')}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <button
+                                    onClick={() => setShowUndoConfirm(false)}
+                                    className="px-4 py-2 rounded-xl text-xs font-black uppercase text-slate-500 hover:bg-white dark:hover:bg-slate-700 transition-all"
+                                >Cancel</button>
+                                <button
+                                    onClick={handleBulkUndo}
+                                    className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 active:scale-95"
+                                >Yes, Undo All</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Undo Progress ── */}
+                    {isUndoing && (
+                        <div className="mx-8 mt-6 p-5 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-700 rounded-3xl space-y-3">
+                            <div className="flex justify-between text-xs font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">
+                                <span>Reversing Import…</span>
+                                <span>{undoProgress.done} / {undoProgress.total} deleted</span>
+                            </div>
+                            <div className="w-full bg-rose-200 dark:bg-rose-800/30 h-3 rounded-full overflow-hidden">
+                                <div
+                                    className="bg-rose-600 h-full rounded-full transition-all duration-300"
+                                    style={{ width: `${undoProgress.total > 0 ? (undoProgress.done / undoProgress.total) * 100 : 0}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Content */}
                     <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
