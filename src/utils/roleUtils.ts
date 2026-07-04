@@ -109,44 +109,44 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 /**
  * Centralized logic to determine if an institution is a K-12 school.
  */
-export const isSchoolInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
+export function isSchoolInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
     const schoolCats = ['primary', 'secondary', 'kindergarten', 'ecd', 'international', 'pre-primary', 'junior secondary'];
     return (type === 'education' && schoolCats.includes(category)) || schoolCats.includes(type);
-};
+}
 
 /**
  * Centralized logic to determine if an institution is a primary school.
  */
-export const isPrimaryInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
+export function isPrimaryInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
     return (type === 'education' && ['primary', 'kindergarten', 'ecd', 'pre-primary'].includes(category)) || type === 'primary' || type === 'kindergarten';
-};
+}
 
 /**
  * Centralized logic to determine if an institution is a secondary school.
  */
-export const isSecondaryInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
+export function isSecondaryInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
     return (type === 'education' && (category === 'secondary' || category === 'junior secondary')) || type === 'secondary';
-};
+}
 
 /**
  * Centralized logic to determine if an institution is a higher education entity.
  */
-export const isHigherEdInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
+export function isHigherEdInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
     const higherEdCats = ['university', 'college', 'tvet', 'polytechnic', 'institute'];
     return (type === 'education' && higherEdCats.includes(category)) || higherEdCats.includes(type);
-};
+}
 
 /**
  * Centralized logic to determine if an institution is an educational entity.
@@ -165,14 +165,14 @@ export function isEduInstitution(institution: Partial<Institution> | null | unde
 /**
  * Centralized logic to determine if an institution is a Driving School.
  */
-export const isDSInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
+export function isDSInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
     const subType = institution.businessSubType?.toLowerCase() || '';
     const hasModule = institution.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
     return type === 'driving school' || subType.includes('driving school') || category === 'driving school' || !!hasModule;
-};
+}
 
 /**
  * Logic to properly display role names to the user.

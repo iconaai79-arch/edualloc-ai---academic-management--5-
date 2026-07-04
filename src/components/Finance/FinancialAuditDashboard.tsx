@@ -3,7 +3,7 @@
  * Full automated financial auditor dashboard for EduAI.
  * Plugs into the "Fiscal Audit" tab of FinanceManager.tsx.
  */
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Invoice, Receipt, Expense } from '../../types';
 import {
     runFullAudit,
@@ -16,6 +16,7 @@ import {
     type BudgetLine,
     DEFAULT_POLICY,
 } from '../../services/auditEngine';
+import { apiService } from '../../services/apiService';
 
 // ─── Icon helpers (inline SVG to avoid import churn) ─────────────────────────
 const Icon = ({ d, className = 'w-5 h-5' }: { d: string; className?: string }) => (
@@ -32,6 +33,8 @@ const IcoCheck   = () => <Icon d="M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14
 const IcoBalance = () => <Icon d="M12 3v18 M3 6h18 M3 18h18 M6 10h3 M15 10h3 M6 14h3 M15 14h3" />;
 const IcoRefresh = () => <Icon d="M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />;
 const IcoDownload = () => <Icon d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" />;
+const IcoHistory  = () => <Icon d="M12 8v4l3 3 M3.05 11a9 9 0 1 0 .5-3" />;
+const IcoResolve  = () => <Icon d="M9 12l2 2 4-4 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />;
 
 // ─── Severity config ──────────────────────────────────────────────────────────
 const SEV: Record<AuditSeverity, { bg: string; text: string; border: string; dot: string; label: string }> = {
@@ -60,8 +63,33 @@ const StatCard = ({ label, value, sub, color = 'slate' }: { label: string; value
     </div>
 );
 
-// ─── Issue row ────────────────────────────────────────────────────────────────
-const IssueRow = ({ issue }: { issue: AuditIssue }) => {
+// ─── Past report row ─────────────────────────────────────────────────────────
+const PastReportRow = ({ r, onSelect }: { r: any; onSelect: (r: any) => void }) => {
+    const risk = r.overall_risk as AuditSeverity;
+    const s = SEV[risk] ?? SEV.INFO;
+    return (
+        <button
+            onClick={() => onSelect(r)}
+            className={`w-full text-left p-4 rounded-2xl border flex items-center gap-4 transition-all hover:scale-[1.01] ${s.bg} ${s.border}`}
+        >
+            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${s.dot}`} />
+            <div className="flex-1 min-w-0">
+                <p className={`text-xs font-black uppercase tracking-widest ${s.text}`}>{r.period} — {risk}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                    {r.total_issues} issues · {r.critical_count} critical · {r.high_count} high
+                    · Collection {r.collection_rate}%
+                </p>
+            </div>
+            <div className="text-right flex-shrink-0">
+                <p className="text-[10px] text-slate-400">{new Date(r.run_at).toLocaleDateString()}</p>
+                <p className="text-[9px] text-slate-300">{r.triggered_by}</p>
+            </div>
+        </button>
+    );
+};
+
+// ─── Issue row with resolve button ───────────────────────────────────────────
+const IssueRow = ({ issue, onResolve }: { issue: AuditIssue; onResolve?: (id: string) => void }) => {
     const s = SEV[issue.severity];
     return (
         <div className={`p-4 rounded-2xl border ${s.bg} ${s.border} flex items-start gap-3`}>
@@ -80,6 +108,15 @@ const IssueRow = ({ issue }: { issue: AuditIssue }) => {
                 </div>
                 <p className={`text-xs mt-1 font-medium ${s.text}`}>{issue.message}</p>
             </div>
+            {onResolve && (
+                <button
+                    onClick={() => onResolve(issue.id)}
+                    title="Mark as resolved"
+                    className="flex-shrink-0 p-1.5 rounded-xl bg-white/60 dark:bg-slate-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-slate-400 hover:text-emerald-600 transition-all"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M9 12l2 2 4-4 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+                </button>
+            )}
         </div>
     );
 };
@@ -88,11 +125,15 @@ const IssueRow = ({ issue }: { issue: AuditIssue }) => {
 export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = ({
     invoices, receipts, expenses, institutionId, currencySymbol = 'KES',
 }) => {
-    const [activeView, setActiveView] = useState<'overview' | 'issues' | 'trial' | 'anomalies' | 'variance'>('overview');
+    const [activeView, setActiveView] = useState<'overview' | 'issues' | 'trial' | 'anomalies' | 'variance' | 'history'>('overview');
     const [filterSeverity, setFilterSeverity] = useState<AuditSeverity | 'ALL'>('ALL');
     const [isRunning, setIsRunning] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [report, setReport] = useState<AuditReport | null>(null);
     const [hasRun, setHasRun] = useState(false);
+    const [pastReports, setPastReports] = useState<any[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
 
     // Simple default budget for variance view (editable)
     const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([
@@ -106,16 +147,97 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
 
     const runAudit = useCallback(async () => {
         setIsRunning(true);
-        // Small async pause so the UI renders the spinner before heavy computation
         await new Promise(r => setTimeout(r, 120));
         try {
             const result = runFullAudit({ invoices, receipts, expenses, institutionId });
             setReport(result);
             setHasRun(true);
+
+            // ── Persist to DB via save_audit_run RPC ──────────────────────
+            setIsSaving(true);
+            try {
+                if (apiService.isConfigured()) {
+                    await apiService.invokeRpc('save_audit_run', {
+                        p_institution_id: institutionId,
+                        p_period:          result.period,
+                        p_triggered_by:    'manual',
+                        p_summary:         result.summary,
+                        p_issues:          result.issues,
+                    });
+                } else {
+                    await apiService.saveModuleRecords('audit_reports', [{
+                        institution_id:  institutionId,
+                        period:          result.period,
+                        triggered_by:    'manual',
+                        overall_risk:    result.summary.overallRisk,
+                        total_issues:    result.summary.totalIssues,
+                        critical_count:  result.summary.critical,
+                        high_count:      result.summary.high,
+                        medium_count:    result.summary.medium,
+                        low_count:       result.summary.low,
+                        info_count:      result.summary.info,
+                        total_billed:    result.summary.totalBilled,
+                        total_collected: result.summary.totalCollected,
+                        collection_rate: result.summary.collectionRate,
+                        outstanding:     result.summary.outstandingDebt,
+                        issues_json:     result.issues,
+                        summary_json:    result.summary,
+                    }]);
+                }
+                // Push in-app notification for CRITICAL issues
+                const criticals = result.issues.filter(i => i.severity === 'CRITICAL');
+                if (criticals.length > 0) {
+                    await apiService.saveModuleRecords('app_notifications', criticals.slice(0, 3).map(iss => ({
+                        id: `audit-${iss.id}`,
+                        institution_id: institutionId,
+                        message: `🔴 AUDIT: ${iss.message}`,
+                        type: 'audit_alert',
+                        is_read: false,
+                        timestamp: new Date().toISOString(),
+                    })));
+                }
+            } catch (saveErr) {
+                console.warn('[AuditDashboard] Could not persist report:', saveErr);
+            } finally {
+                setIsSaving(false);
+            }
+            // ─────────────────────────────────────────────────────────────
         } finally {
             setIsRunning(false);
         }
     }, [invoices, receipts, expenses, institutionId]);
+
+    // ── Load history from DB ──────────────────────────────────────────────────
+    const loadHistory = useCallback(async () => {
+        setLoadingHistory(true);
+        try {
+            const rows = await apiService.fetchModuleRecords<any>('audit_reports', institutionId, undefined, {
+                limit: 20,
+                order: 'run_at.desc',
+            });
+            setPastReports(rows ?? []);
+        } catch (e) {
+            console.warn('[AuditDashboard] Could not load history:', e);
+        } finally {
+            setLoadingHistory(false);
+        }
+    }, [institutionId]);
+
+    useEffect(() => { loadHistory(); }, [loadHistory]);
+
+    // ── Resolve an issue (mark in DB + local) ─────────────────────────────────
+    const handleResolve = useCallback(async (issueId: string) => {
+        setResolvedIds(prev => new Set([...prev, issueId]));
+        try {
+            await apiService.saveModuleRecords('audit_issues', [{
+                id: issueId,
+                is_resolved: true,
+                resolved_at: new Date().toISOString(),
+            }]);
+        } catch (e) {
+            console.warn('[AuditDashboard] Could not mark issue resolved:', e);
+        }
+    }, []);
 
     // Trial balance — computed directly, no need to run audit first
     const trialBalance = useMemo(() => computeTrialBalance(invoices, receipts, expenses), [invoices, receipts, expenses]);
@@ -130,10 +252,11 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
     // Filtered issues
     const filteredIssues = useMemo(() => {
         if (!report) return [];
+        const activeIssues = report.issues.filter(i => !resolvedIds.has(i.id));
         return filterSeverity === 'ALL'
-            ? report.issues
-            : report.issues.filter(i => i.severity === filterSeverity);
-    }, [report, filterSeverity]);
+            ? activeIssues
+            : activeIssues.filter(i => i.severity === filterSeverity);
+    }, [report, filterSeverity, resolvedIds]);
 
     const fmt = (n: number) => `${currencySymbol} ${n.toLocaleString()}`;
 
@@ -144,6 +267,7 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
         { id: 'trial',      label: 'Trial Balance' },
         { id: 'anomalies',  label: 'Anomalies'     },
         { id: 'variance',   label: 'Variance'      },
+        { id: 'history',    label: 'History'       },
     ] as const;
 
     const riskColor = report
@@ -184,7 +308,14 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {report && (
+                    {/* Undo Last Import Button – visible only when a log exists */}
+                            {isSaving && (
+                                <span className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                    <span className="w-3 h-3 border-2 border-slate-300 border-t-indigo-600 rounded-full animate-spin" />
+                                    Saving…
+                                </span>
+                            )}
+                            {report && (
                         <button
                             onClick={exportCSV}
                             className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"
@@ -334,7 +465,9 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
                     )}
 
                     <div className="space-y-2">
-                        {filteredIssues.map(issue => <IssueRow key={issue.id} issue={issue} />)}
+                        {filteredIssues.map(issue => (
+                            <IssueRow key={issue.id} issue={issue} onResolve={handleResolve} />
+                        ))}
                     </div>
                 </div>
             )}
@@ -493,6 +626,69 @@ export const FinancialAuditDashboard: React.FC<FinancialAuditDashboardProps> = (
                             </tbody>
                         </table>
                     </div>
+                </div>
+            )}
+
+            {/* ════════════════════════════════════════════════════════════════
+                HISTORY
+            ════════════════════════════════════════════════════════════════ */}
+            {activeView === 'history' && (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <p className="text-xs text-slate-400 font-medium">
+                            Historical audit reports generated manually or scheduled.
+                        </p>
+                        <button
+                            onClick={loadHistory}
+                            disabled={loadingHistory}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"
+                        >
+                            <IcoRefresh /> Refresh
+                        </button>
+                    </div>
+
+                    {loadingHistory ? (
+                        <div className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+                            <span className="w-4 h-4 border-2 border-slate-300 border-t-indigo-600 rounded-full animate-spin" />
+                            Loading audit history...
+                        </div>
+                    ) : pastReports.length === 0 ? (
+                        <div className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700">
+                            No past audit reports found.
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {pastReports.map(r => (
+                                <PastReportRow
+                                    key={r.id}
+                                    r={r}
+                                    onSelect={(selectedReport) => {
+                                        setReport({
+                                            period: selectedReport.period,
+                                            runAt: selectedReport.run_at,
+                                            institutionId: selectedReport.institution_id,
+                                            issues: selectedReport.issues_json || [],
+                                            summary: selectedReport.summary_json || {
+                                                totalIssues: selectedReport.total_issues,
+                                                critical: selectedReport.critical_count,
+                                                high: selectedReport.high_count,
+                                                medium: selectedReport.medium_count,
+                                                low: selectedReport.low_count,
+                                                info: selectedReport.info_count,
+                                                overallRisk: selectedReport.overall_risk,
+                                                totalBilled: selectedReport.total_billed,
+                                                totalCollected: selectedReport.total_collected,
+                                                collectionRate: selectedReport.collection_rate,
+                                                outstandingDebt: selectedReport.outstanding,
+                                            }
+                                        });
+                                        setHasRun(true);
+                                        setActiveView('overview');
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

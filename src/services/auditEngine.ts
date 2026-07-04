@@ -16,6 +16,22 @@
 
 import type { Invoice, Receipt, Expense } from '../types';
 
+export const stringToUUID = (str: string): string => {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    const hex = ((h1 >>> 0).toString(16).padStart(8, '0') + 
+                 (h2 >>> 0).toString(16).padStart(8, '0') + 
+                 ((h1 ^ h2) >>> 0).toString(16).padStart(8, '0') +
+                 ((h1 + h2) >>> 0).toString(16).padStart(8, '0')).slice(0, 32);
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+};
+
 // ─── Shared Types ─────────────────────────────────────────────────────────────
 
 export type AuditSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -432,7 +448,7 @@ export function runFullAudit(input: FullAuditInput): AuditReport {
         period,
         runAt: new Date().toISOString(),
         institutionId,
-        issues: unique.sort((a, b) => {
+        issues: unique.map(iss => ({ ...iss, id: stringToUUID(iss.id) })).sort((a, b) => {
             const order: Record<AuditSeverity, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
             return order[a.severity] - order[b.severity];
         }),

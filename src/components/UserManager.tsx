@@ -909,6 +909,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [pendingStudentSave, setPendingStudentSave] = useState<any | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const institutionMap = useMemo(() => new Map((institutions || []).filter(i => i && i.id).map(i => [i.id, i.name])), [institutions]);
+
     const [constituencies, setConstituencies] = useState<Constituency[]>([]);
     const [counties, setCounties] = useState<County[]>([]);
     const [selectedConstituency, setSelectedConstituency] = useState('');
@@ -1315,8 +1317,6 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         if (!courseId) return [];
         return (courses || []).find(c => c.id === courseId)?.levels || [];
     }, [courseId, courses]);
-
-    const institutionMap = useMemo(() => new Map((institutions || []).filter(i => i && i.id).map(i => [i.id, i.name])), [institutions]);
 
     const destinyInstitution = useMemo(() => {
         if (!destinyInstitutionId) return currentInstitution;
