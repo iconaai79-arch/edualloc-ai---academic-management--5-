@@ -17,6 +17,7 @@ import { Trash2Icon } from '../icons/Trash2Icon';
 import { ScaleIcon } from '../icons/ScaleIcon';
 import { RetailRequisitions } from '../retail/RetailRequisitions';
 import { apiService } from '../../services/apiService';
+import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { isEduInstitution } from '../../utils/roleUtils';
 
 interface FinanceManagerProps {
@@ -1613,24 +1614,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'audit' && (
-                    <div className="bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-sm text-center space-y-8">
-                        <div className="w-24 h-24 bg-slate-50 text-slate-300 rounded-[2rem] flex items-center justify-center mx-auto">
-                            <CheckBadgeIcon className="w-12 h-12" />
-                        </div>
-                        <div className="space-y-2">
-                            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Financial Audit Trail</h3>
-                            <p className="text-slate-400 font-medium max-w-md mx-auto">Comprehensive fiscal transparency system. All transactions, deletions, and adjustments are logged for institutional integrity.</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-                            <button className="p-8 bg-slate-50 rounded-3xl border border-slate-100 hover:border-indigo-600 transition-all group text-left">
-                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2">Reconciliation</p>
-                                <p className="text-sm font-black text-slate-900 group-hover:translate-x-2 transition-transform">Run Bank Statement Sync →</p>
-                            </button>
-                            <button className="p-8 bg-slate-50 rounded-3xl border border-slate-100 hover:border-indigo-600 transition-all group text-left">
-                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-2">Reports</p>
-                                <p className="text-sm font-black text-slate-900 group-hover:translate-x-2 transition-transform">Generate Tax Summary →</p>
-                            </button>
-                        </div>
+                    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <FinancialAuditDashboard
+                            invoices={props.invoices}
+                            receipts={props.receipts}
+                            expenses={props.expenses}
+                            institutionId={props.institution.id}
+                        />
                     </div>
                 )}
             </div>
