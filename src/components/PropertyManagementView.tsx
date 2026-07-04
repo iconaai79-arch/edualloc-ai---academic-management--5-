@@ -1869,9 +1869,55 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         const [search, setSearch] = useState('');
         const [statusFilter, setStatusFilter] = useState('all');
         const [propertyFilter, setPropertyFilter] = useState('all');
+        const [monthFilter, setMonthFilter] = useState('all');
         const [sendingBulk, setSendingBulk] = useState(false);
         const [page, setPage] = useState(1);
         const PAGE_SIZE = 15;
+
+        const getMonthName = (dateStr?: string) => {
+            if (!dateStr) return '—';
+            const parts = dateStr.split('-');
+            if (parts.length < 2) return '—';
+            const monthIndex = parseInt(parts[1], 10) - 1;
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[monthIndex] || ''} '${parts[0].slice(2)}`;
+        };
+
+        const formatDisplayDate = (dateStr?: string) => {
+            if (!dateStr) return '—';
+            const parts = dateStr.split('-');
+            if (parts.length < 3) return dateStr;
+            const [year, month, day] = parts;
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const monthIndex = parseInt(month, 10) - 1;
+            const monthName = months[monthIndex] || month;
+            return `${day} ${monthName} ${year.slice(2)}`;
+        };
+
+        // Parse unique months from invoice due dates (format: YYYY-MM)
+        const uniqueMonths = useMemo(() => {
+            const months = new Set<string>();
+            invoices.forEach(inv => {
+                if (inv.dueDate && typeof inv.dueDate === 'string') {
+                    const parts = inv.dueDate.split('-');
+                    if (parts.length >= 2) {
+                        const year = parts[0];
+                        const month = parts[1];
+                        if (year.length === 4 && month.length === 2) {
+                            months.add(`${year}-${month}`);
+                        }
+                    }
+                }
+            });
+            return Array.from(months).sort((a, b) => b.localeCompare(a));
+        }, [invoices]);
+
+        const formatMonthYear = (monthStr: string) => {
+            const [year, month] = monthStr.split('-');
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthIndex = parseInt(month, 10) - 1;
+            return `${months[monthIndex] || ''} ${year}`;
+        };
 
         const filteredInvoices = invoices.filter(inv => {
             const tenant = tenants.find(t => t.id === inv.tenantId);
@@ -1881,8 +1927,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                  tenant?.name.toLowerCase().includes(search.toLowerCase());
             const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
             const matchesProperty = propertyFilter === 'all' || unit?.propertyId === propertyFilter;
+            const matchesMonth = monthFilter === 'all' || (inv.dueDate && inv.dueDate.startsWith(monthFilter));
 
-            return matchesSearch && matchesStatus && matchesProperty;
+            return matchesSearch && matchesStatus && matchesProperty && matchesMonth;
         });
 
         const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / PAGE_SIZE));
@@ -1892,6 +1939,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         const handleSearchChange = (v: string) => { setSearch(v); setPage(1); };
         const handleStatusChange = (v: string) => { setStatusFilter(v); setPage(1); };
         const handlePropertyChange = (v: string) => { setPropertyFilter(v); setPage(1); };
+        const handleMonthChange = (v: string) => { setMonthFilter(v); setPage(1); };
 
 
         const handleDownload = async (inv: PMInvoice) => {
@@ -2036,6 +2084,21 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         </select>
                     </div>
 
+                    {/* Month Filter */}
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Month</label>
+                        <select 
+                            value={monthFilter} 
+                            onChange={(e) => handleMonthChange(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-650 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                        >
+                            <option value="all">All Months</option>
+                            {uniqueMonths.map(m => (
+                                <option key={m} value={m}>{formatMonthYear(m)}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     {/* Property Filter */}
                     <div className="flex items-center gap-2">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Property</label>
@@ -2109,9 +2172,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 const bf = inv.openingBalance || 0;
                                 const rent = inv.amount || 0;
                                 const totalDue = rent + bf;
-                                const monthName = inv.dueDate
-                                    ? new Date(inv.dueDate).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
-                                    : '—';
+                                const monthName = getMonthName(inv.dueDate);
                                 return (
                                     <div key={inv.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,2.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] gap-x-2 px-5 py-3.5 items-center hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors group">
                                         {/* Invoice # */}
@@ -2168,7 +2229,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                                         {/* Due Date */}
                                         <div className="text-center">
-                                            <p className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{new Date(inv.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                            <p className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{formatDisplayDate(inv.dueDate)}</p>
                                         </div>
 
                                         {/* Actions */}
