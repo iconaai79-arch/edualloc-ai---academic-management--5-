@@ -5744,49 +5744,345 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             {renderTabs()}
 
             {activeTab === 'dashboard' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 animate-in slide-in-from-bottom-4 duration-500 mt-4">
-                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 relative overflow-hidden group hover:-translate-y-2 transition-all duration-500">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
-                        <h4 className="text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-                            Total Collection
-                        </h4>
-                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {totalRentCollected?.toLocaleString()}</p>
-                        <div className="mt-4 flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-full">
-                                <TrendingUpIcon className="w-4 h-4" /> +12%
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[9px] font-black uppercase text-purple-600 tracking-wider mb-0.5">Admin Fee</p>
-                                <p className="text-xs font-black text-purple-600 italic">KES {totalCommissionEarned?.toLocaleString()}</p>
+                <div className="space-y-8 animate-in fade-in duration-500 mt-4">
+                    {/* Period selection bar */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider italic">Collection Analysis Dashboard</h3>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Real-time property collections and invoicing data</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Reporting Period:</span>
+                            <select
+                                value={selectedReportPeriod}
+                                onChange={(e) => {
+                                    setSelectedReportPeriod(e.target.value);
+                                    setSelectedPropertyForDrillDown(null); // Reset drill-down
+                                }}
+                                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                            >
+                                <option value="All">All Time</option>
+                                {availablePeriods.map(p => (
+                                    <option key={p.key} value={p.key}>{p.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Overall Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-md relative overflow-hidden group">
+                            <h5 className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+                                Total Invoiced
+                            </h5>
+                            <p className="text-2xl font-black text-slate-950 dark:text-white italic">KES {periodSummary.totalInvoiced.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-md relative overflow-hidden group">
+                            <h5 className="text-[9px] font-black uppercase text-emerald-600 tracking-widest mb-2 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full"></span>
+                                Total Collected
+                            </h5>
+                            <p className="text-2xl font-black text-slate-950 dark:text-white italic">KES {periodSummary.totalCollected.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-md relative overflow-hidden group">
+                            <h5 className="text-[9px] font-black uppercase text-rose-600 tracking-widest mb-2 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 bg-rose-600 rounded-full"></span>
+                                Outstanding Arrears
+                            </h5>
+                            <p className="text-2xl font-black text-slate-950 dark:text-white italic">KES {periodSummary.totalArrears.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-md relative overflow-hidden group">
+                            <h5 className="text-[9px] font-black uppercase text-indigo-600 tracking-widest mb-2 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
+                                Collection Rate
+                            </h5>
+                            <div className="flex items-center gap-3">
+                                <p className="text-2xl font-black text-slate-950 dark:text-white italic">{periodSummary.collectionRate}%</p>
+                                <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-705 rounded-full overflow-hidden">
+                                    <div 
+                                        className={`h-full rounded-full transition-all duration-500 ${
+                                            periodSummary.collectionRate >= 90 ? 'bg-emerald-500' :
+                                            periodSummary.collectionRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                                        }`}
+                                        style={{ width: `${Math.min(periodSummary.collectionRate, 100)}%` }}
+                                    ></div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 relative overflow-hidden group hover:-translate-y-2 transition-all duration-500">
-                        <h4 className="text-emerald-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                             <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full"></span>
-                             Active Leases
-                        </h4>
-                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">{activeLeases.length}</p>
-                        <div className="mt-4 flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
-                            Occupancy: <span className="text-slate-900 dark:text-white">{units.length > 0 ? ((activeLeases.length / units.length) * 100).toFixed(1) : 0}%</span>
+
+                    {/* Middle Charts */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Rent Collection Trend (Monthly)</h4>
+                            <div className="h-64 flex items-end gap-2 px-4 shadow-inner bg-slate-50 dark:bg-slate-900/50 rounded-3xl p-6">
+                                {(() => {
+                                    const maxAmount = Math.max(...realMonthlyRentTrend.map(t => t.amount), 1);
+                                    return realMonthlyRentTrend.map((t, i) => {
+                                        const h = (t.amount / maxAmount) * 100;
+                                        return (
+                                            <div key={i} className="flex-1 bg-blue-600 rounded-t-xl hover:bg-blue-400 transition-all cursor-pointer relative group" style={{ height: `${Math.max(h, 4)}%` }}>
+                                                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-md">
+                                                    {t.monthLabel}: KES {t.amount?.toLocaleString()}
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                            <div className="flex justify-between mt-4 px-2">
+                                {realMonthlyRentTrend.map((t, i) => (
+                                    <span key={i} className="text-[8px] font-black text-slate-400 uppercase tracking-widest" style={{ transform: 'rotate(-45deg)' }}>{t.monthLabel.split(' ')[0]}</span>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Unit Status Distribution</h4>
+                            {(() => {
+                                const occupiedCount = units.filter(u => u.status === 'Occupied').length;
+                                const vacantCount = units.filter(u => u.status === 'Vacant').length;
+                                const repairCount = units.filter(u => u.status === 'Under Repair' || u.status === 'Maintenance').length;
+                                const totalUnitsCount = units.length || 1;
+
+                                const occupiedPercent = Math.round((occupiedCount / totalUnitsCount) * 100);
+                                const vacantPercent = Math.round((vacantCount / totalUnitsCount) * 100);
+                                const repairPercent = Math.max(0, 100 - occupiedPercent - vacantPercent);
+
+                                let accum = 0;
+                                const gradientParts = [];
+                                if (occupiedCount > 0) {
+                                    gradientParts.push(`#2563eb 0% ${occupiedPercent}%`);
+                                    accum += occupiedPercent;
+                                }
+                                if (vacantCount > 0) {
+                                    gradientParts.push(`#10b981 ${accum}% ${accum + vacantPercent}%`);
+                                    accum += vacantPercent;
+                                }
+                                if (repairCount > 0) {
+                                    gradientParts.push(`#ef4444 ${accum}% 100%`);
+                                }
+                                const gradientStyle = gradientParts.length > 0 
+                                    ? `conic-gradient(${gradientParts.join(', ')})`
+                                    : 'conic-gradient(#cbd5e1 0% 100%)';
+                                    
+                                return (
+                                    <div className="flex items-center justify-around h-64">
+                                        <div 
+                                            className="w-40 h-40 rounded-full relative flex items-center justify-center shadow-lg"
+                                            style={{ background: gradientStyle }}
+                                        >
+                                            <div className="w-28 h-28 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center flex-col shadow-inner">
+                                                <span className="font-black text-2xl text-slate-800 dark:text-white italic">{units.length}</span>
+                                                <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Total Units</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-4 h-4 rounded bg-blue-600 shadow-sm"></div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Occupied</span>
+                                                    <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{occupiedCount} ({occupiedPercent}%)</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-4 h-4 rounded bg-emerald-500 shadow-sm"></div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Vacant</span>
+                                                    <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{vacantCount} ({vacantPercent}%)</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-4 h-4 rounded bg-rose-500 shadow-sm"></div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Under Repair</span>
+                                                    <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{repairCount} ({repairPercent}%)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
-                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 relative overflow-hidden group hover:-translate-y-2 transition-all duration-500">
-                        <h4 className="text-amber-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 bg-amber-600 rounded-full"></span>
-                            Vacant Units
-                        </h4>
-                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">{vacantUnits.length}</p>
-                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Growth Opportunity</div>
-                    </div>
-                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 relative overflow-hidden group hover:-translate-y-2 transition-all duration-500">
-                        <h4 className="text-rose-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 bg-rose-600 rounded-full"></span>
-                            Open Tickets
-                        </h4>
-                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">{openTickets.length}</p>
-                        <div className="mt-4 text-[10px] font-bold text-rose-500 uppercase tracking-widest animate-pulse">Needs Attention</div>
+
+                    {/* Property Collection Progress Table/Breakdown */}
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl space-y-6">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Collection Progress per Property</h4>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Detailed performance tracking of billing vs cash collection</p>
+                            </div>
+                            <div className="relative w-full md:w-80">
+                                <input
+                                    type="text"
+                                    placeholder="Search property..."
+                                    value={propertySearchQuery}
+                                    onChange={(e) => setPropertySearchQuery(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-700/50 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-200"
+                                />
+                                <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                            </div>
+                        </div>
+
+                        {/* List/Table */}
+                        <div className="overflow-x-auto rounded-3xl border border-slate-100 dark:border-slate-700/50 shadow-inner bg-slate-50/50 dark:bg-slate-900/30">
+                            <table className="w-full border-collapse text-left">
+                                <thead>
+                                    <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-100/50 dark:bg-slate-800/50">
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Property</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Units</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Invoiced</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Collected</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Arrears</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Progress</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-750">
+                                    {propertiesCollectionData
+                                        .filter(d => d.property.name.toLowerCase().includes(propertySearchQuery.toLowerCase()))
+                                        .map((d) => (
+                                            <React.Fragment key={d.property.id}>
+                                                <tr className={`hover:bg-slate-100/30 dark:hover:bg-slate-800/20 transition-all ${selectedPropertyForDrillDown === d.property.id ? 'bg-blue-50/20 dark:bg-blue-900/10' : ''}`}>
+                                                    <td className="p-5">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-slate-750 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm border border-blue-100/50 dark:border-slate-750">
+                                                                <HomeIcon className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">{d.property.name}</p>
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{d.property.town || 'No Address'}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-5 text-center text-xs font-bold text-slate-600 dark:text-slate-300">{d.unitsCount}</td>
+                                                    <td className="p-5 text-right text-xs font-black text-slate-900 dark:text-white italic">KES {d.totalInvoiced.toLocaleString()}</td>
+                                                    <td className="p-5 text-right text-xs font-black text-emerald-600 italic">KES {d.totalCollected.toLocaleString()}</td>
+                                                    <td className="p-5 text-right text-xs font-black text-rose-500 italic">KES {d.arrears.toLocaleString()}</td>
+                                                    <td className="p-5 w-48">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
+                                                                <div 
+                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                        d.collectionRate >= 90 ? 'bg-emerald-500' :
+                                                                        d.collectionRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                    }`}
+                                                                    style={{ width: `${Math.min(d.collectionRate, 100)}%` }}
+                                                                ></div>
+                                                            </div>
+                                                            <span className={`text-[10px] font-black ${
+                                                                d.collectionRate >= 90 ? 'text-emerald-500' :
+                                                                d.collectionRate >= 60 ? 'text-amber-500' : 'text-rose-500'
+                                                            }`}>{d.collectionRate}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-5 text-center">
+                                                        <button
+                                                            onClick={() => setSelectedPropertyForDrillDown(selectedPropertyForDrillDown === d.property.id ? null : d.property.id)}
+                                                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider mx-auto transition-all ${
+                                                                selectedPropertyForDrillDown === d.property.id
+                                                                    ? 'bg-blue-600 text-white shadow-md'
+                                                                    : 'bg-white dark:bg-slate-755 border border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'
+                                                            }`}
+                                                        >
+                                                            <EyeIcon className="w-3.5 h-3.5" />
+                                                            {selectedPropertyForDrillDown === d.property.id ? 'Close' : 'View Units'}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+
+                                                {/* Expanded Units Drilldown */}
+                                                {selectedPropertyForDrillDown === d.property.id && (
+                                                    <tr>
+                                                        <td colSpan={7} className="p-6 bg-slate-100/40 dark:bg-slate-900/40 border-y border-slate-200/50 dark:border-slate-700/50">
+                                                            <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                                                                <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-600 italic">Unit-level Collection Drill-down</h5>
+                                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                                    {d.propUnits.map(unit => {
+                                                                        const lease = d.propLeases.find(l => l.unitId === unit.id);
+                                                                        const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
+                                                                        
+                                                                        const unitInvoices = d.propInvoices.filter(inv => inv.unitId === unit.id);
+                                                                        const unitPayments = d.propPayments.filter(p => p.leaseId === lease?.id);
+
+                                                                        const invSum = unitInvoices.reduce((s, inv) => s + inv.amount, 0);
+                                                                        const paySum = unitPayments.reduce((s, p) => s + p.amount, 0);
+                                                                        const unitArrears = Math.max(0, invSum - paySum);
+                                                                        const unitRate = invSum > 0 ? Math.round((paySum / invSum) * 100) : (paySum > 0 ? 100 : 0);
+
+                                                                        return (
+                                                                            <div key={unit.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm space-y-3">
+                                                                                <div className="flex justify-between items-start">
+                                                                                    <div>
+                                                                                        <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">Unit {unit.unitNumber}</p>
+                                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{unit.unitType}</p>
+                                                                                    </div>
+                                                                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                                                                        unit.status === 'Occupied' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-100 dark:border-emerald-950/30' :
+                                                                                        unit.status === 'Vacant' ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100 dark:border-amber-950/30' :
+                                                                                        'bg-rose-50 dark:bg-rose-950/20 text-rose-600 border-rose-100 dark:border-rose-950/30'
+                                                                                    }`}>
+                                                                                        {unit.status}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="border-t border-slate-100 dark:border-slate-700/50 pt-2 space-y-1.5">
+                                                                                    <div className="flex justify-between text-[10px]">
+                                                                                        <span className="font-bold text-slate-400 uppercase">Tenant:</span>
+                                                                                        <span className="font-black text-slate-700 dark:text-slate-300 truncate max-w-[150px]">{tenant ? tenant.name : <em className="text-slate-400">None</em>}</span>
+                                                                                    </div>
+                                                                                    <div className="flex justify-between text-[10px]">
+                                                                                        <span className="font-bold text-slate-400 uppercase">Invoiced:</span>
+                                                                                        <span className="font-black text-slate-800 dark:text-slate-200">KES {invSum.toLocaleString()}</span>
+                                                                                    </div>
+                                                                                    <div className="flex justify-between text-[10px]">
+                                                                                        <span className="font-bold text-slate-400 uppercase">Collected:</span>
+                                                                                        <span className="font-black text-emerald-600">KES {paySum.toLocaleString()}</span>
+                                                                                    </div>
+                                                                                    <div className="flex justify-between text-[10px]">
+                                                                                        <span className="font-bold text-slate-400 uppercase">Balance:</span>
+                                                                                        <span className="font-black text-rose-500">KES {unitArrears.toLocaleString()}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                {invSum > 0 && (
+                                                                                    <div className="space-y-1">
+                                                                                        <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase">
+                                                                                            <span>Collection Progress:</span>
+                                                                                            <span className={unitRate >= 90 ? 'text-emerald-500' : unitRate >= 60 ? 'text-amber-500' : 'text-rose-500'}>{unitRate}%</span>
+                                                                                        </div>
+                                                                                        <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
+                                                                                            <div 
+                                                                                                className={`h-full rounded-full transition-all duration-300 ${
+                                                                                                    unitRate >= 90 ? 'bg-emerald-500' :
+                                                                                                    unitRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                                                }`}
+                                                                                                style={{ width: `${Math.min(unitRate, 100)}%` }}
+                                                                                            ></div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                                {d.propUnits.length === 0 && (
+                                                                    <p className="text-center text-xs text-slate-400 py-6 font-bold uppercase tracking-wider">No units found in this property</p>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                    {propertiesCollectionData.filter(d => d.property.name.toLowerCase().includes(propertySearchQuery.toLowerCase())).length === 0 && (
+                                        <tr>
+                                            <td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-widest italic">No properties matching your search</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
