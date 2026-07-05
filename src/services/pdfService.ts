@@ -4546,12 +4546,16 @@ export const generateTenantStatementPdf = async (
     let allTx: any[] = [];
     let openingBal = 0;
 
+    // Precautionary deduplication
+    const uniqueInvoices = Array.from(new Map(invoices.map(inv => [inv.id, inv])).values());
+    const uniquePayments = Array.from(new Map(payments.map(p => [p.id, p])).values());
+
     const tenantLeases = leases.filter(l => l.tenantId === tenant.id);
     const leaseIds = tenantLeases.map(l => l.id);
 
-    // Debits: Invoices matching tenant's leases
-    invoices
-        .filter(inv => leaseIds.includes(inv.leaseId))
+    // Debits: Invoices matching tenant's leases (exclude Cancelled and Draft)
+    uniqueInvoices
+        .filter(inv => leaseIds.includes(inv.leaseId) && inv.status !== 'Cancelled' && inv.status !== 'Draft')
         .forEach(inv => {
             allTx.push({
                 date: inv.issueDate,
@@ -4562,9 +4566,9 @@ export const generateTenantStatementPdf = async (
             });
         });
 
-    // Credits: Payments matching tenant's leases
-    payments
-        .filter(p => leaseIds.includes(p.leaseId))
+    // Credits: Payments matching tenant's leases (Completed status only)
+    uniquePayments
+        .filter(p => leaseIds.includes(p.leaseId) && p.status === 'Completed')
         .forEach(p => {
             allTx.push({
                 date: p.paymentDate,
@@ -4660,8 +4664,11 @@ export const generateLandlordStatementPdf = async (
     const unitIds = landlordUnits.map(u => u.id);
     const landlordLeases = leases.filter(l => unitIds.includes(l.unitId));
 
-    const landlordPayments = payments.filter(p => {
-        return landlordLeases.some(l => l.id === p.leaseId) && p.paymentDate >= startDate && p.paymentDate <= endDate;
+    // Precautionary deduplication
+    const uniquePayments = Array.from(new Map(payments.map(p => [p.id, p])).values());
+
+    const landlordPayments = uniquePayments.filter(p => {
+        return landlordLeases.some(l => l.id === p.leaseId) && p.status === 'Completed' && p.paymentDate >= startDate && p.paymentDate <= endDate;
     }).sort((a, b) => a.paymentDate.localeCompare(b.paymentDate));
 
     const head = [['Date', 'Unit / Property', 'Ref #', 'Gross Collected', 'Mgt Fee', 'Net Payout']];

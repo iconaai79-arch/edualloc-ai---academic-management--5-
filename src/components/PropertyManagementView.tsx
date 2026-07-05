@@ -3360,13 +3360,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             let allTx: any[] = [];
             let openingBal = 0;
 
+            // Precautionary deduplication
+            const uniqueInvoices = Array.from(new Map(invoices.map(inv => [inv.id, inv])).values());
+            const uniquePayments = Array.from(new Map(payments.map(p => [p.id, p])).values());
+
             if (targetType === 'tenant') {
                 const tenantLeases = leases.filter(l => l.tenantId === targetId);
                 const leaseIds = tenantLeases.map(l => l.id);
 
-                // Debits: Invoices matching tenant's leases
-                invoices
-                    .filter(inv => leaseIds.includes(inv.leaseId))
+                // Debits: Invoices matching tenant's leases (exclude Cancelled and Draft)
+                uniqueInvoices
+                    .filter(inv => leaseIds.includes(inv.leaseId) && inv.status !== 'Cancelled' && inv.status !== 'Draft')
                     .forEach(inv => {
                         allTx.push({
                             id: inv.id,
@@ -3378,9 +3382,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         });
                     });
 
-                // Credits: Payments matching tenant's leases
-                payments
-                    .filter(p => leaseIds.includes(p.leaseId))
+                // Credits: Payments matching tenant's leases (Completed status only)
+                uniquePayments
+                    .filter(p => leaseIds.includes(p.leaseId) && p.status === 'Completed')
                     .forEach(p => {
                         allTx.push({
                             id: p.id,
@@ -3392,29 +3396,31 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         });
                     });
             } else {
-                // Landlord Logic: Collections vs Management Fees
+                // Landlord Logic: Collections vs Management Fees (Completed status only)
                 const landlordProperties = properties.filter(p => p.landlordId === targetId);
                 const propertyIds = landlordProperties.map(p => p.id);
                 const landlordUnits = units.filter(u => propertyIds.includes(u.propertyId));
                 const unitIds = landlordUnits.map(u => u.id);
                 const landlordLeases = leases.filter(l => unitIds.includes(l.unitId));
 
-                payments.forEach(p => {
-                    const lease = landlordLeases.find(l => l.id === p.leaseId);
-                    if (lease) {
-                        const unit = units.find(u => u.id === lease.unitId);
-                        const property = properties.find(prop => prop.id === unit?.propertyId);
-                        allTx.push({
-                            id: p.id,
-                            date: p.paymentDate,
-                            description: `Collection: ${unit?.unitNumber} - ${property?.name}`,
-                            type: 'credit',
-                            amount: p.amount,
-                            commission: p.commissionAmount || 0,
-                            ref: p.id.split('_')[1]
-                        });
-                    }
-                });
+                uniquePayments
+                    .filter(p => p.status === 'Completed')
+                    .forEach(p => {
+                        const lease = landlordLeases.find(l => l.id === p.leaseId);
+                        if (lease) {
+                            const unit = units.find(u => u.id === lease.unitId);
+                            const property = properties.find(prop => prop.id === unit?.propertyId);
+                            allTx.push({
+                                id: p.id,
+                                date: p.paymentDate,
+                                description: `Collection: ${unit?.unitNumber} - ${property?.name}`,
+                                type: 'credit',
+                                amount: p.amount,
+                                commission: p.commissionAmount || 0,
+                                ref: p.id.split('_')[1]
+                            });
+                        }
+                    });
             }
 
             // Sort by date then by type (debits first for same day)
@@ -6543,6 +6549,65 @@ const ArrearsManager: React.FC<{
         loadData();
     };
 
+    const handleBulkDeleteArrearsInvoices = async () => {
+        const billingPeriodLabel = arrPeriod 
+            ? (() => {
+                const [y, m] = arrPeriod.split('-');
+                const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+                return date.toLocaleDateString('default', { month: 'long', year: 'numeric' });
+              })()
+            : new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' });
+
+        const periodArrearsInvoices = invoices.filter(inv => 
+            inv.description.includes("Outstanding Arrears Adjustment") && 
+            inv.description.includes(billingPeriodLabel)
+        );
+
+        const allArrearsInvoices = invoices.filter(inv => 
+            inv.description.includes("Outstanding Arrears Adjustment")
+        );
+
+        if (allArrearsInvoices.length === 0) {
+            return alert("No outstanding arrears adjustment invoices found to remove.");
+        }
+
+        const choice = window.confirm(
+            `Found ${periodArrearsInvoices.length} arrears invoices for ${billingPeriodLabel}.\n` +
+            `Click [OK] to delete ONLY these ${periodArrearsInvoices.length} invoices, or [Cancel] if you want to delete ALL ${allArrearsInvoices.length} arrears invoices across all periods.`
+        );
+
+        let targetInvoices = [];
+        if (choice) {
+            targetInvoices = periodArrearsInvoices;
+        } else {
+            if (window.confirm(`Delete ALL ${allArrearsInvoices.length} arrears adjustment invoices across all periods? This action cannot be undone.`)) {
+                targetInvoices = allArrearsInvoices;
+            } else {
+                return;
+            }
+        }
+
+        if (targetInvoices.length === 0) return;
+
+        try {
+            const deletedIds = new Set(targetInvoices.map(inv => inv.id));
+            const idChunks = [];
+            const ids = Array.from(deletedIds);
+            for (let i = 0; i < ids.length; i += 20) {
+                idChunks.push(ids.slice(i, i + 20));
+            }
+
+            for (const chunk of idChunks) {
+                await apiService.deleteModuleRecord('pm_invoices', chunk.join(','));
+            }
+
+            alert(`Successfully deleted ${ids.length} arrears adjustment invoices.`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || "Failed to delete arrears invoices.");
+        }
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Advanced Filter Panel */}
@@ -6648,6 +6713,12 @@ const ArrearsManager: React.FC<{
                         className="flex-grow w-full bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-widest text-[8px] py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-1"
                     >
                         {exporting ? 'Exporting...' : 'Export PDF'}
+                    </button>
+                    <button 
+                        onClick={handleBulkDeleteArrearsInvoices}
+                        className="flex-grow w-full bg-slate-700 hover:bg-slate-850 text-white font-black uppercase tracking-widest text-[8px] py-4 rounded-xl shadow-lg transition-all"
+                    >
+                        Remove Arrears
                     </button>
                 </div>
             </div>
