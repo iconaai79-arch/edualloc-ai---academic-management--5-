@@ -145,9 +145,9 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
     }
 
     return (
-        <div className="min-h-screen bg-[#fafbff] flex">
-            {/* Sidebar */}
-            <aside className="w-80 bg-white border-r border-slate-100 flex flex-col p-8 fixed h-full z-10">
+        <div className="min-h-screen bg-[#fafbff] flex flex-col md:flex-row">
+            {/* Sidebar (Desktop Only) */}
+            <aside className="hidden md:flex w-80 bg-white border-r border-slate-100 flex-col p-8 fixed h-full z-10">
                 <div className="mb-12">
                     <h1 className="text-2xl font-black text-indigo-600 tracking-tighter italic">TENANT<span className="text-slate-800">CONNECT</span></h1>
                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1 italic">Premium Property Access</p>
@@ -188,8 +188,34 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                 </div>
             </aside>
 
+            {/* Bottom Navigation (Mobile/Android App Only) */}
+            <div className="flex md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-100 items-center justify-around z-40 shadow-lg px-2">
+                {[
+                    { id: 'dashboard', label: 'Home', icon: HomeIcon },
+                    { id: 'lease', label: 'Lease', icon: FileTextIcon },
+                    { id: 'payments', label: 'Pay', icon: CreditCardIcon },
+                    { id: 'maintenance', label: 'Fix', icon: WrenchIcon },
+                    { id: 'profile', label: 'Settings', icon: UserIcon },
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-xl transition-all ${
+                            activeTab === tab.id ? 'text-indigo-600 font-black' : 'text-slate-400 font-medium'
+                        }`}
+                    >
+                        {tab.id === 'maintenance' ? (
+                            <WrenchIcon className={`w-5 h-5 ${activeTab === tab.id ? 'text-indigo-600' : 'text-slate-400'}`} />
+                        ) : (
+                            <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-indigo-600' : 'text-slate-400'}`} />
+                        )}
+                        <span className="text-[9px] uppercase tracking-wider">{tab.label}</span>
+                    </button>
+                ))}
+            </div>
+
             {/* Main Content */}
-            <main className="flex-1 ml-80 p-12">
+            <main className="flex-1 md:ml-80 p-4 md:p-12 pb-24 md:pb-12">
                 <header className="flex items-center justify-between mb-12">
                     <div>
                         <h2 className="text-4xl font-black text-slate-800 tracking-tighter italic capitalize">

@@ -4526,9 +4526,10 @@ export const generateTenantStatementPdf = async (
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
     const logoImg = await loadImage(logoUrl);
+    const headerImg = await loadImage(letterheadConfig?.headerImageUrl || null);
     
     // Header & Branding
-    let yPos = createPdfWithLetterhead(doc, 'TENANT STATEMENT', {} as any, institution, logoImg);
+    let yPos = createPdfWithLetterhead(doc, 'TENANT STATEMENT', {} as any, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -4645,8 +4646,9 @@ export const generateLandlordStatementPdf = async (
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
     const logoImg = await loadImage(logoUrl);
+    const headerImg = await loadImage(letterheadConfig?.headerImageUrl || null);
     
-    let yPos = createPdfWithLetterhead(doc, 'LANDLORD STATEMENT', {} as any, institution, logoImg);
+    let yPos = createPdfWithLetterhead(doc, 'LANDLORD STATEMENT', {} as any, institution, logoImg, headerImg);
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
 
