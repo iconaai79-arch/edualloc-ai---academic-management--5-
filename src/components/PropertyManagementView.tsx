@@ -6346,6 +6346,7 @@ const ArrearsManager: React.FC<{
     const [sendingSms, setSendingSms] = useState(false);
     const [arrCurrentPage, setArrCurrentPage] = useState(1);
     const itemsPerPage = 10;
+    const [includePaymentMethod, setIncludePaymentMethod] = useState(false);
 
     useEffect(() => {
         setArrCurrentPage(1);
@@ -6533,9 +6534,30 @@ const ArrearsManager: React.FC<{
         }
     };
 
+    const getLandlordPaymentInfo = (item: typeof filteredArrears[0]) => {
+        if (!item.landlord) return '';
+        const parts = [];
+        if (item.landlord.preferredPaymentMethod) {
+            parts.push(item.landlord.preferredPaymentMethod);
+        }
+        if (item.landlord.bankDetails) {
+            parts.push(item.landlord.bankDetails);
+        }
+        if (parts.length === 0) return '';
+        return `Payment details: ${parts.join(' - ')}`;
+    };
+
     const getSmsMessage = (item: typeof filteredArrears[0]) => {
         const base = `Dear ${item.tenant!.name}, you have outstanding rent arrears of KES ${item.periodArrears.toLocaleString()} for Unit ${item.unit?.unitNumber}. Please clear this balance.`;
-        return smsAdditionalText.trim() ? `${base} ${smsAdditionalText.trim()}` : base;
+        const paymentInfo = includePaymentMethod ? getLandlordPaymentInfo(item) : '';
+        const messageParts = [base];
+        if (paymentInfo) {
+            messageParts.push(paymentInfo);
+        }
+        if (smsAdditionalText.trim()) {
+            messageParts.push(smsAdditionalText.trim());
+        }
+        return messageParts.join(' ');
     };
 
     const handleBulkReminderClick = () => {
@@ -6947,6 +6969,18 @@ const ArrearsManager: React.FC<{
                             placeholder="e.g. Please clear this by Friday evening to avoid penalties. Thank you."
                             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold outline-none dark:text-white focus:border-blue-500 transition-colors resize-none"
                         />
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-1">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={includePaymentMethod} 
+                                onChange={(e) => setIncludePaymentMethod(e.target.checked)} 
+                                className="w-4.5 h-4.5 rounded text-blue-600 focus:ring-blue-500" 
+                            />
+                            <span className="text-xs font-bold text-slate-650 dark:text-slate-350">Include Landlord Payment Method/Details</span>
+                        </label>
                     </div>
 
                     <div className="space-y-3">

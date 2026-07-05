@@ -15,4 +15,5 @@
 - [x] Hide 'Invoice Arrears' buttons (both bulk and row-level) in the Arrears Manager
 - [x] Fix modal rendering position in Arrears Manager using React Portals
 - [x] Add pagination to the Arrears Manager ledger table (10 items per page with auto-reset)
-- [/] Verify the application compiles and runs without errors
+- [x] Add option to append landlord payment details to SMS reminders
+- [x] Verify the application compiles and runs without errors
