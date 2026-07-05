@@ -12,4 +12,5 @@
 - [x] Prevent arrears calculation from shooting up by excluding Cancelled/Draft invoices from totalInvoicedAmount and protecting Paid arrears invoices from removal
 - [x] Add SMS preview modal and additional text appending in Arrears Manager reminders
 - [x] Add auto-fill search in Statements Manager for tenant/landlord selection
-- [/] Verify the application compiles and runs without errors
+- [x] Hide 'Invoice Arrears' buttons (both bulk and row-level) in the Arrears Manager
+- [x] Verify the application compiles and runs without errors

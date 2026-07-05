@@ -6779,12 +6779,6 @@ const ArrearsManager: React.FC<{
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex flex-col sm:flex-row gap-2 items-center justify-stretch">
                     <button 
-                        onClick={handleBulkInvoiceArrears}
-                        className="flex-grow w-full bg-blue-600 hover:bg-blue-750 text-white font-black uppercase tracking-widest text-[8px] py-4 rounded-xl shadow-lg transition-all"
-                    >
-                        Invoice Arrears
-                    </button>
-                    <button 
                         onClick={handleBulkReminderClick}
                         className="flex-grow w-full bg-emerald-600 hover:bg-emerald-750 text-white font-black uppercase tracking-widest text-[8px] py-4 rounded-xl shadow-lg transition-all"
                     >
@@ -6863,62 +6857,6 @@ const ArrearsManager: React.FC<{
                                                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap"
                                                  >
                                                      {sendingReminder === item.lease.id ? "Sending..." : "SMS Reminder"}
-                                                 </button>
-                                             )}
-                                             {item.unInvoicedArrears > 0 && (
-                                                 <button 
-                                                     onClick={async () => {
-                                                         const billingPeriodLabel = arrPeriod 
-                                                             ? (() => {
-                                                                 const [y, m] = arrPeriod.split('-');
-                                                                 const date = new Date(parseInt(y), parseInt(m) - 1, 1);
-                                                                 return date.toLocaleDateString('default', { month: 'long', year: 'numeric' });
-                                                               })()
-                                                             : new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' });
-
-                                                         const alreadyExists = invoices.some(inv => 
-                                                             inv.leaseId === item.lease.id && 
-                                                             inv.description.includes(billingPeriodLabel)
-                                                         );
-                                                         if (alreadyExists) return alert(`An invoice has already been generated for ${billingPeriodLabel}.`);
-                                                         
-                                                         const prefix = pmSettings?.numbering?.invoicePrefix || 'INV';
-                                                         const nextNum = pmSettings?.numbering?.invoiceNextNumber || 1000;
-                                                         const invoiceNumber = `${prefix}-${nextNum}`;
-
-                                                         await apiService.saveModuleRecord('pm_invoices', {
-                                                                 id: `inv_${Date.now()}`,
-                                                                 invoiceNumber,
-                                                                 leaseId: item.lease.id,
-                                                                 tenantId: item.lease.tenantId,
-                                                                 unitId: item.lease.unitId,
-                                                                 description: `Outstanding Arrears Adjustment - ${billingPeriodLabel}`,
-                                                                 amount: item.unInvoicedArrears,
-                                                                 issueDate: new Date().toISOString().split('T')[0],
-                                                                 dueDate: new Date().toISOString().split('T')[0],
-                                                                 status: 'Sent',
-                                                                 institutionId,
-                                                                 createdAt: new Date().toISOString()
-                                                         });
-
-                                                         if (pmSettings) {
-                                                             const updatedSettings = {
-                                                                 ...pmSettings,
-                                                                 numbering: {
-                                                                     ...(pmSettings.numbering || {}),
-                                                                     invoiceNextNumber: nextNum + 1
-                                                                 }
-                                                             };
-                                                             await apiService.saveModuleRecord('pm_settings', updatedSettings);
-                                                             setPmSettings(updatedSettings);
-                                                         }
-
-                                                         alert("Arrears invoice generated successfully.");
-                                                         loadData();
-                                                     }}
-                                                     className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap"
-                                                 >
-                                                     Invoice Arrears
                                                  </button>
                                              )}
                                          </td>
