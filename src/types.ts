@@ -2818,6 +2818,39 @@ export interface PMDisbursement {
     institutionId: string;
 }
 
+export type PMExpenseCategory = 
+    | 'Utilities' 
+    | 'Repairs & Maintenance' 
+    | 'Staff Salaries & Caretakers' 
+    | 'Trash & Cleaning' 
+    | 'Water & Plumbing' 
+    | 'Government Licenses & Taxes' 
+    | 'Legal & Professional Fees' 
+    | 'Insurance' 
+    | 'Other';
+
+export type PMExpenseStatus = 'Pending Approval' | 'Approved' | 'Paid' | 'Cancelled';
+
+export interface PMExpenseVoucher {
+    id: string;
+    voucherNumber: string;
+    propertyId: string;
+    unitId?: string;
+    category: PMExpenseCategory;
+    payeeName: string;
+    payeePhone?: string;
+    amount: number;
+    paymentDate: string;
+    paymentMethod: 'Cash' | 'Cheque' | 'Bank' | 'M-Pesa' | 'Other';
+    reference?: string;
+    description: string;
+    status: PMExpenseStatus;
+    approvedBy?: string;
+    receiptUrl?: string;
+    institutionId: string;
+    createdAt: string;
+}
+
 export type PMInvoiceStatus = 'Draft' | 'Sent' | 'Paid' | 'Overdue' | 'Cancelled';
 
 export interface PMInvoiceItem {

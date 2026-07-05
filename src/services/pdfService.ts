@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, PMExpenseVoucher, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -4638,7 +4638,8 @@ export const generateLandlordStatementPdf = async (
     endDate: string,
     institution: Institution,
     letterheadConfig: LetterheadConfig | undefined,
-    logoUrl: string | null
+    logoUrl: string | null,
+    expenses?: PMExpenseVoucher[]
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -4671,21 +4672,53 @@ export const generateLandlordStatementPdf = async (
         return landlordLeases.some(l => l.id === p.leaseId) && p.status === 'Completed' && p.paymentDate >= startDate && p.paymentDate <= endDate;
     }).sort((a, b) => a.paymentDate.localeCompare(b.paymentDate));
 
-    const head = [['Date', 'Unit / Property', 'Ref #', 'Gross Collected', 'Mgt Fee', 'Net Payout']];
-    const body = landlordPayments.map(p => {
+    // Expenses
+    const landlordExpenses = (expenses || []).filter(e => {
+        return propertyIds.includes(e.propertyId) && 
+            (e.status === 'Approved' || e.status === 'Paid') && 
+            e.paymentDate >= startDate && 
+            e.paymentDate <= endDate;
+    });
+
+    const paymentItems = landlordPayments.map(p => {
         const lease = leases.find(l => l.id === p.leaseId);
         const unit = units.find(u => u.id === lease?.unitId);
         const property = properties.find(prop => prop.id === unit?.propertyId);
         const comm = p.commissionAmount || 0;
-        return [
-            new Date(p.paymentDate).toLocaleDateString(),
-            `${unit?.unitNumber} - ${property?.name}`,
-            p.id.split('_')[1],
-            p.amount?.toLocaleString(),
-            comm?.toLocaleString(),
-            (p.amount - comm)?.toLocaleString()
-        ];
+        return {
+            date: p.paymentDate,
+            details: `${unit?.unitNumber || ''} - ${property?.name || ''}`,
+            ref: p.reference || p.id.split('_')[1] || p.id,
+            gross: p.amount,
+            comm: comm,
+            net: p.amount - comm
+        };
     });
+
+    const expenseItems = landlordExpenses.map(e => {
+        const prop = properties.find(p => p.id === e.propertyId);
+        const unit = e.unitId ? units.find(u => u.id === e.unitId) : null;
+        return {
+            date: e.paymentDate,
+            details: `${prop?.name || ''}${unit ? ` (Unit ${unit.unitNumber})` : ''} - [Expense: ${e.category}]`,
+            ref: e.voucherNumber,
+            gross: 0,
+            comm: 0,
+            net: -e.amount
+        };
+    });
+
+    const ledgerItems = [...paymentItems, ...expenseItems].sort((a, b) => a.date.localeCompare(b.date));
+
+    const head = [['Date', 'Unit / Property', 'Ref #', 'Gross Collected', 'Mgt Fee', 'Net Payout']];
+    const body = ledgerItems.map(item => [
+        new Date(item.date).toLocaleDateString(),
+        item.details,
+        item.ref,
+        item.gross > 0 ? item.gross.toLocaleString() : '—',
+        item.comm > 0 ? item.comm.toLocaleString() : '—',
+        item.net.toLocaleString()
+    ]);
 
     doc.autoTable({
         head,
@@ -4704,10 +4737,12 @@ export const generateLandlordStatementPdf = async (
     const finalY = (doc as any).lastAutoTable.finalY + 15;
     const totalGross = landlordPayments.reduce((s, p) => s + p.amount, 0);
     const totalComm = landlordPayments.reduce((s, p) => s + (p.commissionAmount || 0), 0);
+    const totalExpenses = landlordExpenses.reduce((s, e) => s + e.amount, 0);
+    const netPayoutDue = totalGross - totalComm - totalExpenses;
 
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('SUMMARY OF COLLECTIONS', margin, finalY);
+    doc.text('SUMMARY OF COLLECTIONS & EXPENSES', margin, finalY);
     
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
@@ -4716,10 +4751,13 @@ export const generateLandlordStatementPdf = async (
     
     doc.text('Total Management Fees:', margin, finalY + 14);
     doc.text(`KES ${totalComm?.toLocaleString()}`, margin + 60, finalY + 14);
+
+    doc.text('Total Property Expenses:', margin, finalY + 20);
+    doc.text(`KES ${totalExpenses?.toLocaleString()}`, margin + 60, finalY + 20);
     
     doc.setFont('helvetica', 'bold');
-    doc.text('NET PAYOUT DUE:', margin, finalY + 22);
-    doc.text(`KES ${(totalGross - totalComm)?.toLocaleString()}`, margin + 60, finalY + 22);
+    doc.text('NET PAYOUT DUE:', margin, finalY + 28);
+    doc.text(`KES ${netPayoutDue?.toLocaleString()}`, margin + 60, finalY + 28);
 
     return doc.output('datauristring');
 };
@@ -5170,6 +5208,135 @@ export const generatePMReceiptPdfDataUri = async (
     doc.setFontSize(10);
     doc.setFont('helvetica', 'italic');
     doc.text('Thank you for choosing us!', pageWidth / 2, contentY + 40, { align: 'center' });
+
+    return doc.output('datauristring');
+};
+
+export const generatePMExpenseVoucherPdf = async (
+    voucher: PMExpenseVoucher,
+    property: PMProperty,
+    unit: PMUnit | null,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    letterheadUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const headerImg = await loadImage(letterheadUrl || null);
+    const tableStartY = createPdfWithLetterhead(doc, 'PAYMENT VOUCHER', companyDetails, institution, logoImg, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    let yPos = tableStartY + 5;
+
+    // Voucher Number & Date details
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`Voucher No: ${voucher.voucherNumber}`, margin, yPos);
+    doc.text(`Date: ${new Date(voucher.paymentDate).toLocaleDateString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 8;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Property: ${property.name}${unit ? ` - Unit ${unit.unitNumber}` : ''}`, margin, yPos);
+    doc.text(`Status: ${voucher.status.toUpperCase()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 12;
+
+    // Payee Box
+    doc.setDrawColor(220, 220, 220);
+    doc.setFillColor(250, 250, 250);
+    doc.rect(margin, yPos, pageWidth - (margin * 2), 22, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('PAYEE / VENDOR DETAILS:', margin + 4, yPos + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${voucher.payeeName}`, margin + 4, yPos + 12);
+    if (voucher.payeePhone) {
+        doc.text(`Phone: ${voucher.payeePhone}`, margin + 4, yPos + 17);
+    }
+    
+    // Payment Mode Info
+    doc.text(`Method: ${voucher.paymentMethod}`, pageWidth - margin - 50, yPos + 12);
+    if (voucher.reference) {
+        doc.text(`Ref: ${voucher.reference}`, pageWidth - margin - 50, yPos + 17);
+    }
+
+    yPos += 30;
+
+    // Table Header
+    doc.setFillColor(37, 99, 235); // Blue corporate header
+    doc.rect(margin, yPos, pageWidth - (margin * 2), 8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text('EXPENSE CATEGORY & PARTICULARS', margin + 4, yPos + 5.5);
+    doc.text('AMOUNT', pageWidth - margin - 4, yPos + 5.5, { align: 'right' });
+
+    yPos += 8;
+
+    // Table Body
+    doc.setTextColor(30, 41, 59); // dark text
+    doc.setFont('helvetica', 'normal');
+    doc.setLineWidth(0.1);
+    doc.line(margin, yPos, margin, yPos + 22);
+    doc.line(pageWidth - margin, yPos, pageWidth - margin, yPos + 22);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text(voucher.category, margin + 4, yPos + 6);
+    doc.setFont('helvetica', 'normal');
+    const descLines = doc.splitTextToSize(voucher.description || 'No description provided.', pageWidth - (margin * 2) - 30);
+    doc.text(descLines, margin + 4, yPos + 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`KES ${voucher.amount.toLocaleString()}`, pageWidth - margin - 4, yPos + 6, { align: 'right' });
+
+    yPos += 22;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+
+    // Total box
+    yPos += 6;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL AMOUNT PAID:', margin, yPos + 4);
+    doc.text(`KES ${voucher.amount.toLocaleString()}`, pageWidth - margin, yPos + 4, { align: 'right' });
+
+    // Signature Block at the bottom
+    let sigY = pageHeight - margin - 20;
+    if (yPos + 50 > sigY) {
+        doc.addPage();
+        sigY = pageHeight - margin - 20;
+    }
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setDrawColor(150, 150, 150);
+    
+    // Lines for signatures
+    const sigWidth = 38;
+    const sigSpacing = 10;
+    
+    // Prepared by
+    doc.line(margin, sigY, margin + sigWidth, sigY);
+    doc.text('PREPARED BY / CASHIER', margin + 2, sigY + 4);
+    
+    // Checked by
+    let currentX = margin + sigWidth + sigSpacing;
+    doc.line(currentX, sigY, currentX + sigWidth, sigY);
+    doc.text('CHECKED BY / ACCT', currentX + 2, sigY + 4);
+    
+    // Approved by
+    currentX = currentX + sigWidth + sigSpacing;
+    doc.line(currentX, sigY, currentX + sigWidth, sigY);
+    doc.text(`APPROVED BY / ADMIN${voucher.approvedBy ? ` (${voucher.approvedBy})` : ''}`, currentX + 2, sigY + 4);
+    
+    // Received by (Payee)
+    currentX = currentX + sigWidth + sigSpacing;
+    doc.line(currentX, sigY, currentX + sigWidth, sigY);
+    doc.text('RECEIVED BY / PAYEE', currentX + 2, sigY + 4);
 
     return doc.output('datauristring');
 };

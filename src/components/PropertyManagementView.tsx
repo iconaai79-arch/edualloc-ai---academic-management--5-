@@ -106,9 +106,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         onAddLandlord = async () => {}, onEditLandlord = async () => {}, onDeleteLandlord = async () => {}
     } = props;
     const institutionId = currentInstitution?.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'expenses' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices' | 'notices'>('properties');
     const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission' | 'arrears'>('analytics');
+    const [expenses, setExpenses] = useState<PMExpenseVoucher[]>([]);
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
 
@@ -165,6 +166,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [showListingModal, setShowListingModal] = useState(false);
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+    const [showExpenseModal, setShowExpenseModal] = useState(false);
+    const [selectedExpensePropertyId, setSelectedExpensePropertyId] = useState('');
+    const [expenseSearchQuery, setExpenseSearchQuery] = useState('');
+    const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('all');
+    const [expensePropertyFilter, setExpensePropertyFilter] = useState<string>('all');
+    const [expenseStatusFilter, setExpenseStatusFilter] = useState<string>('all');
+    const [expensePage, setExpensePage] = useState(1);
     const [showBankModal, setShowBankModal] = useState(false);
     const [selectedTenantForBankAction, setSelectedTenantForBankAction] = useState<PMTenant | null>(null);
     const [showCoopModal, setShowCoopModal] = useState(false);
@@ -258,10 +266,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 apiService.fetchModuleRecords<PMInquiry>('pm_inquiries', institutionId),
                 apiService.fetchModuleRecords<PMInvoice>('pm_invoices', institutionId),
                 apiService.fetchModuleRecords<PMSettings>('pm_settings', institutionId),
-                apiService.fetchModuleRecords<PMNoticeLetter>('pm_notices', institutionId)
+                apiService.fetchModuleRecords<PMNoticeLetter>('pm_notices', institutionId),
+                apiService.fetchModuleRecords<PMExpenseVoucher>('pm_expenses', institutionId)
             ]);
             
-            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv, stg, nt] = results as any[];
+            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv, stg, nt, ex] = results as any[];
 
             setLandlords(ls || []);
             setProperties(ps || []);
@@ -275,6 +284,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             setInquiries(inq || []);
             setInvoices(inv || []);
             setNotices(nt || []);
+            setExpenses(ex || []);
             
             if (stg && stg.length > 0) {
                 setPmSettings(stg[0]);
@@ -552,6 +562,64 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             await apiService.deleteModuleRecord('pm_properties', id);
             loadData();
         } catch (e: any) { alert(e.message || "Failed to delete property"); console.error(e); }
+    };
+
+    const handleSaveExpense = async (data: Partial<PMExpenseVoucher>) => {
+        try {
+            const voucherData: PMExpenseVoucher = {
+                id: `exp_${Date.now()}`,
+                voucherNumber: data.voucherNumber || `PV-${String(expenses.length + 1).padStart(4, '0')}`,
+                propertyId: data.propertyId || '',
+                unitId: data.unitId || undefined,
+                category: data.category || 'Other',
+                payeeName: data.payeeName || '',
+                payeePhone: data.payeePhone || undefined,
+                amount: data.amount || 0,
+                paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
+                paymentMethod: data.paymentMethod || 'Cash',
+                reference: data.reference || undefined,
+                description: data.description || '',
+                status: data.status || 'Pending Approval',
+                approvedBy: data.approvedBy || undefined,
+                receiptUrl: data.receiptUrl || undefined,
+                institutionId,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('pm_expenses', voucherData);
+            setShowExpenseModal(false);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to save expense voucher"); console.error(e); }
+    };
+
+    const handleDeleteExpense = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete/cancel this expense voucher?")) return;
+        try {
+            await apiService.deleteModuleRecord('pm_expenses', id);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to delete expense voucher"); console.error(e); }
+    };
+
+    const handleApproveExpense = async (voucher: PMExpenseVoucher) => {
+        try {
+            const updated = {
+                ...voucher,
+                status: 'Approved' as PMExpenseStatus,
+                approvedBy: currentUser?.name || 'Admin'
+            };
+            await apiService.saveModuleRecord('pm_expenses', updated);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to approve expense voucher"); console.error(e); }
+    };
+
+    const handlePayExpense = async (voucher: PMExpenseVoucher) => {
+        try {
+            const updated = {
+                ...voucher,
+                status: 'Paid' as PMExpenseStatus
+            };
+            await apiService.saveModuleRecord('pm_expenses', updated);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to mark expense voucher as Paid"); console.error(e); }
     };
 
     const handleSaveUnit = async (data: Partial<PMUnit>) => {
@@ -3739,6 +3807,295 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         </div>
     );
 
+    const ExpensesTab = () => {
+        // Calculations
+        const approvedAndPaid = expenses.filter(e => e.status === 'Approved' || e.status === 'Paid');
+        const totalExpensesVal = approvedAndPaid.reduce((sum, e) => sum + e.amount, 0);
+        
+        const pendingVouchers = expenses.filter(e => e.status === 'Pending Approval');
+        const totalPendingVal = pendingVouchers.reduce((sum, e) => sum + e.amount, 0);
+
+        const currentMonthExpenses = approvedAndPaid.filter(e => {
+            const date = new Date(e.paymentDate);
+            const now = new Date();
+            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+        });
+        const thisMonthOutflow = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+        // Filtering
+        const filteredExpenses = expenses.filter(e => {
+            const matchesSearch = e.voucherNumber.toLowerCase().includes(expenseSearchQuery.toLowerCase()) ||
+                e.payeeName.toLowerCase().includes(expenseSearchQuery.toLowerCase()) ||
+                (e.description || '').toLowerCase().includes(expenseSearchQuery.toLowerCase()) ||
+                (e.reference || '').toLowerCase().includes(expenseSearchQuery.toLowerCase());
+
+            const matchesCategory = expenseCategoryFilter === 'all' || e.category === expenseCategoryFilter;
+            const matchesProperty = expensePropertyFilter === 'all' || e.propertyId === expensePropertyFilter;
+            const matchesStatus = expenseStatusFilter === 'all' || e.status === expenseStatusFilter;
+
+            return matchesSearch && matchesCategory && matchesProperty && matchesStatus;
+        });
+
+        // Pagination
+        const totalExpensesPages = Math.max(1, Math.ceil(filteredExpenses.length / PAGE_SIZE));
+        const pagedExpenses = filteredExpenses.slice((expensePage - 1) * PAGE_SIZE, expensePage * PAGE_SIZE);
+
+        const handlePrintVoucher = async (voucher: PMExpenseVoucher) => {
+            try {
+                const property = properties.find(p => p.id === voucher.propertyId);
+                if (!property) return alert("Property not found for this voucher.");
+                
+                const unit = voucher.unitId ? (units.find(u => u.id === voucher.unitId) || null) : null;
+                
+                const dataUri = await pdfService.generatePMExpenseVoucherPdf(
+                    voucher,
+                    property,
+                    unit,
+                    currentInstitution,
+                    companyDetails,
+                    currentInstitution.branding?.logoUrl || null,
+                    currentInstitution.branding?.letterheadUrl || null
+                );
+                
+                setPreviewPdfUrl(dataUri);
+                setPreviewPdfTitle(`Payment_Voucher_${voucher.voucherNumber}`);
+                setShowPdfPreview(true);
+            } catch (err: any) {
+                console.error("Voucher PDF Generation Error:", err);
+                alert("Failed to render PDF preview: " + err.message);
+            }
+        };
+
+        return (
+            <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Payment Vouchers & Expenses</h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Record day-to-day asset expenses and print payment vouchers</p>
+                    </div>
+                    <button
+                        onClick={() => setShowExpenseModal(true)}
+                        className="bg-blue-600 hover:bg-blue-750 text-white font-black uppercase tracking-widest text-[9px] px-6 py-4 rounded-2xl shadow-xl shadow-blue-500/20 transition-all flex items-center gap-2 hover:scale-102"
+                    >
+                        <CurrencyIcon className="w-4 h-4" /> Record Expense Voucher
+                    </button>
+                </div>
+
+                {/* Metrics Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex items-center justify-between">
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Outflow (Approved/Paid)</p>
+                            <h4 className="text-2xl font-black text-slate-950 dark:text-white italic mt-1">KES {totalExpensesVal.toLocaleString()}</h4>
+                            <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase">{approvedAndPaid.length} Vouchers</p>
+                        </div>
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 flex items-center justify-center border border-emerald-100/50 dark:border-emerald-950/30">
+                            <CurrencyIcon className="w-6 h-6" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex items-center justify-between">
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pending Vouchers Value</p>
+                            <h4 className="text-2xl font-black text-slate-950 dark:text-white italic mt-1">KES {totalPendingVal.toLocaleString()}</h4>
+                            <p className="text-[9px] text-rose-500 font-bold mt-1 uppercase">{pendingVouchers.length} Awaiting Approval</p>
+                        </div>
+                        <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/20 text-amber-600 flex items-center justify-center border border-amber-100/50 dark:border-amber-950/30">
+                            <Cog8ToothIcon className="w-6 h-6" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex items-center justify-between">
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">This Month's Expense Outflow</p>
+                            <h4 className="text-2xl font-black text-slate-950 dark:text-white italic mt-1">KES {thisMonthOutflow.toLocaleString()}</h4>
+                            <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase">{currentMonthExpenses.length} Records</p>
+                        </div>
+                        <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-slate-750 text-blue-600 flex items-center justify-center border border-blue-100/50 dark:border-slate-750">
+                            <DocumentTextIcon className="w-6 h-6" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Filters */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg space-y-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Expense Filters</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Search voucher, payee..."
+                                value={expenseSearchQuery}
+                                onChange={(e) => { setExpenseSearchQuery(e.target.value); setExpensePage(1); }}
+                                className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-850 dark:text-slate-200"
+                            />
+                            <SearchIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                        </div>
+                        <div>
+                            <select
+                                value={expensePropertyFilter}
+                                onChange={(e) => { setExpensePropertyFilter(e.target.value); setExpensePage(1); }}
+                                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 text-xs font-bold focus:outline-none text-slate-855 dark:text-slate-300"
+                            >
+                                <option value="all">All Properties</option>
+                                {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <select
+                                value={expenseCategoryFilter}
+                                onChange={(e) => { setExpenseCategoryFilter(e.target.value); setExpensePage(1); }}
+                                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 text-xs font-bold focus:outline-none text-slate-855 dark:text-slate-300"
+                            >
+                                <option value="all">All Categories</option>
+                                <option value="Utilities">Utilities</option>
+                                <option value="Repairs & Maintenance">Repairs & Maintenance</option>
+                                <option value="Staff Salaries & Caretakers">Staff Salaries & Caretakers</option>
+                                <option value="Trash & Cleaning">Trash & Cleaning</option>
+                                <option value="Water & Plumbing">Water & Plumbing</option>
+                                <option value="Government Licenses & Taxes">Government Licenses & Taxes</option>
+                                <option value="Legal & Professional Fees">Legal & Professional Fees</option>
+                                <option value="Insurance">Insurance</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select
+                                value={expenseStatusFilter}
+                                onChange={(e) => { setExpenseStatusFilter(e.target.value); setExpensePage(1); }}
+                                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 text-xs font-bold focus:outline-none text-slate-855 dark:text-slate-300"
+                            >
+                                <option value="all">All Statuses</option>
+                                <option value="Pending Approval">Pending Approval</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Paid">Paid</option>
+                                <option value="Cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Registry Table */}
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                <tr>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Voucher Info</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Property / Unit</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Payee / Method</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Description</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic text-right">Amount</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic text-center">Status</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                {pagedExpenses.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No expense vouchers registered yet</td>
+                                    </tr>
+                                ) : (
+                                    pagedExpenses.map(item => {
+                                        const prop = properties.find(p => p.id === item.propertyId);
+                                        const unit = item.unitId ? units.find(u => u.id === item.unitId) : null;
+                                        return (
+                                            <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                                <td className="p-6">
+                                                    <div className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">{item.voucherNumber}</div>
+                                                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">{new Date(item.paymentDate).toLocaleDateString()}</div>
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="text-xs font-black uppercase text-blue-600 tracking-wider truncate max-w-[150px]">{prop?.name || 'Unknown Asset'}</div>
+                                                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">{unit ? `Unit ${unit.unitNumber}` : 'General Property'}</div>
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="text-xs font-black uppercase text-slate-700 dark:text-slate-300">{item.payeeName}</div>
+                                                    <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">
+                                                        {item.paymentMethod} {item.reference ? `(${item.reference})` : ''}
+                                                    </div>
+                                                </td>
+                                                <td className="p-6 max-w-[200px] truncate text-xs font-bold text-slate-500 dark:text-slate-400">
+                                                    {item.description || '—'}
+                                                </td>
+                                                <td className="p-6 text-right text-xs font-black text-rose-500 italic">
+                                                    KES {item.amount.toLocaleString()}
+                                                </td>
+                                                <td className="p-6 text-center">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                                        item.status === 'Paid' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-100 dark:border-emerald-950/30' :
+                                                        item.status === 'Approved' ? 'bg-blue-50 dark:bg-blue-950/20 text-blue-600 border-blue-100 dark:border-blue-950/30' :
+                                                        item.status === 'Cancelled' ? 'bg-rose-50 dark:bg-rose-950/20 text-rose-600 border-rose-100 dark:border-rose-950/30' :
+                                                        'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100 dark:border-amber-950/30'
+                                                    }`}>
+                                                        {item.status}
+                                                    </span>
+                                                </td>
+                                                <td className="p-6 text-right">
+                                                    <div className="flex justify-end items-center gap-2">
+                                                        {item.status === 'Pending Approval' && (
+                                                            <button
+                                                                onClick={() => handleApproveExpense(item)}
+                                                                className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-slate-750 dark:hover:bg-slate-700 text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-wider"
+                                                            >
+                                                                Approve
+                                                            </button>
+                                                        )}
+                                                        {item.status === 'Approved' && (
+                                                            <button
+                                                                onClick={() => handlePayExpense(item)}
+                                                                className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-wider"
+                                                            >
+                                                                Pay
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handlePrintVoucher(item)}
+                                                            className="p-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-755 text-slate-650 dark:text-slate-300 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1"
+                                                            title="Print Voucher PDF"
+                                                        >
+                                                            <DocumentTextIcon className="w-4 h-4" /> Print
+                                                        </button>
+                                                        {item.status !== 'Paid' && (
+                                                            <button
+                                                                onClick={() => handleDeleteExpense(item.id)}
+                                                                className="p-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 text-rose-600 rounded-lg text-[9px] font-black uppercase tracking-wider"
+                                                                title="Delete/Cancel Voucher"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination Footer */}
+                    {totalExpensesPages > 1 && (
+                        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/10">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Showing {((expensePage - 1) * PAGE_SIZE) + 1}–{Math.min(expensePage * PAGE_SIZE, filteredExpenses.length)} of {filteredExpenses.length} expense vouchers
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setExpensePage(p => Math.max(1, p - 1))} disabled={expensePage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
+                                {Array.from({ length: totalExpensesPages }, (_, i) => i + 1).map(pg => (
+                                    <button key={pg} onClick={() => setExpensePage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === expensePage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
+                                ))}
+                                <button onClick={() => setExpensePage(p => Math.min(totalExpensesPages, p + 1))} disabled={expensePage === totalExpensesPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []) as File[];
         if (newListingImages.length + files.length > 5) {
@@ -4096,7 +4453,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     dataUri = await pdfService.generateLandlordStatementPdf(
                         landlord, payments, leases, units, properties, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl || null
+                        currentInstitution.logoUrl || null, expenses
                     );
                 }
                 
@@ -4129,7 +4486,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     dataUri = await pdfService.generateLandlordStatementPdf(
                         entity as PMLandlord, payments, leases, units, properties, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl || null
+                        currentInstitution.logoUrl || null, expenses
                     );
                 }
                 
@@ -4185,7 +4542,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             dataUri = await pdfService.generateLandlordStatementPdf(
                                 entity as PMLandlord, payments, leases, units, properties, startDate, endDate, 
                                 currentInstitution, currentInstitution.letterheadConfig, 
-                                currentInstitution.logoUrl || null
+                                currentInstitution.logoUrl || null, expenses
                             );
                         }
                         
@@ -4854,14 +5211,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     const propPayments = filteredPayments.filter(p => leaseIds.includes(p.leaseId));
                     const gross = propPayments.reduce((s, p) => s + p.amount, 0);
                     const commission = propPayments.reduce((s, p) => s + (p.commissionAmount || 0), 0);
-                    const net = gross - commission;
+                    
+                    // Deduct approved and paid expenses
+                    const propExpenses = expenses.filter(e => e.propertyId === prop.id && (e.status === 'Approved' || e.status === 'Paid'));
+                    const totalPropExpenses = propExpenses.reduce((s, e) => s + e.amount, 0);
+                    const net = gross - commission - totalPropExpenses;
+                    
                     const landlord = landlords.find(l => l.id === prop.landlordId);
-                    return { prop, propPayments, gross, commission, net, landlord, propUnits };
-                }).filter(r => r.gross > 0 || r.propPayments.length > 0);
+                    return { prop, propPayments, gross, commission, net, landlord, propUnits, totalPropExpenses };
+                }).filter(r => r.gross > 0 || r.propPayments.length > 0 || r.totalPropExpenses > 0);
 
                 const totalGross = commissionRows.reduce((s, r) => s + r.gross, 0);
                 const totalComm = commissionRows.reduce((s, r) => s + r.commission, 0);
-                const totalNet = totalGross - totalComm;
+                const totalExpensesVal = commissionRows.reduce((s, r) => s + r.totalPropExpenses, 0);
+                const totalNet = totalGross - totalComm - totalExpensesVal;
 
                 return (
                     <div className="space-y-8">
@@ -4927,7 +5290,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-900/30 shadow-xl">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-3">Total Net to Landlords</p>
                                 <p className="text-3xl font-black text-emerald-600 italic">KES {totalNet.toLocaleString()}</p>
-                                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">After management fees</p>
+                                <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">After management fees & expenses</p>
                             </div>
                         </div>
 
@@ -4945,11 +5308,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Rate</th>
                                             <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Gross Collected</th>
                                             <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Commission</th>
+                                            <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Expenses</th>
                                             <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Net Payout</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {commissionRows.map(({ prop, gross, commission, net, landlord }) => (
+                                        {commissionRows.map(({ prop, gross, commission, net, landlord, totalPropExpenses }) => (
                                             <tr key={prop.id} className="border-t border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
                                                 <td className="p-5">
                                                     <div className="font-black text-sm text-slate-900 dark:text-white uppercase italic">{prop.name}</div>
@@ -4961,17 +5325,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 </td>
                                                 <td className="p-5 text-right text-sm font-black text-slate-900 dark:text-white">KES {gross.toLocaleString()}</td>
                                                 <td className="p-5 text-right text-sm font-black text-purple-600">KES {commission.toLocaleString()}</td>
+                                                <td className="p-5 text-right text-sm font-black text-rose-500">KES {totalPropExpenses.toLocaleString()}</td>
                                                 <td className="p-5 text-right text-sm font-black text-emerald-600">KES {net.toLocaleString()}</td>
                                             </tr>
                                         ))}
                                         {commissionRows.length === 0 && (
-                                            <tr><td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-widest italic">No payment data found</td></tr>
+                                            <tr><td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-widest italic">No payment data found</td></tr>
                                         )}
                                         {commissionRows.length > 0 && (
                                             <tr className="bg-slate-50 dark:bg-slate-900/50 border-t-2 border-slate-200 dark:border-slate-600">
                                                 <td colSpan={3} className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Totals</td>
                                                 <td className="p-5 text-right font-black text-slate-900 dark:text-white">KES {totalGross.toLocaleString()}</td>
                                                 <td className="p-5 text-right font-black text-purple-600">KES {totalComm.toLocaleString()}</td>
+                                                <td className="p-5 text-right font-black text-rose-500">KES {totalExpensesVal.toLocaleString()}</td>
                                                 <td className="p-5 text-right font-black text-emerald-600">KES {totalNet.toLocaleString()}</td>
                                             </tr>
                                         )}
@@ -5052,6 +5418,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         { id: 'staff', label: 'Staff Members', icon: UserGroupIcon },
                         { id: 'config', label: 'PM Settings', icon: SettingsIcon },
                         { id: 'payouts', label: 'Payouts', icon: CreditCardIcon },
+                        { id: 'expenses', label: 'Expenses', icon: CurrencyIcon },
                         { id: 'listings', label: 'Listings', icon: ShoppingCartIcon },
                         { id: 'inquiries', label: 'Inquiries', icon: UserPlusIcon },
                         { id: 'comms', label: 'Communications', icon: ChatBubbleLeftRightIcon },
@@ -6113,6 +6480,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             {activeTab === 'properties' && <PropertiesTab />}
             {activeTab === 'payouts' && <PayoutsTab />}
+            {activeTab === 'expenses' && <ExpensesTab />}
             {activeTab === 'listings' && <ListingsTab />}
             {activeTab === 'inquiries' && <InquiriesTab />}
             {activeTab === 'comms' && (
@@ -6832,7 +7200,137 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     filename={`${previewPdfTitle.replace(/\s+/g, '_').toLowerCase()}.pdf`}
                 />
             )}
- 
+
+            <Modal
+                show={showExpenseModal}
+                onClose={() => { setShowExpenseModal(false); setSelectedExpensePropertyId(''); }}
+                title="Record Expense / Create Payment Voucher"
+            >
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleSaveExpense({
+                        propertyId: formData.get('propertyId') as string,
+                        unitId: (formData.get('unitId') as string) || undefined,
+                        category: formData.get('category') as PMExpenseCategory,
+                        payeeName: formData.get('payeeName') as string,
+                        payeePhone: (formData.get('payeePhone') as string) || undefined,
+                        amount: parseFloat(formData.get('amount') as string),
+                        paymentDate: formData.get('paymentDate') as string,
+                        paymentMethod: formData.get('paymentMethod') as any,
+                        reference: (formData.get('reference') as string) || undefined,
+                        description: formData.get('description') as string,
+                        status: 'Pending Approval'
+                    });
+                }} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Voucher Number</label>
+                            <input type="text" readOnly defaultValue={`PV-${String(expenses.length + 1).padStart(4, '0')}`} className="w-full bg-slate-100 dark:bg-slate-900 border-2 border-transparent rounded-2xl p-4 font-bold outline-none text-slate-500 cursor-not-allowed" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Date</label>
+                            <input name="paymentDate" type="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Property</label>
+                            <select 
+                                name="propertyId" 
+                                required 
+                                value={selectedExpensePropertyId} 
+                                onChange={(e) => setSelectedExpensePropertyId(e.target.value)} 
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                            >
+                                <option value="">Select Property...</option>
+                                {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Unit (Optional)</label>
+                            <select 
+                                name="unitId" 
+                                disabled={!selectedExpensePropertyId}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all disabled:opacity-50"
+                            >
+                                <option value="">Whole Property</option>
+                                {units.filter(u => u.propertyId === selectedExpensePropertyId).map(u => (
+                                    <option key={u.id} value={u.id}>Unit {u.unitNumber} ({u.unitType})</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Expense Category</label>
+                            <select 
+                                name="category" 
+                                required 
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                            >
+                                <option value="Utilities">Utilities</option>
+                                <option value="Repairs & Maintenance">Repairs & Maintenance</option>
+                                <option value="Staff Salaries & Caretakers">Staff Salaries & Caretakers</option>
+                                <option value="Trash & Cleaning">Trash & Cleaning</option>
+                                <option value="Water & Plumbing">Water & Plumbing</option>
+                                <option value="Government Licenses & Taxes">Government Licenses & Taxes</option>
+                                <option value="Legal & Professional Fees">Legal & Professional Fees</option>
+                                <option value="Insurance">Insurance</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Expense Amount (KES)</label>
+                            <input name="amount" type="number" step="0.01" required min="0.01" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="Enter amount..." />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payee / Vendor Name</label>
+                            <input name="payeeName" type="text" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. John Doe, Kenya Power..." />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payee Phone (Optional)</label>
+                            <input name="payeePhone" type="text" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. 0712345678" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Method</label>
+                            <select 
+                                name="paymentMethod" 
+                                required 
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                            >
+                                <option value="Cash">Cash</option>
+                                <option value="M-Pesa">M-Pesa</option>
+                                <option value="Bank">Bank Transfer</option>
+                                <option value="Cheque">Cheque</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Reference (Optional)</label>
+                            <input name="reference" type="text" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. MPesa Ref, Cheque No..." />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Description / Particulars</label>
+                        <textarea name="description" required rows={3} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all resize-none" placeholder="Provide particulars of the payment..."></textarea>
+                    </div>
+
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">
+                        Record Voucher
+                    </button>
+                </form>
+            </Modal>
+
             <Modal 
                 show={showInvoiceModal} 
                 onClose={() => {
