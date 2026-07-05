@@ -2426,11 +2426,13 @@ BEGIN
         'heritage_members', 'heritage_stories', 'heritage_galleries', 'heritage_announcements',
         'student_enrollments', 'bank_transactions', 'store_categories',
         'broadcaster_messages', 'institution_events', 'event_pins',
-        'synergy_posts', 'synergy_comments', 'synergy_messages'
+        'synergy_posts', 'synergy_comments', 'synergy_messages',
+        'election_events', 'election_candidates', 'election_voters_ledger', 'election_ballots', 'election_checkins'
     ]) LOOP
         IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
             EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
             EXECUTE format('CREATE POLICY "Institutional tenancy select: %%I" ON %%I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+
             
             EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %%I" ON %%I', t, t);
             EXECUTE format('CREATE POLICY "Institutional tenancy manage: %%I" ON %%I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);

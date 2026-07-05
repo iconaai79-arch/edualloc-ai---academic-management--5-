@@ -1,7 +1,8 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, PMExpenseVoucher, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, PMExpenseVoucher, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient, PayrollRecord } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
+
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
 import { getInitials } from '../utils/stringUtils';
 import { formatRoleDisplayName } from '../utils/roleUtils';
@@ -7984,4 +7985,384 @@ export const generateArrearsReportPdf = async (
 
     return doc.output('datauristring');
 };
+
+/**
+ * Generates an official Payslip for HR staff.
+ */
+export const generateStaffPayslipPdf = async (
+    staff: User,
+    record: PayrollRecord,
+    institution: Institution,
+    letterheadConfig?: LetterheadConfig,
+    footerImageUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text("OFFICIAL PAYSLIP", 14, yPos);
+    yPos += 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Earnings Month: ${record.month}`, 14, yPos);
+    yPos += 12;
+
+    // Staff Details Card
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(14, yPos, pageWidth - 28, 30, 3, 3, 'F');
+    
+    let detailsY = yPos + 8;
+    doc.setFont('helvetica', 'bold');
+    doc.text("EMPLOYEE INFORMATION", 20, detailsY);
+    detailsY += 8;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${staff.name || record.staffName || 'N/A'}`, 20, detailsY);
+    doc.text(`ID: ${staff.id.substring(0, 8)}`, pageWidth / 2, detailsY);
+    detailsY += 6;
+    doc.text(`Role/Title: ${staff.role || 'Staff Member'}`, 20, detailsY);
+    doc.text(`Email: ${staff.email || 'N/A'}`, pageWidth / 2, detailsY);
+    yPos += 38;
+
+    const basicSalary = record.basicSalary || record.basicPay || 0;
+    const netSalary = record.netSalary || record.netPay || 0;
+
+    // Parse allowances
+    const allowancesList = Array.isArray(record.allowances) ? record.allowances : [];
+    const totalAllowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+
+    // Parse deductions
+    const deductionsList = Array.isArray(record.deductions) ? record.deductions : [];
+    const totalDeductions = deductionsList.reduce((acc: number, d: any) => acc + (d.amount || 0), 0);
+
+    const head = [['Description', 'Earnings (KES)', 'Deductions (KES)']];
+    
+    const body: any[] = [
+        ['Basic Salary', basicSalary.toLocaleString(), '-'],
+    ];
+
+    allowancesList.forEach((a: any) => {
+        body.push([a.name, a.amount.toLocaleString(), '-']);
+    });
+
+    deductionsList.forEach((d: any) => {
+        body.push([d.name, '-', d.amount.toLocaleString()]);
+    });
+
+    body.push([
+        'TOTALS',
+        (basicSalary + totalAllowances).toLocaleString(),
+        totalDeductions.toLocaleString()
+    ]);
+
+    body.push([
+        'NET PAYABLE',
+        { content: `KES ${netSalary.toLocaleString()}`, styles: { fontStyle: 'bold', fillColor: [240, 249, 255] } },
+        '-'
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] }, // indigo-600
+        styles: { fontSize: 9 }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 25;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text("---------------------------------", 14, yPos);
+    doc.text("Authorized Signature", 14, yPos + 5);
+
+    doc.text("---------------------------------", pageWidth / 2, yPos);
+    doc.text("Employee Signature & Date", pageWidth / 2, yPos + 5);
+
+    setupPdfFooter(doc, footerImg, `${institution.name} — Confidential Payslip`);
+    return doc.output('datauristring');
+};
+
+/**
+ * Generates a Kenyan standard P9 Tax Deduction Certificate PDF.
+ */
+export const generateStaffP9Pdf = async (
+    staff: User,
+    records: PayrollRecord[],
+    year: string,
+    institution: Institution,
+    letterheadConfig?: LetterheadConfig,
+    footerImageUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF('l', 'mm', 'a4'); // landscape
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("KENYA REVENUE AUTHORITY — P9 TAX CERTIFICATE", 14, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Tax Year: ${year}`, 14, yPos);
+    doc.text(`Employer Name: ${institution.name}`, pageWidth / 2, yPos);
+    yPos += 10;
+
+    // Staff Details Card
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(14, yPos, pageWidth - 28, 25, 2, 2, 'F');
+    
+    let detailsY = yPos + 7;
+    doc.setFont('helvetica', 'bold');
+    doc.text("EMPLOYEE TAXPAYER DETAILS", 20, detailsY);
+    detailsY += 8;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${staff.name || 'N/A'}`, 20, detailsY);
+    doc.text(`ID: ${staff.id.substring(0, 8)}`, pageWidth / 3, detailsY);
+    doc.text(`Role: ${staff.role || 'Staff Member'}`, (pageWidth / 3) * 2, detailsY);
+    yPos += 32;
+
+    const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const head = [[
+        'Month', 'Basic Pay', 'Allowances', 'Gross Pay', 
+        'NSSF', 'SHIF', 'Housing Levy', 
+        'Taxable Income', 'PAYE Charged', 'Relief', 'Net PAYE'
+    ]];
+
+    const body = months.map(mName => {
+        const rec = records.find((r: PayrollRecord) => r.month.startsWith(mName));
+        if (!rec) {
+            return [mName, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'];
+        }
+
+        const basic = rec.basicSalary || rec.basicPay || 0;
+        const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+        const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+        const gross = basic + allowances;
+
+        const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+        const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+        const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+        const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+        const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+
+        const allowableDeductions = nssf + shif + housingLevy;
+        const taxableIncome = Math.max(0, gross - allowableDeductions);
+        const personalRelief = gross > 0 ? 2400 : 0;
+        const grossPaye = paye + personalRelief;
+
+        return [
+            mName,
+            basic.toLocaleString(),
+            allowances.toLocaleString(),
+            gross.toLocaleString(),
+            nssf.toLocaleString(),
+            shif.toLocaleString(),
+            housingLevy.toLocaleString(),
+            taxableIncome.toLocaleString(),
+            grossPaye.toLocaleString(),
+            personalRelief.toLocaleString(),
+            paye.toLocaleString()
+        ];
+    });
+
+    let totBasic = 0, totAllowances = 0, totGross = 0, totNssf = 0, totShif = 0, totLevy = 0, totTaxable = 0, totGrossPaye = 0, totRelief = 0, totNetPaye = 0;
+    records.forEach((rec: PayrollRecord) => {
+        const basic = rec.basicSalary || rec.basicPay || 0;
+        const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+        const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+        const gross = basic + allowances;
+
+        const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+        const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+        const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+        const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+        const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+
+        const allowableDeductions = nssf + shif + housingLevy;
+        const taxable = Math.max(0, gross - allowableDeductions);
+        const relief = gross > 0 ? 2400 : 0;
+        const grossPaye = paye + relief;
+
+        totBasic += basic;
+        totAllowances += allowances;
+        totGross += gross;
+        totNssf += nssf;
+        totShif += shif;
+        totLevy += housingLevy;
+        totTaxable += taxable;
+        totGrossPaye += grossPaye;
+        totRelief += relief;
+        totNetPaye += paye;
+    });
+
+    body.push([
+        'TOTALS',
+        totBasic.toLocaleString(),
+        totAllowances.toLocaleString(),
+        totGross.toLocaleString(),
+        totNssf.toLocaleString(),
+        totShif.toLocaleString(),
+        totLevy.toLocaleString(),
+        totTaxable.toLocaleString(),
+        totGrossPaye.toLocaleString(),
+        totRelief.toLocaleString(),
+        totNetPaye.toLocaleString()
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head,
+        body,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            0: { fontStyle: 'bold' }
+        }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+    doc.setFontSize(9);
+    doc.text("I certify that this table contains correct details of earnings and deductions relative to the Kenya Revenue Authority.", 14, yPos);
+    doc.text("Employer Signature & Stamp: ________________________", 14, yPos + 8);
+
+    setupPdfFooter(doc, footerImg, `${institution.name} — P9 Income Tax Card`);
+    return doc.output('datauristring');
+};
+
+/**
+ * Generates a monthly Statutory Deductions compliance report PDF.
+ */
+export const generateStatutoryDeductionsPdf = async (
+    month: string,
+    records: PayrollRecord[],
+    institution: Institution,
+    letterheadConfig?: LetterheadConfig,
+    footerImageUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text("STATUTORY DEDUCTIONS COMPLIANCE REPORT", 14, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Filing Month: ${month}`, 14, yPos);
+    doc.text(`Employer: ${institution.name}`, pageWidth / 2, yPos);
+    yPos += 12;
+
+    const head = [['Employee', 'Gross Pay', 'NSSF', 'SHIF', 'Housing Levy', 'PAYE', 'Net Pay']];
+
+    let grandGross = 0, grandNssf = 0, grandShif = 0, grandLevy = 0, grandPaye = 0, grandNet = 0;
+
+    const body = records.map((rec: PayrollRecord) => {
+        const basic = rec.basicSalary || rec.basicPay || 0;
+        const allowancesList = Array.isArray(rec.allowances) ? rec.allowances : [];
+        const allowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+        const gross = basic + allowances;
+
+        const deductionsList = Array.isArray(rec.deductions) ? rec.deductions : [];
+        const nssf = deductionsList.find((d: any) => d.name === 'NSSF')?.amount || 0;
+        const shif = deductionsList.find((d: any) => d.name === 'SHIF')?.amount || 0;
+        const housingLevy = deductionsList.find((d: any) => d.name === 'Housing Levy')?.amount || 0;
+        const paye = deductionsList.find((d: any) => d.name === 'PAYE')?.amount || 0;
+        const net = rec.netSalary || rec.netPay || 0;
+
+        grandGross += gross;
+        grandNssf += nssf;
+        grandShif += shif;
+        grandLevy += housingLevy;
+        grandPaye += paye;
+        grandNet += net;
+
+        return [
+            rec.staffName || 'Staff Member',
+            `KES ${gross.toLocaleString()}`,
+            `KES ${nssf.toLocaleString()}`,
+            `KES ${shif.toLocaleString()}`,
+            `KES ${housingLevy.toLocaleString()}`,
+            `KES ${paye.toLocaleString()}`,
+            `KES ${net.toLocaleString()}`
+        ];
+    });
+
+    body.push([
+        'GRAND TOTALS',
+        `KES ${grandGross.toLocaleString()}`,
+        `KES ${grandNssf.toLocaleString()}`,
+        `KES ${grandShif.toLocaleString()}`,
+        `KES ${grandLevy.toLocaleString()}`,
+        `KES ${grandPaye.toLocaleString()}`,
+        `KES ${grandNet.toLocaleString()}`
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head,
+        body,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            1: { halign: 'right' },
+            2: { halign: 'right' },
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right' },
+            6: { halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+    doc.setFillColor(240, 253, 250); 
+    doc.roundedRect(14, yPos, pageWidth - 28, 30, 2, 2, 'F');
+
+    let complianceY = yPos + 8;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text("STATUTORY REMITTANCE ACCOUNTING", 20, complianceY);
+    complianceY += 8;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`KRA PAYE + Housing Levy Remittance: KES ${(grandPaye + grandLevy).toLocaleString()}`, 20, complianceY);
+    doc.text(`NSSF Board Remittance: KES ${grandNssf.toLocaleString()}`, pageWidth / 2, complianceY);
+    complianceY += 6;
+    doc.text(`Social Health Authority (SHA/SHIF) Remittance: KES ${grandShif.toLocaleString()}`, 20, complianceY);
+
+    setupPdfFooter(doc, footerImg, `${institution.name} — Statutory Remittance Report`);
+    return doc.output('datauristring');
+};
+
 
