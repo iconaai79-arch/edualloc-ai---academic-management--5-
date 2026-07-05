@@ -6,12 +6,13 @@ import {
 import { apiService } from '../../services/apiService';
 import { syncEngine } from '../../services/syncEngine';
 import type { User as AppUser } from '../../types';
+import { BCBroadcasterView } from './BCBroadcasterView';
 
 interface BeautyCollegeManagerProps {
     currentUser: AppUser;
     currentInstitution: any;
     onRefreshData?: () => void;
-    activeTab?: 'dashboard' | 'students' | 'courses' | 'finance' | 'practicals' | 'trainers';
+    activeTab?: 'dashboard' | 'students' | 'courses' | 'finance' | 'practicals' | 'trainers' | 'broadcaster';
 }
 
 export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({ 
@@ -20,7 +21,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
     onRefreshData,
     activeTab: externalTab
 }) => {
-    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'courses' | 'finance' | 'practicals' | 'trainers'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'courses' | 'finance' | 'practicals' | 'trainers' | 'broadcaster'>('dashboard');
     const activeTab = externalTab || internalTab;
     const setActiveTab = (tab: any) => setInternalTab(tab);
     const [loading, setLoading] = useState(true);
@@ -52,6 +53,9 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
         baseFee: 0,
         kitFee: 0,
         examFee: 0,
+        tuitionPriority: 1,
+        kitPriority: 2,
+        examPriority: 3,
         practicalHoursRequired: 20
     });
 
@@ -161,7 +165,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
             enrollmentDate: new Date().toISOString().split('T')[0]
         };
 
-        // Create initial invoice
+        // Create initial invoice with priority-ordered fee items
         const tuition = Number(selectedCourse.baseFee || 0);
         const kit = Number(selectedCourse.kitFee || 0);
         const exam = Number(selectedCourse.examFee || 0);
@@ -169,17 +173,19 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
 
         const invoiceId = `inv_${Date.now()}`;
         const invoiceNum = `BC-INV-${Math.floor(100000 + Math.random() * 900000)}`;
+        // Build items sorted by priority so payments are allocated highest-priority first
+        const rawItems = [
+            { desc: 'Tuition Fee', amount: tuition, priority: Number(selectedCourse.tuitionPriority || 1) },
+            { desc: 'Beauty Starter Kit', amount: kit, priority: Number(selectedCourse.kitPriority || 2) },
+            { desc: 'Exam Registration', amount: exam, priority: Number(selectedCourse.examPriority || 3) }
+        ].sort((a, b) => a.priority - b.priority);
         const initialInvoice = {
             id: invoiceId,
             institutionId: instId,
             studentId,
             studentName: studentForm.fullName,
             courseId: selectedCourse.id,
-            items: [
-                { desc: 'Tuition Fee', amount: tuition },
-                { desc: 'Beauty Starter Kit', amount: kit },
-                { desc: 'Exam Registration', amount: exam }
-            ],
+            items: rawItems,
             totalAmount,
             paidAmount: 0,
             balance: totalAmount,
@@ -220,6 +226,9 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
             baseFee: Number(courseForm.baseFee),
             kitFee: Number(courseForm.kitFee),
             examFee: Number(courseForm.examFee),
+            tuitionPriority: Number(courseForm.tuitionPriority || 1),
+            kitPriority: Number(courseForm.kitPriority || 2),
+            examPriority: Number(courseForm.examPriority || 3),
             practicalHoursRequired: Number(courseForm.practicalHoursRequired),
             isActive: true
         };
@@ -228,7 +237,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
             await apiService.saveModuleRecord('bc_courses', newCourse);
             await syncEngine.queueMutation('INSERT', 'bc_courses', newCourse).catch(() => {});
             setShowCourseModal(false);
-            setCourseForm({ code: '', name: '', description: '', baseFee: 0, kitFee: 0, examFee: 0, practicalHoursRequired: 20 });
+            setCourseForm({ code: '', name: '', description: '', baseFee: 0, kitFee: 0, examFee: 0, tuitionPriority: 1, kitPriority: 2, examPriority: 3, practicalHoursRequired: 20 });
             fetchData();
         } catch (error) {
             console.error('Failed to create course:', error);
@@ -612,18 +621,19 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                                             <p className="text-slate-400 text-xs min-h-[40px] text-left">{course.description || 'No description provided.'}</p>
                                             
                                             <div className="pt-4 border-t border-slate-50 dark:border-slate-700/60 space-y-2 text-xs">
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-450">Tuition Fee:</span>
-                                                    <span className="font-extrabold text-slate-900 dark:text-white">${course.baseFee}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-455">Beauty Kit:</span>
-                                                    <span className="font-extrabold text-slate-900 dark:text-white">${course.kitFee}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-slate-455">Exam Fee:</span>
-                                                    <span className="font-extrabold text-slate-900 dark:text-white">${course.examFee}</span>
-                                                </div>
+                                                {[
+                                                    { label: 'Tuition Fee', amount: course.baseFee, priority: course.tuitionPriority || 1 },
+                                                    { label: 'Beauty Kit', amount: course.kitFee, priority: course.kitPriority || 2 },
+                                                    { label: 'Exam Fee', amount: course.examFee, priority: course.examPriority || 3 }
+                                                ].sort((a, b) => a.priority - b.priority).map(item => (
+                                                    <div key={item.label} className="flex justify-between items-center">
+                                                        <span className="text-slate-450 flex items-center gap-1.5">
+                                                            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-500 font-black text-[8px]">{item.priority}</span>
+                                                            {item.label}:
+                                                        </span>
+                                                        <span className="font-extrabold text-slate-900 dark:text-white">${item.amount}</span>
+                                                    </div>
+                                                ))}
                                                 <div className="flex justify-between pt-2 border-t border-slate-50 border-dashed dark:border-slate-700/60">
                                                     <span className="text-slate-450 font-bold">Required Practicals:</span>
                                                     <span className="font-black text-indigo-500">{course.practicalHoursRequired} hrs</span>
@@ -829,6 +839,14 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                             )}
                         </div>
                     )}
+
+                    {activeTab === 'broadcaster' && (
+                        <BCBroadcasterView
+                            currentInstitution={currentInstitution}
+                            students={students}
+                            trainers={trainers}
+                        />
+                    )}
                 </div>
             )}
 
@@ -965,36 +983,79 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                                 />
                             </div>
 
-                            <div className="grid grid-cols-3 gap-3">
-                                <div>
-                                    <label className="block text-[8px] font-black uppercase text-slate-455 tracking-wider mb-1.5">Tuition ($)</label>
-                                    <input
-                                        required
-                                        type="number"
-                                        value={courseForm.baseFee}
-                                        onChange={(e) => setCourseForm(prev => ({ ...prev, baseFee: Number(e.target.value) }))}
-                                        className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-755 rounded-xl text-xs"
-                                    />
+                            {/* Fee Items with Payment Priority */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <label className="text-[8px] font-black uppercase text-slate-455 tracking-wider">Fee Structure & Payment Priority</label>
+                                    <span className="text-[8px] text-slate-400 italic">(lower number = paid first)</span>
                                 </div>
-                                <div>
-                                    <label className="block text-[8px] font-black uppercase text-slate-455 tracking-wider mb-1.5">Starter Kit ($)</label>
-                                    <input
-                                        required
-                                        type="number"
-                                        value={courseForm.kitFee}
-                                        onChange={(e) => setCourseForm(prev => ({ ...prev, kitFee: Number(e.target.value) }))}
-                                        className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-755 rounded-xl text-xs"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[8px] font-black uppercase text-slate-455 tracking-wider mb-1.5">Exams ($)</label>
-                                    <input
-                                        required
-                                        type="number"
-                                        value={courseForm.examFee}
-                                        onChange={(e) => setCourseForm(prev => ({ ...prev, examFee: Number(e.target.value) }))}
-                                        className="w-full px-3 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-755 rounded-xl text-xs"
-                                    />
+                                <div className="space-y-2">
+                                    {/* Header row */}
+                                    <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-1">
+                                        <span className="text-[7px] font-black uppercase text-slate-400 tracking-wider">Fee Component</span>
+                                        <span className="text-[7px] font-black uppercase text-slate-400 tracking-wider text-right w-28">Amount ($)</span>
+                                        <span className="text-[7px] font-black uppercase text-slate-400 tracking-wider text-center w-14">Priority</span>
+                                    </div>
+                                    {/* Tuition */}
+                                    <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center bg-slate-50 dark:bg-slate-900 rounded-xl px-3 py-2">
+                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Tuition Fee</span>
+                                        <input
+                                            required
+                                            type="number"
+                                            value={courseForm.baseFee}
+                                            onChange={(e) => setCourseForm(prev => ({ ...prev, baseFee: Number(e.target.value) }))}
+                                            className="w-28 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-right font-bold"
+                                            placeholder="0"
+                                        />
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            title="Payment Priority (1 = first to receive payment)"
+                                            value={courseForm.tuitionPriority}
+                                            onChange={(e) => setCourseForm(prev => ({ ...prev, tuitionPriority: Number(e.target.value) }))}
+                                            className="w-14 px-2 py-2 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-lg text-xs text-center font-black text-indigo-600"
+                                        />
+                                    </div>
+                                    {/* Beauty Kit */}
+                                    <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center bg-slate-50 dark:bg-slate-900 rounded-xl px-3 py-2">
+                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Beauty Starter Kit</span>
+                                        <input
+                                            required
+                                            type="number"
+                                            value={courseForm.kitFee}
+                                            onChange={(e) => setCourseForm(prev => ({ ...prev, kitFee: Number(e.target.value) }))}
+                                            className="w-28 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-right font-bold"
+                                            placeholder="0"
+                                        />
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            title="Payment Priority (1 = first to receive payment)"
+                                            value={courseForm.kitPriority}
+                                            onChange={(e) => setCourseForm(prev => ({ ...prev, kitPriority: Number(e.target.value) }))}
+                                            className="w-14 px-2 py-2 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-lg text-xs text-center font-black text-indigo-600"
+                                        />
+                                    </div>
+                                    {/* Exam Fee */}
+                                    <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center bg-slate-50 dark:bg-slate-900 rounded-xl px-3 py-2">
+                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Exam Registration</span>
+                                        <input
+                                            required
+                                            type="number"
+                                            value={courseForm.examFee}
+                                            onChange={(e) => setCourseForm(prev => ({ ...prev, examFee: Number(e.target.value) }))}
+                                            className="w-28 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-right font-bold"
+                                            placeholder="0"
+                                        />
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            title="Payment Priority (1 = first to receive payment)"
+                                            value={courseForm.examPriority}
+                                            onChange={(e) => setCourseForm(prev => ({ ...prev, examPriority: Number(e.target.value) }))}
+                                            className="w-14 px-2 py-2 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-lg text-xs text-center font-black text-indigo-600"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
