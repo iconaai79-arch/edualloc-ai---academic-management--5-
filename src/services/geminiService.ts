@@ -509,6 +509,53 @@ export const getChatResponse = async (history: { role: string, parts: { text: st
     }
 };
 
+/**
+ * Institution-aware chat: prepends a live data context snapshot as the first message
+ * so the AI can answer grounded questions about students, fees, DS, BC, HIS etc.
+ */
+export const getInstitutionAwareChatResponse = async (
+    contextSnapshot: string,
+    history: { role: string, parts: { text: string }[] }[],
+    message: string
+): Promise<string> => {
+    try {
+        const token = await apiService.getAuthToken();
+
+        // Inject context as the first model turn so it acts as a system prompt
+        const enrichedHistory = [
+            { role: 'user', parts: [{ text: 'Please acknowledge your role and the institution data you have access to.' }] },
+            { role: 'model', parts: [{ text: contextSnapshot + '\n\nUnderstood. I am EduAI with live access to this institution\'s data. I\'m ready to help.' }] },
+            ...history
+        ];
+
+        const response = await fetch('/api/ai', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({
+                model: PRO_LOGICAL_CORE,
+                history: enrichedHistory,
+                message
+            })
+        });
+
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            return data.text || "I'm sorry, I couldn't process that.";
+        } else {
+            const text = await response.text();
+            console.error("[geminiService] Non-JSON from Institution Chat:", text.substring(0, 200));
+            return "I encountered a communication error. Please try again.";
+        }
+    } catch (error) {
+        console.error("Institution AI chat error:", error);
+        return "I encountered an error. Please try again.";
+    }
+};
+
 export const analyzeCountyInventorySpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
