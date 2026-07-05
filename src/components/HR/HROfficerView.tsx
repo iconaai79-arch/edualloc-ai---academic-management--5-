@@ -80,7 +80,7 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
                 {/* Main Content */}
                 {activeTab === 'hr' ? (
                     <HRManager 
-                        staff={users.filter(u => u.role !== 'student')}
+                        staff={users.filter(u => u.role?.toLowerCase().trim() !== 'student')}
                         payrollRecords={payrollRecords}
                         leaveRequests={leaveRequests}
                         institution={currentInstitution}

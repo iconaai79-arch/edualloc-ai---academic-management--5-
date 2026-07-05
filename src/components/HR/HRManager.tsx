@@ -27,7 +27,7 @@ interface HRManagerProps {
 }
 
 export const HRManager: React.FC<HRManagerProps> = ({
-    staff,
+    staff: rawStaff,
     payrollRecords,
     leaveRequests,
     institution,
@@ -37,7 +37,14 @@ export const HRManager: React.FC<HRManagerProps> = ({
     onEditUser,
     onDeleteUser
 }) => {
+    const staff = (rawStaff || []).filter(member => {
+        if (!member || !member.role) return false;
+        const r = member.role.toLowerCase().trim();
+        return r !== 'student' && r !== 'parent' && r !== 'visitor';
+    });
+
     const [activeTab, setActiveTab] = useState<'roster' | 'payroll' | 'leave' | 'reports' | 'analytics'>('roster');
+
     
     // Onboarding Form States
     const [showOnboardModal, setShowOnboardModal] = useState(false);
