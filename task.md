@@ -18,4 +18,5 @@
 - [x] Add option to append landlord payment details to SMS reminders
 - [x] Enable bulk split payment recording (Rent, Deposit, Utility) with live totalization in the RecordPaymentModal
 - [x] Hide the bulk 'Remove Arrears' button from the Arrears Manager action panel
-- [x] Verify the application compiles and runs without errors
+- [x] Add dynamic town list/datalist selector option for property town input field
+- [/] Verify the application compiles and runs without errors

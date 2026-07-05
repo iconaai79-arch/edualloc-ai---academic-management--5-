@@ -124,6 +124,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [invoices, setInvoices] = useState<PMInvoice[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const existingTowns = useMemo(() => {
+        const unique = new Set<string>();
+        properties.forEach(p => {
+            if (p.town) unique.add(p.town.trim());
+        });
+        const defaults = ["Nairobi", "Mombasa", "Kisumu", "Nakuru", "Eldoret", "Thika", "Nyeri", "Malindi", "Kakamega", "Kericho", "Kisii", "Machakos", "Kitale", "Garissa", "Kiambu", "Ruiru", "Athi River"];
+        defaults.forEach(d => unique.add(d));
+        return Array.from(unique).sort((a, b) => a.localeCompare(b));
+    }, [properties]);
+
     // Modals
     const [showLandlordModal, setShowLandlordModal] = useState(false);
     const [editingLandlord, setEditingLandlord] = useState<PMLandlord | null>(null);
@@ -5344,7 +5354,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Town / City</label>
-                        <input name="town" defaultValue={editingProperty?.town} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. Nairobi, Mombasa, Kisumu" />
+                        <input 
+                            name="town" 
+                            list="towns-list"
+                            defaultValue={editingProperty?.town} 
+                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" 
+                            placeholder="e.g. Nairobi, Mombasa, Kisumu" 
+                        />
+                        <datalist id="towns-list">
+                            {existingTowns.map(town => (
+                                <option key={town} value={town} />
+                            ))}
+                        </datalist>
                     </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Type</label>
