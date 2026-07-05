@@ -361,7 +361,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             // Filter invoices
             const propInvoices = invoices.filter(inv => {
                 if (!unitIds.includes(inv.unitId)) return false;
-                if (inv.status === 'Cancelled') return false;
+                if (inv.status === 'Cancelled' || inv.status === 'Draft') return false;
                 if (selYear !== null && selMonth !== null) {
                     const invDate = new Date(inv.issueDate);
                     return (invDate.getMonth() + 1) === selMonth && invDate.getFullYear() === selYear;
@@ -1896,6 +1896,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     const totalInvoiced = invoices
                         .filter(inv => {
                             if (inv.leaseId !== lease.id) return false;
+                            if (inv.status === 'Cancelled' || inv.status === 'Draft') return false;
                             if (!inv.description.toLowerCase().includes('rent') && !inv.description.toLowerCase().includes('arrears')) return false;
                             const iDate = new Date(inv.issueDate);
                             return iDate >= billingMonthStart && iDate <= billingMonthEnd;
@@ -6398,10 +6399,11 @@ const ArrearsManager: React.FC<{
                 })
                 .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-            // Sum all rent/arrears invoices generated during the selected period
+            // Sum all rent/arrears invoices generated during the selected period (exclude Cancelled/Draft)
             const totalInvoicedAmount = invoices
                 .filter(inv => {
                     if (inv.leaseId !== lease.id) return false;
+                    if (inv.status === 'Cancelled' || inv.status === 'Draft') return false;
                     if (!inv.description.toLowerCase().includes('rent') && !inv.description.toLowerCase().includes('arrears')) return false;
                     const iDate = new Date(inv.issueDate);
                     return iDate >= periodStart && iDate <= periodEnd;
@@ -6558,29 +6560,43 @@ const ArrearsManager: React.FC<{
               })()
             : new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' });
 
+        const selectedPropertyObj = arrProperty !== 'all' ? properties.find(p => p.id === arrProperty) : null;
+        const propertyName = selectedPropertyObj ? selectedPropertyObj.name : "all properties";
+
+        // Helper filter to check if invoice belongs to selected property
+        const belongsToProperty = (inv: PMInvoice) => {
+            if (arrProperty === 'all') return true;
+            const unit = units.find(u => u.id === inv.unitId);
+            return unit && unit.propertyId === arrProperty;
+        };
+
         const periodArrearsInvoices = invoices.filter(inv => 
             inv.description.includes("Outstanding Arrears Adjustment") && 
-            inv.description.includes(billingPeriodLabel)
+            inv.description.includes(billingPeriodLabel) &&
+            inv.status !== 'Paid' && inv.status !== 'Cancelled' &&
+            belongsToProperty(inv)
         );
 
         const allArrearsInvoices = invoices.filter(inv => 
-            inv.description.includes("Outstanding Arrears Adjustment")
+            inv.description.includes("Outstanding Arrears Adjustment") &&
+            inv.status !== 'Paid' && inv.status !== 'Cancelled' &&
+            belongsToProperty(inv)
         );
 
         if (allArrearsInvoices.length === 0) {
-            return alert("No outstanding arrears adjustment invoices found to remove.");
+            return alert(`No outstanding arrears adjustment invoices found to remove for ${propertyName}.`);
         }
 
         const choice = window.confirm(
-            `Found ${periodArrearsInvoices.length} arrears invoices for ${billingPeriodLabel}.\n` +
-            `Click [OK] to delete ONLY these ${periodArrearsInvoices.length} invoices, or [Cancel] if you want to delete ALL ${allArrearsInvoices.length} arrears invoices across all periods.`
+            `Found ${periodArrearsInvoices.length} arrears invoices for ${billingPeriodLabel} in ${propertyName}.\n` +
+            `Click [OK] to delete ONLY these ${periodArrearsInvoices.length} invoices, or [Cancel] if you want to delete ALL ${allArrearsInvoices.length} arrears invoices for ${propertyName} across all periods.`
         );
 
         let targetInvoices = [];
         if (choice) {
             targetInvoices = periodArrearsInvoices;
         } else {
-            if (window.confirm(`Delete ALL ${allArrearsInvoices.length} arrears adjustment invoices across all periods? This action cannot be undone.`)) {
+            if (window.confirm(`Delete ALL ${allArrearsInvoices.length} arrears adjustment invoices for ${propertyName} across all periods? This action cannot be undone.`)) {
                 targetInvoices = allArrearsInvoices;
             } else {
                 return;
@@ -6601,7 +6617,7 @@ const ArrearsManager: React.FC<{
                 await apiService.deleteModuleRecord('pm_invoices', chunk.join(','));
             }
 
-            alert(`Successfully deleted ${ids.length} arrears adjustment invoices.`);
+            alert(`Successfully deleted ${ids.length} arrears adjustment invoices for ${propertyName}.`);
             loadData();
         } catch (err: any) {
             alert(err.message || "Failed to delete arrears invoices.");
