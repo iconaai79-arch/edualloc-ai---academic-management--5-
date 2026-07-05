@@ -6314,6 +6314,28 @@ const ArrearsManager: React.FC<{
     const [arrPeriod, setArrPeriod] = useState(new Date().toISOString().slice(0, 7));
     const [sendingReminder, setSendingReminder] = useState<string | null>(null);
     const [exporting, setExporting] = useState(false);
+    const [showSmsModal, setShowSmsModal] = useState(false);
+    const [smsAdditionalText, setSmsAdditionalText] = useState('');
+    const [sendingSms, setSendingSms] = useState(false);
+
+    const Modal = ({ show, onClose, title, children, maxWidth = "max-w-lg" }: { show: boolean, onClose: () => void, title: string, children: React.ReactNode, maxWidth?: string }) => {
+        if (!show) return null;
+        return (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className={`bg-white dark:bg-slate-905 w-full ${maxWidth} rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300`}>
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">{title}</h3>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-105 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                            <XIcon className="w-6 h-6 text-slate-400" />
+                        </button>
+                    </div>
+                    <div className="p-8 max-h-[70vh] overflow-y-auto">
+                        {children}
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const handleExportPdf = async () => {
         setExporting(true);
@@ -6471,20 +6493,39 @@ const ArrearsManager: React.FC<{
         }
     };
 
-    const handleBulkReminder = async () => {
-        const listWithArrears = filteredArrears.filter(item => item.periodArrears > 0 && item.tenant?.phoneNumber);
-        if (listWithArrears.length === 0) return alert("No tenants in the filtered list have outstanding arrears and a registered phone number.");
-        if (!confirm(`Send automated SMS arrears reminders to ${listWithArrears.length} tenants?`)) return;
+    const getSmsMessage = (item: typeof filteredArrears[0]) => {
+        const base = `Dear ${item.tenant!.name}, you have outstanding rent arrears of KES ${item.periodArrears.toLocaleString()} for Unit ${item.unit?.unitNumber}. Please clear this balance.`;
+        return smsAdditionalText.trim() ? `${base} ${smsAdditionalText.trim()}` : base;
+    };
 
+    const handleBulkReminderClick = () => {
+        const listWithArrears = filteredArrears.filter(item => item.periodArrears > 0 && item.tenant?.phoneNumber);
+        if (listWithArrears.length === 0) {
+            return alert("No tenants in the filtered list have outstanding arrears and a registered phone number.");
+        }
+        setShowSmsModal(true);
+    };
+
+    const handleSendBulkReminder = async () => {
+        const listWithArrears = filteredArrears.filter(item => item.periodArrears > 0 && item.tenant?.phoneNumber);
+        if (listWithArrears.length === 0) return;
+
+        setSendingSms(true);
         let sent = 0;
-        for (const item of listWithArrears) {
-            try {
-                const msg = `Dear ${item.tenant!.name}, you have outstanding rent arrears of KES ${item.periodArrears.toLocaleString()} for Unit ${item.unit?.unitNumber}. Please clear this balance.`;
+        try {
+            for (const item of listWithArrears) {
+                const msg = getSmsMessage(item);
                 await apiService.sendSms(item.tenant!.phoneNumber!, msg, currentInstitution.smsConfig, 1, institutionId);
                 sent++;
-            } catch (_) {}
+            }
+            alert(`Reminders dispatch completed! Sent: ${sent}`);
+            setShowSmsModal(false);
+            setSmsAdditionalText('');
+        } catch (err: any) {
+            alert(err.message || "Failed to send reminders.");
+        } finally {
+            setSendingSms(false);
         }
-        alert(`Reminders dispatch completed! Sent: ${sent}`);
     };
 
     const handleBulkInvoiceArrears = async () => {
@@ -6718,7 +6759,7 @@ const ArrearsManager: React.FC<{
                         Invoice Arrears
                     </button>
                     <button 
-                        onClick={handleBulkReminder}
+                        onClick={handleBulkReminderClick}
                         className="flex-grow w-full bg-emerald-600 hover:bg-emerald-750 text-white font-black uppercase tracking-widest text-[8px] py-4 rounded-xl shadow-lg transition-all"
                     >
                         SMS Reminders
@@ -6862,6 +6903,67 @@ const ArrearsManager: React.FC<{
                     </table>
                 </div>
             </div>
+
+            {/* SMS Reminders Preview Modal */}
+            <Modal show={showSmsModal} onClose={() => setShowSmsModal(false)} title="Arrears SMS Reminders" maxWidth="max-w-xl">
+                <div className="space-y-4">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Base Message Template</p>
+                        <p className="text-xs bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 text-slate-650 dark:text-slate-300 font-medium">
+                            Dear <span className="font-bold text-slate-800 dark:text-white">[Tenant Name]</span>, you have outstanding rent arrears of <span className="font-bold text-slate-800 dark:text-white">KES [Arrears Amount]</span> for Unit <span className="font-bold text-slate-800 dark:text-white">[Unit Number]</span>. Please clear this balance.
+                        </p>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Append Additional SMS Text</label>
+                        <textarea
+                            rows={3}
+                            value={smsAdditionalText}
+                            onChange={(e) => setSmsAdditionalText(e.target.value)}
+                            placeholder="e.g. Please clear this by Friday evening to avoid penalties. Thank you."
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold outline-none dark:text-white focus:border-blue-500 transition-colors resize-none"
+                        />
+                    </div>
+
+                    <div className="space-y-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Preview (First 3 Recipients)</p>
+                        <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
+                            {filteredArrears.filter(item => item.periodArrears > 0 && item.tenant?.phoneNumber).slice(0, 3).map(item => (
+                                <div key={item.lease.id} className="text-xs bg-slate-50 dark:bg-slate-805 p-3.5 rounded-xl border border-slate-100 dark:border-slate-700/50 space-y-1.5">
+                                    <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        <span>{item.tenant?.name} ({item.unit?.unitNumber})</span>
+                                        <span>{item.tenant?.phoneNumber}</span>
+                                    </div>
+                                    <p className="text-slate-700 dark:text-slate-300 font-medium italic">
+                                        {getSmsMessage(item)}
+                                    </p>
+                                </div>
+                            ))}
+                            {filteredArrears.filter(item => item.periodArrears > 0 && item.tenant?.phoneNumber).length > 3 && (
+                                <p className="text-[10px] text-slate-400 italic text-center">
+                                    ...and {filteredArrears.filter(item => item.periodArrears > 0 && item.tenant?.phoneNumber).length - 3} other tenants in arrears.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            onClick={() => setShowSmsModal(false)}
+                            className="flex-1 py-3.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-black uppercase tracking-widest text-[9px] rounded-xl transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSendBulkReminder}
+                            disabled={sendingSms}
+                            className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-750 text-white font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-blue-500/20 transition-colors disabled:opacity-50"
+                        >
+                            {sendingSms ? "Sending..." : `Send ${filteredArrears.filter(item => item.periodArrears > 0 && item.tenant?.phoneNumber).length} Reminders`}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

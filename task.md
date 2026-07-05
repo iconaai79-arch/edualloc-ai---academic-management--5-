@@ -8,4 +8,5 @@
 - [x] Connect dynamic monthly rent collection trend chart using real payments data
 - [x] Build per-property collection progress metrics and list view with search
 - [x] Implement unit-level drill-down collection status panel
-- [/] Verify the application compiles and runs without errors.
+- [x] Add SMS preview modal and additional text appending in Arrears Manager reminders
+- [x] Verify the application compiles and runs without errors.
