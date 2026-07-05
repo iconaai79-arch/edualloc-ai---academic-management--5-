@@ -4437,14 +4437,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             try {
                 let dataUri = '';
                 let title = '';
+                const effectiveLetterhead = currentInstitution.letterheadConfig?.headerImageUrl 
+                    ? currentInstitution.letterheadConfig 
+                    : pmSettings?.branding?.letterheadUrl 
+                        ? { headerImageUrl: pmSettings.branding.letterheadUrl } 
+                        : undefined;
+                const effectiveLogo = pmSettings?.branding?.logoUrl || currentInstitution.logoUrl || null;
+
                 if (targetType === 'tenant') {
                     const tenant = tenants.find(t => t.id === targetId);
                     if (!tenant) return;
                     title = `Tenant Statement - ${tenant.name}`;
                     dataUri = await pdfService.generateTenantStatementPdf(
                         tenant, payments, invoices, leases, units, startDate, endDate, 
-                        currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl || null
+                        currentInstitution, effectiveLetterhead, effectiveLogo
                     );
                 } else {
                     const landlord = landlords.find(l => l.id === targetId);
@@ -4452,8 +4458,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     title = `Landlord Statement - ${landlord.name}`;
                     dataUri = await pdfService.generateLandlordStatementPdf(
                         landlord, payments, leases, units, properties, startDate, endDate, 
-                        currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl || null, expenses
+                        currentInstitution, effectiveLetterhead, effectiveLogo, expenses
                     );
                 }
                 
@@ -4476,17 +4481,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             
             try {
                 let dataUri = '';
+                const effectiveLetterhead = currentInstitution.letterheadConfig?.headerImageUrl 
+                    ? currentInstitution.letterheadConfig 
+                    : pmSettings?.branding?.letterheadUrl 
+                        ? { headerImageUrl: pmSettings.branding.letterheadUrl } 
+                        : undefined;
+                const effectiveLogo = pmSettings?.branding?.logoUrl || currentInstitution.logoUrl || null;
+
                 if (targetType === 'tenant') {
                     dataUri = await pdfService.generateTenantStatementPdf(
                         entity as PMTenant, payments, invoices, leases, units, startDate, endDate, 
-                        currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl || null
+                        currentInstitution, effectiveLetterhead, effectiveLogo
                     );
                 } else {
                     dataUri = await pdfService.generateLandlordStatementPdf(
                         entity as PMLandlord, payments, leases, units, properties, startDate, endDate, 
-                        currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl || null, expenses
+                        currentInstitution, effectiveLetterhead, effectiveLogo, expenses
                     );
                 }
                 
@@ -4532,17 +4542,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 for (const entity of validList) {
                     try {
                         let dataUri = '';
+                        const effectiveLetterhead = currentInstitution.letterheadConfig?.headerImageUrl 
+                            ? currentInstitution.letterheadConfig 
+                            : pmSettings?.branding?.letterheadUrl 
+                                ? { headerImageUrl: pmSettings.branding.letterheadUrl } 
+                                : undefined;
+                        const effectiveLogo = pmSettings?.branding?.logoUrl || currentInstitution.logoUrl || null;
+
                         if (targetType === 'tenant') {
                             dataUri = await pdfService.generateTenantStatementPdf(
                                 entity as PMTenant, payments, invoices, leases, units, startDate, endDate, 
-                                currentInstitution, currentInstitution.letterheadConfig, 
-                                currentInstitution.logoUrl || null
+                                currentInstitution, effectiveLetterhead, effectiveLogo
                             );
                         } else {
                             dataUri = await pdfService.generateLandlordStatementPdf(
                                 entity as PMLandlord, payments, leases, units, properties, startDate, endDate, 
-                                currentInstitution, currentInstitution.letterheadConfig, 
-                                currentInstitution.logoUrl || null, expenses
+                                currentInstitution, effectiveLetterhead, effectiveLogo, expenses
                             );
                         }
                         
