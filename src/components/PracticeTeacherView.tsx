@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import type { User, TimetableEntry, Subject, Room, TimetableSettings, ObservationNote, Course } from '../types';
+import type { User, TimetableEntry, Subject, Room, TimetableSettings, ObservationNote, Course, Book } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 import { JoinedLessonsManager } from './JoinedLessonsManager';
 import { DigitalCatalog } from './Library/DigitalCatalog';

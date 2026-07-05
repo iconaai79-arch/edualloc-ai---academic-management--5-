@@ -112,7 +112,7 @@ export interface DisciplineIncident {
     institutionId: string;
     studentId: string;
     studentName: string;
-    type: string;
+    type?: string;
     incidentType?: string;
     severity?: 'Low' | 'Medium' | 'High' | 'Critical';
     description: string;
@@ -416,6 +416,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
+    address?: string;
     institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Beauty College' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency';
     category?: string;
     createdAt?: string;
@@ -2751,6 +2752,10 @@ export interface PMLease {
     witnessName?: string;
     witnessPhone?: string;
     leaseNumber?: string;
+    escalationPercentage?: number;
+    renewedFromLeaseId?: string;
+    tenantSignatureUrl?: string;
+    landlordSignatureUrl?: string;
     institutionId: string;
     createdAt: string;
 }
@@ -2873,6 +2878,23 @@ export interface PMInvoice {
     status: PMInvoiceStatus;
     notes?: string;
     institutionId: string;
+    createdAt?: string;
+}
+
+export interface PMUtilityReading {
+    id: string;
+    propertyId: string;
+    unitId?: string;
+    utilityType: 'Water' | 'Electricity';
+    previousReading: number;
+    currentReading: number;
+    ratePerUnit: number;
+    consumption: number;
+    amount: number;
+    readingDate: string;
+    billingStatus: 'Pending' | 'Billed';
+    invoiceId?: string;
+    institutionId: string;
     createdAt: string;
 }
 
@@ -2907,6 +2929,7 @@ export interface PMSettings {
         primaryColor?: string;
         footerText?: string;
         letterheadUrl?: string;
+        landlordSignatureUrl?: string;
     };
     rentReminders?: {
         enabled: boolean;
@@ -4358,6 +4381,8 @@ export interface CarListing {
     trim?: string;
     price: number;
     mileage: number;
+    vin?: string;
+    description?: string;
     fuelType: 'Petrol' | 'Diesel' | 'Electric' | 'Hybrid';
     transmission: 'Automatic' | 'Manual';
     bodyType?: string;

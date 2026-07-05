@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import type { User, ProfileUpdateData, PasswordUpdateData } from '../types';
+import type { User, ProfileUpdateData, PasswordUpdateData, Institution } from '../types';
 import { apiService } from '../services/apiService';
 
 interface ProfileModalProps {

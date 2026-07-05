@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import {
     User, Institution, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
     PMPropertyType, PMUnitStatus, PMLeaseStatus, PMPaymentMethod, PMPaymentType,
-    PMPriority, PMTicketStatus, PMLandlord, PMDisbursement, PMInquiry, PMInquiryStatus,
-    CompanyDetails, PMInvoice, PMInvoiceStatus, SmsConfig, Department, Subject, Course, LetterheadConfig, UserUpdateData, PMSettings
+    PMPriority, PMLandlord, PMDisbursement, PMInquiry, PMInquiryStatus,
+    CompanyDetails, PMInvoice, PMInvoiceStatus, SmsConfig, Department, Subject, Course, LetterheadConfig, UserUpdateData, PMSettings,
+    PMExpenseVoucher, PMNoticeLetter, PMUtilityReading, PMNoticeStatus, PMNoticeType, PMExpenseCategory, PMExpenseStatus
 } from '../types';
 import { apiService } from '../services/apiService';
 import { PlusIcon } from './icons/PlusIcon';
@@ -107,7 +108,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     } = props;
     const institutionId = currentInstitution?.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'expenses' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
-    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices' | 'notices'>('properties');
+    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices' | 'notices' | 'utilities' | 'broadcasts'>('properties');
     const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission' | 'arrears'>('analytics');
     const [expenses, setExpenses] = useState<PMExpenseVoucher[]>([]);
 
@@ -125,6 +126,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [invoices, setInvoices] = useState<PMInvoice[]>([]);
     const [notices, setNotices] = useState<PMNoticeLetter[]>([]);
     const [showNoticeModal, setShowNoticeModal] = useState(false);
+    const [utilityReadings, setUtilityReadings] = useState<PMUtilityReading[]>([]);
+    const [showUtilityModal, setShowUtilityModal] = useState(false);
+    const [renewingLease, setRenewingLease] = useState<PMLease | null>(null);
+    const [landlordSignatureFile, setLandlordSignatureFile] = useState<File | null>(null);
+    const [tenantSignatureFile, setTenantSignatureFile] = useState<File | null>(null);
+    const [showRenewModal, setShowRenewModal] = useState(false);
     const [loading, setLoading] = useState(true);
 
     const existingTowns = useMemo(() => {
@@ -267,10 +274,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 apiService.fetchModuleRecords<PMInvoice>('pm_invoices', institutionId),
                 apiService.fetchModuleRecords<PMSettings>('pm_settings', institutionId),
                 apiService.fetchModuleRecords<PMNoticeLetter>('pm_notices', institutionId),
-                apiService.fetchModuleRecords<PMExpenseVoucher>('pm_expenses', institutionId)
+                apiService.fetchModuleRecords<PMExpenseVoucher>('pm_expenses', institutionId),
+                apiService.fetchModuleRecords<PMUtilityReading>('pm_utility_readings', institutionId)
             ]);
             
-            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv, stg, nt, ex] = results as any[];
+            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv, stg, nt, ex, utr] = results as any[];
 
             setLandlords(ls || []);
             setProperties(ps || []);
@@ -285,6 +293,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             setInvoices(inv || []);
             setNotices(nt || []);
             setExpenses(ex || []);
+            setUtilityReadings(utr || []);
             
             if (stg && stg.length > 0) {
                 setPmSettings(stg[0]);
@@ -378,6 +387,45 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         }
         return trend;
     }, [payments]);
+
+    // Cash flow trend breakdown (revenue vs expenses vs payouts)
+    const cashFlowTrend = useMemo(() => {
+        const trend = [];
+        const now = new Date();
+        for (let i = 7; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const m = d.getMonth() + 1;
+            const y = d.getFullYear();
+            const label = d.toLocaleDateString('default', { month: 'short' });
+
+            const revenue = payments
+                .filter(p => {
+                    if (p.status !== 'Completed') return false;
+                    const dateObj = new Date(p.paymentDate);
+                    return (dateObj.getMonth() + 1) === m && dateObj.getFullYear() === y;
+                })
+                .reduce((sum, p) => sum + p.amount, 0);
+
+            const outflow = expenses
+                .filter(e => {
+                    if (e.status !== 'Paid') return false;
+                    const dateObj = new Date(e.paymentDate);
+                    return (dateObj.getMonth() + 1) === m && dateObj.getFullYear() === y;
+                })
+                .reduce((sum, e) => sum + e.amount, 0);
+
+            const payouts = disbursements
+                .filter(disb => {
+                    if (disb.status !== 'Paid' && disb.status !== 'Approved') return false;
+                    const dateObj = new Date(disb.processedDate || disb.requestDate || Date.now());
+                    return (dateObj.getMonth() + 1) === m && dateObj.getFullYear() === y;
+                })
+                .reduce((sum, disb) => sum + disb.amount, 0);
+
+            trend.push({ monthLabel: `${label} ${y}`, revenue, outflow, payouts });
+        }
+        return trend;
+    }, [payments, expenses, disbursements]);
 
     // Calculated metrics per property for the selected period
     const propertiesCollectionData = useMemo(() => {
@@ -727,6 +775,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 witnessPhone: data.witnessPhone,
                 noticePeriodDays: data.noticePeriodDays,
                 lateFeePercentage: data.lateFeePercentage,
+                tenantSignatureUrl: data.tenantSignatureUrl,
+                landlordSignatureUrl: data.landlordSignatureUrl,
                 leaseNumber,
                 institutionId,
                 createdAt: new Date().toISOString()
@@ -954,6 +1004,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
                         { id: 'invoices', label: 'Invoices', icon: DocumentTextIcon },
                         { id: 'notices', label: 'Notice Letters', icon: DocumentTextIcon },
+                        { id: 'utilities', label: 'Utility Billing', icon: SparklesIcon },
+                        { id: 'broadcasts', label: 'SMS Broadcasts', icon: PaperAirplaneIcon },
                     ].map(sub => (
                         <button
                             key={sub.id}
@@ -1260,6 +1312,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             {propertyActiveSubTab === 'maintenance' && MaintenanceTab()}
             {propertyActiveSubTab === 'invoices' && InvoicesTab()}
             {propertyActiveSubTab === 'notices' && NoticesTab()}
+            {propertyActiveSubTab === 'utilities' && UtilitiesTab()}
+            {propertyActiveSubTab === 'broadcasts' && BroadcastsTab()}
         </div>
     );
 
@@ -1748,6 +1802,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     };
 
     const LeasesTab = () => {
+        const expiringLeases = useMemo(() => {
+            const today = new Date();
+            const sixtyDays = new Date();
+            sixtyDays.setDate(today.getDate() + 60);
+            return leases.filter(l => {
+                if (l.status !== 'Active' || !l.endDate) return false;
+                const end = new Date(l.endDate);
+                return end >= today && end <= sixtyDays;
+            });
+        }, [leases]);
+
         const filteredLeases = leases.filter(l => {
             const tenant = tenants.find(t => t.id === l.tenantId);
             const unit = units.find(u => u.id === l.unitId);
@@ -1762,6 +1827,38 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         const pagedLeases = filteredLeases.slice((leasePage - 1) * PAGE_SIZE, leasePage * PAGE_SIZE);
         return (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            {expiringLeases.length > 0 && (
+                <div className="bg-rose-50 dark:bg-rose-955/20 border-2 border-rose-200/50 dark:border-rose-800/30 rounded-3xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-rose-500/10 rounded-2xl text-rose-500">
+                            <AlertTriangleIcon className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div>
+                            <h4 className="text-xs font-black text-rose-850 dark:text-rose-300 uppercase tracking-wider italic">Lease Agreements Expiring Soon</h4>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase mt-1">There are {expiringLeases.length} active lease(s) expiring within the next 60 days that require immediate escalation/renewal.</p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                        {expiringLeases.slice(0, 3).map(el => {
+                            const tenant = tenants.find(t => t.id === el.tenantId);
+                            const unit = units.find(u => u.id === el.unitId);
+                            return (
+                                <button
+                                    key={el.id}
+                                    onClick={() => { setRenewingLease(el); setShowRenewModal(true); }}
+                                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow shadow-rose-600/20"
+                                >
+                                    Renew Unit {unit?.unitNumber} ({tenant?.name?.split(' ')[0]})
+                                </button>
+                            );
+                        })}
+                        {expiringLeases.length > 3 && (
+                            <span className="text-[9px] font-black text-rose-500 uppercase flex items-center ml-2">+{expiringLeases.length - 3} More</span>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Header + Controls */}
             <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 flex-wrap">
                 <div>
@@ -1827,12 +1924,24 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             </span>
                                         </td>
                                         <td className="p-6 text-right">
-                                            <button
-                                                onClick={() => setSelectedLeaseForPreview(lease)}
-                                                className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2 ml-auto"
-                                            >
-                                                <EyeIcon className="w-4 h-4" /> Agreement
-                                            </button>
+                                            <div className="flex gap-2 justify-end">
+                                                <button
+                                                    onClick={() => setSelectedLeaseForPreview(lease)}
+                                                    className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2"
+                                                    title="View Agreement"
+                                                >
+                                                    <EyeIcon className="w-4 h-4" />
+                                                </button>
+                                                {lease.status === 'Active' && (
+                                                    <button
+                                                        onClick={() => { setRenewingLease(lease); setShowRenewModal(true); }}
+                                                        className="px-4 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-500 transition-all font-black text-[10px] uppercase tracking-widest"
+                                                        title="Renew Lease"
+                                                    >
+                                                        Renew
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -1868,10 +1977,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <div className="flex gap-2 mt-4">
                                     <button
                                         onClick={() => setSelectedLeaseForPreview(lease)}
-                                        className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
+                                        className="flex-1 py-3 bg-slate-100 dark:bg-slate-700/50 text-slate-800 dark:text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
                                     >
-                                        <EyeIcon className="w-4 h-4" /> View Agreement
+                                        <EyeIcon className="w-4 h-4" /> Agreement
                                     </button>
+                                    {lease.status === 'Active' && (
+                                        <button
+                                            onClick={() => { setRenewingLease(lease); setShowRenewModal(true); }}
+                                            className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20"
+                                        >
+                                            Renew
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -3413,6 +3530,75 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         }
     };
 
+    const handleSaveUtilityReading = async (data: Partial<PMUtilityReading>) => {
+        try {
+            const r: PMUtilityReading = {
+                id: `reading_${Date.now()}`,
+                propertyId: data.propertyId || '',
+                unitId: data.unitId || '',
+                utilityType: data.utilityType as any || 'Water',
+                previousReading: Number(data.previousReading || 0),
+                currentReading: Number(data.currentReading || 0),
+                ratePerUnit: Number(data.ratePerUnit || 0),
+                consumption: Number(data.currentReading || 0) - Number(data.previousReading || 0),
+                amount: (Number(data.currentReading || 0) - Number(data.previousReading || 0)) * Number(data.ratePerUnit || 0),
+                readingDate: data.readingDate || new Date().toISOString().split('T')[0],
+                billingStatus: 'Pending',
+                institutionId,
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('pm_utility_readings', r);
+            setShowUtilityModal(false);
+            alert("Utility reading logged successfully!");
+            loadData();
+        } catch (e: any) {
+            alert(e.message || "Failed to log utility reading.");
+        }
+    };
+
+    const handleRenewLease = async (data: { leaseId: string; endDate: string; newRent: number; escalationPercentage: number }) => {
+        try {
+            const oldLease = leases.find(l => l.id === data.leaseId);
+            if (!oldLease) {
+                alert("Old lease record not found.");
+                return;
+            }
+
+            // Create renewed lease record
+            const newLease: PMLease = {
+                ...oldLease,
+                id: `lease_${Date.now()}`,
+                startDate: new Date().toISOString().split('T')[0],
+                endDate: data.endDate,
+                rentAmount: data.newRent,
+                depositAmount: oldLease.depositAmount,
+                status: 'Active',
+                escalationPercentage: data.escalationPercentage,
+                renewedFromLeaseId: oldLease.id,
+                leaseNumber: oldLease.leaseNumber ? `${oldLease.leaseNumber}-R` : undefined,
+                createdAt: new Date().toISOString()
+            };
+
+            // Terminate/Expire old lease
+            const updatedOldLease: PMLease = {
+                ...oldLease,
+                status: 'Expired'
+            };
+
+            // Save both
+            await apiService.saveModuleRecord('pm_leases', updatedOldLease);
+            await apiService.saveModuleRecord('pm_leases', newLease);
+
+            alert("Lease successfully renewed with rent escalation applied!");
+            setShowRenewModal(false);
+            setRenewingLease(null);
+            loadData();
+        } catch (e: any) {
+            alert(e.message || "Failed to renew lease.");
+        }
+    };
+
     const NoticesTab = () => {
         const [search, setSearch] = useState('');
         const [typeFilter, setTypeFilter] = useState('all');
@@ -3675,6 +3861,452 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const UtilitiesTab = () => {
+        const [search, setSearch] = useState('');
+        const [typeFilter, setTypeFilter] = useState('all');
+        const [statusFilter, setStatusFilter] = useState('all');
+
+        const filteredReadings = utilityReadings.filter(r => {
+            const property = properties.find(p => p.id === r.propertyId);
+            const unit = units.find(u => u.id === r.unitId);
+            const propertyName = property?.name || '';
+            const unitNum = unit?.unitNumber || '';
+            const matchesSearch = propertyName.toLowerCase().includes(search.toLowerCase()) || unitNum.toLowerCase().includes(search.toLowerCase());
+            const matchesType = typeFilter === 'all' || r.utilityType === typeFilter;
+            const matchesStatus = statusFilter === 'all' || r.billingStatus === statusFilter;
+            return matchesSearch && matchesType && matchesStatus;
+        });
+
+        const handleGenerateUtilityInvoice = async (reading: PMUtilityReading) => {
+            try {
+                // Find active lease for the unit
+                const activeLease = leases.find(l => l.unitId === reading.unitId && l.status === 'Active');
+                if (!activeLease) {
+                    alert("No active lease found for this unit. An active lease is required to bill a tenant.");
+                    return;
+                }
+                const tenant = tenants.find(t => t.id === activeLease.tenantId);
+                if (!tenant) {
+                    alert("Associated tenant record not found.");
+                    return;
+                }
+
+                if (!confirm(`Generate utility invoice of KES ${reading.amount} for Unit ${units.find(u => u.id === reading.unitId)?.unitNumber || ''} (${tenant.name})?`)) return;
+
+                const invoiceId = 'inv_' + Math.random().toString(36).substr(2, 9);
+                const invNum = `INV-UTL-${Math.floor(100000 + Math.random() * 900000)}`;
+                const newInvoice: PMInvoice = {
+                    id: invoiceId,
+                    invoiceNumber: invNum,
+                    leaseId: activeLease.id,
+                    tenantId: activeLease.tenantId,
+                    unitId: reading.unitId || '',
+                    description: `${reading.utilityType} Utility Bill (Reading: ${reading.previousReading} to ${reading.currentReading}, Consumption: ${reading.consumption} @ KES ${reading.ratePerUnit})`,
+                    amount: reading.amount,
+                    status: 'Sent',
+                    issueDate: new Date().toISOString().split('T')[0],
+                    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                    institutionId: institutionId,
+                    createdAt: new Date().toISOString()
+                };
+
+                // Save invoice
+                await apiService.saveModuleRecord('pm_invoices', newInvoice);
+
+                // Update utility reading to 'Billed'
+                const updatedReading = { ...reading, billingStatus: 'Billed' as const, invoiceId };
+                await apiService.saveModuleRecord('pm_utility_readings', updatedReading);
+
+                alert("Utility invoice generated successfully!");
+                loadData();
+            } catch (e: any) {
+                alert("Failed to generate utility invoice: " + e.message);
+            }
+        };
+
+        const handleDeleteReading = async (id: string) => {
+            if (!confirm("Are you sure you want to delete this utility reading record?")) return;
+            try {
+                await apiService.deleteModuleRecord('pm_utility_readings', id);
+                alert("Reading record deleted successfully.");
+                loadData();
+            } catch (e: any) {
+                alert("Failed to delete reading: " + e.message);
+            }
+        };
+
+        return (
+            <div className="space-y-8 animate-in fade-in duration-300">
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl p-8 flex flex-col md:flex-row gap-6 justify-between items-center">
+                    <div className="relative w-full md:max-w-md">
+                        <SearchIcon className="absolute left-4 top-4.5 w-4 h-4 text-slate-400" />
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-900/50 rounded-2xl pl-12 pr-4 py-4 text-xs font-bold border-2 border-transparent focus:border-blue-500 outline-none transition-colors dark:text-white"
+                            placeholder="Search by Property or Unit..."
+                        />
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                        <select
+                            value={typeFilter}
+                            onChange={(e) => setTypeFilter(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl px-6 py-4 text-xs font-bold outline-none dark:text-white transition-colors"
+                        >
+                            <option value="all">All Utility Types</option>
+                            <option value="Water">Water</option>
+                            <option value="Electricity">Electricity</option>
+                        </select>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl px-6 py-4 text-xs font-bold outline-none dark:text-white transition-colors"
+                        >
+                            <option value="all">All Billing Statuses</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Billed">Billed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <div className="p-6 border-b border-slate-50 dark:border-slate-700">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Utility Consumption Log</h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr className="border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    <th className="p-6">Reading Date</th>
+                                    <th className="p-6">Property / Unit</th>
+                                    <th className="p-6">Utility Type</th>
+                                    <th className="p-6">Prev → Current</th>
+                                    <th className="p-6 text-right">Consumption</th>
+                                    <th className="p-6 text-right">Rate</th>
+                                    <th className="p-6 text-right">Total Amount</th>
+                                    <th className="p-6">Status</th>
+                                    <th className="p-6 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredReadings.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={9} className="p-12 text-center text-slate-400 font-bold">
+                                            No utility reading records found.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredReadings.map(reading => {
+                                        const unit = units.find(u => u.id === reading.unitId);
+                                        const property = properties.find(p => p.id === reading.propertyId);
+                                        return (
+                                            <tr key={reading.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                                                <td className="p-6 font-bold text-slate-600 dark:text-slate-300">
+                                                    {new Date(reading.readingDate).toLocaleDateString()}
+                                                </td>
+                                                <td className="p-6">
+                                                    <p className="font-black text-slate-800 dark:text-white">{property?.name || 'N/A'}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">Unit {unit?.unitNumber || 'N/A'}</p>
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                        reading.utilityType === 'Water' ? 'bg-blue-50 text-blue-600 dark:bg-blue-955/30' : 'bg-amber-50 text-amber-600 dark:bg-amber-955/30'
+                                                    }`}>
+                                                        {reading.utilityType}
+                                                    </span>
+                                                </td>
+                                                <td className="p-6 font-bold text-slate-600 dark:text-slate-300">
+                                                    {reading.previousReading} → {reading.currentReading}
+                                                </td>
+                                                <td className="p-6 text-right font-black text-slate-700 dark:text-slate-350">
+                                                    {reading.consumption}
+                                                </td>
+                                                <td className="p-6 text-right text-slate-600 dark:text-slate-400">
+                                                    KES {reading.ratePerUnit}
+                                                </td>
+                                                <td className="p-6 text-right font-black text-slate-850 dark:text-slate-200">
+                                                    KES {reading.amount.toLocaleString()}
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                        reading.billingStatus === 'Billed' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-955/30' : 'bg-amber-50 text-amber-600 dark:bg-amber-955/30'
+                                                    }`}>
+                                                        {reading.billingStatus}
+                                                    </span>
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="flex gap-2 justify-end">
+                                                        {reading.billingStatus === 'Pending' && (
+                                                            <button
+                                                                onClick={() => handleGenerateUtilityInvoice(reading)}
+                                                                className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-colors"
+                                                                title="Generate Invoice"
+                                                            >
+                                                                Bill Tenant
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleDeleteReading(reading.id)}
+                                                            className="p-2 bg-rose-50/50 dark:bg-rose-955/20 hover:bg-rose-100 rounded-xl text-rose-600 transition-colors"
+                                                            title="Delete Reading"
+                                                        >
+                                                            <TrashIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const BroadcastsTab = () => {
+        const [selectedPropertyId, setSelectedPropertyId] = useState('all');
+        const [broadcastMessage, setBroadcastMessage] = useState('');
+        const [sendingBroadcast, setSendingBroadcast] = useState(false);
+
+        // Get tenants with active leases and arrears
+        const tenantsWithArrears = useMemo(() => {
+            return leases.filter(l => l.status === 'Active').map(l => {
+                const tenant = tenants.find(t => t.id === l.tenantId);
+                const unit = units.find(u => u.id === l.unitId);
+                const property = unit ? properties.find(p => p.id === unit.propertyId) : null;
+                
+                const tenantInvoices = invoices.filter(inv => inv.leaseId === l.id && inv.status !== 'Draft' && inv.status !== 'Cancelled');
+                const tenantPayments = payments.filter(p => p.leaseId === l.id && p.status === 'Completed');
+                
+                const totalInvoiced = tenantInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+                const totalPaid = tenantPayments.reduce((sum, pay) => sum + pay.amount, 0);
+                const balance = totalInvoiced - totalPaid;
+                
+                return {
+                    lease: l,
+                    tenant,
+                    unit,
+                    property,
+                    balance
+                };
+            }).filter(item => item.tenant && item.balance > 0);
+        }, [leases, tenants, units, properties, invoices, payments]);
+
+        const handleSendBroadcast = async (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!broadcastMessage.trim()) {
+                alert("Please enter a message to broadcast.");
+                return;
+            }
+
+            const targets = leases.filter(l => {
+                if (l.status !== 'Active') return false;
+                if (selectedPropertyId === 'all') return true;
+                const unit = units.find(u => u.id === l.unitId);
+                return unit?.propertyId === selectedPropertyId;
+            }).map(l => tenants.find(t => t.id === l.tenantId)).filter(t => t && t.phoneNumber);
+
+            if (targets.length === 0) {
+                alert("No active tenants with phone numbers found for the selected property filter.");
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to broadcast this SMS to ${targets.length} tenant(s)?`)) return;
+
+            setSendingBroadcast(true);
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const t of targets) {
+                try {
+                    await apiService.sendSms(
+                        t!.phoneNumber!,
+                        broadcastMessage,
+                        currentInstitution.smsConfig,
+                        1,
+                        currentInstitution.id!
+                    );
+                    successCount++;
+                } catch (err) {
+                    console.error(`Failed to send SMS to ${t!.name}:`, err);
+                    failCount++;
+                }
+            }
+
+            setSendingBroadcast(false);
+            setBroadcastMessage('');
+            alert(`Broadcast completed! Sent successfully to ${successCount} tenants. Failed: ${failCount}`);
+        };
+
+        const handleSendReminder = async (item: typeof tenantsWithArrears[0]) => {
+            if (!item.tenant?.phoneNumber) {
+                alert("This tenant does not have a registered phone number.");
+                return;
+            }
+
+            const msg = `Dear ${item.tenant.name}, this is a friendly reminder that you have an outstanding balance of KES ${item.balance.toLocaleString()} for Unit ${item.unit?.unitNumber || 'N/A'}. Please settle this balance as soon as possible. Thank you.`;
+            
+            try {
+                await apiService.sendSms(
+                    item.tenant.phoneNumber,
+                    msg,
+                    currentInstitution.smsConfig,
+                    1,
+                    currentInstitution.id!
+                );
+                alert(`Arrears reminder SMS sent successfully to ${item.tenant.name}!`);
+            } catch (e: any) {
+                alert("Failed to send reminder SMS: " + e.message);
+            }
+        };
+
+        const handleSendAllReminders = async () => {
+            const targets = tenantsWithArrears.filter(item => item.tenant?.phoneNumber);
+            if (targets.length === 0) {
+                alert("No tenants with arrears and registered phone numbers found.");
+                return;
+            }
+
+            if (!confirm(`Send automated arrears reminders to all ${targets.length} tenant(s)?`)) return;
+
+            let successCount = 0;
+            for (const item of targets) {
+                try {
+                    const msg = `Dear ${item.tenant!.name}, this is a friendly reminder that you have an outstanding balance of KES ${item.balance.toLocaleString()} for Unit ${item.unit?.unitNumber || 'N/A'}. Please settle this balance as soon as possible. Thank you.`;
+                    await apiService.sendSms(
+                        item.tenant!.phoneNumber!,
+                        msg,
+                        currentInstitution.smsConfig,
+                        1,
+                        currentInstitution.id!
+                    );
+                    successCount++;
+                } catch (err) {
+                    console.error("Failed to send auto reminder:", err);
+                }
+            }
+
+            alert(`Automated reminders complete! Dispatched successfully to ${successCount} tenant(s).`);
+        };
+
+        return (
+            <div className="space-y-8 animate-in fade-in duration-300">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-1 bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl p-8">
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase italic tracking-tight mb-2">New SMS Broadcast</h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-6">Send custom SMS alerts to active residents</p>
+                        
+                        <form onSubmit={handleSendBroadcast} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Filter Property</label>
+                                <select
+                                    value={selectedPropertyId}
+                                    onChange={(e) => setSelectedPropertyId(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-850 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                >
+                                    <option value="all">All Properties</option>
+                                    {properties.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">SMS Message Body</label>
+                                <textarea
+                                    required
+                                    rows={5}
+                                    value={broadcastMessage}
+                                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-850 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                    placeholder="Type broadcast message here..."
+                                    maxLength={320}
+                                />
+                                <div className="text-[9px] text-slate-400 font-bold text-right">
+                                    {broadcastMessage.length} / 320 characters
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={sendingBroadcast}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                <PaperAirplaneIcon className="w-4 h-4" /> {sendingBroadcast ? 'Sending...' : 'Send Broadcast'}
+                            </button>
+                        </form>
+                    </div>
+
+                    <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl p-8 flex flex-col">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase italic tracking-tight">Late Payment Reminders</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Send SMS collection reminders to tenants with arrears</p>
+                            </div>
+                            {tenantsWithArrears.length > 0 && (
+                                <button
+                                    onClick={handleSendAllReminders}
+                                    className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-amber-600/20"
+                                >
+                                    Remind All ({tenantsWithArrears.length})
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="overflow-x-auto flex-1">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr className="border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        <th className="p-6">Tenant / Unit</th>
+                                        <th className="p-6">Property</th>
+                                        <th className="p-6 text-right">Outstanding Arrears</th>
+                                        <th className="p-6 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tenantsWithArrears.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="p-12 text-center text-slate-400 font-bold">
+                                                No tenants currently in arrears. All accounts up-to-date!
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        tenantsWithArrears.map(item => (
+                                            <tr key={item.lease.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                                <td className="p-6">
+                                                    <p className="font-black text-slate-800 dark:text-white">{item.tenant?.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">Unit {item.unit?.unitNumber || 'N/A'}</p>
+                                                </td>
+                                                <td className="p-6 font-bold text-slate-600 dark:text-slate-300">
+                                                    {item.property?.name || 'N/A'}
+                                                </td>
+                                                <td className="p-6 text-right font-black text-rose-600 dark:text-rose-400 text-sm">
+                                                    KES {item.balance.toLocaleString()}
+                                                </td>
+                                                <td className="p-6 text-right">
+                                                    <button
+                                                        onClick={() => handleSendReminder(item)}
+                                                        className="px-4 py-2 bg-slate-50 dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-955/20 text-slate-500 hover:text-amber-600 rounded-xl font-bold transition-colors"
+                                                    >
+                                                        Send Reminder
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -4944,7 +5576,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             {(() => {
                                 const occupiedCount = units.filter(u => u.status === 'Occupied').length;
                                 const vacantCount = units.filter(u => u.status === 'Vacant').length;
-                                const repairCount = units.filter(u => u.status === 'Under Repair' || u.status === 'Maintenance').length;
+                                const repairCount = units.filter(u => u.status === 'Maintenance').length;
                                 const totalUnitsCount = units.length || 1;
 
                                 const occupiedPercent = Math.round((occupiedCount / totalUnitsCount) * 100);
@@ -5004,6 +5636,51 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         </div>
                                     </div>
                                 );
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* Cash Flow Breakdown Chart */}
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-2">
+                            <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cash Flow Breakdown (Incoming vs Expenses vs Landlord Payouts)</h4>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Comparison of collections, expense vouchers paid, and landlord payouts</p>
+                            </div>
+                            <div className="flex gap-4 text-[8px] font-black uppercase tracking-widest">
+                                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-blue-600 rounded"></span> Inflow</div>
+                                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-rose-500 rounded"></span> Outflow</div>
+                                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-amber-500 rounded"></span> Payouts</div>
+                            </div>
+                        </div>
+                        <div className="h-72 flex items-end gap-6 px-4 shadow-inner bg-slate-50 dark:bg-slate-900/50 rounded-3xl p-6">
+                            {(() => {
+                                const maxVal = Math.max(...cashFlowTrend.map(t => Math.max(t.revenue, t.outflow, t.payouts)), 1);
+                                return cashFlowTrend.map((t, i) => (
+                                    <div key={i} className="flex-1 flex flex-col justify-end h-full relative group">
+                                        <div className="flex items-end justify-center gap-1.5 h-full">
+                                            {/* Inflow bar */}
+                                            <div className="w-4 bg-blue-600 rounded-t hover:brightness-110 transition-all relative" style={{ height: `${(t.revenue / maxVal) * 100}%` }}>
+                                                <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-900 text-white text-[8px] px-1.5 py-0.5 rounded shadow z-10 whitespace-nowrap">
+                                                    Inflow: KES {t.revenue.toLocaleString()}
+                                                </div>
+                                            </div>
+                                            {/* Outflow bar */}
+                                            <div className="w-4 bg-rose-500 rounded-t hover:brightness-110 transition-all relative" style={{ height: `${(t.outflow / maxVal) * 100}%` }}>
+                                                <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-900 text-white text-[8px] px-1.5 py-0.5 rounded shadow z-10 whitespace-nowrap">
+                                                    Outflow: KES {t.outflow.toLocaleString()}
+                                                </div>
+                                            </div>
+                                            {/* Payouts bar */}
+                                            <div className="w-4 bg-amber-500 rounded-t hover:brightness-110 transition-all relative" style={{ height: `${(t.payouts / maxVal) * 100}%` }}>
+                                                <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-900 text-white text-[8px] px-1.5 py-0.5 rounded shadow z-10 whitespace-nowrap">
+                                                    Payouts: KES {t.payouts.toLocaleString()}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center mt-2 truncate w-full">{t.monthLabel}</span>
+                                    </div>
+                                ));
                             })()}
                         </div>
                     </div>
@@ -6094,6 +6771,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Issue</span> Notice
                                     </button>
                                 )}
+                                {propertyActiveSubTab === 'utilities' && (
+                                    <button onClick={() => setShowUtilityModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Log</span> Reading
+                                    </button>
+                                )}
                             </>
                         )}
                         {activeTab === 'listings' && (
@@ -6226,7 +6908,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             {(() => {
                                 const occupiedCount = units.filter(u => u.status === 'Occupied').length;
                                 const vacantCount = units.filter(u => u.status === 'Vacant').length;
-                                const repairCount = units.filter(u => u.status === 'Under Repair' || u.status === 'Maintenance').length;
+                                const repairCount = units.filter(u => u.status === 'Maintenance').length;
                                 const totalUnitsCount = units.length || 1;
 
                                 const occupiedPercent = Math.round((occupiedCount / totalUnitsCount) * 100);
@@ -6832,10 +7514,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </form>
             </Modal>
 
-            <Modal show={showLeaseModal} onClose={() => setShowLeaseModal(false)} title="Create Lease Agreement">
-                <form onSubmit={(e) => {
+            <Modal show={showLeaseModal} onClose={() => { setShowLeaseModal(false); setLandlordSignatureFile(null); setTenantSignatureFile(null); }} title="Create Lease Agreement">
+                <form onSubmit={async (e) => {
                     e.preventDefault();
                     const formData = new FormData(e.currentTarget);
+
+                    const landlordSigUrl = landlordSignatureFile
+                        ? await apiService.uploadFile('eduai', `leases/signatures/landlord_${Date.now()}`, landlordSignatureFile)
+                        : undefined;
+                    const tenantSigUrl = tenantSignatureFile
+                        ? await apiService.uploadFile('eduai', `leases/signatures/tenant_${Date.now()}`, tenantSignatureFile)
+                        : undefined;
+
                     handleSaveLease({
                         unitId: formData.get('unitId') as string,
                         tenantId: formData.get('tenantId') as string,
@@ -6846,31 +7536,46 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         noticePeriodDays: parseInt(formData.get('noticePeriodDays') as string) || 30,
                         lateFeePercentage: parseFloat(formData.get('lateFeePercentage') as string) || 5,
                         termsAndConditions: formData.get('termsAndConditions') as string,
+                        landlordSignatureUrl: landlordSigUrl || undefined,
+                        tenantSignatureUrl: tenantSigUrl || undefined,
                     });
+
+                    setLandlordSignatureFile(null);
+                    setTenantSignatureFile(null);
                 }} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Unit</label>
-                            <select name="unitId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{units.filter(u => u.status === 'Vacant').map(u => <option key={u.id} value={u.id}>{u.unitNumber} - {properties.find(p => p.id === u.propertyId)?.name}</option>)}</select>
+                            <select name="unitId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">
+                                <option value="">Choose Unit...</option>
+                                {units.filter(u => u.status === 'Vacant' || u.status === 'Maintenance').map(u => (
+                                    <option key={u.id} value={u.id}>{u.unitNumber} ({u.unitType}) - KES {u.rentAmount}</option>
+                                ))}
+                            </select>
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Tenant</label>
-                            <select name="tenantId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+                            <select name="tenantId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">
+                                <option value="">Choose Tenant...</option>
+                                {tenants.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name} ({t.idNumber || 'No ID'})</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Rent Amount</label>
-                            <input name="rentAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Rent" />
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Monthly Rent (KES)</label>
+                            <input name="rentAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="0.00" />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Security Deposit</label>
-                            <input name="depositAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Deposit" />
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Deposit Required (KES)</label>
+                            <input name="depositAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="0.00" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Late Fee (%)</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Late Fee Penalty (%)</label>
                             <input name="lateFeePercentage" type="number" defaultValue="5" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" />
                         </div>
                         <div className="space-y-2">
@@ -6886,6 +7591,26 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Witness Phone</label>
                             <input name="witnessPhone" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Enter witness phone" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Landlord Signature Image</label>
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={e => setLandlordSignatureFile(e.target.files?.[0] || null)}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs" 
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tenant Signature Image</label>
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={e => setTenantSignatureFile(e.target.files?.[0] || null)}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs" 
+                            />
                         </div>
                     </div>
                     <div className="space-y-2">
@@ -6986,11 +7711,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <div className="mt-16 grid grid-cols-2 gap-24 pt-12">
                                     <div className="border-t border-slate-900 text-center">
                                         <p className="mt-4 text-[10px] uppercase font-black tracking-widest">LANDLORD SIGNATURE</p>
-                                        <div className="mt-8 flex justify-center opacity-20"><BuildingOfficeIcon className="w-16 h-16" /></div>
+                                        {selectedLeaseForPreview.landlordSignatureUrl ? (
+                                            <img src={selectedLeaseForPreview.landlordSignatureUrl} alt="Landlord Signature" className="h-16 mx-auto object-contain mt-4" />
+                                        ) : (
+                                            <div className="mt-8 flex justify-center opacity-20"><BuildingOfficeIcon className="w-16 h-16" /></div>
+                                        )}
                                     </div>
                                     <div className="border-t border-slate-900 text-center">
                                         <p className="mt-4 text-[10px] uppercase font-black tracking-widest">TENANT SIGNATURE</p>
-                                        <div className="mt-8 flex justify-center opacity-20"><UserIcon className="w-16 h-16" /></div>
+                                        {selectedLeaseForPreview.tenantSignatureUrl ? (
+                                            <img src={selectedLeaseForPreview.tenantSignatureUrl} alt="Tenant Signature" className="h-16 mx-auto object-contain mt-4" />
+                                        ) : (
+                                            <div className="mt-8 flex justify-center opacity-20"><UserIcon className="w-16 h-16" /></div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -7046,6 +7779,30 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     units={units}
                     properties={properties}
                     onSave={handleSaveNotice}
+                />
+            )}
+
+            {showUtilityModal && (
+                <LogUtilityModal
+                    show={showUtilityModal}
+                    onClose={() => setShowUtilityModal(false)}
+                    units={units}
+                    properties={properties}
+                    leases={leases}
+                    onSave={handleSaveUtilityReading}
+                    utilityReadings={utilityReadings}
+                />
+            )}
+
+            {showRenewModal && renewingLease && (
+                <RenewLeaseModal
+                    show={showRenewModal}
+                    onClose={() => { setShowRenewModal(false); setRenewingLease(null); }}
+                    lease={renewingLease}
+                    tenants={tenants}
+                    units={units}
+                    properties={properties}
+                    onSave={handleRenewLease}
                 />
             )}
 
@@ -8768,6 +9525,350 @@ const IssueNoticeModal: React.FC<IssueNoticeModalProps> = ({
 
                         <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">
                             Generate & Send Notice
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+interface LogUtilityModalProps {
+    show: boolean;
+    onClose: () => void;
+    units: PMUnit[];
+    properties: PMProperty[];
+    leases: PMLease[];
+    onSave: (data: Partial<PMUtilityReading>) => Promise<void>;
+    utilityReadings: PMUtilityReading[];
+}
+
+const LogUtilityModal: React.FC<LogUtilityModalProps> = ({ show, onClose, units, properties, leases, onSave, utilityReadings }) => {
+    const [selectedPropertyId, setSelectedPropertyId] = useState('');
+    const [selectedUnitId, setSelectedUnitId] = useState('');
+    const [utilityType, setUtilityType] = useState<'Water' | 'Electricity'>('Water');
+    const [previousReading, setPreviousReading] = useState(0);
+    const [currentReading, setCurrentReading] = useState('');
+    const [ratePerUnit, setRatePerUnit] = useState('120'); // Default Water rate
+    const [readingDate, setReadingDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Filter units based on selected property
+    const filteredUnits = units.filter(u => u.propertyId === selectedPropertyId);
+
+    // Auto-fetch the previous reading when unit or type changes
+    useEffect(() => {
+        if (!selectedUnitId) {
+            setPreviousReading(0);
+            return;
+        }
+        // Find last reading for this unit and utility type
+        const unitReadings = utilityReadings.filter(r => r.unitId === selectedUnitId && r.utilityType === utilityType);
+        if (unitReadings.length > 0) {
+            // Sort by date descending
+            const sorted = [...unitReadings].sort((a, b) => new Date(b.readingDate).getTime() - new Date(a.readingDate).getTime());
+            setPreviousReading(sorted[0].currentReading);
+        } else {
+            setPreviousReading(0);
+        }
+    }, [selectedUnitId, utilityType, utilityReadings]);
+
+    // Update rate per unit default when type changes
+    useEffect(() => {
+        if (utilityType === 'Water') {
+            setRatePerUnit('120');
+        } else {
+            setRatePerUnit('25');
+        }
+    }, [utilityType]);
+
+    if (!show) return null;
+
+    const handleFormSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const curr = Number(currentReading);
+        if (isNaN(curr) || curr < previousReading) {
+            alert(`Current reading must be a valid number and greater than or equal to the previous reading (${previousReading}).`);
+            return;
+        }
+
+        await onSave({
+            propertyId: selectedPropertyId,
+            unitId: selectedUnitId,
+            utilityType,
+            previousReading,
+            currentReading: curr,
+            ratePerUnit: Number(ratePerUnit),
+            readingDate
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-blue-50/50 dark:bg-blue-900/10">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase italic tracking-tight">Log Utility Reading</h3>
+                        <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">Record sub-meter electricity or water readings</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-full transition-colors text-slate-400">
+                        <XIcon className="w-6 h-6" />
+                    </button>
+                </div>
+
+                <div className="p-8 max-h-[80vh] overflow-y-auto">
+                    <form onSubmit={handleFormSubmit} className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Select Property</label>
+                            <select
+                                required
+                                value={selectedPropertyId}
+                                onChange={(e) => {
+                                    setSelectedPropertyId(e.target.value);
+                                    setSelectedUnitId('');
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                            >
+                                <option value="">-- Choose Property --</option>
+                                {properties.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Select Unit</label>
+                            <select
+                                required
+                                disabled={!selectedPropertyId}
+                                value={selectedUnitId}
+                                onChange={(e) => setSelectedUnitId(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs disabled:opacity-50"
+                            >
+                                <option value="">-- Choose Unit --</option>
+                                {filteredUnits.map(u => (
+                                    <option key={u.id} value={u.id}>Unit {u.unitNumber} ({u.status})</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Utility Type</label>
+                                <select
+                                    value={utilityType}
+                                    onChange={(e) => setUtilityType(e.target.value as any)}
+                                    className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                >
+                                    <option value="Water">Water (m³)</option>
+                                    <option value="Electricity">Electricity (kWh)</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Reading Date</label>
+                                <input
+                                    required
+                                    type="date"
+                                    value={readingDate}
+                                    onChange={(e) => setReadingDate(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Prev Reading</label>
+                                <input
+                                    type="number"
+                                    disabled
+                                    value={previousReading}
+                                    className="w-full bg-slate-100 dark:bg-slate-900 border-2 border-transparent rounded-2xl p-4 font-black text-slate-500 text-xs text-center"
+                                />
+                            </div>
+                            <div className="space-y-2 col-span-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Current Reading</label>
+                                <input
+                                    required
+                                    type="number"
+                                    step="0.01"
+                                    value={currentReading}
+                                    onChange={(e) => setCurrentReading(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                    placeholder="Enter current reading"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Rate per Unit (KES)</label>
+                                <input
+                                    required
+                                    type="number"
+                                    step="0.01"
+                                    value={ratePerUnit}
+                                    onChange={(e) => setRatePerUnit(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Estimated Cost</label>
+                                <div className="w-full bg-blue-50 dark:bg-blue-955/20 border-2 border-transparent rounded-2xl p-4 font-black text-blue-600 text-sm text-center">
+                                    KES {((Number(currentReading || previousReading) - previousReading) * Number(ratePerUnit || 0)).toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">
+                            Save Reading & Log
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+interface RenewLeaseModalProps {
+    show: boolean;
+    onClose: () => void;
+    lease: PMLease;
+    tenants: PMTenant[];
+    units: PMUnit[];
+    properties: PMProperty[];
+    onSave: (data: { leaseId: string; endDate: string; newRent: number; escalationPercentage: number }) => Promise<void>;
+}
+
+const RenewLeaseModal: React.FC<RenewLeaseModalProps> = ({ show, onClose, lease, tenants, units, properties, onSave }) => {
+    const tenant = tenants.find(t => t.id === lease.tenantId);
+    const unit = units.find(u => u.id === lease.unitId);
+    const property = unit ? properties.find(p => p.id === unit.propertyId) : null;
+
+    const currentRent = lease.rentAmount || 0;
+    const [escalationPercentage, setEscalationPercentage] = useState('10');
+    const [newRent, setNewRent] = useState((currentRent * 1.1).toFixed(2));
+    const [endDate, setEndDate] = useState(() => {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() + 1);
+        return d.toISOString().split('T')[0];
+    });
+
+    // Auto-calculate new rent when escalation percentage changes
+    useEffect(() => {
+        const percentage = Number(escalationPercentage);
+        if (!isNaN(percentage)) {
+            setNewRent((currentRent * (1 + percentage / 100)).toFixed(2));
+        }
+    }, [escalationPercentage, currentRent]);
+
+    if (!show) return null;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const rent = Number(newRent);
+        const escalation = Number(escalationPercentage);
+        if (isNaN(rent) || rent <= 0) {
+            alert("Please enter a valid rent amount.");
+            return;
+        }
+        if (!endDate) {
+            alert("Please select a new lease end date.");
+            return;
+        }
+
+        await onSave({
+            leaseId: lease.id,
+            endDate,
+            newRent: rent,
+            escalationPercentage: isNaN(escalation) ? 0 : escalation
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-rose-50/50 dark:bg-rose-900/10">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase italic tracking-tight">Renew Lease Agreement</h3>
+                        <p className="text-[10px] text-rose-600 font-bold uppercase tracking-widest mt-1">Configure Rent Escalation and Occupancy Terms</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-full transition-colors text-slate-400">
+                        <XIcon className="w-6 h-6" />
+                    </button>
+                </div>
+
+                <div className="p-8 max-h-[80vh] overflow-y-auto">
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Tenant Name</label>
+                                <input
+                                    type="text"
+                                    disabled
+                                    value={tenant?.name || 'N/A'}
+                                    className="w-full bg-slate-100 dark:bg-slate-900 border-2 border-transparent rounded-2xl p-4 font-bold text-slate-500 text-xs"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Unit / Asset</label>
+                                <input
+                                    type="text"
+                                    disabled
+                                    value={property?.name && unit?.unitNumber ? `${property.name} - Unit ${unit.unitNumber}` : 'N/A'}
+                                    className="w-full bg-slate-100 dark:bg-slate-900 border-2 border-transparent rounded-2xl p-4 font-bold text-slate-500 text-xs"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Current Monthly Rent</label>
+                                <div className="w-full bg-slate-100 dark:bg-slate-900 border-2 border-transparent rounded-2xl p-4 font-black text-slate-500 text-sm">
+                                    KES {currentRent.toLocaleString()}
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Escalation Percentage (%)</label>
+                                <input
+                                    required
+                                    type="number"
+                                    step="0.1"
+                                    value={escalationPercentage}
+                                    onChange={(e) => setEscalationPercentage(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-rose-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                    placeholder="e.g. 10"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">New Monthly Rent (KES)</label>
+                                <input
+                                    required
+                                    type="number"
+                                    step="0.01"
+                                    value={newRent}
+                                    onChange={(e) => setNewRent(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-rose-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">New Lease End Date</label>
+                                <input
+                                    required
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-rose-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                />
+                            </div>
+                        </div>
+
+                        <button type="submit" className="w-full bg-rose-600 hover:bg-rose-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-500/20 mt-4">
+                            Renew Agreement
                         </button>
                     </form>
                 </div>

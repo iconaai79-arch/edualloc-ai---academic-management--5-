@@ -233,7 +233,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const handleDownloadPdf = async () => {
         setIsGeneratingPdf(true);
         try {
-            const pdfUrl = await generateExamTimetablePdf(filteredExamTimetable, getSubjectById, getLecturerById, getRoomById, buildings, courses, title, letterheadConfig, footerImageUrl, logoUrl);
+            const pdfUrl = await generateExamTimetablePdf(filteredExamTimetable, getSubjectById, getLecturerById, getRoomById, buildings, courses, title, letterheadConfig, footerImageUrl || null, logoUrl || null);
             const link = document.createElement('a');
             link.href = pdfUrl;
             link.download = `Exam_Timetable.pdf`;
@@ -373,7 +373,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                 getSubjectById={getSubjectById}
                                 getLecturerById={getLecturerById}
                                 getRoomById={getRoomById}
-                                buildings={props.buildings}
+                                buildings={props.buildings || []}
                                 courses={courses}
                                 title={title}
                                 currentInstitution={currentInstitution}
@@ -535,8 +535,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     rooms={rooms}
                     courses={courses}
                     timetableSettings={timetableSettings}
-                    activeAcademicYear={activeAcademicYear}
-                    activeSemester={activeSemester}
+                    activeAcademicYear={activeAcademicYear || null}
+                    activeSemester={activeSemester || null}
                     currentInstitution={currentInstitution}
                     courseSizes={courseSizes}
                     timeOffRequests={props.timeOffRequests || []}

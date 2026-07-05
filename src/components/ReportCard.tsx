@@ -150,7 +150,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
             ) : (
                 <BrandedPaper
                     institution={institution}
-                    letterheadConfig={institution.academicConfig?.letterheadConfig}
+                    letterheadConfig={institution.letterheadConfig}
                     title="STUDENT PROGRESS REPORT CARD"
                     subtitle="ACADEMIC SUMMATIVE EVALUATION"
                 >
