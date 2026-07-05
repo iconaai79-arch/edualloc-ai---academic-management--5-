@@ -30,7 +30,10 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
         payrollRecords = [],
         leaveRequests = [],
         onProcessPayroll = async () => {},
-        onUpdateLeaveStatus = async () => {}
+        onUpdateLeaveStatus = async () => {},
+        onAddUser = async () => {},
+        onEditUser = async () => {},
+        onDeleteUser = async () => {}
     } = props;
 
     const [activeTab, setActiveTab] = useState<'hr' | 'eduflow'>('hr');
@@ -83,7 +86,11 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
                         institution={currentInstitution}
                         onProcessPayroll={onProcessPayroll}
                         onUpdateLeaveStatus={onUpdateLeaveStatus}
+                        onAddUser={onAddUser}
+                        onEditUser={onEditUser}
+                        onDeleteUser={onDeleteUser}
                     />
+
                 ) : (
                     <React.Suspense fallback={<div className="h-96 flex items-center justify-center"><div className="w-8 h-8 animate-spin text-slate-350 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>}>
                         <EduFlowManager 

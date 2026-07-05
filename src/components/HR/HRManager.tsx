@@ -21,6 +21,9 @@ interface HRManagerProps {
     institution: Institution;
     onProcessPayroll: (records: PayrollRecord[]) => Promise<void>;
     onUpdateLeaveStatus: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+    onAddUser?: (data: any) => Promise<void>;
+    onEditUser?: (id: string, data: any) => Promise<void>;
+    onDeleteUser?: (id: string) => Promise<void>;
 }
 
 export const HRManager: React.FC<HRManagerProps> = ({
@@ -29,10 +32,23 @@ export const HRManager: React.FC<HRManagerProps> = ({
     leaveRequests,
     institution,
     onProcessPayroll,
-    onUpdateLeaveStatus
+    onUpdateLeaveStatus,
+    onAddUser,
+    onEditUser,
+    onDeleteUser
 }) => {
     const [activeTab, setActiveTab] = useState<'roster' | 'payroll' | 'leave' | 'reports' | 'analytics'>('roster');
     
+    // Onboarding Form States
+    const [showOnboardModal, setShowOnboardModal] = useState(false);
+    const [onboardForm, setOnboardForm] = useState({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        role: 'teacher',
+        password: ''
+    });
+
     // Reports Form States
     const [selectedStaffId, setSelectedStaffId] = useState('');
     const [selectedMonth, setSelectedMonth] = useState('January 2026');
@@ -51,6 +67,25 @@ export const HRManager: React.FC<HRManagerProps> = ({
         { id: 'reports', label: 'Compliance Reports', icon: DocumentTextIcon },
         { id: 'analytics', label: 'Workforce Intel', icon: BarChart3Icon },
     ] as const;
+
+    const handleOnboardSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!onboardForm.name || !onboardForm.email) {
+            alert('Name and Email are required.');
+            return;
+        }
+        try {
+            if (onAddUser) {
+                await onAddUser(onboardForm);
+                alert(`Successfully onboarded ${onboardForm.name}!`);
+                setShowOnboardModal(false);
+                setOnboardForm({ name: '', email: '', phoneNumber: '', role: 'teacher', password: '' });
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Failed to onboard staff.');
+        }
+    };
 
     const handleGeneratePayslip = async () => {
         if (!selectedStaffId) {
@@ -147,7 +182,12 @@ export const HRManager: React.FC<HRManagerProps> = ({
                     <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
                         <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center">
                             <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase tracking-widest text-sm">Personnel Directory</h3>
-                            <button className="px-6 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Onboard Staff</button>
+                            <button 
+                                onClick={() => setShowOnboardModal(true)}
+                                className="px-6 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
+                            >
+                                Onboard Staff
+                            </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-8 overflow-y-auto" style={{ maxHeight: '560px' }}>
                             {staff.map((member, i) => (
@@ -456,8 +496,114 @@ export const HRManager: React.FC<HRManagerProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* Premium Onboard Staff Glassmorphic Modal */}
+            {showOnboardModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-150 dark:border-slate-800 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="px-8 py-5 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-md font-black text-slate-800 dark:text-white uppercase tracking-wider">Onboard New Staff</h3>
+                                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Register new personnel to the institution directory</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowOnboardModal(false)}
+                                className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-500 rounded-xl transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Form */}
+                        <form onSubmit={handleOnboardSubmit} className="p-8 space-y-5">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Full Name</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    value={onboardForm.name}
+                                    onChange={e => setOnboardForm(prev => ({ ...prev, name: e.target.value }))}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    placeholder="Jane Doe"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Email Address</label>
+                                <input 
+                                    type="email" 
+                                    required
+                                    value={onboardForm.email}
+                                    onChange={e => setOnboardForm(prev => ({ ...prev, email: e.target.value }))}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    placeholder="jane.doe@institution.com"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Phone Number</label>
+                                <input 
+                                    type="tel" 
+                                    value={onboardForm.phoneNumber}
+                                    onChange={e => setOnboardForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    placeholder="+254 712 345678"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Institutional Role</label>
+                                    <select 
+                                        value={onboardForm.role}
+                                        onChange={e => setOnboardForm(prev => ({ ...prev, role: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="teacher">Teacher</option>
+                                        <option value="hr_officer">HR Officer</option>
+                                        <option value="finance">Finance Officer</option>
+                                        <option value="support_staff">Support Staff</option>
+                                        <option value="driver">Driver</option>
+                                        <option value="trainer">Trainer</option>
+                                        <option value="admin">Administrator</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Temporary Password</label>
+                                    <input 
+                                        type="password" 
+                                        value={onboardForm.password}
+                                        onChange={e => setOnboardForm(prev => ({ ...prev, password: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex gap-3">
+                                <button 
+                                    type="submit"
+                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 text-center"
+                                >
+                                    Confirm Onboarding
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowOnboardModal(false)}
+                                    className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-300"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
+
 
 
