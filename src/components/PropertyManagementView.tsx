@@ -3627,7 +3627,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     type="text" 
                                     placeholder={`Search names...`}
                                     value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSearchTerm(val);
+                                        const list = targetType === 'tenant' ? tenants : landlords;
+                                        const matches = list.filter(item => item.name.toLowerCase().includes(val.toLowerCase()));
+                                        if (matches.length === 1) {
+                                            setTargetId(matches[0].id);
+                                        } else {
+                                            const exactMatch = list.find(item => item.name.toLowerCase() === val.trim().toLowerCase());
+                                            if (exactMatch) {
+                                                setTargetId(exactMatch.id);
+                                            } else {
+                                                setTargetId('');
+                                            }
+                                        }
+                                    }}
                                     className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl pl-10 pr-4 py-4 font-bold outline-none transition-all text-sm"
                                 />
                             </div>
@@ -3637,7 +3652,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select {targetType === 'tenant' ? 'Tenant' : 'Landlord'}</label>
                             <select 
                                 value={targetId}
-                                onChange={(e) => setTargetId(e.target.value)}
+                                onChange={(e) => {
+                                    const id = e.target.value;
+                                    setTargetId(id);
+                                    if (id) {
+                                        const match = (targetType === 'tenant' ? tenants : landlords).find(item => item.id === id);
+                                        if (match) {
+                                            setSearchTerm(match.name);
+                                        }
+                                    } else {
+                                        setSearchTerm('');
+                                    }
+                                }}
                                 className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm appearance-none"
                             >
                                 <option value="">--- Select {targetType === 'tenant' ? 'Tenant' : 'Landlord'} ---</option>

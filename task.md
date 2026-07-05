@@ -1,12 +1,15 @@
-# Task List: EduFlow Implementation
+# Task List: Property Management Enhancements
 
-- [x] Create database migration file for EduFlow tables (`database/migrations/233_create_eduflow_tables.sql`)
-- [x] Apply database migration to the database
-- [x] Add interfaces `EduFlowTask` and `EduFlowComment` to types file (`src/types.ts`)
-- [x] Create the frontend UI component `src/components/common/EduFlowManager.tsx`
 - [x] Implement state & useMemos for dynamic filters and period selectors in PropertyManagementView
 - [x] Connect dynamic monthly rent collection trend chart using real payments data
 - [x] Build per-property collection progress metrics and list view with search
 - [x] Implement unit-level drill-down collection status panel
+- [x] Fix duplicates in the Arrears Manager by deduplicating active leases by unit/ID
+- [x] Constrain rent arrears in Arrears Manager to only check current month plus previous month
+- [x] Fix tenant/landlord statements in PM by deduplicating records and filtering out Cancelled/Draft invoices and non-Completed payments
+- [x] Add bulk remove arrears adjustment invoices button to Arrears Manager
+- [x] Enable property-scoped arrears removal in the Arrears Manager bulk deletion handler
+- [x] Prevent arrears calculation from shooting up by excluding Cancelled/Draft invoices from totalInvoicedAmount and protecting Paid arrears invoices from removal
 - [x] Add SMS preview modal and additional text appending in Arrears Manager reminders
-- [x] Verify the application compiles and runs without errors.
+- [x] Add auto-fill search in Statements Manager for tenant/landlord selection
+- [/] Verify the application compiles and runs without errors
