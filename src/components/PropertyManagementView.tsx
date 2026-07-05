@@ -6143,13 +6143,29 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
     const totalAmount = (parseFloat(rentAmt) || 0) + (parseFloat(depositAmt) || 0) + (parseFloat(utilityAmt) || 0);
 
+    const receiptPrefix = pmSettings?.numbering?.receiptPrefix || 'REC';
+    const receiptNextNum = pmSettings?.numbering?.receiptNextNumber || 1000;
+
+    const getReceiptBadgeText = () => {
+        const count = [parseFloat(rentAmt) > 0, parseFloat(depositAmt) > 0, parseFloat(utilityAmt) > 0].filter(Boolean).length;
+        if (count <= 1) {
+            return `Receipt No: ${receiptPrefix}-${receiptNextNum}`;
+        }
+        return `Receipt Nos: ${receiptPrefix}-${receiptNextNum} to ${receiptPrefix}-${receiptNextNum + count - 1}`;
+    };
+
     if (!show) return null;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
                 <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Record Transaction</h3>
+                    <div className="space-y-1">
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Record Transaction</h3>
+                        <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">
+                            {getReceiptBadgeText()}
+                        </p>
+                    </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
                         <svg className="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
