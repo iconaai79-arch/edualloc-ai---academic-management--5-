@@ -13,4 +13,5 @@
 - [x] Add SMS preview modal and additional text appending in Arrears Manager reminders
 - [x] Add auto-fill search in Statements Manager for tenant/landlord selection
 - [x] Hide 'Invoice Arrears' buttons (both bulk and row-level) in the Arrears Manager
+- [x] Fix modal rendering position in Arrears Manager using React Portals
 - [x] Verify the application compiles and runs without errors
