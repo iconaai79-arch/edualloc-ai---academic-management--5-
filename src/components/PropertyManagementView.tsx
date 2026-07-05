@@ -143,6 +143,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [editingPropertyTown, setEditingPropertyTown] = useState('');
     const [propertyPage, setPropertyPage] = useState(1);
     const PROPERTY_PAGE_SIZE = 10;
+    const [dashPropPage, setDashPropPage] = useState(1);
     const [unitSearch, setUnitSearch] = useState('');
     const [unitPage, setUnitPage] = useState(1);
     const [landlordSearch, setLandlordSearch] = useState('');
@@ -5928,160 +5929,183 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                         {/* List/Table */}
                         <div className="overflow-x-auto rounded-3xl border border-slate-100 dark:border-slate-700/50 shadow-inner bg-slate-50/50 dark:bg-slate-900/30">
-                            <table className="w-full border-collapse text-left">
-                                <thead>
-                                    <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-100/50 dark:bg-slate-800/50">
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Property</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Units</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Invoiced</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Collected</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Arrears</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Progress</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-750">
-                                    {propertiesCollectionData
-                                        .filter(d => d.property.name.toLowerCase().includes(propertySearchQuery.toLowerCase()))
-                                        .map((d) => (
-                                            <React.Fragment key={d.property.id}>
-                                                <tr className={`hover:bg-slate-100/30 dark:hover:bg-slate-800/20 transition-all ${selectedPropertyForDrillDown === d.property.id ? 'bg-blue-50/20 dark:bg-blue-900/10' : ''}`}>
-                                                    <td className="p-5">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-slate-750 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm border border-blue-100/50 dark:border-slate-750">
-                                                                <HomeIcon className="w-5 h-5" />
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">{d.property.name}</p>
-                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{d.property.town || 'No Address'}</p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-5 text-center text-xs font-bold text-slate-600 dark:text-slate-300">{d.unitsCount}</td>
-                                                    <td className="p-5 text-right text-xs font-black text-slate-900 dark:text-white italic">KES {d.totalInvoiced.toLocaleString()}</td>
-                                                    <td className="p-5 text-right text-xs font-black text-emerald-600 italic">KES {d.totalCollected.toLocaleString()}</td>
-                                                    <td className="p-5 text-right text-xs font-black text-rose-500 italic">KES {d.arrears.toLocaleString()}</td>
-                                                    <td className="p-5 w-48">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
-                                                                <div 
-                                                                    className={`h-full rounded-full transition-all duration-500 ${
-                                                                        d.collectionRate >= 90 ? 'bg-emerald-500' :
-                                                                        d.collectionRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
-                                                                    }`}
-                                                                    style={{ width: `${Math.min(d.collectionRate, 100)}%` }}
-                                                                ></div>
-                                                            </div>
-                                                            <span className={`text-[10px] font-black ${
-                                                                d.collectionRate >= 90 ? 'text-emerald-500' :
-                                                                d.collectionRate >= 60 ? 'text-amber-500' : 'text-rose-500'
-                                                            }`}>{d.collectionRate}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-5 text-center">
-                                                        <button
-                                                            onClick={() => setSelectedPropertyForDrillDown(selectedPropertyForDrillDown === d.property.id ? null : d.property.id)}
-                                                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider mx-auto transition-all ${
-                                                                selectedPropertyForDrillDown === d.property.id
-                                                                    ? 'bg-blue-600 text-white shadow-md'
-                                                                    : 'bg-white dark:bg-slate-755 border border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'
-                                                            }`}
-                                                        >
-                                                            <EyeIcon className="w-3.5 h-3.5" />
-                                                            {selectedPropertyForDrillDown === d.property.id ? 'Close' : 'View Units'}
-                                                        </button>
-                                                    </td>
+                            {(() => {
+                                const filteredDashProps = propertiesCollectionData.filter(d => d.property.name.toLowerCase().includes(propertySearchQuery.toLowerCase()));
+                                const totalDashPropPages = Math.max(1, Math.ceil(filteredDashProps.length / PAGE_SIZE));
+                                const pagedDashProps = filteredDashProps.slice((dashPropPage - 1) * PAGE_SIZE, dashPropPage * PAGE_SIZE);
+                                return (
+                                    <>
+                                        <table className="w-full border-collapse text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-100/50 dark:bg-slate-800/50">
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Property</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Units</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Invoiced</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Collected</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Arrears</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Progress</th>
+                                                    <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Actions</th>
                                                 </tr>
-
-                                                {/* Expanded Units Drilldown */}
-                                                {selectedPropertyForDrillDown === d.property.id && (
-                                                    <tr>
-                                                        <td colSpan={7} className="p-6 bg-slate-100/40 dark:bg-slate-900/40 border-y border-slate-200/50 dark:border-slate-700/50">
-                                                            <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
-                                                                <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-600 italic">Unit-level Collection Drill-down</h5>
-                                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                                    {d.propUnits.map(unit => {
-                                                                        const lease = d.propLeases.find(l => l.unitId === unit.id);
-                                                                        const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
-                                                                        
-                                                                        const unitInvoices = d.propInvoices.filter(inv => inv.unitId === unit.id);
-                                                                        const unitPayments = d.propPayments.filter(p => p.leaseId === lease?.id);
-
-                                                                        const invSum = unitInvoices.reduce((s, inv) => s + inv.amount, 0);
-                                                                        const paySum = unitPayments.reduce((s, p) => s + p.amount, 0);
-                                                                        const unitArrears = Math.max(0, invSum - paySum);
-                                                                        const unitRate = invSum > 0 ? Math.round((paySum / invSum) * 100) : (paySum > 0 ? 100 : 0);
-
-                                                                        return (
-                                                                            <div key={unit.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm space-y-3">
-                                                                                <div className="flex justify-between items-start">
-                                                                                    <div>
-                                                                                        <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">Unit {unit.unitNumber}</p>
-                                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{unit.unitType}</p>
-                                                                                    </div>
-                                                                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                                                                                        unit.status === 'Occupied' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-100 dark:border-emerald-950/30' :
-                                                                                        unit.status === 'Vacant' ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100 dark:border-amber-950/30' :
-                                                                                        'bg-rose-50 dark:bg-rose-950/20 text-rose-600 border-rose-100 dark:border-rose-950/30'
-                                                                                    }`}>
-                                                                                        {unit.status}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="border-t border-slate-100 dark:border-slate-700/50 pt-2 space-y-1.5">
-                                                                                    <div className="flex justify-between text-[10px]">
-                                                                                        <span className="font-bold text-slate-400 uppercase">Tenant:</span>
-                                                                                        <span className="font-black text-slate-700 dark:text-slate-300 truncate max-w-[150px]">{tenant ? tenant.name : <em className="text-slate-400">None</em>}</span>
-                                                                                    </div>
-                                                                                    <div className="flex justify-between text-[10px]">
-                                                                                        <span className="font-bold text-slate-400 uppercase">Invoiced:</span>
-                                                                                        <span className="font-black text-slate-800 dark:text-slate-200">KES {invSum.toLocaleString()}</span>
-                                                                                    </div>
-                                                                                    <div className="flex justify-between text-[10px]">
-                                                                                        <span className="font-bold text-slate-400 uppercase">Collected:</span>
-                                                                                        <span className="font-black text-emerald-600">KES {paySum.toLocaleString()}</span>
-                                                                                    </div>
-                                                                                    <div className="flex justify-between text-[10px]">
-                                                                                        <span className="font-bold text-slate-400 uppercase">Balance:</span>
-                                                                                        <span className="font-black text-rose-500">KES {unitArrears.toLocaleString()}</span>
-                                                                                    </div>
-                                                                                </div>
-                                                                                {invSum > 0 && (
-                                                                                    <div className="space-y-1">
-                                                                                        <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase">
-                                                                                            <span>Collection Progress:</span>
-                                                                                            <span className={unitRate >= 90 ? 'text-emerald-500' : unitRate >= 60 ? 'text-amber-500' : 'text-rose-500'}>{unitRate}%</span>
-                                                                                        </div>
-                                                                                        <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
-                                                                                            <div 
-                                                                                                className={`h-full rounded-full transition-all duration-300 ${
-                                                                                                    unitRate >= 90 ? 'bg-emerald-500' :
-                                                                                                    unitRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
-                                                                                                }`}
-                                                                                                style={{ width: `${Math.min(unitRate, 100)}%` }}
-                                                                                            ></div>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        );
-                                                                    })}
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-750">
+                                                {pagedDashProps.map((d) => (
+                                                    <React.Fragment key={d.property.id}>
+                                                        <tr className={`hover:bg-slate-100/30 dark:hover:bg-slate-800/20 transition-all ${selectedPropertyForDrillDown === d.property.id ? 'bg-blue-50/20 dark:bg-blue-900/10' : ''}`}>
+                                                            <td className="p-5">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-slate-750 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm border border-blue-100/50 dark:border-slate-750">
+                                                                        <HomeIcon className="w-5 h-5" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">{d.property.name}</p>
+                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{d.property.town || 'No Address'}</p>
+                                                                    </div>
                                                                 </div>
-                                                                {d.propUnits.length === 0 && (
-                                                                    <p className="text-center text-xs text-slate-400 py-6 font-bold uppercase tracking-wider">No units found in this property</p>
-                                                                )}
-                                                            </div>
-                                                        </td>
+                                                            </td>
+                                                            <td className="p-5 text-center text-xs font-bold text-slate-600 dark:text-slate-300">{d.unitsCount}</td>
+                                                            <td className="p-5 text-right text-xs font-black text-slate-900 dark:text-white italic">KES {d.totalInvoiced.toLocaleString()}</td>
+                                                            <td className="p-5 text-right text-xs font-black text-emerald-600 italic">KES {d.totalCollected.toLocaleString()}</td>
+                                                            <td className="p-5 text-right text-xs font-black text-rose-500 italic">KES {d.arrears.toLocaleString()}</td>
+                                                            <td className="p-5 w-48">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
+                                                                        <div 
+                                                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                                                d.collectionRate >= 90 ? 'bg-emerald-500' :
+                                                                                d.collectionRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                            }`}
+                                                                            style={{ width: `${Math.min(d.collectionRate, 100)}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                    <span className={`text-[10px] font-black ${
+                                                                        d.collectionRate >= 90 ? 'text-emerald-500' :
+                                                                        d.collectionRate >= 60 ? 'text-amber-500' : 'text-rose-500'
+                                                                    }`}>{d.collectionRate}%</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-5 text-center">
+                                                                <button
+                                                                    onClick={() => setSelectedPropertyForDrillDown(selectedPropertyForDrillDown === d.property.id ? null : d.property.id)}
+                                                                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider mx-auto transition-all ${
+                                                                        selectedPropertyForDrillDown === d.property.id
+                                                                            ? 'bg-blue-600 text-white shadow-md'
+                                                                            : 'bg-white dark:bg-slate-755 border border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'
+                                                                    }`}
+                                                                >
+                                                                    <EyeIcon className="w-3.5 h-3.5" />
+                                                                    {selectedPropertyForDrillDown === d.property.id ? 'Close' : 'View Units'}
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+
+                                                        {/* Expanded Units Drilldown */}
+                                                        {selectedPropertyForDrillDown === d.property.id && (
+                                                            <tr>
+                                                                <td colSpan={7} className="p-6 bg-slate-100/40 dark:bg-slate-900/40 border-y border-slate-200/50 dark:border-slate-700/50">
+                                                                    <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                                                                        <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-600 italic">Unit-level Collection Drill-down</h5>
+                                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                                            {d.propUnits.map(unit => {
+                                                                                const lease = d.propLeases.find(l => l.unitId === unit.id);
+                                                                                const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
+                                                                                
+                                                                                const unitInvoices = d.propInvoices.filter(inv => inv.unitId === unit.id);
+                                                                                const unitPayments = d.propPayments.filter(p => p.leaseId === lease?.id);
+
+                                                                                const invSum = unitInvoices.reduce((s, inv) => s + inv.amount, 0);
+                                                                                const paySum = unitPayments.reduce((s, p) => s + p.amount, 0);
+                                                                                const unitArrears = Math.max(0, invSum - paySum);
+                                                                                const unitRate = invSum > 0 ? Math.round((paySum / invSum) * 100) : (paySum > 0 ? 100 : 0);
+
+                                                                                return (
+                                                                                    <div key={unit.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm space-y-3">
+                                                                                        <div className="flex justify-between items-start">
+                                                                                            <div>
+                                                                                                <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">Unit {unit.unitNumber}</p>
+                                                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{unit.unitType}</p>
+                                                                                            </div>
+                                                                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                                                                                unit.status === 'Occupied' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-100 dark:border-emerald-950/30' :
+                                                                                                unit.status === 'Vacant' ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100 dark:border-amber-950/30' :
+                                                                                                'bg-rose-50 dark:bg-rose-950/20 text-rose-600 border-rose-100 dark:border-rose-950/30'
+                                                                                            }`}>
+                                                                                                {unit.status}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <div className="border-t border-slate-100 dark:border-slate-700/50 pt-2 space-y-1.5">
+                                                                                            <div className="flex justify-between text-[10px]">
+                                                                                                <span className="font-bold text-slate-400 uppercase">Tenant:</span>
+                                                                                                <span className="font-black text-slate-700 dark:text-slate-300 truncate max-w-[150px]">{tenant ? tenant.name : <em className="text-slate-400">None</em>}</span>
+                                                                                            </div>
+                                                                                            <div className="flex justify-between text-[10px]">
+                                                                                                <span className="font-bold text-slate-400 uppercase">Invoiced:</span>
+                                                                                                <span className="font-black text-slate-800 dark:text-slate-200">KES {invSum.toLocaleString()}</span>
+                                                                                            </div>
+                                                                                            <div className="flex justify-between text-[10px]">
+                                                                                                <span className="font-bold text-slate-400 uppercase">Collected:</span>
+                                                                                                <span className="font-black text-emerald-600">KES {paySum.toLocaleString()}</span>
+                                                                                            </div>
+                                                                                            <div className="flex justify-between text-[10px]">
+                                                                                                <span className="font-bold text-slate-400 uppercase">Balance:</span>
+                                                                                                <span className="font-black text-rose-500">KES {unitArrears.toLocaleString()}</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        {invSum > 0 && (
+                                                                                            <div className="space-y-1">
+                                                                                                <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase">
+                                                                                                    <span>Collection Progress:</span>
+                                                                                                    <span className={unitRate >= 90 ? 'text-emerald-500' : unitRate >= 60 ? 'text-amber-500' : 'text-rose-500'}>{unitRate}%</span>
+                                                                                                </div>
+                                                                                                <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
+                                                                                                    <div 
+                                                                                                        className={`h-full rounded-full transition-all duration-300 ${
+                                                                                                            unitRate >= 90 ? 'bg-emerald-500' :
+                                                                                                            unitRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                                                        }`}
+                                                                                                        style={{ width: `${Math.min(unitRate, 100)}%` }}
+                                                                                                    ></div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                        {d.propUnits.length === 0 && (
+                                                                            <p className="text-center text-xs text-slate-400 py-6 font-bold uppercase tracking-wider">No units found in this property</p>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
+                                                ))}
+                                                {filteredDashProps.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-widest italic">No properties matching your search</td>
                                                     </tr>
                                                 )}
-                                            </React.Fragment>
-                                        ))}
-                                    {propertiesCollectionData.filter(d => d.property.name.toLowerCase().includes(propertySearchQuery.toLowerCase())).length === 0 && (
-                                        <tr>
-                                            <td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-widest italic">No properties matching your search</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                                            </tbody>
+                                        </table>
+
+                                        {/* Pagination Footer */}
+                                        {totalDashPropPages > 1 && (
+                                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-4">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    Showing {((dashPropPage - 1) * PAGE_SIZE) + 1}–{Math.min(dashPropPage * PAGE_SIZE, filteredDashProps.length)} of {filteredDashProps.length} properties
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => setDashPropPage(p => Math.max(1, p - 1))} disabled={dashPropPage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
+                                                    {Array.from({ length: totalDashPropPages }, (_, i) => i + 1).map(pg => (
+                                                        <button key={pg} onClick={() => setDashPropPage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === dashPropPage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
+                                                    ))}
+                                                    <button onClick={() => setDashPropPage(p => Math.min(totalDashPropPages, p + 1))} disabled={dashPropPage === totalDashPropPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
