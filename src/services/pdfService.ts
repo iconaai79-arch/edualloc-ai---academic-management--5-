@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -5173,6 +5173,80 @@ export const generatePMReceiptPdfDataUri = async (
 
     return doc.output('datauristring');
 };
+
+export const generatePMNoticeLetterPdf = async (
+    notice: PMNoticeLetter,
+    tenant: PMTenant,
+    unit: PMUnit,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    letterheadUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const headerImg = await loadImage(letterheadUrl || null);
+    const tableStartY = createPdfWithLetterhead(
+        doc,
+        notice.noticeType.toUpperCase() + ' NOTICE',
+        companyDetails,
+        institution,
+        logoImg,
+        headerImg
+    );
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    let yPos = tableStartY + 5;
+
+    // Recipient & Date details
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Date: ${new Date(notice.issueDate).toLocaleDateString()}`, margin, yPos);
+
+    yPos += 12;
+    doc.setFont('helvetica', 'bold');
+    doc.text('TO:', margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(tenant.name, margin, yPos + 5);
+    doc.text(`Unit Number: ${unit.unitNumber}`, margin, yPos + 10);
+    doc.text(`Phone: ${tenant.phoneNumber}`, margin, yPos + 15);
+
+    yPos += 28;
+    // Subject Line
+    doc.setFont('helvetica', 'bold');
+    doc.text(`RE: ${notice.subject.toUpperCase()}`, margin, yPos);
+
+    // Draw horizontal line under subject
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPos + 2, pageWidth - margin, yPos + 2);
+
+    yPos += 10;
+    // Body Text with auto-wrapping
+    doc.setFont('helvetica', 'normal');
+    const splitText = doc.splitTextToSize(notice.messageBody, 180);
+    doc.text(splitText, margin, yPos);
+
+    yPos += splitText.length * 5 + 15;
+
+    // Dates compliance
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Effective Notice Date: ${new Date(notice.effectiveDate).toLocaleDateString()}`, margin, yPos);
+
+    yPos += 15;
+
+    // Signature block
+    doc.setFont('helvetica', 'bold');
+    doc.text('Signed By:', margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(institution.name, margin, yPos + 5);
+    doc.text('Property Management Office', margin, yPos + 10);
+
+    return doc.output('datauristring');
+};
+
 export const generateOphthalPrescriptionPdf = async (
     od: any,
     os: any,

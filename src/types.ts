@@ -2667,7 +2667,22 @@ export type PMLeaseStatus = 'Active' | 'Terminated' | 'Expired';
 export type PMPaymentMethod = 'Cash' | 'M-Pesa' | 'Bank' | 'Other';
 export type PMPaymentType = 'Rent' | 'Utility' | 'Deposit' | 'Other';
 export type PMPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
-export type PMTicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
+export type PMNoticeType = 'Vacate' | 'Late Rent Warning' | 'Lease Non-Renewal' | 'Custom Warning';
+export type PMNoticeStatus = 'Draft' | 'Issued' | 'Acknowledged';
+
+export interface PMNoticeLetter {
+    id: string;
+    leaseId: string;
+    tenantId: string;
+    noticeType: PMNoticeType;
+    issueDate: string;
+    effectiveDate: string;
+    subject: string;
+    messageBody: string;
+    status: PMNoticeStatus;
+    institutionId: string;
+    createdAt: string;
+}
 
 export interface PMLandlord {
     id: string;

@@ -107,7 +107,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     } = props;
     const institutionId = currentInstitution?.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
-    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices'>('properties');
+    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices' | 'notices'>('properties');
     const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission' | 'arrears'>('analytics');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
@@ -122,6 +122,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [listings, setListings] = useState<any[]>([]); // Using any for now until types are fully recognized
     const [inquiries, setInquiries] = useState<PMInquiry[]>([]);
     const [invoices, setInvoices] = useState<PMInvoice[]>([]);
+    const [notices, setNotices] = useState<PMNoticeLetter[]>([]);
+    const [showNoticeModal, setShowNoticeModal] = useState(false);
     const [loading, setLoading] = useState(true);
 
     const existingTowns = useMemo(() => {
@@ -138,6 +140,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [showLandlordModal, setShowLandlordModal] = useState(false);
     const [editingLandlord, setEditingLandlord] = useState<PMLandlord | null>(null);
     const [showPropertyModal, setShowPropertyModal] = useState(false);
+    const [editingPropertyTown, setEditingPropertyTown] = useState('');
+    const [propertyPage, setPropertyPage] = useState(1);
+    const PROPERTY_PAGE_SIZE = 10;
+    const [unitSearch, setUnitSearch] = useState('');
+    const [unitPage, setUnitPage] = useState(1);
+    const [landlordSearch, setLandlordSearch] = useState('');
+    const [landlordPage, setLandlordPage] = useState(1);
+    const [tenantPage, setTenantPage] = useState(1);
+    const [leaseSearch, setLeaseSearch] = useState('');
+    const [leaseStatusFilter, setLeaseStatusFilter] = useState('all');
+    const [leasePage, setLeasePage] = useState(1);
+    const PAGE_SIZE = 10;
     const [showUnitModal, setShowUnitModal] = useState(false);
     const [showTenantModal, setShowTenantModal] = useState(false);
     const [showTenantImportModal, setShowTenantImportModal] = useState(false);
@@ -242,10 +256,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 apiService.fetchModuleRecords<any>('pm_listings', institutionId),
                 apiService.fetchModuleRecords<PMInquiry>('pm_inquiries', institutionId),
                 apiService.fetchModuleRecords<PMInvoice>('pm_invoices', institutionId),
-                apiService.fetchModuleRecords<PMSettings>('pm_settings', institutionId)
+                apiService.fetchModuleRecords<PMSettings>('pm_settings', institutionId),
+                apiService.fetchModuleRecords<PMNoticeLetter>('pm_notices', institutionId)
             ]);
             
-            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv, stg] = results as any[];
+            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv, stg, nt] = results as any[];
 
             setLandlords(ls || []);
             setProperties(ps || []);
@@ -258,6 +273,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             setListings(lts || []);
             setInquiries(inq || []);
             setInvoices(inv || []);
+            setNotices(nt || []);
             
             if (stg && stg.length > 0) {
                 setPmSettings(stg[0]);
@@ -517,7 +533,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 town: data.town,
                 propertyType: data.propertyType || 'Apartment',
                 totalUnits: editingProperty?.totalUnits || 0,
-                landlordId: data.landlordId,
+                landlordId: (data.landlordId && data.landlordId !== '') ? data.landlordId : undefined,
                 commissionRate: data.commissionRate || 0,
                 institutionId,
                 createdAt: editingProperty?.createdAt || new Date().toISOString()
@@ -671,8 +687,34 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         } catch (e: any) { alert(e.message || "Failed to save lease"); console.error(e); }
     };
 
-    const LandlordsTab = () => (
+    const LandlordsTab = () => {
+        const filtered = landlords.filter(l =>
+            !landlordSearch ||
+            l.name.toUpperCase().includes(landlordSearch.toUpperCase()) ||
+            (l.phoneNumber || '').includes(landlordSearch) ||
+            (l.email || '').toUpperCase().includes(landlordSearch.toUpperCase())
+        );
+        const totalLandlordPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+        const paged = filtered.slice((landlordPage - 1) * PAGE_SIZE, landlordPage * PAGE_SIZE);
+        return (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 mt-4">
+            {/* Header + Search */}
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Landlord Directory</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">{filtered.length} of {landlords.length} landlords</p>
+                </div>
+                <div className="relative group w-full md:w-80">
+                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
+                    <input
+                        type="text"
+                        placeholder="SEARCH LANDLORDS..."
+                        value={landlordSearch}
+                        onChange={e => { setLandlordSearch(e.target.value); setLandlordPage(1); }}
+                        className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-purple-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
+                    />
+                </div>
+            </div>
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
                 {/* Desktop Table View */}
                 <div className="hidden lg:block overflow-x-auto">
@@ -686,7 +728,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             </tr>
                         </thead>
                         <tbody>
-                            {landlords.map(landlord => {
+                            {paged.map(landlord => {
                                 const ownedProperties = properties.filter(p => p.landlordId === landlord.id);
                                 return (
                                     <tr key={landlord.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
@@ -741,13 +783,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     </tr>
                                 );
                             })}
+                            {filtered.length === 0 && (
+                                <tr><td colSpan={4} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">No Landlords Found</td></tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
 
                 {/* Mobile Card View */}
                 <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
-                    {landlords.map(landlord => {
+                    {paged.map(landlord => {
                         const ownedProperties = properties.filter(p => p.landlordId === landlord.id);
                         return (
                             <div key={landlord.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
@@ -799,10 +844,30 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             </div>
                         );
                     })}
+                    {filtered.length === 0 && (
+                        <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] italic">No Landlords Found</div>
+                    )}
                 </div>
+
+                {/* Pagination Footer */}
+                {totalLandlordPages > 1 && (
+                    <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Showing {((landlordPage - 1) * PAGE_SIZE) + 1}–{Math.min(landlordPage * PAGE_SIZE, filtered.length)} of {filtered.length}
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setLandlordPage(p => Math.max(1, p - 1))} disabled={landlordPage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
+                            {Array.from({ length: totalLandlordPages }, (_, i) => i + 1).map(pg => (
+                                <button key={pg} onClick={() => setLandlordPage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === landlordPage ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
+                            ))}
+                            <button onClick={() => setLandlordPage(p => Math.min(totalLandlordPages, p + 1))} disabled={landlordPage === totalLandlordPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
-    );
+        );
+    };
 
     const PropertiesTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -819,6 +884,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         { id: 'payments', label: 'Payments', icon: CurrencyIcon },
                         { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
                         { id: 'invoices', label: 'Invoices', icon: DocumentTextIcon },
+                        { id: 'notices', label: 'Notice Letters', icon: DocumentTextIcon },
                     ].map(sub => (
                         <button
                             key={sub.id}
@@ -835,128 +901,174 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
             </div>
 
-            {propertyActiveSubTab === 'properties' && (
-                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
-                    {/* Desktop Table View */}
-                    <div className="hidden lg:block overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                                <tr>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property Name</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Address</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Units</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {properties.map(property => {
-                                    const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
-                                    const landlord = property.landlordId ? landlords.find(l => l.id === property.landlordId) : null;
-                                    return (
-                                        <tr key={property.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
-                                            <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-blue-600/10 rounded-xl text-blue-600">
-                                                        <BuildingOfficeIcon className="w-5 h-5" />
+            {propertyActiveSubTab === 'properties' && (() => {
+                const totalPages = Math.max(1, Math.ceil(properties.length / PROPERTY_PAGE_SIZE));
+                const pagedProperties = properties.slice((propertyPage - 1) * PROPERTY_PAGE_SIZE, propertyPage * PROPERTY_PAGE_SIZE);
+                return (
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
+                        {/* Desktop Table View */}
+                        <div className="hidden lg:block overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                    <tr>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property Name</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Address</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Units</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {pagedProperties.map(property => {
+                                        const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
+                                        const landlord = property.landlordId ? landlords.find(l => l.id === property.landlordId) : null;
+                                        return (
+                                            <tr key={property.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
+                                                <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-blue-600/10 rounded-xl text-blue-600">
+                                                            <BuildingOfficeIcon className="w-5 h-5" />
+                                                        </div>
+                                                        {property.name}
                                                     </div>
-                                                    {property.name}
-                                                </div>
-                                            </td>
-                                            <td className="p-6">
-                                                <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">{property.propertyType}</span>
-                                            </td>
-                                            <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-tight">
-                                                <div className="flex items-center gap-2">
-                                                    <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address'}
-                                                </div>
-                                                {property.town && (
-                                                    <div className="text-[9px] font-bold text-blue-500 uppercase tracking-widest mt-1">
-                                                        {property.town}
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">{property.propertyType}</span>
+                                                </td>
+                                                <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-tight">
+                                                    <div className="flex items-center gap-2">
+                                                        <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address'}
                                                     </div>
-                                                )}
-                                            </td>
-                                            <td className="p-6">
-                                                <div className="text-xs font-black text-slate-900 dark:text-white">{property.totalUnits || 0} Total</div>
-                                                <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">{vacantCount} Vacant</div>
-                                            </td>
-                                            <td className="p-6">
-                                                {landlord ? (
-                                                    <div>
-                                                        <div className="text-xs font-black text-purple-600 truncate max-w-[10rem]">{landlord.name}</div>
-                                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{property.commissionRate}% rate</div>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-[10px] text-slate-400 italic font-bold">Standalone</span>
-                                                )}
-                                            </td>
-                                            <td className="p-6 text-right space-x-1 whitespace-nowrap">
-                                                <button onClick={() => { setEditingProperty(property); setShowPropertyModal(true); }} className="p-2.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30 rounded-xl transition-all"><PencilIcon className="w-4 h-4" /></button>
-                                                <button onClick={() => handleDeleteProperty(property.id)} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all"><TrashIcon className="w-4 h-4" /></button>
-                                                <button onClick={() => { setEditingUnit(null); setShowUnitModal(true); }} className="p-2.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl transition-all"><PlusIcon className="w-4 h-4" /></button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {properties.length === 0 && (
-                                    <tr><td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">No Master Assets Found</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                                    {property.town && (
+                                                        <div className="text-[9px] font-bold text-blue-500 uppercase tracking-widest mt-1">
+                                                            {property.town}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="text-xs font-black text-slate-900 dark:text-white">{property.totalUnits || 0} Total</div>
+                                                    <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">{vacantCount} Vacant</div>
+                                                </td>
+                                                <td className="p-6">
+                                                    {landlord ? (
+                                                        <div>
+                                                            <div className="text-xs font-black text-purple-600 truncate max-w-[10rem]">{landlord.name}</div>
+                                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{property.commissionRate}% rate</div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400 italic font-bold">Standalone</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-6 text-right space-x-1 whitespace-nowrap">
+                                                    <button onClick={() => { setEditingProperty(property); setEditingPropertyTown(property.town || ''); setShowPropertyModal(true); }} className="p-2.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30 rounded-xl transition-all"><PencilIcon className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleDeleteProperty(property.id)} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all"><TrashIcon className="w-4 h-4" /></button>
+                                                    <button onClick={() => { setEditingUnit(null); setShowUnitModal(true); }} className="p-2.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl transition-all"><PlusIcon className="w-4 h-4" /></button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {properties.length === 0 && (
+                                        <tr><td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">No Master Assets Found</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
 
-                    {/* Mobile Card View */}
-                    <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
-                        {properties.map(property => {
-                            const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
-                            return (
-                                <div key={property.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/20 text-white">
-                                                <BuildingOfficeIcon className="w-5 h-5" />
+                        {/* Mobile Card View */}
+                        <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
+                            {pagedProperties.map(property => {
+                                const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
+                                return (
+                                    <div key={property.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/20 text-white">
+                                                    <BuildingOfficeIcon className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{property.name}</h4>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{property.propertyType}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{property.name}</h4>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{property.propertyType}</p>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { setEditingProperty(property); setEditingPropertyTown(property.town || ''); setShowPropertyModal(true); }} className="p-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-slate-500"><PencilIcon className="w-4 h-4" /></button>
+                                                <button onClick={() => handleDeleteProperty(property.id)} className="p-2.5 bg-rose-50 dark:bg-rose-900/30 rounded-xl text-rose-600"><TrashIcon className="w-4 h-4" /></button>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => { setEditingProperty(property); setShowPropertyModal(true); }} className="p-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-slate-500"><PencilIcon className="w-4 h-4" /></button>
-                                            <button onClick={() => handleDeleteProperty(property.id)} className="p-2.5 bg-rose-50 dark:bg-rose-900/30 rounded-xl text-rose-600"><TrashIcon className="w-4 h-4" /></button>
+                                        <div className="grid grid-cols-2 gap-4 mt-6">
+                                            <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-2xl">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity</p>
+                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{property.totalUnits || 0} Units</p>
+                                                <p className="text-[9px] font-bold text-blue-600 mt-0.5">{vacantCount} Vacant</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-2xl">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Commission</p>
+                                                <p className="text-xs font-black text-purple-600 uppercase">{property.commissionRate}% Rate</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase">
+                                            <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address Provided'}
+                                            {property.town && (
+                                                <span className="ml-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">
+                                                    {property.town}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 mt-6">
-                                        <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-2xl">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity</p>
-                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{property.totalUnits || 0} Units</p>
-                                            <p className="text-[9px] font-bold text-blue-600 mt-0.5">{vacantCount} Vacant</p>
-                                        </div>
-                                        <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-2xl">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Commission</p>
-                                            <p className="text-xs font-black text-purple-600 uppercase">{property.commissionRate}% Rate</p>
-                                        </div>
-                                    </div>
-                                    <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase">
-                                        <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address Provided'}
-                                        {property.town && (
-                                            <span className="ml-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">
-                                                {property.town}
-                                            </span>
-                                        )}
-                                    </div>
+                                );
+                            })}
+                            {properties.length === 0 && (
+                                <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] italic">No Master Assets Found</div>
+                            )}
+                        </div>
+
+                        {/* Pagination Footer */}
+                        {totalPages > 1 && (
+                            <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Showing {((propertyPage - 1) * PROPERTY_PAGE_SIZE) + 1}–{Math.min(propertyPage * PROPERTY_PAGE_SIZE, properties.length)} of {properties.length} properties
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setPropertyPage(p => Math.max(1, p - 1))}
+                                        disabled={propertyPage === 1}
+                                        className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        ← Prev
+                                    </button>
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pg => (
+                                        <button
+                                            key={pg}
+                                            onClick={() => setPropertyPage(pg)}
+                                            className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${
+                                                pg === propertyPage
+                                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                                    : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            {pg}
+                                        </button>
+                                    ))}
+                                    <button
+                                        onClick={() => setPropertyPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={propertyPage === totalPages}
+                                        className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Next →
+                                    </button>
                                 </div>
-                            );
-                        })}
-                        {properties.length === 0 && (
-                            <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] italic">No Master Assets Found</div>
+                            </div>
                         )}
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
-            {propertyActiveSubTab === 'units' && (
+            {propertyActiveSubTab === 'units' && (() => {
+                const filteredUnits = units.filter(u => !unitSearch || u.unitNumber.toUpperCase().includes(unitSearch.toUpperCase()) || (properties.find(p => p.id === u.propertyId)?.name || '').toUpperCase().includes(unitSearch.toUpperCase()));
+                const totalUnitPages = Math.max(1, Math.ceil(filteredUnits.length / PAGE_SIZE));
+                const pagedUnits = filteredUnits.slice((unitPage - 1) * PAGE_SIZE, unitPage * PAGE_SIZE);
+                return (
                 <div className="mt-4">
                     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-8">
                         <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Master Unit Registry</h3>
@@ -964,9 +1076,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                             <input
                                 type="text"
-                                placeholder="SEARCH BY UNIT..."
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
+                                placeholder="SEARCH BY UNIT / PROPERTY..."
+                                value={unitSearch}
+                                onChange={e => { setUnitSearch(e.target.value); setUnitPage(1); }}
                                 className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
                             />
                         </div>
@@ -986,7 +1098,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {units.filter(u => !search || u.unitNumber.toUpperCase().includes(search.toUpperCase())).map(unit => (
+                                    {pagedUnits.map(unit => (
                                         <tr key={unit.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
                                             <td className="p-6 text-sm font-black italic text-slate-900 dark:text-white">
                                                 <div className="flex items-center gap-4">
@@ -1009,13 +1121,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             </td>
                                         </tr>
                                     ))}
+                                    {filteredUnits.length === 0 && (
+                                        <tr><td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">No Units Found</td></tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
 
                         {/* Mobile Card View */}
                         <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
-                            {units.filter(u => !search || u.unitNumber.toUpperCase().includes(search.toUpperCase())).map(unit => (
+                            {pagedUnits.map(unit => (
                                 <div key={unit.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-3">
@@ -1044,10 +1159,30 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     </div>
                                 </div>
                             ))}
+                            {filteredUnits.length === 0 && (
+                                <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] italic">No Units Found</div>
+                            )}
                         </div>
+
+                        {/* Pagination Footer */}
+                        {totalUnitPages > 1 && (
+                            <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Showing {((unitPage - 1) * PAGE_SIZE) + 1}–{Math.min(unitPage * PAGE_SIZE, filteredUnits.length)} of {filteredUnits.length} units
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setUnitPage(p => Math.max(1, p - 1))} disabled={unitPage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
+                                    {Array.from({ length: totalUnitPages }, (_, i) => i + 1).map(pg => (
+                                        <button key={pg} onClick={() => setUnitPage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === unitPage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
+                                    ))}
+                                    <button onClick={() => setUnitPage(p => Math.min(totalUnitPages, p + 1))} disabled={unitPage === totalUnitPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
-            )}
+                );
+            })()}
 
             {propertyActiveSubTab === 'landlords' && LandlordsTab()}
             {propertyActiveSubTab === 'tenants' && TenantsTab()}
@@ -1055,16 +1190,21 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             {propertyActiveSubTab === 'payments' && PaymentsTab()}
             {propertyActiveSubTab === 'maintenance' && MaintenanceTab()}
             {propertyActiveSubTab === 'invoices' && InvoicesTab()}
+            {propertyActiveSubTab === 'notices' && NoticesTab()}
         </div>
     );
 
-    const TenantsTab = () => (
+    const TenantsTab = () => {
+        const filteredTenants = tenants.filter(t => !search || t.name.toUpperCase().includes(search.toUpperCase()) || (t.phoneNumber || '').includes(search));
+        const totalTenantPages = Math.max(1, Math.ceil(filteredTenants.length / PAGE_SIZE));
+        const pagedTenants = filteredTenants.slice((tenantPage - 1) * PAGE_SIZE, tenantPage * PAGE_SIZE);
+        return (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-6">
                 <div>
                     <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Tenant Directory</h3>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">
-                        Active Leased Residents ({tenants.length})
+                        Active Leased Residents ({filteredTenants.length}{filteredTenants.length !== tenants.length ? ` of ${tenants.length}` : ''})
                     </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
@@ -1074,7 +1214,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             type="text"
                             placeholder="SEARCH TENANTS..."
                             value={search}
-                            onChange={e => setSearch(e.target.value)}
+                            onChange={e => { setSearch(e.target.value); setTenantPage(1); }}
                             className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
                         />
                     </div>
@@ -1106,7 +1246,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             </tr>
                         </thead>
                         <tbody>
-                            {tenants.filter(t => !search || t.name.toUpperCase().includes(search.toUpperCase())).map(tenant => (
+                            {pagedTenants.map(tenant => (
                                 <tr key={tenant.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
                                     <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant.name}</td>
                                     <td className="p-6">
@@ -1122,12 +1262,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     </td>
                                 </tr>
                             ))}
+                            {filteredTenants.length === 0 && (
+                                <tr><td colSpan={5} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">No Tenants Found</td></tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
                 {/* Mobile Card View */}
                 <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
-                    {tenants.filter(t => !search || t.name.toUpperCase().includes(search.toUpperCase())).map(tenant => (
+                    {pagedTenants.map(tenant => (
                         <div key={tenant.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
                             <div className="flex justify-between items-start">
                                 <div>
@@ -1143,10 +1286,30 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             </div>
                         </div>
                     ))}
+                    {filteredTenants.length === 0 && (
+                        <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] italic">No Tenants Found</div>
+                    )}
                 </div>
+
+                {/* Pagination Footer */}
+                {totalTenantPages > 1 && (
+                    <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Showing {((tenantPage - 1) * PAGE_SIZE) + 1}–{Math.min(tenantPage * PAGE_SIZE, filteredTenants.length)} of {filteredTenants.length} tenants
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setTenantPage(p => Math.max(1, p - 1))} disabled={tenantPage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
+                            {Array.from({ length: totalTenantPages }, (_, i) => i + 1).map(pg => (
+                                <button key={pg} onClick={() => setTenantPage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === tenantPage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
+                            ))}
+                            <button onClick={() => setTenantPage(p => Math.min(totalTenantPages, p + 1))} disabled={tenantPage === totalTenantPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
-    );
+        );
+    };
 
     const BankActionModal = () => {
         if (!selectedTenantForBankAction) return null;
@@ -1515,19 +1678,55 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         );
     };
 
-    const LeasesTab = () => (
+    const LeasesTab = () => {
+        const filteredLeases = leases.filter(l => {
+            const tenant = tenants.find(t => t.id === l.tenantId);
+            const unit = units.find(u => u.id === l.unitId);
+            const matchesSearch = !leaseSearch ||
+                (tenant?.name || '').toUpperCase().includes(leaseSearch.toUpperCase()) ||
+                (unit?.unitNumber || '').toUpperCase().includes(leaseSearch.toUpperCase()) ||
+                (l.leaseNumber || '').toUpperCase().includes(leaseSearch.toUpperCase());
+            const matchesStatus = leaseStatusFilter === 'all' || l.status === leaseStatusFilter;
+            return matchesSearch && matchesStatus;
+        });
+        const totalLeasePages = Math.max(1, Math.ceil(filteredLeases.length / PAGE_SIZE));
+        const pagedLeases = filteredLeases.slice((leasePage - 1) * PAGE_SIZE, leasePage * PAGE_SIZE);
+        return (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="flex justify-between items-center gap-4 flex-wrap">
+            {/* Header + Controls */}
+            <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 flex-wrap">
                 <div>
                     <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Lease Agreement Registry</h3>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Manage tenant contracts and occupancy terms</p>
                 </div>
-                <button
-                    onClick={() => setShowBulkDateModal(true)}
-                    className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white px-4 py-2 rounded-xl font-bold text-xs transition-all"
-                >
-                    <CalendarIcon className="w-4 h-4" /> Bulk Update Start Dates
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                    <div className="relative group w-full sm:w-64">
+                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                        <input
+                            type="text"
+                            placeholder="SEARCH LEASES..."
+                            value={leaseSearch}
+                            onChange={e => { setLeaseSearch(e.target.value); setLeasePage(1); }}
+                            className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm"
+                        />
+                    </div>
+                    <select
+                        value={leaseStatusFilter}
+                        onChange={e => { setLeaseStatusFilter(e.target.value); setLeasePage(1); }}
+                        className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white"
+                    >
+                        <option value="all">All Statuses</option>
+                        <option value="Active">Active</option>
+                        <option value="Terminated">Terminated</option>
+                        <option value="Expired">Expired</option>
+                    </select>
+                    <button
+                        onClick={() => setShowBulkDateModal(true)}
+                        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white px-4 py-3 rounded-xl font-bold text-xs transition-all whitespace-nowrap"
+                    >
+                        <CalendarIcon className="w-4 h-4" /> Bulk Update Start Dates
+                    </button>
+                </div>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
                 {/* Desktop Table View */}
@@ -1544,7 +1743,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             </tr>
                         </thead>
                         <tbody>
-                            {leases.map(lease => {
+                            {pagedLeases.map(lease => {
                                 const tenant = tenants.find(t => t.id === lease.tenantId);
                                 const unit = units.find(u => u.id === lease.unitId);
                                 return (
@@ -1554,7 +1753,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <td className="p-6 text-sm font-bold text-slate-500">UNIT {unit?.unitNumber || 'N/A'}</td>
                                         <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount?.toLocaleString()}</td>
                                         <td className="p-6">
-                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'} `}>
+                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'}`}>
                                                 {lease.status}
                                             </span>
                                         </td>
@@ -1569,13 +1768,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     </tr>
                                 );
                             })}
+                            {filteredLeases.length === 0 && (
+                                <tr><td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">No Leases Found</td></tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
 
                 {/* Mobile Card View */}
                 <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
-                    {leases.map(lease => {
+                    {pagedLeases.map(lease => {
                         const tenant = tenants.find(t => t.id === lease.tenantId);
                         const unit = units.find(u => u.id === lease.unitId);
                         return (
@@ -1605,10 +1807,30 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             </div>
                         );
                     })}
+                    {filteredLeases.length === 0 && (
+                        <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] italic">No Leases Found</div>
+                    )}
                 </div>
+
+                {/* Pagination Footer */}
+                {totalLeasePages > 1 && (
+                    <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Showing {((leasePage - 1) * PAGE_SIZE) + 1}–{Math.min(leasePage * PAGE_SIZE, filteredLeases.length)} of {filteredLeases.length} leases
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setLeasePage(p => Math.max(1, p - 1))} disabled={leasePage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
+                            {Array.from({ length: totalLeasePages }, (_, i) => i + 1).map(pg => (
+                                <button key={pg} onClick={() => setLeasePage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === leasePage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
+                            ))}
+                            <button onClick={() => setLeasePage(p => Math.min(totalLeasePages, p + 1))} disabled={leasePage === totalLeasePages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
-    );    const handleSavePayment = async (data: Partial<PMPayment> & { payments?: { paymentType: PMPaymentType; amount: number }[] }) => {
+        );
+    };    const handleSavePayment = async (data: Partial<PMPayment> & { payments?: { paymentType: PMPaymentType; amount: number }[] }) => {
         try {
             const items = data.payments && data.payments.length > 0
                 ? data.payments
@@ -3022,6 +3244,373 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         );
     };
 
+    const handleSaveNotice = async (data: Partial<PMNoticeLetter>) => {
+        try {
+            const lease = leases.find(l => l.id === data.leaseId);
+            const tenant = tenants.find(t => t.id === (lease?.tenantId || data.tenantId));
+            const unit = units.find(u => u.id === lease?.unitId);
+
+            if (!tenant || !unit) {
+                alert("Associated tenant or unit record not found.");
+                return;
+            }
+
+            const n: PMNoticeLetter = {
+                id: `notice_${Date.now()}`,
+                leaseId: data.leaseId || '',
+                tenantId: tenant.id,
+                noticeType: data.noticeType || 'Custom Warning',
+                issueDate: data.issueDate || new Date().toISOString().split('T')[0],
+                effectiveDate: data.effectiveDate || '',
+                subject: data.subject || '',
+                messageBody: data.messageBody || '',
+                status: 'Issued',
+                institutionId,
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('pm_notices', n);
+
+            // Generate and open PDF preview
+            const dataUri = await pdfService.generatePMNoticeLetterPdf(
+                n, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                pmSettings?.branding?.letterheadUrl || null
+            );
+            
+            // Email Delivery
+            if (tenant.email) {
+                const base64Data = dataUri.split(',')[1];
+                const emailSubject = `Notice: ${n.subject}`;
+                const emailBody = `Dear ${tenant.name},\n\nPlease find attached the official formal notice regarding "${n.subject}" issued on ${n.issueDate} for Unit ${unit.unitNumber}.\n\nBest Regards,\nProperty Management`;
+                const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
+                
+                apiService.sendEmail(
+                    tenant.email,
+                    emailSubject,
+                    emailBody,
+                    emailConfig,
+                    undefined,
+                    [{ filename: `Notice_${n.id.substring(0, 8)}.pdf`, content: base64Data, encoding: 'base64' }]
+                ).then(() => {
+                    console.log(`Notice email sent successfully to ${tenant.email}`);
+                }).catch(emailErr => {
+                    console.error("Failed to send notice email to tenant:", emailErr);
+                });
+            }
+
+            // SMS Delivery
+            if (tenant.phoneNumber) {
+                try {
+                    const blob = dataURItoBlob(dataUri);
+                    const fileName = `notices/Notice_${n.id.trim()}.pdf`;
+                    let publicUrl = '';
+                    let shortUrl = '';
+                    try {
+                        publicUrl = await apiService.uploadBlob(fileName, blob);
+                        shortUrl = await apiService.shortenUrl(publicUrl);
+                    } catch (uploadErr) {
+                        console.warn("Supabase upload failed, sending SMS warning without link", uploadErr);
+                    }
+                    
+                    const smsMessage = publicUrl 
+                        ? `Dear ${tenant.name}, you have been issued a formal ${n.noticeType} notice. Subject: ${n.subject}. Effective date: ${n.effectiveDate}. View notice letter here: ${shortUrl}`
+                        : `Dear ${tenant.name}, you have been issued a formal ${n.noticeType} notice. Subject: ${n.subject}. Effective date: ${n.effectiveDate}. Please check your email for the copy.`;
+                    
+                    apiService.sendSms(
+                        tenant.phoneNumber, 
+                        smsMessage, 
+                        currentInstitution.smsConfig, 
+                        1, 
+                        currentInstitution.id!
+                    ).then(() => {
+                        console.log(`Notice SMS sent successfully to ${tenant.phoneNumber}`);
+                    }).catch(smsErr => {
+                        console.error("Failed to send notice SMS alert:", smsErr);
+                    });
+                } catch (smsErr) {
+                    console.warn("SMS processing failed:", smsErr);
+                }
+            }
+
+            setPreviewPdfUrl(dataUri);
+            setPreviewPdfTitle(`${n.noticeType} - ${tenant.name}`);
+            setShowPdfPreview(true);
+
+            setShowNoticeModal(false);
+            alert("Notice letter generated and alerts dispatched successfully!");
+            loadData();
+        } catch (e: any) {
+            alert(e.message || "Failed to issue notice.");
+        }
+    };
+
+    const NoticesTab = () => {
+        const [search, setSearch] = useState('');
+        const [typeFilter, setTypeFilter] = useState('all');
+        const [statusFilter, setStatusFilter] = useState('all');
+
+        const filteredNotices = notices.filter(n => {
+            const lease = leases.find(l => l.id === n.leaseId);
+            const tenant = tenants.find(t => t.id === (lease?.tenantId || n.tenantId));
+            const tenantName = tenant?.name || '';
+            const matchesSearch = tenantName.toLowerCase().includes(search.toLowerCase());
+            const matchesType = typeFilter === 'all' || n.noticeType === typeFilter;
+            const matchesStatus = statusFilter === 'all' || n.status === statusFilter;
+            return matchesSearch && matchesType && matchesStatus;
+        });
+
+        const handleViewNoticePdf = async (notice: PMNoticeLetter) => {
+            try {
+                const lease = leases.find(l => l.id === notice.leaseId);
+                const tenant = tenants.find(t => t.id === (lease?.tenantId || notice.tenantId));
+                const unit = units.find(u => u.id === lease?.unitId);
+                if (!tenant || !unit) {
+                    alert("Associated tenant or unit record not found.");
+                    return;
+                }
+                const dataUri = await pdfService.generatePMNoticeLetterPdf(
+                    notice, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                    pmSettings?.branding?.letterheadUrl || null
+                );
+                setPreviewPdfUrl(dataUri);
+                setPreviewPdfTitle(`${notice.noticeType} - ${tenant.name}`);
+                setShowPdfPreview(true);
+            } catch (e: any) {
+                alert("Failed to render PDF preview: " + e.message);
+            }
+        };
+
+        const handleResendNoticeAlerts = async (notice: PMNoticeLetter) => {
+            try {
+                const lease = leases.find(l => l.id === notice.leaseId);
+                const tenant = tenants.find(t => t.id === (lease?.tenantId || notice.tenantId));
+                const unit = units.find(u => u.id === lease?.unitId);
+                if (!tenant || !unit) {
+                    alert("Associated tenant or unit record not found.");
+                    return;
+                }
+                const dataUri = await pdfService.generatePMNoticeLetterPdf(
+                    notice, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                    pmSettings?.branding?.letterheadUrl || null
+                );
+                
+                // Email
+                if (tenant.email) {
+                    const base64Data = dataUri.split(',')[1];
+                    const emailSubject = `Notice: ${notice.subject}`;
+                    const emailBody = `Dear ${tenant.name},\n\nPlease find attached the official formal notice regarding "${notice.subject}" issued on ${notice.issueDate} for Unit ${unit.unitNumber}.\n\nBest Regards,\nProperty Management`;
+                    const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
+                    await apiService.sendEmail(
+                        tenant.email,
+                        emailSubject,
+                        emailBody,
+                        emailConfig,
+                        undefined,
+                        [{ filename: `Notice_${notice.id.substring(0, 8)}.pdf`, content: base64Data, encoding: 'base64' }]
+                    );
+                    alert("Notice email resent successfully to " + tenant.email);
+                }
+
+                // SMS
+                if (tenant.phoneNumber) {
+                    const blob = dataURItoBlob(dataUri);
+                    const fileName = `notices/Notice_${notice.id.trim()}.pdf`;
+                    let publicUrl = '';
+                    let shortUrl = '';
+                    try {
+                        publicUrl = await apiService.uploadBlob(fileName, blob);
+                        shortUrl = await apiService.shortenUrl(publicUrl);
+                    } catch (uploadErr) {
+                        console.warn("Supabase upload failed, sending SMS warning without link", uploadErr);
+                    }
+                    
+                    const smsMessage = publicUrl 
+                        ? `Dear ${tenant.name}, you have been issued a formal ${notice.noticeType} notice. Subject: ${notice.subject}. Effective date: ${notice.effectiveDate}. View notice letter here: ${shortUrl}`
+                        : `Dear ${tenant.name}, you have been issued a formal ${notice.noticeType} notice. Subject: ${notice.subject}. Effective date: ${notice.effectiveDate}. Please check your email for the copy.`;
+                    
+                    await apiService.sendSms(
+                        tenant.phoneNumber, 
+                        smsMessage, 
+                        currentInstitution.smsConfig, 
+                        1, 
+                        currentInstitution.id!
+                    );
+                    alert("Notice SMS alert sent successfully to " + tenant.phoneNumber);
+                }
+            } catch (e: any) {
+                alert("Failed to send notice: " + e.message);
+            }
+        };
+
+        const handleUpdateNoticeStatus = async (notice: PMNoticeLetter, newStatus: PMNoticeStatus) => {
+            try {
+                const updated = { ...notice, status: newStatus };
+                await apiService.saveModuleRecord('pm_notices', updated);
+                alert("Notice status updated to " + newStatus);
+                loadData();
+            } catch (e: any) {
+                alert("Failed to update status: " + e.message);
+            }
+        };
+
+        const handleDeleteNotice = async (id: string) => {
+            if (!confirm("Are you sure you want to delete this notice record? This action cannot be undone.")) return;
+            try {
+                await apiService.deleteModuleRecord('pm_notices', id);
+                alert("Notice deleted successfully.");
+                loadData();
+            } catch (e: any) {
+                alert("Failed to delete notice: " + e.message);
+            }
+        };
+
+        return (
+            <div className="space-y-8 animate-in fade-in duration-300">
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl p-8 flex flex-col md:flex-row gap-6 justify-between items-center">
+                    <div className="relative w-full md:max-w-md">
+                        <SearchIcon className="absolute left-4 top-4.5 w-4 h-4 text-slate-400" />
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full bg-slate-55 dark:bg-slate-900/50 rounded-2xl pl-12 pr-4 py-4 text-xs font-bold border-2 border-transparent focus:border-blue-500 outline-none transition-colors dark:text-white"
+                            placeholder="Search by Tenant Name..."
+                        />
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                        <select
+                            value={typeFilter}
+                            onChange={(e) => setTypeFilter(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl px-6 py-4 text-xs font-bold outline-none dark:text-white transition-colors"
+                        >
+                            <option value="all">All Notice Types</option>
+                            <option value="Vacate">Vacate</option>
+                            <option value="Late Rent Warning">Late Rent Warning</option>
+                            <option value="Lease Non-Renewal">Lease Non-Renewal</option>
+                            <option value="Custom Warning">Custom Warning</option>
+                        </select>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl px-6 py-4 text-xs font-bold outline-none dark:text-white transition-colors"
+                        >
+                            <option value="all">All Statuses</option>
+                            <option value="Draft">Draft</option>
+                            <option value="Issued">Issued</option>
+                            <option value="Acknowledged">Acknowledged</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <div className="p-6 border-b border-slate-50 dark:border-slate-700">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Notice Transmission Log</h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr className="border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    <th className="p-6">Issue Date</th>
+                                    <th className="p-6">Tenant / Unit</th>
+                                    <th className="p-6">Notice Type</th>
+                                    <th className="p-6">Subject</th>
+                                    <th className="p-6">Vacate/Effective Date</th>
+                                    <th className="p-6">Status</th>
+                                    <th className="p-6 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredNotices.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="p-12 text-center text-slate-400 font-bold">
+                                            No notices found matching filters.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredNotices.map(notice => {
+                                        const lease = leases.find(l => l.id === notice.leaseId);
+                                        const tenant = tenants.find(t => t.id === (lease?.tenantId || notice.tenantId));
+                                        const unit = units.find(u => u.id === lease?.unitId);
+                                        const property = unit ? properties.find(p => p.id === unit.propertyId) : null;
+
+                                        return (
+                                            <tr key={notice.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                                                <td className="p-6 font-bold text-slate-600 dark:text-slate-355">
+                                                    {new Date(notice.issueDate).toLocaleDateString()}
+                                                </td>
+                                                <td className="p-6">
+                                                    <p className="font-black text-slate-800 dark:text-white">{tenant?.name || 'N/A'}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">{property?.name || 'N/A'} - Unit {unit?.unitNumber || 'N/A'}</p>
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                        notice.noticeType === 'Vacate' ? 'bg-rose-50 text-rose-600 dark:bg-rose-955/30' :
+                                                        notice.noticeType === 'Late Rent Warning' ? 'bg-amber-50 text-amber-600 dark:bg-amber-955/30' :
+                                                        'bg-blue-50 text-blue-600 dark:bg-blue-955/30'
+                                                    }`}>
+                                                        {notice.noticeType}
+                                                    </span>
+                                                </td>
+                                                <td className="p-6 font-bold text-slate-700 dark:text-slate-300 max-w-[200px] truncate">
+                                                    {notice.subject}
+                                                </td>
+                                                <td className="p-6 font-bold text-slate-600 dark:text-slate-355">
+                                                    {new Date(notice.effectiveDate).toLocaleDateString()}
+                                                </td>
+                                                <td className="p-6">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                        notice.status === 'Acknowledged' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-955/30' :
+                                                        notice.status === 'Issued' ? 'bg-blue-50 text-blue-600 dark:bg-blue-955/30' :
+                                                        'bg-slate-50 text-slate-500 dark:bg-slate-900/50'
+                                                    }`}>
+                                                        {notice.status}
+                                                    </span>
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="flex gap-2 justify-end">
+                                                        <button
+                                                            onClick={() => handleViewNoticePdf(notice)}
+                                                            className="p-2 bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-955/30 rounded-xl text-slate-400 hover:text-indigo-650 transition-colors"
+                                                            title="View PDF"
+                                                        >
+                                                            <EyeIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleResendNoticeAlerts(notice)}
+                                                            className="p-2 bg-slate-50 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-955/30 rounded-xl text-slate-400 hover:text-emerald-650 transition-colors"
+                                                            title="Resend Alerts"
+                                                        >
+                                                            <PaperAirplaneIcon className="w-4 h-4" />
+                                                        </button>
+                                                        {notice.status === 'Issued' && (
+                                                            <button
+                                                                onClick={() => handleUpdateNoticeStatus(notice, 'Acknowledged')}
+                                                                className="p-2 bg-slate-50 dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-955/30 rounded-xl text-slate-400 hover:text-emerald-650 transition-colors"
+                                                                title="Mark Acknowledged"
+                                                            >
+                                                                <CheckCircleIcon className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleDeleteNotice(notice.id)}
+                                                            className="p-2 bg-rose-50/50 dark:bg-rose-955/20 hover:bg-rose-100 rounded-xl text-rose-600 transition-colors"
+                                                            title="Delete Notice"
+                                                        >
+                                                            <TrashIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const MaintenanceTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -5083,7 +5672,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         {activeTab === 'properties' && (
                             <>
                                 {propertyActiveSubTab === 'properties' && (
-                                    <button onClick={() => setShowPropertyModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                    <button onClick={() => { setEditingPropertyTown(''); setShowPropertyModal(true); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
                                         <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Add</span> Property
                                     </button>
                                 )}
@@ -5115,6 +5704,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 {propertyActiveSubTab === 'maintenance' && (
                                     <button onClick={() => setShowTicketModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-rose-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-rose-600/20 hover:scale-[1.02] active:scale-95 transition-all">
                                         <Cog8ToothIcon className="w-5 h-5" /> <span className="hidden sm:inline">New</span> Ticket
+                                    </button>
+                                )}
+                                {propertyActiveSubTab === 'notices' && (
+                                    <button onClick={() => setShowNoticeModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-amber-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-amber-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Issue</span> Notice
                                     </button>
                                 )}
                             </>
@@ -5329,6 +5923,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 onClose={() => {
                     setShowPropertyModal(false);
                     setEditingProperty(null);
+                    setEditingPropertyTown('');
                 }}
                 title={editingProperty ? "Edit Property" : "Register New Property"}
             >
@@ -5338,7 +5933,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     handleSaveProperty({
                         name: formData.get('name') as string,
                         address: formData.get('address') as string,
-                        town: formData.get('town') as string,
+                        town: editingPropertyTown,
                         propertyType: formData.get('propertyType') as PMPropertyType,
                         landlordId: formData.get('landlordId') as string,
                         commissionRate: parseFloat(formData.get('commissionRate') as string) || 0,
@@ -5357,7 +5952,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         <input 
                             name="town" 
                             list="towns-list"
-                            defaultValue={editingProperty?.town} 
+                            value={editingPropertyTown}
+                            onChange={(e) => setEditingPropertyTown(e.target.value)}
                             className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" 
                             placeholder="e.g. Nairobi, Mombasa, Kisumu" 
                         />
@@ -5735,6 +6331,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     pmSettings={pmSettings}
                     getNextRentDueDate={getNextRentDueDate}
                     invoices={invoices}
+                />
+            )}
+
+            {showNoticeModal && (
+                <IssueNoticeModal
+                    show={showNoticeModal}
+                    onClose={() => setShowNoticeModal(false)}
+                    leases={leases}
+                    tenants={tenants}
+                    units={units}
+                    properties={properties}
+                    onSave={handleSaveNotice}
                 />
             )}
 
@@ -7117,6 +7725,220 @@ const ArrearsManager: React.FC<{
                     </div>
                 </div>
             </Modal>
+        </div>
+    );
+};
+
+const TEMPLATE_PRESETS: Record<PMNoticeType, { subject: string; body: string }> = {
+    'Vacate': {
+        subject: 'Notice to Vacate Premise',
+        body: 'Please be advised that you are required to vacate the premises at Unit [UNIT_NUMBER] of [PROPERTY_NAME] on or before [DATE] in accordance with the terms of your lease agreement. Please ensure all outstanding balances are cleared and the room is left in good condition.'
+    },
+    'Late Rent Warning': {
+        subject: 'Demand Notice: Outstanding Rent Arrears',
+        body: 'Our records indicate that your rent account for Unit [UNIT_NUMBER] is currently in arrears. You are requested to settle the outstanding balance immediately. Failure to comply may lead to lease termination or legal action.'
+    },
+    'Lease Non-Renewal': {
+        subject: 'Notice of Lease Agreement Non-Renewal',
+        body: 'Please note that your lease agreement for Unit [UNIT_NUMBER] expiring on [DATE] will not be renewed. You are expected to hand over the keys and vacate the property by the expiry date.'
+    },
+    'Custom Warning': {
+        subject: 'Official Warning / Compliance Notice',
+        body: 'This is an official notice to draw your attention to a violation of the tenancy rules in Unit [UNIT_NUMBER]. You are requested to rectify the situation immediately.'
+    }
+};
+
+interface IssueNoticeModalProps {
+    show: boolean;
+    onClose: () => void;
+    leases: PMLease[];
+    tenants: PMTenant[];
+    units: PMUnit[];
+    properties: PMProperty[];
+    onSave: (notice: Partial<PMNoticeLetter>) => Promise<void>;
+}
+
+const IssueNoticeModal: React.FC<IssueNoticeModalProps> = ({
+    show, onClose, leases, tenants, units, properties, onSave
+}) => {
+    const [tenantSearchQuery, setTenantSearchQuery] = useState('');
+    const [selectedLeaseId, setSelectedLeaseId] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [noticeType, setNoticeType] = useState<PMNoticeType>('Vacate');
+    const [subject, setSubject] = useState('');
+    const [messageBody, setMessageBody] = useState('');
+    const [effectiveDate, setEffectiveDate] = useState('');
+
+    const activeLeases = leases.filter(l => l.status === 'Active');
+
+    const filteredLeases = activeLeases.filter(lease => {
+        const tenant = tenants.find(t => t.id === lease.tenantId);
+        const unit = units.find(u => u.id === lease.unitId);
+        const term = tenantSearchQuery.toLowerCase();
+        return (tenant?.name.toLowerCase().includes(term) || unit?.unitNumber.toLowerCase().includes(term));
+    });
+
+    const handleSelectLease = (leaseId: string) => {
+        setSelectedLeaseId(leaseId);
+        setIsDropdownOpen(false);
+        const lease = leases.find(l => l.id === leaseId);
+        const tenant = tenants.find(t => t.id === lease?.tenantId);
+        setTenantSearchQuery(tenant ? `${tenant.name} (Unit ${units.find(u => u.id === lease?.unitId)?.unitNumber || ''})` : '');
+    };
+
+    // Update body template based on selections
+    useEffect(() => {
+        const lease = leases.find(l => l.id === selectedLeaseId);
+        const unit = units.find(u => u.id === lease?.unitId);
+        const property = unit ? properties.find(p => p.id === unit.propertyId) : null;
+        
+        const preset = TEMPLATE_PRESETS[noticeType];
+        if (preset) {
+            const bodyText = preset.body
+                .replace('[UNIT_NUMBER]', unit?.unitNumber || '_____')
+                .replace('[PROPERTY_NAME]', property?.name || '_____')
+                .replace('[DATE]', effectiveDate ? new Date(effectiveDate).toLocaleDateString() : '_____');
+            
+            setSubject(preset.subject);
+            setMessageBody(bodyText);
+        }
+    }, [selectedLeaseId, noticeType, effectiveDate, leases, units, properties]);
+
+    if (!show) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Issue Notice Letter</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                        <svg className="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div className="p-8 max-h-[70vh] overflow-y-auto">
+                    <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!selectedLeaseId) {
+                            alert("Please search and select a tenant lease.");
+                            return;
+                        }
+                        if (!effectiveDate) {
+                            alert("Please select the effective compliance/vacate date.");
+                            return;
+                        }
+
+                        const lease = leases.find(l => l.id === selectedLeaseId);
+
+                        await onSave({
+                            leaseId: selectedLeaseId,
+                            tenantId: lease?.tenantId || '',
+                            noticeType,
+                            issueDate: new Date().toISOString().split('T')[0],
+                            effectiveDate,
+                            subject,
+                            messageBody,
+                            status: 'Issued'
+                        });
+                    }} className="space-y-6">
+                        
+                        {/* Tenant Search & Select Dropdown */}
+                        <div className="relative">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Search Tenant / Unit</label>
+                            <div className="relative">
+                                <SearchIcon className="absolute left-4 top-4.5 w-4 h-4 text-slate-400" />
+                                <input 
+                                    type="text" 
+                                    value={tenantSearchQuery}
+                                    onChange={(e) => {
+                                        setTenantSearchQuery(e.target.value);
+                                        setIsDropdownOpen(true);
+                                        if (selectedLeaseId) setSelectedLeaseId('');
+                                    }}
+                                    onFocus={() => setIsDropdownOpen(true)}
+                                    className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl pl-12 pr-4 py-4 font-bold outline-none dark:text-white text-xs transition-colors"
+                                    placeholder="Type Tenant Name or Unit Number..."
+                                />
+                            </div>
+
+                            {isDropdownOpen && filteredLeases.length > 0 && (
+                                <div className="absolute z-10 w-full mt-2 bg-white dark:bg-slate-805 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl max-h-60 overflow-y-auto">
+                                    {filteredLeases.map(lease => {
+                                        const tenant = tenants.find(t => t.id === lease.tenantId);
+                                        const unit = units.find(u => u.id === lease.unitId);
+                                        const prop = unit ? properties.find(p => p.id === unit.propertyId) : null;
+                                        return (
+                                            <button
+                                                key={lease.id}
+                                                type="button"
+                                                onClick={() => handleSelectLease(lease.id)}
+                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex justify-between items-center transition-colors"
+                                            >
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-800 dark:text-white">{tenant?.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">{prop?.name} - Unit {unit?.unitNumber}</p>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Notice Type</label>
+                                <select 
+                                    value={noticeType} 
+                                    onChange={(e) => setNoticeType(e.target.value as PMNoticeType)}
+                                    className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                >
+                                    <option value="Vacate">Notice to Vacate</option>
+                                    <option value="Late Rent Warning">Late Rent Warning</option>
+                                    <option value="Lease Non-Renewal">Lease Non-Renewal</option>
+                                    <option value="Custom Warning">Custom Warning</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Effective Compliance Date</label>
+                                <input 
+                                    type="date"
+                                    value={effectiveDate}
+                                    onChange={(e) => setEffectiveDate(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-850 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Subject</label>
+                            <input 
+                                type="text"
+                                value={subject}
+                                onChange={(e) => setSubject(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                placeholder="Subject of the letter"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Message Body</label>
+                            <textarea 
+                                rows={6}
+                                value={messageBody}
+                                onChange={(e) => setMessageBody(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-805 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-xs"
+                                placeholder="Write notice content here..."
+                            />
+                        </div>
+
+                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">
+                            Generate & Send Notice
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
     );
 };
