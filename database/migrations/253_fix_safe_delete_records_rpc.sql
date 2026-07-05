@@ -42,7 +42,7 @@ DECLARE
     -- Property Management
     'pm_listings', 'pm_inquiries', 'pm_invoices', 'pm_payments',
     'pm_tenants', 'pm_leases', 'pm_units', 'pm_properties',
-    'pm_maintenance_tickets', 'pm_disbursements', 'pm_settings', 'pm_expenses',
+    'pm_maintenance_tickets', 'pm_disbursements', 'pm_settings', 'pm_expenses', 'pm_notices',
     -- Finance & Integrations
     'integration_logs', 'sms_outbox', 'bank_transactions',
     -- Boarding

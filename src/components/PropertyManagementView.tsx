@@ -3853,8 +3853,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     unit,
                     currentInstitution,
                     companyDetails,
-                    currentInstitution.branding?.logoUrl || null,
-                    currentInstitution.branding?.letterheadUrl || null
+                    currentInstitution.logoUrl || null,
+                    currentInstitution.letterheadConfig?.headerImageUrl || null
                 );
                 
                 setPreviewPdfUrl(dataUri);

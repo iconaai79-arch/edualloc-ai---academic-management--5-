@@ -5214,6 +5214,70 @@ export const generatePMReceiptPdfDataUri = async (
     return doc.output('datauristring');
 };
 
+const convertNumberToWords = (amount: number): string => {
+    const singleDigits = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+    const teenDigits = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+    const doubleDigits = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+    const placeValues = ["", "Thousand", "Million", "Billion"];
+
+    if (amount === 0) return "Zero Shillings Only";
+
+    // Split major and cents
+    const parts = amount.toFixed(2).split('.');
+    const majorPart = parseInt(parts[0], 10);
+    const minorPart = parseInt(parts[1], 10);
+
+    const getChunkWords = (num: number): string => {
+        let chunkStr = "";
+        const hundreds = Math.floor(num / 100);
+        const tensAndOnes = num % 100;
+
+        if (hundreds > 0) {
+            chunkStr += singleDigits[hundreds] + " Hundred ";
+        }
+
+        if (tensAndOnes > 0) {
+            if (tensAndOnes < 10) {
+                chunkStr += singleDigits[tensAndOnes];
+            } else if (tensAndOnes < 20) {
+                chunkStr += teenDigits[tensAndOnes - 10];
+            } else {
+                const tens = Math.floor(tensAndOnes / 10);
+                const ones = tensAndOnes % 10;
+                chunkStr += doubleDigits[tens] + (ones > 0 ? "-" + singleDigits[ones] : "");
+            }
+        }
+        return chunkStr.trim();
+    };
+
+    let words = "";
+    let tempNum = majorPart;
+    let placeIdx = 0;
+
+    if (tempNum === 0) {
+        words = "Zero";
+    } else {
+        while (tempNum > 0) {
+            const chunk = tempNum % 1000;
+            if (chunk > 0) {
+                const chunkWords = getChunkWords(chunk);
+                words = chunkWords + " " + placeValues[placeIdx] + " " + words;
+            }
+            tempNum = Math.floor(tempNum / 1000);
+            placeIdx++;
+        }
+    }
+
+    words = words.trim() + " Shillings";
+
+    if (minorPart > 0) {
+        const minorWords = getChunkWords(minorPart);
+        words += " and " + minorWords + " Cents";
+    }
+
+    return words + " Only";
+};
+
 export const generatePMExpenseVoucherPdf = async (
     voucher: PMExpenseVoucher,
     property: PMProperty,
@@ -5305,6 +5369,16 @@ export const generatePMExpenseVoucherPdf = async (
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL AMOUNT PAID:', margin, yPos + 4);
     doc.text(`KES ${voucher.amount.toLocaleString()}`, pageWidth - margin, yPos + 4, { align: 'right' });
+
+    // Amount in words
+    yPos += 12;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const amountInWords = convertNumberToWords(voucher.amount);
+    const amountWordsLines = doc.splitTextToSize(`Amount in Words: ${amountInWords}`, pageWidth - (margin * 2));
+    doc.text(amountWordsLines, margin, yPos);
+
+    yPos += (amountWordsLines.length * 4.5);
 
     // Signature Block at the bottom
     let sigY = pageHeight - margin - 20;
