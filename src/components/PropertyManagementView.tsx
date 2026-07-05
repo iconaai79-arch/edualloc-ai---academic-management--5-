@@ -1598,69 +1598,82 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
             </div>
         </div>
-    );
-
-    const handleSavePayment = async (data: Partial<PMPayment>) => {
+    );    const handleSavePayment = async (data: Partial<PMPayment> & { payments?: { paymentType: PMPaymentType; amount: number }[] }) => {
         try {
-            // Calculate Commission
-            let commissionAmount = 0;
-            const amount = data.amount || 0;
-            const paymentType = data.paymentType || 'Rent';
+            const items = data.payments && data.payments.length > 0
+                ? data.payments
+                : [{ paymentType: data.paymentType || 'Rent', amount: data.amount || 0 }];
 
-            if (paymentType === 'Rent' && data.leaseId) {
-                const lease = leases.find(l => l.id === data.leaseId);
-                if (lease) {
-                    const unit = units.find(u => u.id === lease.unitId);
-                    if (unit) {
-                        const property = properties.find(p => p.id === unit.propertyId);
-                        if (property && property.commissionRate && property.commissionRate > 0) {
-                            commissionAmount = (amount * property.commissionRate) / 100;
+            let receiptPrefix = pmSettings?.numbering?.receiptPrefix || 'REC';
+            let receiptNextNum = pmSettings?.numbering?.receiptNextNumber || 1000;
+
+            const createdPayments: PMPayment[] = [];
+
+            for (const item of items) {
+                if (item.amount <= 0) continue;
+
+                // Calculate Commission
+                let commissionAmount = 0;
+                if (item.paymentType === 'Rent' && data.leaseId) {
+                    const lease = leases.find(l => l.id === data.leaseId);
+                    if (lease) {
+                        const unit = units.find(u => u.id === lease.unitId);
+                        if (unit) {
+                            const property = properties.find(p => p.id === unit.propertyId);
+                            if (property && property.commissionRate && property.commissionRate > 0) {
+                                commissionAmount = (item.amount * property.commissionRate) / 100;
+                            }
+                        }
+                    }
+                }
+
+                const receiptNumber = `${receiptPrefix}-${receiptNextNum++}`;
+
+                const p: PMPayment = {
+                    id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    leaseId: data.leaseId || '',
+                    amount: item.amount,
+                    paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
+                    paymentMethod: data.paymentMethod || 'M-Pesa',
+                    paymentType: item.paymentType,
+                    reference: data.reference,
+                    receiptNumber,
+                    status: 'Completed',
+                    commissionAmount,
+                    institutionId,
+                    createdAt: new Date().toISOString()
+                };
+
+                await apiService.saveModuleRecord('pm_payments', p);
+                createdPayments.push(p);
+
+                // Auto-allocate rent payment to oldest unpaid rent/arrears invoices
+                if (item.paymentType === 'Rent' && data.leaseId) {
+                    let paymentRemaining = item.amount;
+                    const unpaidLeaseInvoices = invoices
+                        .filter(inv => inv.leaseId === data.leaseId &&
+                            inv.status !== 'Paid' && inv.status !== 'Cancelled' &&
+                            (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')))
+                        .sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
+
+                    for (const inv of unpaidLeaseInvoices) {
+                        if (paymentRemaining <= 0) break;
+                        if (paymentRemaining >= inv.amount) {
+                            paymentRemaining -= inv.amount;
+                            await apiService.saveModuleRecord('pm_invoices', {
+                                ...inv,
+                                status: 'Paid'
+                            });
+                        } else {
+                            break;
                         }
                     }
                 }
             }
 
-            const receiptPrefix = pmSettings?.numbering?.receiptPrefix || 'REC';
-            const receiptNextNum = pmSettings?.numbering?.receiptNextNumber || 1000;
-            const receiptNumber = `${receiptPrefix}-${receiptNextNum}`;
-
-            const p: PMPayment = {
-                id: `pay_${Date.now()}`,
-                leaseId: data.leaseId || '',
-                amount,
-                paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
-                paymentMethod: data.paymentMethod || 'M-Pesa',
-                paymentType,
-                reference: data.reference,
-                receiptNumber,
-                status: 'Completed',
-                commissionAmount,
-                institutionId,
-                createdAt: new Date().toISOString()
-            };
-            await apiService.saveModuleRecord('pm_payments', p);
-
-            // Auto-allocate rent payment to oldest unpaid rent/arrears invoices
-            if (paymentType === 'Rent' && data.leaseId) {
-                let paymentRemaining = amount;
-                const unpaidLeaseInvoices = invoices
-                    .filter(inv => inv.leaseId === data.leaseId &&
-                        inv.status !== 'Paid' && inv.status !== 'Cancelled' &&
-                        (inv.description.toLowerCase().includes('rent') || inv.description.toLowerCase().includes('arrears')))
-                    .sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
-
-                for (const inv of unpaidLeaseInvoices) {
-                    if (paymentRemaining <= 0) break;
-                    if (paymentRemaining >= inv.amount) {
-                        paymentRemaining -= inv.amount;
-                        await apiService.saveModuleRecord('pm_invoices', {
-                            ...inv,
-                            status: 'Paid'
-                        });
-                    } else {
-                        break;
-                    }
-                }
+            if (createdPayments.length === 0) {
+                alert("Please enter a payment amount greater than 0.");
+                return;
             }
 
             if (pmSettings) {
@@ -1668,83 +1681,88 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     ...pmSettings,
                     numbering: {
                         ...(pmSettings.numbering || {}),
-                        receiptNextNumber: receiptNextNum + 1
+                        receiptNextNumber: receiptNextNum
                     }
                 };
                 await apiService.saveModuleRecord('pm_settings', updatedSettings);
                 setPmSettings(updatedSettings);
             }
 
-            // Automated Receipt Generation and Instant Delivery (Email & SMS)
-            const lease = leases.find(l => l.id === p.leaseId);
-            const tenant = tenants.find(t => t.id === lease?.tenantId);
-            const unit = units.find(u => u.id === lease?.unitId);
-            if (tenant && unit) {
-                try {
-                    const dataUri = await pdfService.generatePMReceiptPdfDataUri(
-                        p, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
-                        pmSettings?.branding?.letterheadUrl || null
-                    );
-                    setPreviewPdfUrl(dataUri);
-                    setPreviewPdfTitle(`Receipt - ${tenant.name}`);
-                    setShowPdfPreview(true);
-
-                    // Instantly send email receipt to tenant if email exists
-                    if (tenant.email) {
-                        const base64Data = dataUri.split(',')[1];
-                        const emailSubject = `Rent Payment Receipt - Unit ${unit.unitNumber}`;
-                        const emailBody = `Dear ${tenant.name},\n\nPlease find attached your payment receipt for KES ${amount.toLocaleString()} recorded on ${p.paymentDate} for Unit ${unit.unitNumber}.\n\nBest Regards,\nProperty Management`;
-                        const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
-                        
-                        apiService.sendEmail(
-                            tenant.email,
-                            emailSubject,
-                            emailBody,
-                            emailConfig,
-                            undefined,
-                            [{ filename: `Receipt_${p.id.trim()}.pdf`, content: base64Data, encoding: 'base64' }]
-                        ).then(() => {
-                            console.log(`Receipt email sent successfully to ${tenant.email}`);
-                        }).catch(emailErr => {
-                            console.error("Failed to send receipt email to tenant:", emailErr);
-                        });
-                    }
-
-                    // Instantly send SMS receipt to tenant if phone exists
-                    if (tenant.phoneNumber) {
-                        try {
-                            const blob = dataUriToBlob(dataUri);
-                            const fileName = `receipts/Receipt_${p.id.trim()}.pdf`;
-                            let publicUrl = '';
-                            let shortUrl = '';
-                            try {
-                                publicUrl = await apiService.uploadBlob(fileName, blob);
-                                shortUrl = await apiService.shortenUrl(publicUrl);
-                            } catch (uploadErr) {
-                                console.warn("Supabase storage upload failed, sending SMS without attachment", uploadErr);
-                            }
-                            
-                            const smsMessage = publicUrl 
-                                ? `Dear ${tenant.name}, payment of KES ${amount.toLocaleString()} for Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. Download receipt here: ${shortUrl}`
-                                : `Dear ${tenant.name}, payment of KES ${amount.toLocaleString()} for Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. (PDF receipt generated successfully)`;
-                            
-                            apiService.sendSms(
-                                tenant.phoneNumber, 
-                                smsMessage, 
-                                currentInstitution.smsConfig, 
-                                1, 
-                                currentInstitution.id!
-                            ).then(() => {
-                                console.log(`Receipt SMS sent successfully to ${tenant.phoneNumber}`);
-                            }).catch(smsErr => {
-                                console.error("Failed to send receipt SMS:", smsErr);
-                            });
-                        } catch (smsErr) {
-                            console.warn("SMS processing failed:", smsErr);
+            // Generate receipt preview & delivery for each recorded payment
+            for (const p of createdPayments) {
+                const lease = leases.find(l => l.id === p.leaseId);
+                const tenant = tenants.find(t => t.id === lease?.tenantId);
+                const unit = units.find(u => u.id === lease?.unitId);
+                if (tenant && unit) {
+                    try {
+                        const dataUri = await pdfService.generatePMReceiptPdfDataUri(
+                            p, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                            pmSettings?.branding?.letterheadUrl || null
+                        );
+                        // Show pdf preview for the first one
+                        if (p === createdPayments[0]) {
+                            setPreviewPdfUrl(dataUri);
+                            setPreviewPdfTitle(`Receipt - ${tenant.name}`);
+                            setShowPdfPreview(true);
                         }
+
+                        // Instantly send email receipt to tenant if email exists
+                        if (tenant.email) {
+                            const base64Data = dataUri.split(',')[1];
+                            const emailSubject = `${p.paymentType} Payment Receipt - Unit ${unit.unitNumber}`;
+                            const emailBody = `Dear ${tenant.name},\n\nPlease find attached your ${p.paymentType.toLowerCase()} payment receipt for KES ${p.amount.toLocaleString()} recorded on ${p.paymentDate} for Unit ${unit.unitNumber}.\n\nBest Regards,\nProperty Management`;
+                            const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
+                            
+                            apiService.sendEmail(
+                                tenant.email,
+                                emailSubject,
+                                emailBody,
+                                emailConfig,
+                                undefined,
+                                [{ filename: `Receipt_${p.id.trim()}.pdf`, content: base64Data, encoding: 'base64' }]
+                            ).then(() => {
+                                console.log(`Receipt email sent successfully to ${tenant.email}`);
+                            }).catch(emailErr => {
+                                console.error("Failed to send receipt email to tenant:", emailErr);
+                            });
+                        }
+
+                        // Instantly send SMS receipt to tenant if phone exists
+                        if (tenant.phoneNumber) {
+                            try {
+                                const blob = dataUriToBlob(dataUri);
+                                const fileName = `receipts/Receipt_${p.id.trim()}.pdf`;
+                                let publicUrl = '';
+                                let shortUrl = '';
+                                try {
+                                    publicUrl = await apiService.uploadBlob(fileName, blob);
+                                    shortUrl = await apiService.shortenUrl(publicUrl);
+                                } catch (uploadErr) {
+                                    console.warn("Supabase storage upload failed, sending SMS without attachment", uploadErr);
+                                }
+                                
+                                const smsMessage = publicUrl 
+                                    ? `Dear ${tenant.name}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. Download receipt here: ${shortUrl}`
+                                    : `Dear ${tenant.name}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. (PDF receipt generated successfully)`;
+                                
+                                apiService.sendSms(
+                                    tenant.phoneNumber, 
+                                    smsMessage, 
+                                    currentInstitution.smsConfig, 
+                                    1, 
+                                    currentInstitution.id!
+                                ).then(() => {
+                                    console.log(`Receipt SMS sent successfully to ${tenant.phoneNumber}`);
+                                }).catch(smsErr => {
+                                    console.error("Failed to send receipt SMS:", smsErr);
+                                });
+                            } catch (smsErr) {
+                                console.warn("SMS processing failed:", smsErr);
+                            }
+                        }
+                    } catch (pdfErr) {
+                        console.error("PDF Receipt Generation/Delivery Fail:", pdfErr);
                     }
-                } catch (pdfErr) {
-                    console.error("PDF Receipt Generation/Delivery Fail:", pdfErr);
                 }
             }
 
@@ -6071,7 +6089,7 @@ interface RecordPaymentModalProps {
     tenants: PMTenant[];
     units: PMUnit[];
     properties: PMProperty[];
-    onSave: (data: Partial<PMPayment>) => void;
+    onSave: (data: Partial<PMPayment> & { payments?: { paymentType: PMPaymentType; amount: number }[] }) => void;
     pmSettings: PMSettings | null;
     getNextRentDueDate: (dueDay: number) => string;
     invoices: PMInvoice[];
@@ -6083,18 +6101,26 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     const [tenantSearchQuery, setTenantSearchQuery] = useState('');
     const [selectedLeaseId, setSelectedLeaseId] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [amountVal, setAmountVal] = useState('');
+    const [rentAmt, setRentAmt] = useState('');
+    const [depositAmt, setDepositAmt] = useState('');
+    const [utilityAmt, setUtilityAmt] = useState('');
 
     useEffect(() => {
         if (selectedLeaseId) {
             const lease = leases.find(l => l.id === selectedLeaseId);
             if (lease) {
-                setAmountVal(lease.rentAmount.toString());
+                setRentAmt(lease.rentAmount.toString());
+                setDepositAmt('');
+                setUtilityAmt('');
             }
         } else {
-            setAmountVal('');
+            setRentAmt('');
+            setDepositAmt('');
+            setUtilityAmt('');
         }
     }, [selectedLeaseId, leases]);
+
+    const totalAmount = (parseFloat(rentAmt) || 0) + (parseFloat(depositAmt) || 0) + (parseFloat(utilityAmt) || 0);
 
     if (!show) return null;
 
@@ -6117,13 +6143,23 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                             return;
                         }
                         const formData = new FormData(e.currentTarget); 
+                        
+                        const payloadPayments: { paymentType: PMPaymentType; amount: number }[] = [];
+                        if (parseFloat(rentAmt) > 0) payloadPayments.push({ paymentType: 'Rent', amount: parseFloat(rentAmt) });
+                        if (parseFloat(depositAmt) > 0) payloadPayments.push({ paymentType: 'Deposit', amount: parseFloat(depositAmt) });
+                        if (parseFloat(utilityAmt) > 0) payloadPayments.push({ paymentType: 'Utility', amount: parseFloat(utilityAmt) });
+
+                        if (payloadPayments.length === 0) {
+                            alert("Please enter a payment amount for at least one type.");
+                            return;
+                        }
+
                         onSave({ 
                             leaseId: selectedLeaseId, 
-                            amount: parseFloat(formData.get('amount') as string) || 0, 
-                            paymentType: formData.get('paymentType') as PMPaymentType,
                             paymentDate: formData.get('paymentDate') as string,
                             paymentMethod: formData.get('paymentMethod') as PMPaymentMethod,
-                            reference: formData.get('reference') as string
+                            reference: formData.get('reference') as string,
+                            payments: payloadPayments
                         }); 
                     }} className="space-y-6">
                         {/* Tenant Search & Select Dropdown */}
@@ -6176,10 +6212,10 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                                                 <p className="text-[9px] text-slate-400 uppercase font-black tracking-wider">Expected Rent</p>
                                                 <div className="flex items-center gap-1.5 mt-0.5">
                                                     <p className="text-sm font-black text-slate-900 dark:text-white">KES {expectedRent.toLocaleString()}</p>
-                                                    {amountVal !== expectedRent.toString() && (
+                                                    {rentAmt !== expectedRent.toString() && (
                                                         <button 
                                                             type="button"
-                                                            onClick={() => setAmountVal(expectedRent.toString())}
+                                                            onClick={() => setRentAmt(expectedRent.toString())}
                                                             className="text-[8px] bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded font-black uppercase tracking-wider transition-all"
                                                         >
                                                             Use
@@ -6191,10 +6227,10 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                                                 <p className="text-[9px] text-slate-400 uppercase font-black tracking-wider">Outstanding Balance</p>
                                                 <div className="flex items-center gap-1.5 mt-0.5">
                                                     <p className={`text-sm font-black ${totalOutstanding > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>KES {totalOutstanding.toLocaleString()}</p>
-                                                    {totalOutstanding > 0 && amountVal !== totalOutstanding.toString() && (
+                                                    {totalOutstanding > 0 && rentAmt !== totalOutstanding.toString() && (
                                                         <button 
                                                             type="button"
-                                                            onClick={() => setAmountVal(totalOutstanding.toString())}
+                                                            onClick={() => setRentAmt(totalOutstanding.toString())}
                                                             className="text-[8px] bg-rose-100 hover:bg-rose-200 text-rose-700 px-1.5 py-0.5 rounded font-black uppercase tracking-wider transition-all"
                                                         >
                                                             Use
@@ -6294,19 +6330,46 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                             />
                         </div>
 
-                        <select name="paymentType" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"><option value="Rent">Rent</option><option value="Utility">Utility Bill</option><option value="Deposit">Deposit</option></select>
-                        
-                        <div className="space-y-2">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Amount Paid (KES)</label>
-                            <input 
-                                name="amount" 
-                                type="number" 
-                                required 
-                                value={amountVal}
-                                onChange={(e) => setAmountVal(e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none dark:text-white text-sm" 
-                                placeholder="Amount Paid" 
-                            />
+                        <div className="space-y-4 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800/50">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Payment Breakdown</p>
+                            
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className="space-y-1">
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Rent Amount (KES)</label>
+                                    <input 
+                                        type="number"
+                                        value={rentAmt}
+                                        onChange={(e) => setRentAmt(e.target.value)}
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 font-bold outline-none dark:text-white text-sm focus:border-blue-500 transition-colors"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Deposit Amount (KES)</label>
+                                    <input 
+                                        type="number"
+                                        value={depositAmt}
+                                        onChange={(e) => setDepositAmt(e.target.value)}
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 font-bold outline-none dark:text-white text-sm focus:border-blue-500 transition-colors"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Utility Amount (KES)</label>
+                                    <input 
+                                        type="number"
+                                        value={utilityAmt}
+                                        onChange={(e) => setUtilityAmt(e.target.value)}
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 font-bold outline-none dark:text-white text-sm focus:border-blue-500 transition-colors"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-xs font-black text-slate-700 dark:text-slate-350">
+                                <span>TOTAL AMOUNT:</span>
+                                <span className="text-base text-blue-600 dark:text-blue-400">KES {totalAmount.toLocaleString()}</span>
+                            </div>
                         </div>
                         <button type="submit" className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Finalize Payment</button>
                     </form>
@@ -6827,12 +6890,7 @@ const ArrearsManager: React.FC<{
                     >
                         {exporting ? 'Exporting...' : 'Export PDF'}
                     </button>
-                    <button 
-                        onClick={handleBulkDeleteArrearsInvoices}
-                        className="flex-grow w-full bg-slate-700 hover:bg-slate-850 text-white font-black uppercase tracking-widest text-[8px] py-4 rounded-xl shadow-lg transition-all"
-                    >
-                        Remove Arrears
-                    </button>
+
                 </div>
             </div>
 
