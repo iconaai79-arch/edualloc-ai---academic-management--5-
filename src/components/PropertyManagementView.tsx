@@ -6344,6 +6344,12 @@ const ArrearsManager: React.FC<{
     const [showSmsModal, setShowSmsModal] = useState(false);
     const [smsAdditionalText, setSmsAdditionalText] = useState('');
     const [sendingSms, setSendingSms] = useState(false);
+    const [arrCurrentPage, setArrCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    useEffect(() => {
+        setArrCurrentPage(1);
+    }, [arrSearch, arrProperty, arrLandlord, arrMin, arrMax, arrPeriod]);
 
     const Modal = ({ show, onClose, title, children, maxWidth = "max-w-lg" }: { show: boolean, onClose: () => void, title: string, children: React.ReactNode, maxWidth?: string }) => {
         if (!show) return null;
@@ -6506,6 +6512,12 @@ const ArrearsManager: React.FC<{
     }, [arrearsList, arrSearch, arrProperty, arrLandlord, arrMin, arrMax]);
 
     const totalFilteredArrears = filteredArrears.reduce((sum, item) => sum + item.periodArrears, 0);
+
+    const totalPages = Math.ceil(filteredArrears.length / itemsPerPage);
+    const paginatedArrears = useMemo(() => {
+        const start = (arrCurrentPage - 1) * itemsPerPage;
+        return filteredArrears.slice(start, start + itemsPerPage);
+    }, [filteredArrears, arrCurrentPage, itemsPerPage]);
 
     const handleSendReminder = async (item: typeof filteredArrears[0]) => {
         if (!item.tenant?.phoneNumber) return alert("Tenant has no phone number registered.");
@@ -6826,7 +6838,7 @@ const ArrearsManager: React.FC<{
                                     <td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No matching tenants found with arrears</td>
                                 </tr>
                             ) : (
-                                filteredArrears.map(item => (
+                                paginatedArrears.map(item => (
                                     <tr key={item.lease.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
                                         {/* Tenant Name */}
                                         <td className="p-5">
@@ -6868,6 +6880,52 @@ const ArrearsManager: React.FC<{
                         </tbody>
                     </table>
                 </div>
+
+                {totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-100 dark:border-slate-800 mt-4">
+                        <span className="text-xs font-bold text-slate-400">
+                            Showing {Math.min(filteredArrears.length, (arrCurrentPage - 1) * itemsPerPage + 1)}-{Math.min(filteredArrears.length, arrCurrentPage * itemsPerPage)} of {filteredArrears.length} entries
+                        </span>
+                        <div className="flex gap-1 flex-wrap">
+                            <button
+                                disabled={arrCurrentPage === 1}
+                                onClick={() => setArrCurrentPage(prev => Math.max(1, prev - 1))}
+                                className="px-3 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-650 dark:text-slate-350 font-bold rounded-xl transition-colors disabled:opacity-30 disabled:hover:bg-transparent text-xs"
+                            >
+                                Prev
+                            </button>
+                            {Array.from({ length: totalPages }).map((_, idx) => {
+                                const pageNum = idx + 1;
+                                if (totalPages > 6 && pageNum !== 1 && pageNum !== totalPages && Math.abs(pageNum - arrCurrentPage) > 1) {
+                                    if (pageNum === 2 || pageNum === totalPages - 1) {
+                                        return <span key={pageNum} className="px-2 text-slate-400 text-xs font-black self-center">...</span>;
+                                    }
+                                    return null;
+                                }
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setArrCurrentPage(pageNum)}
+                                        className={`w-9 h-9 font-black text-xs rounded-xl transition-all ${
+                                            arrCurrentPage === pageNum
+                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                                : 'border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-650 dark:text-slate-350'
+                                        }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+                            <button
+                                disabled={arrCurrentPage === totalPages}
+                                onClick={() => setArrCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                className="px-3 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-650 dark:text-slate-350 font-bold rounded-xl transition-colors disabled:opacity-30 disabled:hover:bg-transparent text-xs"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* SMS Reminders Preview Modal */}
