@@ -7993,7 +7993,7 @@ export const generateStaffPayslipPdf = async (
     staff: User,
     record: PayrollRecord,
     institution: Institution,
-    letterheadConfig?: LetterheadConfig,
+    letterheadConfig?: any,
     footerImageUrl?: string | null
 ): Promise<string> => {
     const lib = getJsPdf();
@@ -8070,12 +8070,27 @@ export const generateStaffPayslipPdf = async (
         '-'
     ]);
 
+    let primaryRGB = [79, 70, 229]; // default indigo-600
+    if (letterheadConfig?.primaryColor) {
+        try {
+            const hex = letterheadConfig.primaryColor.replace('#', '');
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+                primaryRGB = [r, g, b];
+            }
+        } catch (e) {
+            console.error('[pdfService] Error parsing primary color:', e);
+        }
+    }
+
     doc.autoTable({
         startY: yPos,
         head: head,
         body: body,
         theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229] }, // indigo-600
+        headStyles: { fillColor: primaryRGB },
         styles: { fontSize: 9 }
     });
 
@@ -8083,12 +8098,16 @@ export const generateStaffPayslipPdf = async (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.text("---------------------------------", 14, yPos);
-    doc.text("Authorized Signature", 14, yPos + 5);
+    doc.text(letterheadConfig?.signerName || "Authorized Signature", 14, yPos + 5);
+    if (letterheadConfig?.signerTitle) {
+        doc.text(letterheadConfig.signerTitle, 14, yPos + 10);
+    }
 
     doc.text("---------------------------------", pageWidth / 2, yPos);
     doc.text("Employee Signature & Date", pageWidth / 2, yPos + 5);
 
-    setupPdfFooter(doc, footerImg, `${institution.name} — Confidential Payslip`);
+    const footerText = letterheadConfig?.footerMessage || `${institution.name} — Confidential Payslip`;
+    setupPdfFooter(doc, footerImg, footerText);
     return doc.output('datauristring');
 };
 

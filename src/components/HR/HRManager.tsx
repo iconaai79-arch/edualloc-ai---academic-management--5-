@@ -110,7 +110,17 @@ export const HRManager: React.FC<HRManagerProps> = ({
         }
 
         try {
-            const dataUri = await generateStaffPayslipPdf(member, record, institution);
+            let templateConfig = undefined;
+            try {
+                const stored = localStorage.getItem('eduai_payslip_template_config');
+                if (stored) {
+                    templateConfig = JSON.parse(stored);
+                }
+            } catch (e) {
+                console.error('[HRManager] Error loading template config:', e);
+            }
+
+            const dataUri = await generateStaffPayslipPdf(member, record, institution, templateConfig);
             setPreviewTitle(`Payslip - ${member.name} (${selectedMonth})`);
             setSelectedReportUrl(dataUri);
         } catch (e) {

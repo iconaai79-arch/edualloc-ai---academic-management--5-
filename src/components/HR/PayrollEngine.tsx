@@ -5,6 +5,7 @@ import { CalculatorIcon } from '../icons/CalculatorIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { FingerPrintIcon } from '../icons/FingerPrintIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
+import { XIcon } from '../icons/XIcon';
 
 interface PayrollEngineProps {
     staff: User[];
@@ -143,6 +144,37 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
     const [useBiometric, setUseBiometric] = useState(false);
     const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
+
+    const [showDesignerModal, setShowDesignerModal] = useState(false);
+    const [designerConfig, setDesignerConfig] = useState(() => {
+        try {
+            const stored = localStorage.getItem('eduai_payslip_template_config');
+            if (stored) {
+                return JSON.parse(stored);
+            }
+        } catch (e) {
+            console.error('[PayrollEngine] Error reading template config:', e);
+        }
+        return {
+            primaryColor: '#4f46e5',
+            signerName: 'Authorized Signature',
+            signerTitle: 'Head of Human Resources',
+            footerMessage: `${institution.name} — Confidential Payslip`
+        };
+    });
+
+    const handleSaveTemplate = (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            localStorage.setItem('eduai_payslip_template_config', JSON.stringify(designerConfig));
+            alert('Payslip template configurations saved successfully!');
+            setShowDesignerModal(false);
+        } catch (error) {
+            console.error(error);
+            alert('Failed to save payslip template.');
+        }
+    };
+
 
     // Default payroll parameters for simulation
     const basicSalarySim = 60000;
@@ -520,10 +552,118 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                             <h3 className="text-sm font-black uppercase tracking-widest">Payslip Designer</h3>
                         </div>
                         <p className="text-xs font-medium text-slate-500">Customize institutional payslip templates with branding and statutory disclosures.</p>
-                        <button className="w-full py-4 bg-slate-50 text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-100 hover:bg-slate-100 transition-all">Configure Template</button>
+                        <button 
+                            onClick={() => setShowDesignerModal(true)}
+                            className="w-full py-4 bg-slate-50 text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-100 hover:bg-slate-100 transition-all active:scale-95"
+                        >
+                            Configure Template
+                        </button>
                     </div>
                 </div>
             </div>
+
+            {/* Premium Payslip Template Designer Glassmorphic Modal */}
+            {showDesignerModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-150 dark:border-slate-800 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="px-8 py-5 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-md font-black text-slate-800 dark:text-white uppercase tracking-wider">Payslip Designer</h3>
+                                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Customize institutional payslip document layout and details</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowDesignerModal(false)}
+                                className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-500 rounded-xl transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Form */}
+                        <form onSubmit={handleSaveTemplate} className="p-8 space-y-6">
+                            {/* Color Palette Selection */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">Accent / Header Color Theme</label>
+                                <div className="flex gap-3">
+                                    {[
+                                        { hex: '#4f46e5', name: 'Indigo' },
+                                        { hex: '#0284c7', name: 'Ocean' },
+                                        { hex: '#059669', name: 'Emerald' },
+                                        { hex: '#e11d48', name: 'Rose' },
+                                        { hex: '#374151', name: 'Charcoal' }
+                                    ].map(color => (
+                                        <button
+                                            type="button"
+                                            key={color.hex}
+                                            onClick={() => setDesignerConfig((prev: any) => ({ ...prev, primaryColor: color.hex }))}
+                                            className={`w-10 h-10 rounded-full border-4 transition-all ${designerConfig.primaryColor === color.hex ? 'border-slate-900 dark:border-white scale-110 shadow-md' : 'border-transparent hover:scale-105'}`}
+                                            style={{ backgroundColor: color.hex }}
+                                            title={color.name}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Signer Customization */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Signer Label</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={designerConfig.signerName}
+                                        onChange={e => setDesignerConfig((prev: any) => ({ ...prev, signerName: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="Authorized Signature"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Signer Title / Role</label>
+                                    <input 
+                                        type="text" 
+                                        value={designerConfig.signerTitle || ''}
+                                        onChange={e => setDesignerConfig((prev: any) => ({ ...prev, signerTitle: e.target.value }))}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="Head of Human Resources"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Footer text */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Footer Message</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    value={designerConfig.footerMessage}
+                                    onChange={e => setDesignerConfig((prev: any) => ({ ...prev, footerMessage: e.target.value }))}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    placeholder="Confidential Document"
+                                />
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="pt-4 flex gap-3">
+                                <button 
+                                    type="submit"
+                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 text-center"
+                                >
+                                    Save Template
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowDesignerModal(false)}
+                                    className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-300"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
