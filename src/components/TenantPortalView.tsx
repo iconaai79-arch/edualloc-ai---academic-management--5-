@@ -31,6 +31,64 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'lease' | 'payments' | 'maintenance' | 'profile'>('dashboard');
     const [loading, setLoading] = useState(true);
 
+    const [showVacateModal, setShowVacateModal] = useState(false);
+    const [submittingNotice, setSubmittingNotice] = useState(false);
+    const [vacateDate, setVacateDate] = useState('');
+    const [poBox, setPoBox] = useState('Eldoret');
+    const [waterAcc, setWaterAcc] = useState('');
+    const [electricityAcc, setElectricityAcc] = useState('');
+    const [bankName, setBankName] = useState('');
+    const [bankAccName, setBankAccName] = useState('');
+    const [bankAccNo, setBankAccNo] = useState('');
+    const [bankBranch, setBankBranch] = useState('');
+
+    const handleSubmitNotice = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!activeLease || !tenant) return;
+        setSubmittingNotice(true);
+        try {
+            const noticeId = `ntc_${Date.now()}`;
+            const messageBodyObj = {
+                poBox,
+                waterAccount: waterAcc,
+                electricityAccount: electricityAcc,
+                bankDetails: {
+                    bankName,
+                    accountName: bankAccName,
+                    accountNumber: bankAccNo,
+                    branch: bankBranch
+                }
+            };
+            const newNotice = {
+                id: noticeId,
+                leaseId: activeLease.id,
+                tenantId: tenant.id,
+                noticeType: 'Vacate' as any,
+                issueDate: new Date().toISOString(),
+                effectiveDate: new Date(vacateDate).toISOString(),
+                subject: `Vacation Notice - Unit ${unit?.unitNumber || '—'}`,
+                messageBody: JSON.stringify(messageBodyObj),
+                status: 'Issued' as any,
+                institutionId: currentInstitution.id!,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('pm_notices', newNotice);
+            alert("Vacation notice submitted successfully!");
+            setShowVacateModal(false);
+            setVacateDate('');
+            setWaterAcc('');
+            setElectricityAcc('');
+            setBankName('');
+            setBankAccName('');
+            setBankAccNo('');
+            setBankBranch('');
+        } catch (err: any) {
+            alert("Failed to submit notice: " + (err.message || err));
+        } finally {
+            setSubmittingNotice(false);
+        }
+    };
+
     // Data states
     const [tenant, setTenant] = useState<PMTenant | null>(null);
     const [leases, setLeases] = useState<PMLease[]>([]);
@@ -347,6 +405,14 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                                             Contact management for renewal or termination notice periods."
                                         </p>
                                     </div>
+                                    <div className="mt-6">
+                                        <button
+                                            onClick={() => setShowVacateModal(true)}
+                                            className="w-full bg-rose-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 italic"
+                                        >
+                                            Submit Vacation Notice
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="space-y-6">
                                     <h3 className="text-2xl font-black text-slate-800 mb-8 italic uppercase tracking-tighter">Property Rules</h3>
@@ -426,6 +492,153 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
                                 </div>
                             ))}
                             {tickets.length === 0 && <p className="text-center py-20 bg-white rounded-[3rem] text-slate-400 font-black italic shadow-inner">You haven't raised any maintenance requests yet.</p>}
+                        </div>
+                    </div>
+                )}
+
+                {/* Vacation Notice Form Modal */}
+                {showVacateModal && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 relative animate-in zoom-in-95 duration-250">
+                            <button
+                                onClick={() => setShowVacateModal(false)}
+                                className="absolute right-6 top-6 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold"
+                            >
+                                ✕
+                            </button>
+                            <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic mb-6">
+                                Submit Vacation Notice
+                            </h3>
+
+                            <form onSubmit={handleSubmitNotice} className="space-y-6">
+                                {/* Auto-filled Previews */}
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl grid grid-cols-2 gap-4 text-xs font-bold">
+                                    <div>
+                                        <p className="text-[10px] uppercase text-slate-400 tracking-wider">Tenant Name</p>
+                                        <p className="text-slate-800 dark:text-slate-200 mt-0.5">{tenant.name}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] uppercase text-slate-400 tracking-wider">Mobile Number</p>
+                                        <p className="text-slate-800 dark:text-slate-200 mt-0.5">{tenant.phoneNumber || '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] uppercase text-slate-400 tracking-wider">Estate / Property</p>
+                                        <p className="text-slate-800 dark:text-slate-200 mt-0.5">{property?.name || '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] uppercase text-slate-400 tracking-wider">House / Unit Number</p>
+                                        <p className="text-slate-800 dark:text-slate-200 mt-0.5">{unit?.unitNumber || '—'}</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">P.O. Box</label>
+                                        <input
+                                            type="text"
+                                            value={poBox}
+                                            onChange={(e) => setPoBox(e.target.value)}
+                                            required
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                            placeholder="E.g. Eldoret"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Intended Vacate Date</label>
+                                        <input
+                                            type="date"
+                                            value={vacateDate}
+                                            onChange={(e) => setVacateDate(e.target.value)}
+                                            required
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Water Account Number</label>
+                                        <input
+                                            type="text"
+                                            value={waterAcc}
+                                            onChange={(e) => setWaterAcc(e.target.value)}
+                                            required
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                            placeholder="E.g. W-12345"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Electricity Account Number</label>
+                                        <input
+                                            type="text"
+                                            value={electricityAcc}
+                                            onChange={(e) => setElectricityAcc(e.target.value)}
+                                            required
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                            placeholder="E.g. E-54321"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Bank details (Optional) */}
+                                <div className="border-t border-slate-100 dark:border-slate-800 pt-6 space-y-4">
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">
+                                        Refund Bank Details <span className="text-[10px] font-normal text-slate-400 capitalize">(Optional)</span>
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Bank Name</label>
+                                            <input
+                                                type="text"
+                                                value={bankName}
+                                                onChange={(e) => setBankName(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-550 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                                placeholder="E.g. KCB"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account Name</label>
+                                            <input
+                                                type="text"
+                                                value={bankAccName}
+                                                onChange={(e) => setBankAccName(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-550 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                                placeholder="E.g. CHARLES OTIENO"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account Number</label>
+                                            <input
+                                                type="text"
+                                                value={bankAccNo}
+                                                onChange={(e) => setBankAccNo(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-550 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                                placeholder="E.g. 1209384820"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Branch</label>
+                                            <input
+                                                type="text"
+                                                value={bankBranch}
+                                                onChange={(e) => setBankBranch(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-550 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                                placeholder="E.g. Eldoret Main"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={submittingNotice}
+                                    className="w-full bg-rose-600 hover:bg-rose-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4 transition-colors disabled:opacity-50"
+                                >
+                                    {submittingNotice ? 'Submitting Notice...' : 'Submit Vacation Notice Letter'}
+                                </button>
+                            </form>
                         </div>
                     </div>
                 )}

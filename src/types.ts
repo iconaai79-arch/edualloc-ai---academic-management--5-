@@ -2968,6 +2968,7 @@ export interface PMSettings {
         primaryColor?: string;
         footerText?: string;
         letterheadUrl?: string;
+        footerUrl?: string;
         landlordSignatureUrl?: string;
     };
     rentReminders?: {

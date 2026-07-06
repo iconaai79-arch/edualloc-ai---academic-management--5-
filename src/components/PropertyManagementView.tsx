@@ -133,6 +133,82 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [showInspectionModal, setShowInspectionModal] = useState(false);
     const [editingInspection, setEditingInspection] = useState<PMInspection | null>(null);
 
+    const [selectedVacateNotice, setSelectedVacateNotice] = useState<PMNoticeLetter | null>(null);
+    const [inspectionDetails, setInspectionDetails] = useState<{
+        waterMeterNo: string;
+        waterBill: number;
+        waterRemarks: string;
+        electricityMeterNo: string;
+        electricityBill: number;
+        electricityRemarks: string;
+        ciuNo: string;
+        items: Array<{ description: string; amount: number; remarks: string }>;
+        checkedBy: string;
+        tenantIdNo: string;
+        tenantTel: string;
+    }>({
+        waterMeterNo: '',
+        waterBill: 0,
+        waterRemarks: '',
+        electricityMeterNo: '',
+        electricityBill: 0,
+        electricityRemarks: '',
+        ciuNo: '',
+        items: [],
+        checkedBy: '',
+        tenantIdNo: '',
+        tenantTel: ''
+    });
+
+    useEffect(() => {
+        if (editingInspection) {
+            try {
+                const parsed = JSON.parse(editingInspection.repairsRequired);
+                setInspectionDetails({
+                    waterMeterNo: parsed.waterMeterNo || '',
+                    waterBill: parsed.waterBill || 0,
+                    waterRemarks: parsed.waterRemarks || '',
+                    electricityMeterNo: parsed.electricityMeterNo || '',
+                    electricityBill: parsed.electricityBill || 0,
+                    electricityRemarks: parsed.electricityRemarks || '',
+                    ciuNo: parsed.ciuNo || '',
+                    items: parsed.items || [],
+                    checkedBy: parsed.checkedBy || '',
+                    tenantIdNo: parsed.tenantIdNo || '',
+                    tenantTel: parsed.tenantTel || ''
+                });
+            } catch (e) {
+                setInspectionDetails({
+                    waterMeterNo: '',
+                    waterBill: 0,
+                    waterRemarks: '',
+                    electricityMeterNo: '',
+                    electricityBill: 0,
+                    electricityRemarks: '',
+                    ciuNo: '',
+                    items: editingInspection.repairsRequired ? [{ description: editingInspection.repairsRequired, amount: editingInspection.estimatedRepairCost || 0, remarks: '' }] : [],
+                    checkedBy: '',
+                    tenantIdNo: '',
+                    tenantTel: ''
+                });
+            }
+        } else {
+            setInspectionDetails({
+                waterMeterNo: '',
+                waterBill: 0,
+                waterRemarks: '',
+                electricityMeterNo: '',
+                electricityBill: 0,
+                electricityRemarks: '',
+                ciuNo: '',
+                items: [],
+                checkedBy: '',
+                tenantIdNo: '',
+                tenantTel: ''
+            });
+        }
+    }, [editingInspection, showInspectionModal]);
+
     const [depositRefunds, setDepositRefunds] = useState<PMDepositRefund[]>([]);
     const [showRefundModal, setShowRefundModal] = useState(false);
     const [editingRefund, setEditingRefund] = useState<PMDepositRefund | null>(null);
@@ -2255,15 +2331,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 let publicUrl = '';
                                 let shortUrl = '';
                                 try {
-                                    publicUrl = await apiService.uploadBlob(fileName, blob);
+                                    publicUrl = await apiService.uploadBlob(fileName, blob, 'application/pdf');
                                     shortUrl = await apiService.shortenUrl(publicUrl);
                                 } catch (uploadErr) {
                                     console.warn("Supabase storage upload failed, sending SMS without attachment", uploadErr);
                                 }
                                 
                                 const smsMessage = publicUrl 
-                                    ? `Dear ${tenant.name}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. Download receipt here: ${shortUrl}`
-                                    : `Dear ${tenant.name}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.id.trim()}. (PDF receipt generated successfully)`;
+                                    ? `Dear ${tenant.name}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.receiptNumber}. Download receipt here: ${shortUrl} `
+                                    : `Dear ${tenant.name}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.receiptNumber}. (PDF receipt generated successfully)`;
                                 
                                 apiService.sendSms(
                                     tenant.phoneNumber, 
@@ -3090,14 +3166,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 
                 let publicUrl = '';
                 try {
-                    publicUrl = await apiService.uploadBlob(fileName, blob);
+                    publicUrl = await apiService.uploadBlob(fileName, blob, 'application/pdf');
                 } catch (uploadErr) {
                     console.warn("Invoice PDF upload failed, sending notification without attachment", uploadErr);
                 }
                 
                 if (tenant.phoneNumber) {
+                    let shortUrl = publicUrl;
+                    if (publicUrl) {
+                        try {
+                            shortUrl = await apiService.shortenUrl(publicUrl);
+                        } catch (shortErr) {
+                            console.warn("Failed to shorten invoice URL", shortErr);
+                        }
+                    }
                     const msg = publicUrl 
-                        ? `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${publicUrl}`
+                        ? `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${shortUrl} `
                         : `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. (PDF link temporarily unavailable)`;
                     await apiService.sendSms(tenant.phoneNumber, msg, currentInstitution.smsConfig, 1, institutionId);
                     alert(publicUrl ? "Invoice link sent via SMS!" : "Invoice notification sent via SMS! (PDF link unavailable due to storage connection issues)");
@@ -3139,13 +3223,21 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         
                         let publicUrl = '';
                         try {
-                            publicUrl = await apiService.uploadBlob(fileName, blob);
+                            publicUrl = await apiService.uploadBlob(fileName, blob, 'application/pdf');
                         } catch (uploadErr) {
                             console.warn(`Bulk send: PDF upload failed for invoice #${inv.invoiceNumber}`, uploadErr);
                         }
                         
+                        let shortUrl = publicUrl;
+                        if (publicUrl) {
+                            try {
+                                shortUrl = await apiService.shortenUrl(publicUrl);
+                            } catch (shortErr) {
+                                console.warn("Failed to shorten bulk invoice URL", shortErr);
+                            }
+                        }
                         const msg = publicUrl
-                            ? `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${publicUrl}`
+                            ? `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. View here: ${shortUrl} `
                             : `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount?.toLocaleString()} is ready. (PDF link temporarily unavailable)`;
                         await apiService.sendSms(tenant.phoneNumber, msg, currentInstitution.smsConfig, 1, institutionId);
                         successCount++;
@@ -3594,14 +3686,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     let publicUrl = '';
                     let shortUrl = '';
                     try {
-                        publicUrl = await apiService.uploadBlob(fileName, blob);
+                        publicUrl = await apiService.uploadBlob(fileName, blob, 'application/pdf');
                         shortUrl = await apiService.shortenUrl(publicUrl);
                     } catch (uploadErr) {
                         console.warn("Supabase upload failed, sending SMS warning without link", uploadErr);
                     }
                     
                     const smsMessage = publicUrl 
-                        ? `Dear ${tenant.name}, you have been issued a formal ${n.noticeType} notice. Subject: ${n.subject}. Effective date: ${n.effectiveDate}. View notice letter here: ${shortUrl}`
+                        ? `Dear ${tenant.name}, you have been issued a formal ${n.noticeType} notice. Subject: ${n.subject}. Effective date: ${n.effectiveDate}. View notice letter here: ${shortUrl} `
                         : `Dear ${tenant.name}, you have been issued a formal ${n.noticeType} notice. Subject: ${n.subject}. Effective date: ${n.effectiveDate}. Please check your email for the copy.`;
                     
                     apiService.sendSms(
@@ -3775,14 +3867,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     let publicUrl = '';
                     let shortUrl = '';
                     try {
-                        publicUrl = await apiService.uploadBlob(fileName, blob);
+                        publicUrl = await apiService.uploadBlob(fileName, blob, 'application/pdf');
                         shortUrl = await apiService.shortenUrl(publicUrl);
                     } catch (uploadErr) {
                         console.warn("Supabase upload failed, sending SMS warning without link", uploadErr);
                     }
                     
                     const smsMessage = publicUrl 
-                        ? `Dear ${tenant.name}, you have been issued a formal ${notice.noticeType} notice. Subject: ${notice.subject}. Effective date: ${notice.effectiveDate}. View notice letter here: ${shortUrl}`
+                        ? `Dear ${tenant.name}, you have been issued a formal ${notice.noticeType} notice. Subject: ${notice.subject}. Effective date: ${notice.effectiveDate}. View notice letter here: ${shortUrl} `
                         : `Dear ${tenant.name}, you have been issued a formal ${notice.noticeType} notice. Subject: ${notice.subject}. Effective date: ${notice.effectiveDate}. Please check your email for the copy.`;
                     
                     await apiService.sendSms(
@@ -3925,6 +4017,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 </td>
                                                 <td className="p-6">
                                                     <div className="flex gap-2 justify-end">
+                                                        {notice.noticeType === 'Vacate' && (
+                                                            <button
+                                                                onClick={() => setSelectedVacateNotice(notice)}
+                                                                className="p-2 bg-slate-50 dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-955/30 rounded-xl text-slate-400 hover:text-rose-650 transition-colors"
+                                                                title="View Vacation Details"
+                                                            >
+                                                                <ListIcon className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => handleViewNoticePdf(notice)}
                                                             className="p-2 bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-955/30 rounded-xl text-slate-400 hover:text-indigo-650 transition-colors"
@@ -5251,8 +5352,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     try {
                         const blob = await (await fetch(dataUri)).blob();
                         const fileName = `statements/${targetType}_${entity.id}_${startDate}_${endDate}.pdf`;
-                        const publicUrl = await apiService.uploadBlob(fileName, blob);
-                        const smsMessage = `Dear ${entity.name}, your ${targetType} statement for ${startDate} to ${endDate} is ready. Download here: ${publicUrl}`;
+                        const publicUrl = await apiService.uploadBlob(fileName, blob, 'application/pdf');
+                        let shortUrl = publicUrl;
+                        if (publicUrl) {
+                            try {
+                                shortUrl = await apiService.shortenUrl(publicUrl);
+                            } catch (shortErr) {
+                                console.warn("Failed to shorten statement URL", shortErr);
+                            }
+                        }
+                        const smsMessage = `Dear ${entity.name}, your ${targetType} statement for ${startDate} to ${endDate} is ready. Download here: ${shortUrl} `;
                         await apiService.sendSms(entity.phoneNumber!, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id!);
                     } catch (smsErr) { console.warn("SMS link failed:", smsErr); }
                 }
@@ -5312,9 +5421,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             try {
                                 const blob = await (await fetch(dataUri)).blob();
                                 const fileName = `statements/${targetType}_${entity.id}_${startDate}_${endDate}.pdf`;
-                                const publicUrl = await apiService.uploadBlob(fileName, blob);
-                                
-                                const smsMessage = `Dear ${entity.name}, your ${targetType} statement for ${startDate} to ${endDate} is ready. Download here: ${publicUrl}`;
+                                const publicUrl = await apiService.uploadBlob(fileName, blob, 'application/pdf');
+                                let shortUrl = publicUrl;
+                                if (publicUrl) {
+                                    try {
+                                        shortUrl = await apiService.shortenUrl(publicUrl);
+                                    } catch (shortErr) {
+                                        console.warn("Failed to shorten bulk statement URL", shortErr);
+                                    }
+                                }
+                                const smsMessage = `Dear ${entity.name}, your ${targetType} statement for ${startDate} to ${endDate} is ready. Download here: ${shortUrl} `;
                                 await apiService.sendSms(entity.phoneNumber!, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id!);
                             } catch (smsErr) {
                                 console.error(`Failed to send SMS to ${entity.phoneNumber}:`, smsErr);
@@ -6279,7 +6395,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 <div className="text-[9px] text-slate-400 uppercase font-black">Unit {unit?.unitNumber || '—'}</div>
                                             </td>
                                             <td className="p-5 text-xs text-slate-600 dark:text-slate-300">
-                                                {insp.repairsRequired || <span className="text-slate-400 italic">None</span>}
+                                                {(() => {
+                                                    try {
+                                                        const parsed = JSON.parse(insp.repairsRequired);
+                                                        const itemsDesc = parsed.items.map((it: any) => it.description).filter(Boolean).join(', ');
+                                                        let desc = '';
+                                                        if (parsed.waterBill > 0) desc += `Water Bill (KES ${parsed.waterBill}), `;
+                                                        if (parsed.electricityBill > 0) desc += `Electricity Bill (KES ${parsed.electricityBill}), `;
+                                                        if (itemsDesc) desc += itemsDesc;
+                                                        return desc.replace(/, $/, '') || <span className="text-slate-400 italic">No issues found</span>;
+                                                    } catch (e) {
+                                                        return insp.repairsRequired || <span className="text-slate-400 italic">None</span>;
+                                                    }
+                                                })()}
                                             </td>
                                             <td className="p-5 text-right font-black text-slate-900 dark:text-white text-xs">KES {insp.estimatedRepairCost.toLocaleString()}</td>
                                             <td className="p-5">
@@ -6290,6 +6418,26 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 </span>
                                             </td>
                                             <td className="p-5 text-right space-x-2 whitespace-nowrap">
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!lease || !tenant || !unit) {
+                                                            alert("Required record details not found to generate PDF.");
+                                                            return;
+                                                        }
+                                                        const prop = properties.find(p => p.id === unit.propertyId);
+                                                        if (!prop) {
+                                                            alert("Property details not found.");
+                                                            return;
+                                                        }
+                                                        await pdfService.downloadPMInspectionPdf(
+                                                            insp, tenant, unit, prop, currentInstitution, companyDetails, currentInstitution.logoUrl || null, pmSettings?.branding?.letterheadUrl || null
+                                                        );
+                                                    }}
+                                                    className="p-2.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl"
+                                                    title="Download PDF"
+                                                >
+                                                    <DownloadIcon className="w-4 h-4" />
+                                                </button>
                                                 <button onClick={() => { setEditingInspection(insp); setShowInspectionModal(true); }} className="p-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl" title="Edit"><PencilIcon className="w-4 h-4" /></button>
                                                 <button onClick={() => handleDeleteInspection(insp.id)} className="p-2.5 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl" title="Delete"><TrashIcon className="w-4 h-4" /></button>
                                             </td>
@@ -6418,6 +6566,26 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 {ref.status === 'Approved' && (
                                                     <button onClick={() => handlePayRefund(ref)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider">Disburse</button>
                                                 )}
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!lease || !tenant || !unit) {
+                                                            alert("Required record details not found to generate PDF.");
+                                                            return;
+                                                        }
+                                                        const prop = properties.find(p => p.id === unit.propertyId);
+                                                        if (!prop) {
+                                                            alert("Property details not found.");
+                                                            return;
+                                                        }
+                                                        await pdfService.downloadPMDepositRefundPdf(
+                                                            ref, lease, tenant, unit, prop, currentInstitution, companyDetails, currentInstitution.logoUrl || null, pmSettings?.branding?.letterheadUrl || null
+                                                        );
+                                                    }}
+                                                    className="p-2.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl"
+                                                    title="Download PDF"
+                                                >
+                                                    <DownloadIcon className="w-4 h-4" />
+                                                </button>
                                                 <button onClick={() => { setEditingRefund(ref); setShowRefundModal(true); }} className="p-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl" title="Edit"><PencilIcon className="w-4 h-4" /></button>
                                                 <button onClick={() => handleDeleteRefund(ref.id)} className="p-2.5 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl" title="Delete"><TrashIcon className="w-4 h-4" /></button>
                                             </td>
@@ -8121,6 +8289,143 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 />
             )}
 
+            {selectedVacateNotice && (() => {
+                const lease = leases.find(l => l.id === selectedVacateNotice.leaseId);
+                const tenant = tenants.find(t => t.id === (lease?.tenantId || selectedVacateNotice.tenantId));
+                const unit = units.find(u => u.id === lease?.unitId);
+                const property = unit ? properties.find(p => p.id === unit.propertyId) : null;
+                
+                let details = { poBox: 'Eldoret', waterAccount: '', electricityAccount: '', bankDetails: { bankName: '', accountName: '', accountNumber: '', branch: '' } };
+                try {
+                    details = JSON.parse(selectedVacateNotice.messageBody);
+                } catch (e) {
+                    // Fallback
+                }
+                
+                return (
+                    <Modal show={!!selectedVacateNotice} onClose={() => setSelectedVacateNotice(null)} title="Vacation Notice Details">
+                        <div className="space-y-6">
+                            <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-[2rem] grid grid-cols-2 gap-4 text-xs font-bold">
+                                <div>
+                                    <p className="text-[10px] uppercase text-slate-400 tracking-wider">Tenant Name</p>
+                                    <p className="text-slate-800 dark:text-white mt-0.5">{tenant?.name || '—'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase text-slate-400 tracking-wider">Mobile Number</p>
+                                    <p className="text-slate-800 dark:text-white mt-0.5">{tenant?.phoneNumber || '—'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase text-slate-400 tracking-wider">Estate / Property</p>
+                                    <p className="text-slate-800 dark:text-white mt-0.5">{property?.name || '—'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase text-slate-400 tracking-wider">House / Unit Number</p>
+                                    <p className="text-slate-800 dark:text-white mt-0.5">{unit?.unitNumber || '—'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase text-slate-400 tracking-wider">P.O. Box</p>
+                                    <p className="text-slate-800 dark:text-white mt-0.5">{details.poBox || '—'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase text-slate-400 tracking-wider">Intended Vacate Date</p>
+                                    <p className="text-rose-500 mt-0.5">{new Date(selectedVacateNotice.effectiveDate).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 text-xs font-bold">
+                                <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-[2rem]">
+                                    <p className="text-[10px] uppercase text-slate-400 tracking-wider mb-2">Utility Accounts</p>
+                                    <p className="text-slate-800 dark:text-white">Water Account: <span className="font-black">{details.waterAccount || '—'}</span></p>
+                                    <p className="text-slate-800 dark:text-white mt-1">Electricity Account: <span className="font-black">{details.electricityAccount || '—'}</span></p>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-[2rem]">
+                                    <p className="text-[10px] uppercase text-slate-400 tracking-wider mb-2">Refund Bank Account</p>
+                                    {details.bankDetails?.bankName ? (
+                                        <>
+                                            <p className="text-slate-800 dark:text-white">Bank: <span className="font-black">{details.bankDetails.bankName}</span></p>
+                                            <p className="text-slate-800 dark:text-white mt-0.5">Name: <span className="font-black">{details.bankDetails.accountName}</span></p>
+                                            <p className="text-slate-800 dark:text-white mt-0.5">Acc No: <span className="font-black">{details.bankDetails.accountNumber}</span></p>
+                                            <p className="text-slate-800 dark:text-white mt-0.5">Branch: <span className="font-black">{details.bankDetails.branch || '—'}</span></p>
+                                        </>
+                                    ) : (
+                                        <p className="text-slate-400 italic">None provided</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={async () => {
+                                        if (lease) {
+                                            const saved = inspections.find(insp => insp.leaseId === lease.id);
+                                            if (saved) {
+                                                setEditingInspection(saved);
+                                            } else {
+                                                setEditingInspection({
+                                                    id: `insp_${Date.now()}`,
+                                                    leaseId: lease.id,
+                                                    tenantId: lease.tenantId,
+                                                    inspectionDate: new Date().toISOString().split('T')[0],
+                                                    status: 'Draft',
+                                                    structuralCondition: 'Good',
+                                                    structuralComments: '',
+                                                    cleaningCondition: 'Good',
+                                                    cleaningComments: '',
+                                                    fittingsCondition: 'Good',
+                                                    fittingsComments: '',
+                                                    repairsRequired: JSON.stringify({
+                                                        waterMeterNo: '',
+                                                        waterBill: 0,
+                                                        waterRemarks: '',
+                                                        electricityMeterNo: '',
+                                                        electricityBill: 0,
+                                                        electricityRemarks: '',
+                                                        ciuNo: '',
+                                                        items: [],
+                                                        checkedBy: '',
+                                                        tenantIdNo: '',
+                                                        tenantTel: ''
+                                                    }),
+                                                    estimatedRepairCost: 0,
+                                                    tenantSignoff: false,
+                                                    institutionId: selectedVacateNotice.institutionId,
+                                                    createdAt: new Date().toISOString()
+                                                });
+                                            }
+                                            setShowInspectionModal(true);
+                                            setSelectedVacateNotice(null);
+                                        } else {
+                                            alert("Lease record not found.");
+                                        }
+                                    }}
+                                    className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-colors"
+                                >
+                                    Conduct Move-Out Inspection
+                                </button>
+                                {selectedVacateNotice.status === 'Issued' && (
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const updated = { ...selectedVacateNotice, status: 'Acknowledged' as any };
+                                                await apiService.saveModuleRecord('pm_notices', updated);
+                                                alert("Notice status updated to Acknowledged");
+                                                loadData();
+                                                setSelectedVacateNotice(null);
+                                            } catch (e: any) {
+                                                alert("Failed to update status: " + e.message);
+                                            }
+                                        }}
+                                        className="bg-emerald-600 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 transition-colors"
+                                    >
+                                        Acknowledge Notice
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </Modal>
+                );
+            })()}
+
             {showNoticeModal && (
                 <IssueNoticeModal
                     show={showNoticeModal}
@@ -8264,6 +8569,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 <form key={editingInspection?.id || 'new'} onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.currentTarget);
+                    const calculatedCost = (parseFloat(inspectionDetails.waterBill as any) || 0) +
+                                           (parseFloat(inspectionDetails.electricityBill as any) || 0) +
+                                           inspectionDetails.items.reduce((sum, item) => sum + (parseFloat(item.amount as any) || 0), 0);
                     handleSaveInspection({
                         leaseId: formData.get('leaseId') as string,
                         tenantId: leases.find(l => l.id === formData.get('leaseId'))?.tenantId || '',
@@ -8276,8 +8584,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         cleaningComments: formData.get('cleaningComments') as string,
                         fittingsCondition: formData.get('fittingsCondition') as string,
                         fittingsComments: formData.get('fittingsComments') as string,
-                        repairsRequired: formData.get('repairsRequired') as string,
-                        estimatedRepairCost: parseFloat(formData.get('estimatedRepairCost') as string) || 0,
+                        repairsRequired: JSON.stringify(inspectionDetails),
+                        estimatedRepairCost: calculatedCost,
                         tenantSignoff: formData.get('tenantSignoff') === 'on',
                         id: editingInspection?.id,
                         createdAt: editingInspection?.createdAt
@@ -8303,7 +8611,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Inspected By</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Inspected By (Agent)</label>
                             <input name="inspectedBy" defaultValue={editingInspection?.inspectedBy || currentUser?.name || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="Inspector Name" />
                         </div>
                         <div className="space-y-1">
@@ -8363,25 +8671,215 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         </div>
                     </div>
 
+                    {/* House Inspection Form Items (from image) */}
                     <div className="border-t border-slate-100 dark:border-slate-700/50 my-4 pt-4 space-y-4">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Repairs Required</label>
-                            <textarea name="repairsRequired" defaultValue={editingInspection?.repairsRequired || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none h-20 text-slate-900 dark:text-white" placeholder="List itemized repairs required before deposit payout..."></textarea>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">House Inspection Readings & Items</h4>
+                        
+                        {/* 1. Water Readings */}
+                        <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl space-y-3">
+                            <p className="text-[10px] font-black text-slate-505 uppercase tracking-wider">1 - Water readings</p>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-[9px] uppercase tracking-wider text-slate-400">Meter No</label>
+                                    <input
+                                        type="text"
+                                        value={inspectionDetails.waterMeterNo}
+                                        onChange={(e) => setInspectionDetails({ ...inspectionDetails, waterMeterNo: e.target.value })}
+                                        className="w-full bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-500 dark:text-white"
+                                        placeholder="Meter Number"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] uppercase tracking-wider text-slate-400">Current Bill (KES)</label>
+                                    <input
+                                        type="number"
+                                        value={inspectionDetails.waterBill}
+                                        onChange={(e) => setInspectionDetails({ ...inspectionDetails, waterBill: parseFloat(e.target.value) || 0 })}
+                                        className="w-full bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-500 dark:text-white"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] uppercase tracking-wider text-slate-400">Remarks</label>
+                                    <input
+                                        type="text"
+                                        value={inspectionDetails.waterRemarks}
+                                        onChange={(e) => setInspectionDetails({ ...inspectionDetails, waterRemarks: e.target.value })}
+                                        className="w-full bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-500 dark:text-white"
+                                        placeholder="Remarks"
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+
+                        {/* 2. Electricity Readings */}
+                        <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl space-y-3">
+                            <p className="text-[10px] font-black text-slate-505 uppercase tracking-wider">2 - Electricity readings</p>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-[9px] uppercase tracking-wider text-slate-400">Meter No</label>
+                                    <input
+                                        type="text"
+                                        value={inspectionDetails.electricityMeterNo}
+                                        onChange={(e) => setInspectionDetails({ ...inspectionDetails, electricityMeterNo: e.target.value })}
+                                        className="w-full bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-500 dark:text-white"
+                                        placeholder="Meter Number"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] uppercase tracking-wider text-slate-400">Current Bill (KES)</label>
+                                    <input
+                                        type="number"
+                                        value={inspectionDetails.electricityBill}
+                                        onChange={(e) => setInspectionDetails({ ...inspectionDetails, electricityBill: parseFloat(e.target.value) || 0 })}
+                                        className="w-full bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-500 dark:text-white"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] uppercase tracking-wider text-slate-400">Remarks</label>
+                                    <input
+                                        type="text"
+                                        value={inspectionDetails.electricityRemarks}
+                                        onChange={(e) => setInspectionDetails({ ...inspectionDetails, electricityRemarks: e.target.value })}
+                                        className="w-full bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-550 dark:text-white"
+                                        placeholder="Remarks"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 3. C.I.U no (pre-paid only) */}
+                        <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl grid grid-cols-2 gap-3 items-center">
+                            <p className="text-[10px] font-black text-slate-505 uppercase tracking-wider">3 - C.I.U no (for pre-paid meters)</p>
+                            <input
+                                type="text"
+                                value={inspectionDetails.ciuNo}
+                                onChange={(e) => setInspectionDetails({ ...inspectionDetails, ciuNo: e.target.value })}
+                                className="w-full bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-500 dark:text-white"
+                                placeholder="C.I.U Number"
+                            />
+                        </div>
+
+                        {/* Itemized checklist items (4, 5, 7, etc) */}
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Additional Items required to be fixed/cleared</p>
+                                <button
+                                    type="button"
+                                    onClick={() => setInspectionDetails({
+                                        ...inspectionDetails,
+                                        items: [...inspectionDetails.items, { description: '', amount: 0, remarks: '' }]
+                                    })}
+                                    className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-650 hover:bg-indigo-100 rounded-xl px-4 py-2 font-black text-[10px] uppercase tracking-widest transition-colors"
+                                >
+                                    + Add Item
+                                </button>
+                            </div>
+
+                            {inspectionDetails.items.map((item, idx) => (
+                                <div key={idx} className="flex gap-3 items-center bg-slate-50 dark:bg-slate-800/20 p-3 rounded-2xl">
+                                    <span className="text-[10px] font-black text-slate-400 pl-2">{idx + 4}-</span>
+                                    <input
+                                        type="text"
+                                        value={item.description}
+                                        onChange={(e) => {
+                                            const updated = [...inspectionDetails.items];
+                                            updated[idx].description = e.target.value;
+                                            setInspectionDetails({ ...inspectionDetails, items: updated });
+                                        }}
+                                        className="flex-1 bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-500 dark:text-white"
+                                        placeholder="Item to fix or purchase"
+                                        required
+                                    />
+                                    <input
+                                        type="number"
+                                        value={item.amount}
+                                        onChange={(e) => {
+                                            const updated = [...inspectionDetails.items];
+                                            updated[idx].amount = parseFloat(e.target.value) || 0;
+                                            setInspectionDetails({ ...inspectionDetails, items: updated });
+                                        }}
+                                        className="w-24 bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-500 dark:text-white"
+                                        placeholder="Amount"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={item.remarks}
+                                        onChange={(e) => {
+                                            const updated = [...inspectionDetails.items];
+                                            updated[idx].remarks = e.target.value;
+                                            setInspectionDetails({ ...inspectionDetails, items: updated });
+                                        }}
+                                        className="flex-1 bg-white dark:bg-slate-850 rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-blue-500 dark:text-white"
+                                        placeholder="Remarks/Details"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const updated = inspectionDetails.items.filter((_, i) => i !== idx);
+                                            setInspectionDetails({ ...inspectionDetails, items: updated });
+                                        }}
+                                        className="p-3 bg-rose-50 dark:bg-rose-900/30 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"
+                                    >
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Signatures / Checked By details */}
+                        <div className="grid grid-cols-3 gap-4 border-t border-slate-100 dark:border-slate-800 pt-4">
                             <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Estimated Cost (KES)</label>
-                                <input name="estimatedRepairCost" type="number" defaultValue={editingInspection?.estimatedRepairCost || 0} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="0.00" />
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Checked By</label>
+                                <input
+                                    type="text"
+                                    value={inspectionDetails.checkedBy}
+                                    onChange={(e) => setInspectionDetails({ ...inspectionDetails, checkedBy: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                    placeholder="Checked By Name"
+                                />
                             </div>
-                            <div className="flex items-center gap-2 h-full pt-6 pl-2">
-                                <input type="checkbox" name="tenantSignoff" id="tenantSignoff" defaultChecked={editingInspection?.tenantSignoff} className="w-5 h-5 accent-blue-600 rounded" />
-                                <label htmlFor="tenantSignoff" className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Tenant Acknowledged</label>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tenant ID No</label>
+                                <input
+                                    type="text"
+                                    value={inspectionDetails.tenantIdNo}
+                                    onChange={(e) => setInspectionDetails({ ...inspectionDetails, tenantIdNo: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                    placeholder="ID Number"
+                                />
                             </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tenant Tel</label>
+                                <input
+                                    type="text"
+                                    value={inspectionDetails.tenantTel}
+                                    onChange={(e) => setInspectionDetails({ ...inspectionDetails, tenantTel: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-550 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                    placeholder="Tenant Phone"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Calculated Total Display */}
+                        <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-3xl flex justify-between items-center text-xs font-bold my-4">
+                            <span className="text-slate-500 uppercase tracking-widest">Total Estimated Repair Cost</span>
+                            <span className="text-xl font-black text-blue-600 dark:text-blue-400">
+                                KES {((parseFloat(inspectionDetails.waterBill as any) || 0) +
+                                      (parseFloat(inspectionDetails.electricityBill as any) || 0) +
+                                      inspectionDetails.items.reduce((sum, item) => sum + (parseFloat(item.amount as any) || 0), 0)).toLocaleString()}
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 h-full pl-2">
+                            <input type="checkbox" name="tenantSignoff" id="tenantSignoff" defaultChecked={editingInspection?.tenantSignoff} className="w-5 h-5 accent-blue-600 rounded" />
+                            <label htmlFor="tenantSignoff" className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Tenant Acknowledged & Confirmed</label>
                         </div>
                     </div>
 
-                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">
-                        {editingInspection ? "Save Inspection Report" : "Complete Inspection Form"}
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">
+                        {editingInspection?.id && !editingInspection.id.startsWith('new_') ? "Save Inspection Report" : "Complete Inspection Form"}
                     </button>
                 </form>
             </Modal>
@@ -8396,17 +8894,40 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     ? inspections.filter(insp => insp.leaseId === selectedLeaseForRefund.id).reduce((sum, insp) => sum + insp.estimatedRepairCost, 0)
                     : 0;
 
+                let extraDeposits = { electricityDeposit: 0, waterDeposit: 0, aobDeposit: 0, comments: '' };
+                if (editingRefund?.otherDeductionsComments) {
+                    try {
+                        extraDeposits = JSON.parse(editingRefund.otherDeductionsComments);
+                    } catch (e) {
+                        extraDeposits.comments = editingRefund.otherDeductionsComments;
+                    }
+                }
+
                 return (
                     <Modal show={showRefundModal} onClose={() => { setShowRefundModal(false); setEditingRefund(null); setRefundSelectedLeaseId(''); }} title={editingRefund ? "Edit Deposit Refund Statement" : "Generate Deposit Refund Statement"}>
                         <form key={editingRefund?.id || refundSelectedLeaseId || 'new'} onSubmit={(e) => {
                             e.preventDefault();
                             const formData = new FormData(e.currentTarget);
                             const origDep = parseFloat(formData.get('originalDeposit') as string) || 0;
+                            const elecDep = parseFloat(formData.get('electricityDeposit') as string) || 0;
+                            const waterDep = parseFloat(formData.get('waterDeposit') as string) || 0;
+                            const aobDep = parseFloat(formData.get('aobDeposit') as string) || 0;
+
                             const rentArr = parseFloat(formData.get('rentArrearsDeduction') as string) || 0;
                             const utilArr = parseFloat(formData.get('utilityArrearsDeduction') as string) || 0;
                             const dmgRep = parseFloat(formData.get('damageRepairDeduction') as string) || 0;
                             const otherDed = parseFloat(formData.get('otherDeductions') as string) || 0;
-                            const finalRefund = origDep - rentArr - utilArr - dmgRep - otherDed;
+                            const otherDedComments = formData.get('otherDeductionsComments') as string;
+
+                            const totalDeposits = origDep + elecDep + waterDep + aobDep;
+                            const finalRefund = totalDeposits - rentArr - utilArr - dmgRep - otherDed;
+
+                            const commentsPayload = JSON.stringify({
+                                electricityDeposit: elecDep,
+                                waterDeposit: waterDep,
+                                aobDeposit: aobDep,
+                                comments: otherDedComments
+                            });
 
                             handleSaveRefund({
                                 leaseId: editingRefund?.leaseId || refundSelectedLeaseId,
@@ -8417,7 +8938,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 utilityArrearsDeduction: utilArr,
                                 damageRepairDeduction: dmgRep,
                                 otherDeductions: otherDed,
-                                otherDeductionsComments: formData.get('otherDeductionsComments') as string,
+                                otherDeductionsComments: commentsPayload,
                                 refundAmount: finalRefund,
                                 paymentMethod: formData.get('paymentMethod') as string || undefined,
                                 paymentReference: formData.get('paymentReference') as string || undefined,
@@ -8451,9 +8972,29 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Statement Date</label>
                                     <input name="statementDate" type="date" required defaultValue={editingRefund?.statementDate ? editingRefund.statementDate.split('T')[0] : new Date().toISOString().split('T')[0]} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" />
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Original Deposit (KES)</label>
-                                    <input name="originalDeposit" type="number" step="0.01" required defaultValue={editingRefund?.originalDeposit ?? originalDeposit} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="0.00" />
+                            </div>
+
+                            <div className="border-t border-slate-100 dark:border-slate-700/50 my-4 pt-4 space-y-4">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Deposits Paid</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Rent Deposit (KES)</label>
+                                        <input name="originalDeposit" type="number" step="0.01" required defaultValue={editingRefund?.originalDeposit ?? originalDeposit} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Electricity Deposit (KES)</label>
+                                        <input name="electricityDeposit" type="number" step="0.01" required defaultValue={extraDeposits.electricityDeposit} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Water Deposit (KES)</label>
+                                        <input name="waterDeposit" type="number" step="0.01" required defaultValue={extraDeposits.waterDeposit} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">A.O.B Deposit (KES)</label>
+                                        <input name="aobDeposit" type="number" step="0.01" required defaultValue={extraDeposits.aobDeposit} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" />
+                                    </div>
                                 </div>
                             </div>
 

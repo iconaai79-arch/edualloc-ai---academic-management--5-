@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, PMExpenseVoucher, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient, PayrollRecord } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, PMExpenseVoucher, PMInspection, PMDepositRefund, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient, PayrollRecord } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 
@@ -8383,5 +8383,350 @@ export const generateStatutoryDeductionsPdf = async (
     setupPdfFooter(doc, footerImg, `${institution.name} — Statutory Remittance Report`);
     return doc.output('datauristring');
 };
+
+export const generatePMInspectionPdf = async (
+    inspection: PMInspection,
+    tenant: PMTenant,
+    unit: PMUnit,
+    property: PMProperty,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    letterheadUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const headerImg = await loadImage(letterheadUrl || null);
+    const tableStartY = createPdfWithLetterhead(
+        doc,
+        'HOUSE INSPECTION FORM',
+        companyDetails,
+        institution,
+        logoImg,
+        headerImg
+    );
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    let yPos = tableStartY + 5;
+
+    // Header Details: Name, Hse no, Estate, Date
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`Name: ${tenant.name}`, margin, yPos);
+    doc.text(`Hse no: ${unit.unitNumber}`, pageWidth - margin - 60, yPos);
+    
+    yPos += 8;
+    doc.text(`Estate: ${property.name}`, margin, yPos);
+    doc.text(`Date: ${new Date(inspection.inspectionDate).toLocaleDateString()}`, pageWidth - margin - 60, yPos);
+
+    yPos += 5;
+    doc.setDrawColor(150, 150, 150);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.line(margin, yPos + 1, pageWidth - margin, yPos + 1);
+
+    yPos += 10;
+    doc.setFont('helvetica', 'bold');
+    doc.text("The following items is required to be fixed or purchased or cleared before we refund you deposits:", margin, yPos);
+
+    yPos += 10;
+    // Columns: ITEMS, AMOUNT, Remarks
+    doc.text("ITEMS", margin, yPos);
+    doc.text("AMOUNT (KES)", pageWidth / 2, yPos, { align: 'center' });
+    doc.text("Remarks", pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 2;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+
+    yPos += 8;
+    doc.setFont('helvetica', 'normal');
+
+    let details = {
+        waterMeterNo: '',
+        waterBill: 0,
+        waterRemarks: '',
+        electricityMeterNo: '',
+        electricityBill: 0,
+        electricityRemarks: '',
+        ciuNo: '',
+        items: [] as Array<{ description: string; amount: number; remarks: string }>,
+        checkedBy: '',
+        tenantIdNo: '',
+        tenantTel: ''
+    };
+    try {
+        details = JSON.parse(inspection.repairsRequired);
+    } catch (e) {
+        details = {
+            waterMeterNo: '',
+            waterBill: 0,
+            waterRemarks: '',
+            electricityMeterNo: '',
+            electricityBill: 0,
+            electricityRemarks: '',
+            ciuNo: '',
+            items: inspection.repairsRequired ? [{ description: inspection.repairsRequired, amount: inspection.estimatedRepairCost || 0, remarks: '' }] : [],
+            checkedBy: '',
+            tenantIdNo: '',
+            tenantTel: ''
+        };
+    }
+
+    // Row 1: Water
+    doc.text(`1- Water readings (Meter No: ${details.waterMeterNo || 'N/A'})`, margin, yPos);
+    doc.text(`${details.waterBill?.toLocaleString() || '0'}`, pageWidth / 2, yPos, { align: 'center' });
+    doc.text(`${details.waterRemarks || 'Cleared'}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 8;
+    // Row 2: Electricity
+    doc.text(`2- Electricity Readings (Meter No: ${details.electricityMeterNo || 'N/A'})`, margin, yPos);
+    doc.text(`${details.electricityBill?.toLocaleString() || '0'}`, pageWidth / 2, yPos, { align: 'center' });
+    doc.text(`${details.electricityRemarks || 'Cleared'}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 8;
+    // Row 3: C.I.U no (for prepaid)
+    doc.text(`3- C.I.U no: ${details.ciuNo || 'N/A'} (For pre-paid meters only)`, margin, yPos);
+    doc.text('—', pageWidth / 2, yPos, { align: 'center' });
+    doc.text('—', pageWidth - margin, yPos, { align: 'right' });
+
+    // Custom items 4, 5, 6...
+    details.items.forEach((item, idx) => {
+        yPos += 8;
+        doc.text(`${idx + 4}- ${item.description}`, margin, yPos);
+        doc.text(`${item.amount?.toLocaleString() || '0'}`, pageWidth / 2, yPos, { align: 'center' });
+        doc.text(`${item.remarks || '—'}`, pageWidth - margin, yPos, { align: 'right' });
+    });
+
+    yPos += 4;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+
+    yPos += 6;
+    doc.setFont('helvetica', 'bold');
+    doc.text("Total Outstanding Deductions:", margin, yPos);
+    doc.text(`KES ${inspection.estimatedRepairCost?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 15;
+    // Signatures
+    doc.setFontSize(9);
+    doc.text(`Inspected by (Agent): ${inspection.inspectedBy || '_________________'}   Sign: _________________`, margin, yPos);
+    
+    yPos += 8;
+    doc.text(`Checked by: ${details.checkedBy || '_________________'}   Sign: _________________`, margin, yPos);
+
+    yPos += 10;
+    doc.text("To be filled by The tenant:", margin, yPos);
+    
+    yPos += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Confirmed By: ${tenant.name}   Sign: _________________`, margin, yPos);
+    
+    yPos += 8;
+    doc.text(`Id No: ${details.tenantIdNo || '_________________'}   Tel: ${details.tenantTel || tenant.phoneNumber || '_________________'}`, margin, yPos);
+
+    yPos += 12;
+    doc.setFont('helvetica', 'bold');
+    doc.text("To be filled by official agent after the above named tenant cleared the above items:", margin, yPos);
+    
+    yPos += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.text("Cleared & Confirmed By: _________________   Sign: _________________   Date: _________________", margin, yPos);
+
+    return doc.output('datauristring');
+};
+
+export const downloadPMInspectionPdf = async (
+    inspection: PMInspection,
+    tenant: PMTenant,
+    unit: PMUnit,
+    property: PMProperty,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    letterheadUrl?: string | null
+): Promise<void> => {
+    const dataUri = await generatePMInspectionPdf(inspection, tenant, unit, property, institution, companyDetails, logoUrl, letterheadUrl);
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = `Inspection_${unit.unitNumber}_${new Date(inspection.inspectionDate).toLocaleDateString().replace(/\//g, '-')}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+export const generatePMDepositRefundPdf = async (
+    refund: PMDepositRefund,
+    lease: PMLease,
+    tenant: PMTenant,
+    unit: PMUnit,
+    property: PMProperty,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    letterheadUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const headerImg = await loadImage(letterheadUrl || null);
+    const tableStartY = createPdfWithLetterhead(
+        doc,
+        'DEPOSIT REFUND STATEMENT',
+        companyDetails,
+        institution,
+        logoImg,
+        headerImg
+    );
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    let yPos = tableStartY + 5;
+
+    // Header Details: Estate Name & Date
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(property.name.toUpperCase(), margin, yPos);
+    doc.text(`Date: ${new Date(refund.statementDate).toLocaleDateString()}`, pageWidth - margin - 45, yPos);
+
+    yPos += 8;
+    // Sub-title
+    doc.setFontSize(10);
+    doc.text(`DEPOSIT REFUND TO ${tenant.name.toUpperCase()} NO ${unit.unitNumber}`, margin, yPos);
+    doc.text(`Tel no: ${tenant.phoneNumber || '—'}`, pageWidth - margin - 60, yPos);
+
+    yPos += 5;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+
+    yPos += 8;
+    // Checklist options
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text("Tick one:   [x] Rcpt   [x] Letter   [x] Bills   [x] Notice   [x] Hse Report", margin, yPos);
+
+    yPos += 8;
+    // Section Title
+    doc.setFont('helvetica', 'bold');
+    doc.text("DEPOSIT PAID", margin, yPos);
+    yPos += 3;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+
+    // Parse the serialized additional deposits from comments
+    let extraDeposits = { electricityDeposit: 0, waterDeposit: 0, aobDeposit: 0, comments: '' };
+    if (refund.otherDeductionsComments) {
+        try {
+            extraDeposits = JSON.parse(refund.otherDeductionsComments);
+        } catch (e) {
+            extraDeposits.comments = refund.otherDeductionsComments;
+        }
+    }
+
+    const rentDeposit = refund.originalDeposit;
+    const elecDeposit = extraDeposits.electricityDeposit || 0;
+    const waterDeposit = extraDeposits.waterDeposit || 0;
+    const aobDeposit = extraDeposits.aobDeposit || 0;
+    const totalDeposits = rentDeposit + elecDeposit + waterDeposit + aobDeposit;
+
+    yPos += 6;
+    doc.setFont('helvetica', 'normal');
+    // Rent Deposit row
+    doc.text("a) Rent Deposit", margin + 4, yPos);
+    doc.text(`KES ${rentDeposit.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 6;
+    doc.text("b) Electricity Deposit", margin + 4, yPos);
+    doc.text(`KES ${elecDeposit.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 6;
+    doc.text("c) Water Deposit", margin + 4, yPos);
+    doc.text(`KES ${waterDeposit.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 6;
+    doc.text("d) A.O.B Deposit", margin + 4, yPos);
+    doc.text(`KES ${aobDeposit.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 4;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 6;
+    doc.setFont('helvetica', 'bold');
+    doc.text("Total Deposits Paid", margin, yPos);
+    doc.text(`KES ${totalDeposits.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    // Section 2: DEDUCTIONS
+    yPos += 12;
+    doc.text("DEDUCTIONS & OUTSTANDING DUES", margin, yPos);
+    yPos += 3;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+
+    yPos += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.text("a) Rent Arrears", margin + 4, yPos);
+    doc.text(`KES ${refund.rentArrearsDeduction.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    
+    yPos += 6;
+    doc.text("b) Utility Arrears", margin + 4, yPos);
+    doc.text(`KES ${refund.utilityArrearsDeduction.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 6;
+    doc.text("c) Damage / Repair Costs", margin + 4, yPos);
+    doc.text(`KES ${refund.damageRepairDeduction.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 6;
+    const commentsLabel = extraDeposits.comments ? ` (${extraDeposits.comments})` : '';
+    doc.text(`d) Other Deductions${commentsLabel}`, margin + 4, yPos);
+    doc.text(`KES ${refund.otherDeductions.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    const totalDeductions = refund.rentArrearsDeduction + refund.utilityArrearsDeduction + refund.damageRepairDeduction + refund.otherDeductions;
+
+    yPos += 4;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 6;
+    doc.setFont('helvetica', 'bold');
+    doc.text("Total Deductions", margin, yPos);
+    doc.text(`KES ${totalDeductions.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    yPos += 10;
+    // Net Payout
+    doc.setFontSize(11);
+    doc.text(`Net payment to the Tenant KES: ${refund.refundAmount.toLocaleString()}`, margin, yPos);
+
+    yPos += 18;
+    // Signature block
+    doc.setFontSize(9);
+    doc.text("Prepared by: __________________________________   Sign: __________________________", margin, yPos);
+    yPos += 8;
+    doc.text("Checked by: ___________________________________   Sign: __________________________", margin, yPos);
+    yPos += 8;
+    doc.text("Received By: __________________________________   Sign: __________________________", margin, yPos);
+    yPos += 6;
+    doc.text(`Id No: ________________________________________   Tel: ${tenant.phoneNumber || '__________________________'}`, margin, yPos);
+
+    yPos += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(`Note: The tenant occupied on ${new Date(lease.startDate).toLocaleDateString()} and moved out on ${new Date(refund.statementDate).toLocaleDateString()}`, margin, yPos);
+
+    return doc.output('datauristring');
+};
+
+export const downloadPMDepositRefundPdf = async (
+    refund: PMDepositRefund,
+    lease: PMLease,
+    tenant: PMTenant,
+    unit: PMUnit,
+    property: PMProperty,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    letterheadUrl?: string | null
+): Promise<void> => {
+    const dataUri = await generatePMDepositRefundPdf(refund, lease, tenant, unit, property, institution, companyDetails, logoUrl, letterheadUrl);
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = `RefundStatement_${unit.unitNumber}_${new Date(refund.statementDate).toLocaleDateString().replace(/\//g, '-')}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
 
 

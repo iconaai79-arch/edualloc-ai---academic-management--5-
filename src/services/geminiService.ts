@@ -477,9 +477,58 @@ export const findLocationCoordinates = async (query: string, aiModelTier?: strin
     }
 };
 
+/**
+ * Helper to ensure chat history alternates strictly between 'user' and 'model' roles,
+ * starting with a 'user' message and ending with a 'model' message.
+ * This is a strict requirement for Gemini API multi-turn conversations.
+ */
+const sanitizeChatHistory = (
+    history: { role: string, parts: { text: string }[] }[]
+): { role: string, parts: { text: string }[] }[] => {
+    // 1. Filter out initial messages that are not from 'user' (e.g. welcome greetings)
+    const cleanHistory = [...history];
+    while (cleanHistory.length > 0 && cleanHistory[0].role !== 'user') {
+        cleanHistory.shift();
+    }
+
+    // 2. Build alternating history
+    const alternatingHistory: { role: string, parts: { text: string }[] }[] = [];
+    let expectedRole = 'user';
+    for (const msg of cleanHistory) {
+        const role = msg.role === 'model' ? 'model' : 'user';
+        if (role === expectedRole) {
+            alternatingHistory.push({
+                role,
+                parts: [{ text: msg.parts?.[0]?.text || '' }]
+            });
+            expectedRole = expectedRole === 'user' ? 'model' : 'user';
+        } else {
+            // Consecutive messages of same role: merge content to avoid API schema violations
+            if (alternatingHistory.length > 0) {
+                const lastMsg = alternatingHistory[alternatingHistory.length - 1];
+                const newText = msg.parts?.[0]?.text || '';
+                if (newText) {
+                    lastMsg.parts[0].text = lastMsg.parts[0].text
+                        ? `${lastMsg.parts[0].text}\n${newText}`
+                        : newText;
+                }
+            }
+        }
+    }
+
+    // 3. Ensure history ends with 'model' so that the upcoming sendMessage('user') alternates correctly
+    while (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role !== 'model') {
+        alternatingHistory.pop();
+    }
+
+    return alternatingHistory;
+};
+
 export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string, aiModelTier?: string): Promise<string> => {
     try {
         const token = await apiService.getAuthToken();
+        const cleanHistory = sanitizeChatHistory(history);
+
         const response = await fetch('/api/ai', {
             method: 'POST',
             headers: { 
@@ -488,24 +537,38 @@ export const getChatResponse = async (history: { role: string, parts: { text: st
             },
             body: JSON.stringify({
                 model: PRO_LOGICAL_CORE, // Default to Pro for chat
-                history,
+                history: cleanHistory,
                 message
             })
         });
 
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            const data = await response.json();
-            return data.text || "I'm sorry, I couldn't process that.";
-        } else {
-            const text = await response.text();
-            console.error("[geminiService] Non-JSON response from Chat Service:", text.substring(0, 200));
-            return "I'm sorry, I encountered a communication error with the AI matrix.";
+        const contentType = response.headers.get('content-type') || '';
+        
+        if (!response.ok) {
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                const detailMsg = errorData.details || errorData.message || errorData.error || `AI Service Error: ${response.status}`;
+                throw new Error(detailMsg);
+            } else {
+                const errorText = await response.text();
+                console.error("[geminiService] Non-JSON response from Chat Service:", errorText.substring(0, 200));
+                throw new Error("I encountered a communication error with the AI matrix. Please try again.");
+            }
         }
 
-    } catch (error) {
+        if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error("[geminiService] Expected JSON but got:", text.substring(0, 200));
+            throw new Error("I encountered a communication error with the AI matrix. Please try again.");
+        }
+
+        const data = await response.json();
+        return data.text || "I'm sorry, I couldn't process that.";
+
+    } catch (error: any) {
         console.error("AI chat error:", error);
-        return "I encountered an error. Please try again.";
+        const sanitized = sanitizeAiError(error);
+        return sanitized.message;
     }
 };
 
@@ -520,12 +583,13 @@ export const getInstitutionAwareChatResponse = async (
 ): Promise<string> => {
     try {
         const token = await apiService.getAuthToken();
+        const cleanHistory = sanitizeChatHistory(history);
 
         // Inject context as the first model turn so it acts as a system prompt
         const enrichedHistory = [
             { role: 'user', parts: [{ text: 'Please acknowledge your role and the institution data you have access to.' }] },
             { role: 'model', parts: [{ text: contextSnapshot + '\n\nUnderstood. I am EduAI with live access to this institution\'s data. I\'m ready to help.' }] },
-            ...history
+            ...cleanHistory
         ];
 
         const response = await fetch('/api/ai', {
@@ -541,18 +605,32 @@ export const getInstitutionAwareChatResponse = async (
             })
         });
 
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            const data = await response.json();
-            return data.text || "I'm sorry, I couldn't process that.";
-        } else {
-            const text = await response.text();
-            console.error("[geminiService] Non-JSON from Institution Chat:", text.substring(0, 200));
-            return "I encountered a communication error. Please try again.";
+        const contentType = response.headers.get('content-type') || '';
+        
+        if (!response.ok) {
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                const detailMsg = errorData.details || errorData.message || errorData.error || `AI Service Error: ${response.status}`;
+                throw new Error(detailMsg);
+            } else {
+                const errorText = await response.text();
+                console.error("[geminiService] Non-JSON from Institution Chat:", errorText.substring(0, 200));
+                throw new Error("I encountered a communication error with the AI matrix. Please try again.");
+            }
         }
-    } catch (error) {
+
+        if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error("[geminiService] Expected JSON but got:", text.substring(0, 200));
+            throw new Error("I encountered a communication error with the AI matrix. Please try again.");
+        }
+
+        const data = await response.json();
+        return data.text || "I'm sorry, I couldn't process that.";
+    } catch (error: any) {
         console.error("Institution AI chat error:", error);
-        return "I encountered an error. Please try again.";
+        const sanitized = sanitizeAiError(error);
+        return sanitized.message;
     }
 };
 
