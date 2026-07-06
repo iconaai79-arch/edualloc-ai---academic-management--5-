@@ -115,11 +115,10 @@ Deno.serve(async (req: Request) => {
 
   for (const inst of institutions ?? []) {
     try {
-      // Fetch financial data for the current month
-      const [{ data: invoices }, { data: receipts }, { data: expenses }] = await Promise.all([
-        supabase.from('invoices').select('*').eq('institution_id', inst.id).gte('issue_date', monthStart),
-        supabase.from('receipts').select('*').eq('institution_id', inst.id).gte('payment_date', monthStart),
-        supabase.from('expenses').select('*').eq('institution_id', inst.id).gte('date', monthStart),
+      // Fetch financial data for the current month (optimized to minimize resource egress)
+      const [{ data: invoices }, { data: receipts }] = await Promise.all([
+        supabase.from('invoices').select('id, invoice_number, status, total_amount').eq('institution_id', inst.id).gte('issue_date', monthStart),
+        supabase.from('receipts').select('id, receipt_number, amount_paid, invoice_id, student_id, payment_date').eq('institution_id', inst.id).gte('payment_date', monthStart),
       ]);
 
       const issues: AuditIssue[] = [

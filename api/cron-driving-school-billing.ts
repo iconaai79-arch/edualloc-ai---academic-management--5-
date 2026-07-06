@@ -21,9 +21,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const results: any[] = [];
 
         // --- Step A: Generate New Bills for postpaid institutions whose billing cycle has ended ---
+        // Fetch postpaid active institutions (optimized projection)
         const { data: institutions, error: instError } = await supabase
             .from('institutions')
-            .select('*')
+            .select('id, name, billing_cycle_anchor, billingCycleAnchor:billing_cycle_anchor, rate_per_student, ratePerStudent:rate_per_student, email, created_at')
             .eq('status', 'active')
             .eq('billing_model', 'postpaid_student');
 
@@ -204,9 +205,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // --- Step B: Check for overdue bills and suspend access ---
+        // Fetch overdue bills (corrected phoneNumber to phone_number to match schema)
         const { data: overdueBills, error: overdueFetchErr } = await supabase
             .from('tenant_bills')
-            .select('*, institutions(name, email, phoneNumber)')
+            .select('*, institutions(name, email, phone_number)')
             .eq('status', 'pending')
             .lt('due_at', today.toISOString());
 

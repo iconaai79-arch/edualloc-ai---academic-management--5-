@@ -23,10 +23,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sevenDaysFromNow = new Date();
         sevenDaysFromNow.setDate(today.getDate() + 7);
 
-        // Fetch active institutions with a subscription expiring in the next 7 days
+        // Fetch active institutions with a subscription expiring in the next 7 days (optimized projection)
         const { data: institutions, error: instError } = await supabase
             .from('institutions')
-            .select('*')
+            .select('id, name, custom_subscription_price, subscription_ends_at, email, phoneNumber:phone_number')
             .eq('status', 'active')
             .gte('subscription_ends_at', today.toISOString())
             .lte('subscription_ends_at', sevenDaysFromNow.toISOString());
