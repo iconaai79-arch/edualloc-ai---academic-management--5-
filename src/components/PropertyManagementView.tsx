@@ -189,6 +189,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [editingProperty, setEditingProperty] = useState<PMProperty | null>(null);
     const [editingInvoice, setEditingInvoice] = useState<PMInvoice | null>(null);
     const [editingUnit, setEditingUnit] = useState<PMUnit | null>(null);
+    const [editingTenant, setEditingTenant] = useState<PMTenant | null>(null);
     const [isAddingStaff, setIsAddingStaff] = useState(false);
     const [commStartDate, setCommStartDate] = useState('');
     const [commEndDate, setCommEndDate] = useState('');
@@ -701,10 +702,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const handleSaveTenant = async (data: Partial<PMTenant>) => {
         try {
-            const tenantId = `tenant_${Date.now()}`;
+            const tenantId = editingTenant?.id || `tenant_${Date.now()}`;
 
-            // 1. Create system user account for the tenant if email is provided
-            if (data.email) {
+            // 1. Create system user account for the tenant if email is provided (only for new tenants)
+            if (!editingTenant && data.email) {
                 const tempPassword = Math.random().toString(36).slice(-8);
                 const newUser = {
                     id: `user_${Date.now()}`,
@@ -736,22 +737,31 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 phoneNumber: data.phoneNumber || '',
                 email: data.email,
                 idNumber: data.idNumber,
-                emergencyContactName: data.emergencyContactName,
-                emergencyContactPhone: data.emergencyContactPhone,
+                emergencyContactName: data.emergencyContactName || (editingTenant?.emergencyContactName),
+                emergencyContactPhone: data.emergencyContactPhone || (editingTenant?.emergencyContactPhone),
                 institutionId,
-                createdAt: new Date().toISOString()
+                createdAt: editingTenant?.createdAt || new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_tenants', newTenant);
 
             setShowTenantModal(false);
+            setEditingTenant(null);
             loadData();
 
-            if (data.email) {
+            if (!editingTenant && data.email) {
                 alert(`Tenant saved! Login credentials have been emailed to ${data.email}`);
             } else {
-                alert("Tenant saved! (No email provided, no portal access created)");
+                alert("Tenant saved successfully!");
             }
         } catch (e: any) { alert(e.message || "Failed to save tenant"); console.error(e); }
+    };
+
+    const handleDeleteTenant = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this tenant? All associated lease records might be affected.")) return;
+        try {
+            await apiService.deleteModuleRecord('pm_tenants', id);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to delete tenant"); console.error(e); }
     };
 
     const handleSaveLease = async (data: Partial<PMLease>) => {
@@ -1348,7 +1358,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         <DownloadIcon className="w-4 h-4 rotate-180" /> Import Tenants
                     </button>
                     <button
-                        onClick={() => setShowTenantModal(true)}
+                        onClick={() => { setEditingTenant(null); setShowTenantModal(true); }}
                         className="btn-primary flex items-center justify-center gap-2 h-12 bg-blue-600 hover:bg-blue-700 text-white uppercase tracking-widest text-[10px] font-black px-6 rounded-2xl shadow-lg transition-all"
                     >
                         <PlusIcon className="w-4 h-4" /> Onboard Tenant
@@ -1378,10 +1388,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     </td>
                                     <td className="p-6 text-sm font-bold text-slate-500">{tenant.idNumber || '---'}</td>
                                     <td className="p-6 text-xs text-slate-400 font-bold">{new Date(tenant.createdAt).toLocaleDateString()}</td>
-                                    <td className="p-6 text-right space-x-2">
+                                    <td className="p-6 text-right space-x-2 whitespace-nowrap">
                                         <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="KCB Integration"><KcbIcon className="w-4 h-4" /></button>
                                         <button onClick={() => { setSelectedTenantForCoopAction(tenant); setShowCoopModal(true); }} className="p-3 bg-teal-50 dark:bg-teal-900/30 text-teal-600 rounded-xl hover:scale-105 transition-all" title="Coop B2B Integration"><CoopIcon className="w-4 h-4" /></button>
                                         <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors"><EyeIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => { setEditingTenant(tenant); setShowTenantModal(true); }} className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:scale-105 transition-all" title="Edit Tenant"><PencilIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => handleDeleteTenant(tenant.id)} className="p-3 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl hover:scale-105 transition-all" title="Delete Tenant"><TrashIcon className="w-4 h-4" /></button>
                                     </td>
                                 </tr>
                             ))}
@@ -1405,6 +1417,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl"><KcbIcon className="w-5 h-5" /></button>
                                     <button onClick={() => { setSelectedTenantForCoopAction(tenant); setShowCoopModal(true); }} className="p-3 bg-teal-50 dark:bg-teal-900/30 text-teal-600 rounded-2xl" title="Coop B2B Integration"><CoopIcon className="w-5 h-5" /></button>
                                     <button className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-400"><EyeIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => { setEditingTenant(tenant); setShowTenantModal(true); }} className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-2xl" title="Edit Tenant"><PencilIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => handleDeleteTenant(tenant.id)} className="p-3 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-2xl" title="Delete Tenant"><TrashIcon className="w-5 h-5" /></button>
                                 </div>
                             </div>
                         </div>
@@ -7497,20 +7511,36 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </form>
             </Modal>
 
-            <Modal show={showTenantModal} onClose={() => setShowTenantModal(false)} title="Tenant Onboarding">
-                <form onSubmit={(e) => {
+            <Modal show={showTenantModal} onClose={() => setShowTenantModal(false)} title={editingTenant ? "Edit Tenant Profile" : "Tenant Onboarding"}>
+                <form key={editingTenant?.id || 'new'} onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.currentTarget);
                     handleSaveTenant({
                         name: formData.get('name') as string,
+                        email: (formData.get('email') as string) || undefined,
                         phoneNumber: formData.get('phoneNumber') as string,
                         idNumber: formData.get('idNumber') as string
                     });
                 }} className="space-y-6">
-                    <input name="name" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Full Name" />
-                    <input name="phoneNumber" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Phone Number" />
-                    <input name="idNumber" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="ID / Passport Number" />
-                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Complete Onboarding</button>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tenant Name</label>
+                        <input name="name" required defaultValue={editingTenant?.name || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Full Name" />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
+                        <input name="email" type="email" defaultValue={editingTenant?.email || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Email (optional, creates portal login)" />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone Number</label>
+                        <input name="phoneNumber" required defaultValue={editingTenant?.phoneNumber || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Phone Number" />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">ID / Passport Number</label>
+                        <input name="idNumber" defaultValue={editingTenant?.idNumber || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="ID / Passport Number" />
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">
+                        {editingTenant ? "Save Changes" : "Complete Onboarding"}
+                    </button>
                 </form>
             </Modal>
 
