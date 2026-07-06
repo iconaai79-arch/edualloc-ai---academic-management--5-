@@ -63,6 +63,7 @@ CREATE INDEX IF NOT EXISTS audit_log_action_idx       ON public.audit_log(action
 -- Prevent anyone (including service_role) from deleting audit rows
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "audit_log_select_own_institution" ON public.audit_log;
 CREATE POLICY "audit_log_select_own_institution"
     ON public.audit_log FOR SELECT
     USING (institution_id = current_setting('app.institution_id', true));
@@ -162,7 +163,8 @@ CREATE TRIGGER trg_audit_pm_leases
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. HELPER VIEW — flattened audit feed for the dashboard
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE OR REPLACE VIEW public.v_audit_feed
+DROP VIEW IF EXISTS public.v_audit_feed;
+CREATE VIEW public.v_audit_feed
 WITH (security_invoker = true) AS
 SELECT
     al.id,

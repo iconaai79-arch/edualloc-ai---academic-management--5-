@@ -975,6 +975,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
             // Retail & Procurement tabs
             if (['retail', 'procurement'].includes(tab.id)) {
+                if (isLaw) return false;
                 if (isEdu) {
                     return tab.id === 'retail';
                 }
@@ -992,6 +993,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
             // Broadcaster tab
             if (tab.id === 'comms') {
+                if (isLaw) return false;
                 if (roleToUse === 'super_admin') return true;
                 if (institutionType === 'Broadcaster') return true;
                 return ['admin', 'head_teacher', 'deputy', 'dos', 'tto', 'retail_agent'].includes(roleToUse || '');
@@ -1007,7 +1009,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'agrovet') return institutionType === 'Agrovet' || businessSubType === 'Agrovet';
             if (tab.id === 'car_service') return (isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic')) || isHigherEdInstitution(props.currentInstitution);
             if (tab.id === 'church') return isChurch;
-            if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
+            if (tab.id === 'law') return (roleToUse === 'legal_admin' || institutionType === 'Law Firm') && !isLaw;
             if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || isDS || institutionType?.toLowerCase().includes('driving school');
             if (tab.id === 'beauty_college') return isBC || institutionType?.toLowerCase().includes('beauty college');
             if (tab.id === 'community') return isCommunity || roleToUse === 'community_admin';
@@ -1033,7 +1035,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
 
             if (tab.id === 'enrollment') {
+                if (isLaw) return false;
                 return !isDS;
+            }
+
+            if (tab.id === 'eduflow') {
+                if (isLaw) return false;
             }
 
             return true;
@@ -2222,7 +2229,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 ) : (
                     <>
-                {activeTab === 'dashboard' && !isCoop && !isDS && !isBC && !isAutoMarket && !isCampaign && activeScope !== 'ds' && activeScope !== 'bc' && (
+                {activeTab === 'dashboard' && !isCoop && !isDS && !isBC && !isAutoMarket && !isCampaign && !isLaw && activeScope !== 'ds' && activeScope !== 'bc' && (
                     <div className="space-y-6">
                         {isCampaign ? (
                             <div className="animate-fade-in">
@@ -3225,7 +3232,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         />
                     </Suspense>
                 )}
-                 {activeTab === 'law' && (
+                {(activeTab === 'law' || (activeTab === 'dashboard' && isLaw)) && (
                     <LawManager 
                         currentUser={props.currentUser!}
                         currentInstitution={props.currentInstitution ?? null}

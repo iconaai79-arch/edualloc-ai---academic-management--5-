@@ -649,7 +649,7 @@ export const apiService = {
             }
         };
 
-        if (!_supabase) {
+        const queryLocal = () => {
             // Mapping for views in local storage mode
             let effectiveModule = module;
             if (module === 'v_house_statistics' || module === 'v_bed_occupancy') {
@@ -696,6 +696,10 @@ export const apiService = {
                 });
             }
             return finalResult;
+        };
+
+        if (!_supabase) {
+            return queryLocal();
         }
 
         try {
@@ -738,14 +742,16 @@ export const apiService = {
                     console.warn(`[apiService] Critical Database Failure in [${module}]:`, errData.error);
                 }
                 
-                return [];
+                console.warn(`[apiService] Falling back to local storage for module [${module}]`);
+                return queryLocal();
             }
 
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
                 const text = await response.text();
                 console.error(`[apiService] Non-JSON response for [${module}]:`, text.substring(0, 200));
-                return [];
+                console.warn(`[apiService] Falling back to local storage for module [${module}]`);
+                return queryLocal();
             }
 
             const data = await response.json();
@@ -767,7 +773,8 @@ export const apiService = {
             return Array.isArray(result) ? result : [];
         } catch (e) {
             console.error(`Fetch Exception [${module}]:`, e);
-            return [];
+            console.warn(`[apiService] Falling back to local storage for module [${module}]`);
+            return queryLocal();
         }
     },
     async fetchModuleRecord<T = any>(module: string, id: string): Promise<T | null> {
@@ -1080,7 +1087,10 @@ export const apiService = {
             }
         } catch (e: any) {
             console.error(`Delete API Error [${module}]:`, e);
-            throw e;
+            console.warn(`[apiService] Falling back to localStorage delete for ${module}`);
+            const records = ls.get(module);
+            const idsSet = new Set(idsArray);
+            ls.set(module, records.filter((r: any) => !idsSet.has(r.id)));
         }
     },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
@@ -1148,7 +1158,9 @@ export const apiService = {
             return savedData ? toCamelCase(savedData) : null;
         } catch (e: any) {
             console.error(`Save Exception [${module}]:`, e);
-            throw e;
+            console.warn(`[apiService] Falling back to localStorage save for ${module}`);
+            ls.upsert(module, payload);
+            return toCamelCase(payload);
         }
     },
     async fetchSmsOutbox(institutionId: string): Promise<any[]> {

@@ -7175,11 +7175,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
             )}
 
-            {activeTab === 'properties' && <PropertiesTab />}
-            {activeTab === 'payouts' && <PayoutsTab />}
-            {activeTab === 'expenses' && <ExpensesTab />}
-            {activeTab === 'listings' && <ListingsTab />}
-            {activeTab === 'inquiries' && <InquiriesTab />}
+            {activeTab === 'properties' && PropertiesTab()}
+            {activeTab === 'payouts' && PayoutsTab()}
+            {activeTab === 'expenses' && ExpensesTab()}
+            {activeTab === 'listings' && ListingsTab()}
+            {activeTab === 'inquiries' && InquiriesTab()}
             {activeTab === 'comms' && (
                 <CommunicationsManager 
                     users={commsUsers}
@@ -7196,7 +7196,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     transactions={transactions}
                 />
             )}
-            {activeTab === 'reports' && <ReportsTab />}
+            {activeTab === 'reports' && ReportsTab()}
             {activeTab === 'staff' && (
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
                     <UserManager 

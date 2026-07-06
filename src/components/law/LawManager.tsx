@@ -84,6 +84,63 @@ export const LawManager: React.FC<LawManagerProps> = ({
     const [isAddingMatter, setIsAddingMatter] = useState(false);
     const [isAddingTime, setIsAddingTime] = useState(false);
     const [isAddingTrustTx, setIsAddingTrustTx] = useState(false);
+    const [isAddingInvoice, setIsAddingInvoice] = useState(false);
+
+    // Form inputs state
+    const [clientForm, setClientForm] = useState<Partial<LawClient>>({
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        clientType: 'individual'
+    });
+
+    const [matterForm, setMatterForm] = useState<Partial<LawMatter>>({
+        clientId: '',
+        title: '',
+        description: '',
+        caseNumber: '',
+        practiceArea: 'Litigation',
+        priority: 'medium',
+        status: 'open',
+        managerId: currentUser.id
+    });
+
+    const [timeForm, setTimeForm] = useState<Partial<LawTimeEntry>>({
+        matterId: '',
+        staffId: currentUser.id,
+        activityDate: new Date().toISOString().split('T')[0],
+        description: '',
+        durationMinutes: 60,
+        ratePerHour: 5000,
+        billingStatus: 'unbilled'
+    });
+
+    const [trustForm, setTrustForm] = useState<Partial<LawTrustTransaction>>({
+        clientId: '',
+        matterId: '',
+        amount: 0,
+        transactionType: 'deposit',
+        reference: ''
+    });
+
+    const [invoiceForm, setInvoiceForm] = useState<Partial<LawInvoice>>({
+        matterId: '',
+        clientId: '',
+        invoiceNumber: '',
+        totalAmount: 0,
+        taxAmount: 0,
+        status: 'pending',
+        dueDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0]
+    });
+
+    // Conflict Check screening state
+    const [conflictSearchQuery, setConflictSearchQuery] = useState('');
+    const [conflictResults, setConflictResults] = useState<{
+        hasConflict: boolean;
+        matches: { type: 'client' | 'matter'; name: string; detail: string }[];
+        checked: boolean;
+    }>({ hasConflict: false, matches: [], checked: false });
 
     const stats = useMemo(() => {
         const activeMatters = matters.filter(m => m.status === 'open').length;
@@ -108,6 +165,49 @@ export const LawManager: React.FC<LawManagerProps> = ({
 
     const getClientName = (id: string) => clients.find(c => c.id === id)?.name || 'Unknown Client';
     const getStaffName = (id: string) => users.find(u => u.id === id)?.name || 'Unknown Staff';
+
+    const handleSubmitClient = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!clientForm.name) return;
+        await onAddClient(clientForm);
+        setIsAddingClient(false);
+        setClientForm({ name: '', email: '', phone: '', address: '', clientType: 'individual' });
+    };
+
+    const handleSubmitMatter = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!matterForm.title || !matterForm.clientId) return;
+        await onAddMatter(matterForm);
+        setIsAddingMatter(false);
+        setMatterForm({ clientId: '', title: '', description: '', caseNumber: '', practiceArea: 'Litigation', priority: 'medium', status: 'open', managerId: currentUser.id });
+    };
+
+    const handleSubmitTime = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!timeForm.matterId || !timeForm.description) return;
+        await onAddTimeEntry(timeForm);
+        setIsAddingTime(false);
+        setTimeForm({ matterId: '', staffId: currentUser.id, activityDate: new Date().toISOString().split('T')[0], description: '', durationMinutes: 60, ratePerHour: 5000, billingStatus: 'unbilled' });
+    };
+
+    const handleSubmitTrustTx = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!trustForm.clientId || !trustForm.amount) return;
+        await onAddTrustTransaction(trustForm);
+        setIsAddingTrustTx(false);
+        setTrustForm({ clientId: '', matterId: '', amount: 0, transactionType: 'deposit', reference: '' });
+    };
+
+    const handleSubmitInvoice = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!invoiceForm.clientId || !invoiceForm.matterId || !invoiceForm.totalAmount) return;
+        await onAddInvoice({
+            ...invoiceForm,
+            invoiceNumber: invoiceForm.invoiceNumber || `INV-LAW-${Date.now().toString().slice(-6)}`
+        });
+        setIsAddingInvoice(false);
+        setInvoiceForm({ matterId: '', clientId: '', invoiceNumber: '', totalAmount: 0, taxAmount: 0, status: 'pending', dueDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0] });
+    };
 
     return (
         <div className="flex h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans overflow-hidden">
@@ -516,18 +616,801 @@ export const LawManager: React.FC<LawManagerProps> = ({
                             </div>
                         </div>
                     )}
+
+                    {activeTab === 'clients' && (
+                        <div className="animate-fade-in space-y-12">
+                            <div className="flex justify-between items-end px-2">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Onboard & Manage</p>
+                                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Client Vault</h2>
+                                </div>
+                                <button 
+                                    onClick={() => setIsAddingClient(true)}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95 flex items-center gap-3"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Onboard New Client
+                                </button>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Client Name</th>
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Type</th>
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Contact Email</th>
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Phone</th>
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Address</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                        {clients.map(c => (
+                                            <tr key={c.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                <td className="py-6 px-10">
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white">{c.name}</p>
+                                                </td>
+                                                <td className="py-6 px-10">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                                                        c.clientType === 'corporate' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30' : 'bg-slate-100 text-slate-600 dark:bg-slate-800'
+                                                    }`}>
+                                                        {c.clientType}
+                                                    </span>
+                                                </td>
+                                                <td className="py-6 px-10 text-[11px] text-slate-600 dark:text-slate-400 font-bold">{c.email || 'N/A'}</td>
+                                                <td className="py-6 px-10 text-[11px] text-slate-600 dark:text-slate-400 font-bold">{c.phone || 'N/A'}</td>
+                                                <td className="py-6 px-10 text-[11px] text-slate-500 font-medium">{c.address || 'N/A'}</td>
+                                            </tr>
+                                        ))}
+                                        {clients.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="py-24 text-center">
+                                                    <Users className="w-12 h-12 text-slate-200 mx-auto mb-6" />
+                                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">No clients onboarded yet</p>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'billing' && (
+                        <div className="animate-fade-in space-y-12">
+                            <div className="flex justify-between items-end px-2">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Time Logs & Billing</p>
+                                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Time & Invoicing</h2>
+                                </div>
+                                <div className="flex gap-4">
+                                    <button 
+                                        onClick={() => setIsAddingTime(true)}
+                                        className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-200 flex items-center gap-2"
+                                    >
+                                        <Clock className="w-4 h-4" />
+                                        Log Hours
+                                    </button>
+                                    <button 
+                                        onClick={() => setIsAddingInvoice(true)}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 flex items-center gap-2"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Create Invoice
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                                <div className="space-y-6">
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter px-2">Time Registry</h3>
+                                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                                                    <th className="py-6 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Activity / Matter</th>
+                                                    <th className="py-6 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Duration</th>
+                                                    <th className="py-6 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                                {timeEntries.map(t => {
+                                                    const matterTitle = matters.find(m => m.id === t.matterId)?.title || 'Unknown Matter';
+                                                    return (
+                                                        <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                            <td className="py-6 px-8">
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white">{t.description}</p>
+                                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{matterTitle}</p>
+                                                            </td>
+                                                            <td className="py-6 px-8">
+                                                                <p className="text-xs font-black text-slate-800 dark:text-slate-200">{(t.durationMinutes / 60).toFixed(1)}h</p>
+                                                                <p className="text-[10px] text-slate-400 font-medium">@ KES {t.ratePerHour}/hr</p>
+                                                            </td>
+                                                            <td className="py-6 px-8">
+                                                                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                                                                    t.billingStatus === 'unbilled' ? 'bg-amber-100 text-amber-600' :
+                                                                    t.billingStatus === 'billed' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'
+                                                                }`}>
+                                                                    {t.billingStatus}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                {timeEntries.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={3} className="py-20 text-center">
+                                                            <Clock className="w-10 h-10 text-slate-200 mx-auto mb-4" />
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No logged hours found</p>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter px-2">Invoices Queue</h3>
+                                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                                                    <th className="py-6 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Invoice No. / Client</th>
+                                                    <th className="py-6 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Amount</th>
+                                                    <th className="py-6 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                                {invoices.map(inv => (
+                                                    <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                        <td className="py-6 px-8">
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white">{inv.invoiceNumber}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{getClientName(inv.clientId)}</p>
+                                                        </td>
+                                                        <td className="py-6 px-8">
+                                                            <p className="text-xs font-black text-slate-800 dark:text-slate-200">KES {inv.totalAmount.toLocaleString()}</p>
+                                                            {inv.dueDate && <p className="text-[10px] text-slate-400 font-medium">Due: {inv.dueDate}</p>}
+                                                        </td>
+                                                        <td className="py-6 px-8">
+                                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                                                                inv.status === 'paid' ? 'bg-emerald-100 text-emerald-600' :
+                                                                inv.status === 'pending' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
+                                                            }`}>
+                                                                {inv.status}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {invoices.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={3} className="py-20 text-center">
+                                                            <CreditCard className="w-10 h-10 text-slate-200 mx-auto mb-4" />
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No invoices generated yet</p>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'accounting' && (
+                        <div className="animate-fade-in space-y-12">
+                            <div className="flex justify-between items-end px-2">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Escrow & Trust Records</p>
+                                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Trust Accounting Ledger</h2>
+                                </div>
+                                <button 
+                                    onClick={() => setIsAddingTrustTx(true)}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95 flex items-center gap-3"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Post Trust Transaction
+                                </button>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm max-w-md animate-fade-in-up">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Aggregate Escrow Balance</p>
+                                <h3 className="text-4xl font-black text-emerald-600 tracking-tighter">KES {stats.trustBalance.toLocaleString()}</h3>
+                                <p className="text-[10px] text-slate-400 mt-2 font-medium">Legally isolated and fully audited client trust funds.</p>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Date</th>
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Client / Matter</th>
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Reference</th>
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Type</th>
+                                            <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                        {trustTransactions.map(tx => {
+                                            const matterTitle = matters.find(m => m.id === tx.matterId)?.title || 'General Account';
+                                            return (
+                                                <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                    <td className="py-6 px-10 text-xs font-bold text-slate-500">
+                                                        {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : 'N/A'}
+                                                    </td>
+                                                    <td className="py-6 px-10">
+                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{getClientName(tx.clientId)}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{matterTitle}</p>
+                                                    </td>
+                                                    <td className="py-6 px-10 text-xs text-slate-600 dark:text-slate-400 font-medium">{tx.reference || 'N/A'}</td>
+                                                    <td className="py-6 px-10">
+                                                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                                                            tx.transactionType === 'deposit' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' :
+                                                            tx.transactionType === 'disbursement' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/20' : 'bg-slate-100 text-slate-500'
+                                                        }`}>
+                                                            {tx.transactionType}
+                                                        </span>
+                                                    </td>
+                                                    <td className={`py-6 px-10 text-right text-sm font-black ${
+                                                        tx.transactionType === 'deposit' ? 'text-emerald-600' : 'text-rose-600'
+                                                    }`}>
+                                                        {tx.transactionType === 'deposit' ? '+' : '-'} KES {tx.amount.toLocaleString()}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {trustTransactions.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="py-24 text-center">
+                                                    <Wallet className="w-12 h-12 text-slate-200 mx-auto mb-6" />
+                                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">No ledger transactions posted yet</p>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'conflicts' && (
+                        <div className="animate-fade-in space-y-12">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Ethical Screening</p>
+                                <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Compliance Conflict Screening</h2>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm max-w-xl space-y-6">
+                                <p className="text-sm text-slate-500 font-medium">Verify that introducing a new entity or matter does not conflict with our current client database and active matter registry.</p>
+                                <div className="flex gap-4">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Enter client name, counterparty, or key keyword..." 
+                                        value={conflictSearchQuery}
+                                        onChange={e => setConflictSearchQuery(e.target.value)}
+                                        className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    />
+                                    <button 
+                                        onClick={() => {
+                                            if (!conflictSearchQuery.trim()) return;
+                                            const matches: { type: 'client' | 'matter'; name: string; detail: string }[] = [];
+                                            
+                                            clients.forEach(c => {
+                                                if (c.name.toLowerCase().includes(conflictSearchQuery.toLowerCase())) {
+                                                    matches.push({ type: 'client', name: c.name, detail: `Onboarded as ${c.clientType} client` });
+                                                }
+                                            });
+
+                                            matters.forEach(m => {
+                                                if (m.title.toLowerCase().includes(conflictSearchQuery.toLowerCase()) || m.description?.toLowerCase().includes(conflictSearchQuery.toLowerCase())) {
+                                                    matches.push({ type: 'matter', name: m.title, detail: `Active Case Ref: ${m.caseNumber || 'Internal'}` });
+                                                }
+                                            });
+
+                                            setConflictResults({
+                                                hasConflict: matches.length > 0,
+                                                matches,
+                                                checked: true
+                                            });
+                                        }}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest px-8 py-4 rounded-2xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
+                                    >
+                                        Screen Database
+                                    </button>
+                                </div>
+                            </div>
+
+                            {conflictResults.checked && (
+                                <div className="space-y-6 max-w-xl animate-fade-in-up">
+                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest px-2">Screening Results</h3>
+                                    
+                                    {conflictResults.hasConflict ? (
+                                        <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900 p-8 rounded-[3rem] space-y-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-3 bg-rose-100 dark:bg-rose-900 rounded-2xl text-rose-600">
+                                                    <AlertIcon className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black text-rose-800 dark:text-rose-200 uppercase tracking-wide leading-none mb-1">Potential Conflict Detected</h4>
+                                                    <p className="text-xs text-rose-700 dark:text-rose-400 font-medium">Matches found in the client or case directory. Proceed with caution.</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="divide-y divide-rose-100 dark:divide-rose-900/50">
+                                                {conflictResults.matches.map((m, idx) => (
+                                                    <div key={idx} className="py-4 first:pt-0 last:pb-0 flex justify-between items-center">
+                                                        <div>
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{m.name}</p>
+                                                            <p className="text-[10px] text-slate-500 font-medium">{m.detail}</p>
+                                                        </div>
+                                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-rose-100 dark:bg-rose-900 text-rose-600 rounded-lg">{m.type}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 p-8 rounded-[3rem] flex items-center gap-4">
+                                            <div className="p-3 bg-emerald-100 dark:bg-emerald-900 rounded-2xl text-emerald-600">
+                                                <CheckCircle className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-emerald-800 dark:text-emerald-200 uppercase tracking-wide leading-none mb-1">Clear to Onboard</h4>
+                                                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">No conflict matches found for "{conflictSearchQuery}" in our system records.</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </main>
 
-            {/* Modals for creation would go here */}
+            {/* Modals for creation */}
             {isAddingClient && (
                 <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6 animate-fade-in" onClick={() => setIsAddingClient(false)}>
                     <div className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-fade-in-up" onClick={e => e.stopPropagation()}>
                         <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                            <h3 className="text-2xl font-black uppercase tracking-tighter">Onboard New Client</h3>
-                            <button onClick={() => setIsAddingClient(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X/></button>
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Onboard New Client</h3>
+                            <button onClick={() => setIsAddingClient(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 hover:text-slate-800 dark:hover:text-white"><X className="w-6 h-6" /></button>
                         </div>
-                        {/* Form content */}
+                        <form onSubmit={handleSubmitClient} className="p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Client Name *</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={clientForm.name || ''} 
+                                        onChange={e => setClientForm({ ...clientForm, name: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                        placeholder="Full Name / Company Name"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Client Type</label>
+                                    <select 
+                                        value={clientForm.clientType || 'individual'} 
+                                        onChange={e => setClientForm({ ...clientForm, clientType: e.target.value as any })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="individual">Individual</option>
+                                        <option value="corporate">Corporate</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Email Address</label>
+                                    <input 
+                                        type="email" 
+                                        value={clientForm.email || ''} 
+                                        onChange={e => setClientForm({ ...clientForm, email: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                        placeholder="client@example.com"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Phone Number</label>
+                                    <input 
+                                        type="text" 
+                                        value={clientForm.phone || ''} 
+                                        onChange={e => setClientForm({ ...clientForm, phone: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                        placeholder="e.g. 0712345678"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Physical Address</label>
+                                    <textarea 
+                                        value={clientForm.address || ''} 
+                                        onChange={e => setClientForm({ ...clientForm, address: e.target.value })}
+                                        rows={3}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all resize-none"
+                                        placeholder="Office location, building, street..."
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-4 border-t border-slate-50 dark:border-slate-800 pt-6">
+                                <button type="button" onClick={() => setIsAddingClient(false)} className="px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">Onboard Client</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isAddingMatter && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6 animate-fade-in" onClick={() => setIsAddingMatter(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Initiate New Legal Matter</h3>
+                            <button onClick={() => setIsAddingMatter(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 hover:text-slate-800 dark:hover:text-white"><X className="w-6 h-6" /></button>
+                        </div>
+                        <form onSubmit={handleSubmitMatter} className="p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="md:col-span-2">
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Matter Title *</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={matterForm.title || ''} 
+                                        onChange={e => setMatterForm({ ...matterForm, title: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                        placeholder="e.g. Land Acquisition - Runda Phase 2"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Client *</label>
+                                    <select 
+                                        required
+                                        value={matterForm.clientId || ''} 
+                                        onChange={e => setMatterForm({ ...matterForm, clientId: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="">Select a Client...</option>
+                                        {clients.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Case Number / Reference</label>
+                                    <input 
+                                        type="text" 
+                                        value={matterForm.caseNumber || ''} 
+                                        onChange={e => setMatterForm({ ...matterForm, caseNumber: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                        placeholder="e.g. MAT-2025-001"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Practice Area *</label>
+                                    <select 
+                                        value={matterForm.practiceArea || 'Litigation'} 
+                                        onChange={e => setMatterForm({ ...matterForm, practiceArea: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="Conveyancing">Conveyancing</option>
+                                        <option value="Succession">Succession</option>
+                                        <option value="Litigation">Litigation</option>
+                                        <option value="Corporate">Corporate</option>
+                                        <option value="Family Law">Family Law</option>
+                                        <option value="Commercial">Commercial</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Priority</label>
+                                    <select 
+                                        value={matterForm.priority || 'medium'} 
+                                        onChange={e => setMatterForm({ ...matterForm, priority: e.target.value as any })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="urgent">Urgent</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Lead Counsel</label>
+                                    <select 
+                                        value={matterForm.managerId || ''} 
+                                        onChange={e => setMatterForm({ ...matterForm, managerId: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        {users.map(u => (
+                                            <option key={u.id} value={u.id}>{u.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Status</label>
+                                    <select 
+                                        value={matterForm.status || 'open'} 
+                                        onChange={e => setMatterForm({ ...matterForm, status: e.target.value as any })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="open">Open</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="closed">Closed</option>
+                                        <option value="archived">Archived</option>
+                                    </select>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Description</label>
+                                    <textarea 
+                                        value={matterForm.description || ''} 
+                                        onChange={e => setMatterForm({ ...matterForm, description: e.target.value })}
+                                        rows={3}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all resize-none"
+                                        placeholder="Key objectives, milestones, details..."
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-4 border-t border-slate-50 dark:border-slate-800 pt-6">
+                                <button type="button" onClick={() => setIsAddingMatter(false)} className="px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">Initiate Matter</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isAddingTime && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6 animate-fade-in" onClick={() => setIsAddingTime(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Log Hours</h3>
+                            <button onClick={() => setIsAddingTime(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 hover:text-slate-800 dark:hover:text-white"><X className="w-6 h-6" /></button>
+                        </div>
+                        <form onSubmit={handleSubmitTime} className="p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="md:col-span-2">
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Select Matter *</label>
+                                    <select 
+                                        required
+                                        value={timeForm.matterId || ''} 
+                                        onChange={e => setTimeForm({ ...timeForm, matterId: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="">Choose Matter...</option>
+                                        {matters.map(m => (
+                                            <option key={m.id} value={m.id}>{m.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Activity Date *</label>
+                                    <input 
+                                        type="date" 
+                                        required
+                                        value={timeForm.activityDate || ''} 
+                                        onChange={e => setTimeForm({ ...timeForm, activityDate: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Duration (Minutes) *</label>
+                                    <input 
+                                        type="number" 
+                                        required
+                                        min={15}
+                                        step={15}
+                                        value={timeForm.durationMinutes || 60} 
+                                        onChange={e => setTimeForm({ ...timeForm, durationMinutes: parseInt(e.target.value) })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Hourly Rate (KES) *</label>
+                                    <input 
+                                        type="number" 
+                                        required
+                                        min={0}
+                                        value={timeForm.ratePerHour || 5000} 
+                                        onChange={e => setTimeForm({ ...timeForm, ratePerHour: parseInt(e.target.value) })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Billing Status</label>
+                                    <select 
+                                        value={timeForm.billingStatus || 'unbilled'} 
+                                        onChange={e => setTimeForm({ ...timeForm, billingStatus: e.target.value as any })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="unbilled">Unbilled</option>
+                                        <option value="billed">Billed</option>
+                                        <option value="waived">Waived</option>
+                                        <option value="pro-bono">Pro-Bono</option>
+                                    </select>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Activity Description *</label>
+                                    <textarea 
+                                        required
+                                        value={timeForm.description || ''} 
+                                        onChange={e => setTimeForm({ ...timeForm, description: e.target.value })}
+                                        rows={3}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all resize-none"
+                                        placeholder="Briefly describe the task completed..."
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-4 border-t border-slate-50 dark:border-slate-800 pt-6">
+                                <button type="button" onClick={() => setIsAddingTime(false)} className="px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">Log Time</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isAddingTrustTx && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6 animate-fade-in" onClick={() => setIsAddingTrustTx(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Post Trust Ledger Record</h3>
+                            <button onClick={() => setIsAddingTrustTx(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 hover:text-slate-800 dark:hover:text-white"><X className="w-6 h-6" /></button>
+                        </div>
+                        <form onSubmit={handleSubmitTrustTx} className="p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Client *</label>
+                                    <select 
+                                        required
+                                        value={trustForm.clientId || ''} 
+                                        onChange={e => setTrustForm({ ...trustForm, clientId: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="">Select Client...</option>
+                                        {clients.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Associated Matter</label>
+                                    <select 
+                                        value={trustForm.matterId || ''} 
+                                        onChange={e => setTrustForm({ ...trustForm, matterId: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="">General Account (No Matter)</option>
+                                        {matters.filter(m => !trustForm.clientId || m.clientId === trustForm.clientId).map(m => (
+                                            <option key={m.id} value={m.id}>{m.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Transaction Type</label>
+                                    <select 
+                                        value={trustForm.transactionType || 'deposit'} 
+                                        onChange={e => setTrustForm({ ...trustForm, transactionType: e.target.value as any })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="deposit">Deposit (Inflow)</option>
+                                        <option value="disbursement">Disbursement (Outflow)</option>
+                                        <option value="transfer">Transfer</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Amount (KES) *</label>
+                                    <input 
+                                        type="number" 
+                                        required
+                                        min={1}
+                                        value={trustForm.amount || 0} 
+                                        onChange={e => setTrustForm({ ...trustForm, amount: parseInt(e.target.value) })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Reference / Note *</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={trustForm.reference || ''} 
+                                        onChange={e => setTrustForm({ ...trustForm, reference: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                        placeholder="e.g. Bank Slip Reference, Cheque No, Purpose"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-4 border-t border-slate-50 dark:border-slate-800 pt-6">
+                                <button type="button" onClick={() => setIsAddingTrustTx(false)} className="px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">Post Transaction</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isAddingInvoice && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6 animate-fade-in" onClick={() => setIsAddingInvoice(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Generate Legal Invoice</h3>
+                            <button onClick={() => setIsAddingInvoice(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 hover:text-slate-800 dark:hover:text-white"><X className="w-6 h-6" /></button>
+                        </div>
+                        <form onSubmit={handleSubmitInvoice} className="p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Associated Client *</label>
+                                    <select 
+                                        required
+                                        value={invoiceForm.clientId || ''} 
+                                        onChange={e => setInvoiceForm({ ...invoiceForm, clientId: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="">Select Client...</option>
+                                        {clients.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Associated Matter *</label>
+                                    <select 
+                                        required
+                                        value={invoiceForm.matterId || ''} 
+                                        onChange={e => setInvoiceForm({ ...invoiceForm, matterId: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    >
+                                        <option value="">Choose Matter...</option>
+                                        {matters.filter(m => !invoiceForm.clientId || m.clientId === invoiceForm.clientId).map(m => (
+                                            <option key={m.id} value={m.id}>{m.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Invoice Number *</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={invoiceForm.invoiceNumber || ''} 
+                                        onChange={e => setInvoiceForm({ ...invoiceForm, invoiceNumber: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                        placeholder="e.g. INV-LAW-1001"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Due Date *</label>
+                                    <input 
+                                        type="date" 
+                                        required
+                                        value={invoiceForm.dueDate || ''} 
+                                        onChange={e => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Total Fee Amount (KES) *</label>
+                                    <input 
+                                        type="number" 
+                                        required
+                                        min={1}
+                                        value={invoiceForm.totalAmount || 0} 
+                                        onChange={e => setInvoiceForm({ ...invoiceForm, totalAmount: parseInt(e.target.value) })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Tax Amount (KES)</label>
+                                    <input 
+                                        type="number" 
+                                        min={0}
+                                        value={invoiceForm.taxAmount || 0} 
+                                        onChange={e => setInvoiceForm({ ...invoiceForm, taxAmount: parseInt(e.target.value) })}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-4 border-t border-slate-50 dark:border-slate-800 pt-6">
+                                <button type="button" onClick={() => setIsAddingInvoice(false)} className="px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">Create Invoice</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
