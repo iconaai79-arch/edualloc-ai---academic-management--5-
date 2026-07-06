@@ -1318,12 +1318,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             {propertyActiveSubTab === 'landlords' && LandlordsTab()}
             {propertyActiveSubTab === 'tenants' && TenantsTab()}
             {propertyActiveSubTab === 'leases' && LeasesTab()}
-            {propertyActiveSubTab === 'payments' && PaymentsTab()}
+            {propertyActiveSubTab === 'payments' && <PaymentsTab />}
             {propertyActiveSubTab === 'maintenance' && MaintenanceTab()}
-            {propertyActiveSubTab === 'invoices' && InvoicesTab()}
-            {propertyActiveSubTab === 'notices' && NoticesTab()}
-            {propertyActiveSubTab === 'utilities' && UtilitiesTab()}
-            {propertyActiveSubTab === 'broadcasts' && BroadcastsTab()}
+            {propertyActiveSubTab === 'invoices' && <InvoicesTab />}
+            {propertyActiveSubTab === 'notices' && <NoticesTab />}
+            {propertyActiveSubTab === 'utilities' && <UtilitiesTab />}
+            {propertyActiveSubTab === 'broadcasts' && <BroadcastsTab />}
         </div>
     );
 
@@ -1816,7 +1816,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     };
 
     const LeasesTab = () => {
-        const expiringLeases = useMemo(() => {
+        const expiringLeases = (() => {
             const today = new Date();
             const sixtyDays = new Date();
             sixtyDays.setDate(today.getDate() + 60);
@@ -1825,7 +1825,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 const end = new Date(l.endDate);
                 return end >= today && end <= sixtyDays;
             });
-        }, [leases]);
+        })();
 
         const filteredLeases = leases.filter(l => {
             const tenant = tenants.find(t => t.id === l.tenantId);
@@ -5879,7 +5879,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
             )}
 
-            {reportsSubTab === 'statements' && StatementsManager()}
+            {reportsSubTab === 'statements' && <StatementsManager />}
 
             {reportsSubTab === 'arrears' && (
                 <ArrearsManager
