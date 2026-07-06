@@ -5,7 +5,8 @@ import {
     PMPropertyType, PMUnitStatus, PMLeaseStatus, PMPaymentMethod, PMPaymentType,
     PMPriority, PMLandlord, PMDisbursement, PMInquiry, PMInquiryStatus,
     CompanyDetails, PMInvoice, PMInvoiceStatus, SmsConfig, Department, Subject, Course, LetterheadConfig, UserUpdateData, PMSettings,
-    PMExpenseVoucher, PMNoticeLetter, PMUtilityReading, PMNoticeStatus, PMNoticeType, PMExpenseCategory, PMExpenseStatus
+    PMExpenseVoucher, PMNoticeLetter, PMUtilityReading, PMNoticeStatus, PMNoticeType, PMExpenseCategory, PMExpenseStatus,
+    PMInspection, PMDepositRefund
 } from '../types';
 import { apiService } from '../services/apiService';
 import { PlusIcon } from './icons/PlusIcon';
@@ -109,7 +110,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const institutionId = currentInstitution?.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'expenses' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices' | 'notices' | 'utilities' | 'broadcasts'>('properties');
-    const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission' | 'arrears'>('analytics');
+    const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission' | 'arrears' | 'inspections' | 'refunds'>('analytics');
     const [expenses, setExpenses] = useState<PMExpenseVoucher[]>([]);
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
@@ -128,6 +129,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [showNoticeModal, setShowNoticeModal] = useState(false);
     const [utilityReadings, setUtilityReadings] = useState<PMUtilityReading[]>([]);
     const [showUtilityModal, setShowUtilityModal] = useState(false);
+    const [inspections, setInspections] = useState<PMInspection[]>([]);
+    const [showInspectionModal, setShowInspectionModal] = useState(false);
+    const [editingInspection, setEditingInspection] = useState<PMInspection | null>(null);
+
+    const [depositRefunds, setDepositRefunds] = useState<PMDepositRefund[]>([]);
+    const [showRefundModal, setShowRefundModal] = useState(false);
+    const [editingRefund, setEditingRefund] = useState<PMDepositRefund | null>(null);
     const [renewingLease, setRenewingLease] = useState<PMLease | null>(null);
     const [landlordSignatureFile, setLandlordSignatureFile] = useState<File | null>(null);
     const [tenantSignatureFile, setTenantSignatureFile] = useState<File | null>(null);
@@ -190,6 +198,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [editingInvoice, setEditingInvoice] = useState<PMInvoice | null>(null);
     const [editingUnit, setEditingUnit] = useState<PMUnit | null>(null);
     const [editingTenant, setEditingTenant] = useState<PMTenant | null>(null);
+    const [refundSelectedLeaseId, setRefundSelectedLeaseId] = useState('');
     const [isAddingStaff, setIsAddingStaff] = useState(false);
     const [commStartDate, setCommStartDate] = useState('');
     const [commEndDate, setCommEndDate] = useState('');
@@ -276,10 +285,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 apiService.fetchModuleRecords<PMSettings>('pm_settings', institutionId),
                 apiService.fetchModuleRecords<PMNoticeLetter>('pm_notices', institutionId),
                 apiService.fetchModuleRecords<PMExpenseVoucher>('pm_expenses', institutionId),
-                apiService.fetchModuleRecords<PMUtilityReading>('pm_utility_readings', institutionId)
+                apiService.fetchModuleRecords<PMUtilityReading>('pm_utility_readings', institutionId),
+                apiService.fetchModuleRecords<PMInspection>('pm_inspections', institutionId),
+                apiService.fetchModuleRecords<PMDepositRefund>('pm_deposit_refunds', institutionId)
             ]);
             
-            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv, stg, nt, ex, utr] = results as any[];
+            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv, stg, nt, ex, utr, insp, ref] = results as any[];
 
             setLandlords(ls || []);
             setProperties(ps || []);
@@ -295,6 +306,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             setNotices(nt || []);
             setExpenses(ex || []);
             setUtilityReadings(utr || []);
+            setInspections(insp || []);
+            setDepositRefunds(ref || []);
             
             if (stg && stg.length > 0) {
                 setPmSettings(stg[0]);
@@ -762,6 +775,81 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             await apiService.deleteModuleRecord('pm_tenants', id);
             loadData();
         } catch (e: any) { alert(e.message || "Failed to delete tenant"); console.error(e); }
+    };
+
+    const handleSaveInspection = async (data: Partial<PMInspection>) => {
+        try {
+            const inspectionId = data.id || `insp_${Date.now()}`;
+            const inspectionData: PMInspection = {
+                id: inspectionId,
+                leaseId: data.leaseId || '',
+                tenantId: data.tenantId || '',
+                inspectionDate: data.inspectionDate || new Date().toISOString(),
+                inspectedBy: data.inspectedBy || currentUser?.name || 'Inspector',
+                status: data.status || 'Draft',
+                structuralCondition: data.structuralCondition,
+                structuralComments: data.structuralComments,
+                cleaningCondition: data.cleaningCondition,
+                cleaningComments: data.cleaningComments,
+                fittingsCondition: data.fittingsCondition,
+                fittingsComments: data.fittingsComments,
+                repairsRequired: data.repairsRequired,
+                estimatedRepairCost: data.estimatedRepairCost || 0,
+                tenantSignoff: data.tenantSignoff || false,
+                institutionId,
+                createdAt: data.createdAt || new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('pm_inspections', inspectionData);
+            setShowInspectionModal(false);
+            setEditingInspection(null);
+            loadData();
+            alert("Inspection report saved successfully!");
+        } catch (e: any) { alert(e.message || "Failed to save inspection"); console.error(e); }
+    };
+
+    const handleDeleteInspection = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this inspection record?")) return;
+        try {
+            await apiService.deleteModuleRecord('pm_inspections', id);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to delete inspection"); console.error(e); }
+    };
+
+    const handleSaveRefund = async (data: Partial<PMDepositRefund>) => {
+        try {
+            const refundId = data.id || `ref_${Date.now()}`;
+            const refundData: PMDepositRefund = {
+                id: refundId,
+                leaseId: data.leaseId || '',
+                tenantId: data.tenantId || '',
+                statementDate: data.statementDate || new Date().toISOString().split('T')[0],
+                originalDeposit: data.originalDeposit || 0,
+                rentArrearsDeduction: data.rentArrearsDeduction || 0,
+                utilityArrearsDeduction: data.utilityArrearsDeduction || 0,
+                damageRepairDeduction: data.damageRepairDeduction || 0,
+                otherDeductions: data.otherDeductions || 0,
+                otherDeductionsComments: data.otherDeductionsComments,
+                refundAmount: data.refundAmount || 0,
+                paymentMethod: data.paymentMethod,
+                paymentReference: data.paymentReference,
+                status: data.status || 'Pending Approval',
+                institutionId,
+                createdAt: data.createdAt || new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('pm_deposit_refunds', refundData);
+            setShowRefundModal(false);
+            setEditingRefund(null);
+            loadData();
+            alert("Deposit refund statement saved successfully!");
+        } catch (e: any) { alert(e.message || "Failed to save deposit refund"); console.error(e); }
+    };
+
+    const handleDeleteRefund = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this deposit refund statement?")) return;
+        try {
+            await apiService.deleteModuleRecord('pm_deposit_refunds', id);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to delete deposit refund"); console.error(e); }
     };
 
     const handleSaveLease = async (data: Partial<PMLease>) => {
@@ -5474,6 +5562,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         { id: 'statements', label: 'Financial Statements', icon: CurrencyIcon },
                         { id: 'commission', label: 'Commission Report', icon: ChartBarIcon },
                         { id: 'arrears', label: 'Arrears Manager', icon: DocumentTextIcon },
+                        { id: 'inspections', label: 'Move-out Inspections', icon: ListIcon },
+                        { id: 'refunds', label: 'Deposit Refunds', icon: BanknotesIcon },
                     ].map(sub => (
                         <button
                             key={sub.id}
@@ -5899,6 +5989,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 />
             )}
 
+            {reportsSubTab === 'inspections' && <InspectionsManager />}
+            {reportsSubTab === 'refunds' && <DepositRefundsManager />}
+
             {reportsSubTab === 'commission' && (() => {
                 // Apply date range filter
                 const filteredPayments = payments.filter(p => {
@@ -6113,6 +6206,234 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             })()}
         </div>
     );
+
+    const InspectionsManager = () => {
+        const [inspSearch, setInspSearch] = useState('');
+        const [statusFilter, setStatusFilter] = useState('all');
+
+        const filtered = inspections.filter(insp => {
+            const lease = leases.find(l => l.id === insp.leaseId);
+            const tenant = tenants.find(t => t.id === (lease?.tenantId || insp.tenantId));
+            const matchesSearch = !inspSearch || (tenant?.name || '').toLowerCase().includes(inspSearch.toLowerCase());
+            const matchesStatus = statusFilter === 'all' || insp.status === statusFilter;
+            return matchesSearch && matchesStatus;
+        });
+
+        return (
+            <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider italic">Move-Out & Vacate Inspections</h3>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Record physical unit condition before lease termination</p>
+                    </div>
+                    <button
+                        onClick={() => { setEditingInspection(null); setShowInspectionModal(true); }}
+                        className="btn-primary flex items-center justify-center gap-2 h-12 bg-blue-600 hover:bg-blue-700 text-white uppercase tracking-widest text-[10px] font-black px-6 rounded-2xl shadow-lg transition-all"
+                    >
+                        <PlusIcon className="w-4 h-4" /> Conduct Inspection
+                    </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <input
+                        type="search"
+                        placeholder="Search by Tenant Name..."
+                        value={inspSearch}
+                        onChange={e => setInspSearch(e.target.value)}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold outline-none text-slate-700 dark:text-slate-200 shadow-sm"
+                    />
+                    <select
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value)}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none shadow-sm"
+                    >
+                        <option value="all">All Statuses</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                <tr>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Tenant / Unit</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Repairs Needed</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Est. Cost</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.map(insp => {
+                                    const lease = leases.find(l => l.id === insp.leaseId);
+                                    const tenant = tenants.find(t => t.id === (lease?.tenantId || insp.tenantId));
+                                    const unit = units.find(u => u.id === lease?.unitId);
+                                    return (
+                                        <tr key={insp.id} className="border-t border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                            <td className="p-5 text-xs text-slate-500 font-bold">{new Date(insp.inspectionDate).toLocaleDateString()}</td>
+                                            <td className="p-5">
+                                                <div className="font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || '—'}</div>
+                                                <div className="text-[9px] text-slate-400 uppercase font-black">Unit {unit?.unitNumber || '—'}</div>
+                                            </td>
+                                            <td className="p-5 text-xs text-slate-600 dark:text-slate-300">
+                                                {insp.repairsRequired || <span className="text-slate-400 italic">None</span>}
+                                            </td>
+                                            <td className="p-5 text-right font-black text-slate-900 dark:text-white text-xs">KES {insp.estimatedRepairCost.toLocaleString()}</td>
+                                            <td className="p-5">
+                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${
+                                                    insp.status === 'Completed' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-100 dark:border-emerald-900/30' : 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100'
+                                                }`}>
+                                                    {insp.status}
+                                                </span>
+                                            </td>
+                                            <td className="p-5 text-right space-x-2 whitespace-nowrap">
+                                                <button onClick={() => { setEditingInspection(insp); setShowInspectionModal(true); }} className="p-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl" title="Edit"><PencilIcon className="w-4 h-4" /></button>
+                                                <button onClick={() => handleDeleteInspection(insp.id)} className="p-2.5 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl" title="Delete"><TrashIcon className="w-4 h-4" /></button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {filtered.length === 0 && (
+                                    <tr><td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-widest italic">No inspection forms found</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const DepositRefundsManager = () => {
+        const [refSearch, setRefSearch] = useState('');
+        const [statusFilter, setStatusFilter] = useState('all');
+
+        const filtered = depositRefunds.filter(ref => {
+            const lease = leases.find(l => l.id === ref.leaseId);
+            const tenant = tenants.find(t => t.id === (lease?.tenantId || ref.tenantId));
+            const matchesSearch = !refSearch || (tenant?.name || '').toLowerCase().includes(refSearch.toLowerCase());
+            const matchesStatus = statusFilter === 'all' || ref.status === statusFilter;
+            return matchesSearch && matchesStatus;
+        });
+
+        const handleApproveRefund = async (refund: PMDepositRefund) => {
+            try {
+                const updated = { ...refund, status: 'Approved' as const };
+                await apiService.saveModuleRecord('pm_deposit_refunds', updated);
+                loadData();
+                alert("Deposit refund statement approved!");
+            } catch (e: any) { alert(e.message || "Failed to approve refund"); }
+        };
+
+        const handlePayRefund = async (refund: PMDepositRefund) => {
+            try {
+                const updated = { ...refund, status: 'Paid' as const };
+                await apiService.saveModuleRecord('pm_deposit_refunds', updated);
+                loadData();
+                alert("Deposit refund statement marked as Paid!");
+            } catch (e: any) { alert(e.message || "Failed to mark refund as Paid"); }
+        };
+
+        return (
+            <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-wider italic">Deposit Refund Statements</h3>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Generate final settlement statements for vacating tenants</p>
+                    </div>
+                    <button
+                        onClick={() => { setEditingRefund(null); setShowRefundModal(true); }}
+                        className="btn-primary flex items-center justify-center gap-2 h-12 bg-blue-600 hover:bg-blue-700 text-white uppercase tracking-widest text-[10px] font-black px-6 rounded-2xl shadow-lg transition-all"
+                    >
+                        <PlusIcon className="w-4 h-4" /> Create Refund Statement
+                    </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <input
+                        type="search"
+                        placeholder="Search by Tenant Name..."
+                        value={refSearch}
+                        onChange={e => setRefSearch(e.target.value)}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold outline-none text-slate-700 dark:text-slate-200 shadow-sm"
+                    />
+                    <select
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value)}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none shadow-sm"
+                    >
+                        <option value="all">All Statuses</option>
+                        <option value="Pending Approval">Pending Approval</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Paid">Paid</option>
+                    </select>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                <tr>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Tenant / Unit</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Original Deposit</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Total Deductions</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Refund Amount</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                    <th className="p-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.map(ref => {
+                                    const lease = leases.find(l => l.id === ref.leaseId);
+                                    const tenant = tenants.find(t => t.id === (lease?.tenantId || ref.tenantId));
+                                    const unit = units.find(u => u.id === lease?.unitId);
+                                    const deductions = ref.rentArrearsDeduction + ref.utilityArrearsDeduction + ref.damageRepairDeduction + ref.otherDeductions;
+                                    return (
+                                        <tr key={ref.id} className="border-t border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                            <td className="p-5 text-xs text-slate-500 font-bold">{new Date(ref.statementDate).toLocaleDateString()}</td>
+                                            <td className="p-5">
+                                                <div className="font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || '—'}</div>
+                                                <div className="text-[9px] text-slate-400 uppercase font-black">Unit {unit?.unitNumber || '—'}</div>
+                                            </td>
+                                            <td className="p-5 text-right font-black text-slate-600 dark:text-slate-400 text-xs">KES {ref.originalDeposit.toLocaleString()}</td>
+                                            <td className="p-5 text-right font-black text-rose-500 text-xs">- KES {deductions.toLocaleString()}</td>
+                                            <td className="p-5 text-right font-black text-emerald-600 text-xs">KES {ref.refundAmount.toLocaleString()}</td>
+                                            <td className="p-5">
+                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${
+                                                    ref.status === 'Paid' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-100 dark:border-emerald-950/30' :
+                                                    ref.status === 'Approved' ? 'bg-blue-50 dark:bg-blue-955/20 text-blue-600 border-blue-100 dark:border-blue-955/30' :
+                                                    'bg-amber-50 dark:bg-amber-955/20 text-amber-600 border-amber-100'
+                                                }`}>
+                                                    {ref.status}
+                                                </span>
+                                            </td>
+                                            <td className="p-5 text-right space-x-2 whitespace-nowrap">
+                                                {ref.status === 'Pending Approval' && (
+                                                    <button onClick={() => handleApproveRefund(ref)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider">Approve</button>
+                                                )}
+                                                {ref.status === 'Approved' && (
+                                                    <button onClick={() => handlePayRefund(ref)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider">Disburse</button>
+                                                )}
+                                                <button onClick={() => { setEditingRefund(ref); setShowRefundModal(true); }} className="p-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl" title="Edit"><PencilIcon className="w-4 h-4" /></button>
+                                                <button onClick={() => handleDeleteRefund(ref.id)} className="p-2.5 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl" title="Delete"><TrashIcon className="w-4 h-4" /></button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {filtered.length === 0 && (
+                                    <tr><td colSpan={7} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-widest italic">No deposit refund statements found</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const renderTabs = () => (
         <div className="relative group/tabs mb-8">
@@ -7939,6 +8260,260 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </form>
             </Modal>
 
+            <Modal show={showInspectionModal} onClose={() => { setShowInspectionModal(false); setEditingInspection(null); }} title={editingInspection ? "Edit Inspection Form" : "Move-Out Inspection Form"}>
+                <form key={editingInspection?.id || 'new'} onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleSaveInspection({
+                        leaseId: formData.get('leaseId') as string,
+                        tenantId: leases.find(l => l.id === formData.get('leaseId'))?.tenantId || '',
+                        inspectionDate: formData.get('inspectionDate') as string,
+                        inspectedBy: formData.get('inspectedBy') as string,
+                        status: formData.get('status') as any,
+                        structuralCondition: formData.get('structuralCondition') as string,
+                        structuralComments: formData.get('structuralComments') as string,
+                        cleaningCondition: formData.get('cleaningCondition') as string,
+                        cleaningComments: formData.get('cleaningComments') as string,
+                        fittingsCondition: formData.get('fittingsCondition') as string,
+                        fittingsComments: formData.get('fittingsComments') as string,
+                        repairsRequired: formData.get('repairsRequired') as string,
+                        estimatedRepairCost: parseFloat(formData.get('estimatedRepairCost') as string) || 0,
+                        tenantSignoff: formData.get('tenantSignoff') === 'on',
+                        id: editingInspection?.id,
+                        createdAt: editingInspection?.createdAt
+                    });
+                }} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 no-scrollbar">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Active Lease</label>
+                            <select name="leaseId" required defaultValue={editingInspection?.leaseId || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white">
+                                <option value="">Choose Lease...</option>
+                                {leases.map(l => {
+                                    const t = tenants.find(ten => ten.id === l.tenantId);
+                                    const u = units.find(un => un.id === l.unitId);
+                                    return <option key={l.id} value={l.id}>{t?.name || 'Unknown'} - Unit {u?.unitNumber || '—'}</option>;
+                                })}
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Inspection Date</label>
+                            <input name="inspectionDate" type="date" required defaultValue={editingInspection?.inspectionDate ? editingInspection.inspectionDate.split('T')[0] : new Date().toISOString().split('T')[0]} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Inspected By</label>
+                            <input name="inspectedBy" defaultValue={editingInspection?.inspectedBy || currentUser?.name || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="Inspector Name" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Report Status</label>
+                            <select name="status" defaultValue={editingInspection?.status || 'Draft'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white">
+                                <option value="Draft">Draft</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 dark:border-slate-700/50 my-4 pt-4 space-y-4">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Condition Checklist</h4>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Structural</label>
+                                <select name="structuralCondition" defaultValue={editingInspection?.structuralCondition || 'Good'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white">
+                                    <option value="Good">Good</option>
+                                    <option value="Fair">Fair</option>
+                                    <option value="Poor">Poor</option>
+                                </select>
+                            </div>
+                            <div className="col-span-2 space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Structural Comments</label>
+                                <input name="structuralComments" defaultValue={editingInspection?.structuralComments || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="Walls, paint, floors, windows..." />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Cleaning</label>
+                                <select name="cleaningCondition" defaultValue={editingInspection?.cleaningCondition || 'Good'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white">
+                                    <option value="Good">Good</option>
+                                    <option value="Fair">Fair</option>
+                                    <option value="Poor">Poor</option>
+                                </select>
+                            </div>
+                            <div className="col-span-2 space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Cleaning Comments</label>
+                                <input name="cleaningComments" defaultValue={editingInspection?.cleaningComments || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="Kitchen, bathrooms, overall dirt..." />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Fittings & Plugs</label>
+                                <select name="fittingsCondition" defaultValue={editingInspection?.fittingsCondition || 'Good'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white">
+                                    <option value="Good">Good</option>
+                                    <option value="Fair">Fair</option>
+                                    <option value="Poor">Poor</option>
+                                </select>
+                            </div>
+                            <div className="col-span-2 space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Fittings Comments</label>
+                                <input name="fittingsComments" defaultValue={editingInspection?.fittingsComments || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="Lights, sockets, taps, shower..." />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 dark:border-slate-700/50 my-4 pt-4 space-y-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Repairs Required</label>
+                            <textarea name="repairsRequired" defaultValue={editingInspection?.repairsRequired || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none h-20 text-slate-900 dark:text-white" placeholder="List itemized repairs required before deposit payout..."></textarea>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Estimated Cost (KES)</label>
+                                <input name="estimatedRepairCost" type="number" defaultValue={editingInspection?.estimatedRepairCost || 0} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="0.00" />
+                            </div>
+                            <div className="flex items-center gap-2 h-full pt-6 pl-2">
+                                <input type="checkbox" name="tenantSignoff" id="tenantSignoff" defaultChecked={editingInspection?.tenantSignoff} className="w-5 h-5 accent-blue-600 rounded" />
+                                <label htmlFor="tenantSignoff" className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Tenant Acknowledged</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">
+                        {editingInspection ? "Save Inspection Report" : "Complete Inspection Form"}
+                    </button>
+                </form>
+            </Modal>
+
+            {(() => {
+                const selectedLeaseForRefund = leases.find(l => l.id === (editingRefund?.leaseId || refundSelectedLeaseId));
+                const originalDeposit = selectedLeaseForRefund ? selectedLeaseForRefund.depositAmount : 0;
+                const unpaidRent = selectedLeaseForRefund
+                    ? invoices.filter(inv => inv.leaseId === selectedLeaseForRefund.id && (inv.status === 'Sent' || inv.status === 'Overdue')).reduce((sum, inv) => sum + inv.amount, 0)
+                    : 0;
+                const damageCost = selectedLeaseForRefund
+                    ? inspections.filter(insp => insp.leaseId === selectedLeaseForRefund.id).reduce((sum, insp) => sum + insp.estimatedRepairCost, 0)
+                    : 0;
+
+                return (
+                    <Modal show={showRefundModal} onClose={() => { setShowRefundModal(false); setEditingRefund(null); setRefundSelectedLeaseId(''); }} title={editingRefund ? "Edit Deposit Refund Statement" : "Generate Deposit Refund Statement"}>
+                        <form key={editingRefund?.id || refundSelectedLeaseId || 'new'} onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.currentTarget);
+                            const origDep = parseFloat(formData.get('originalDeposit') as string) || 0;
+                            const rentArr = parseFloat(formData.get('rentArrearsDeduction') as string) || 0;
+                            const utilArr = parseFloat(formData.get('utilityArrearsDeduction') as string) || 0;
+                            const dmgRep = parseFloat(formData.get('damageRepairDeduction') as string) || 0;
+                            const otherDed = parseFloat(formData.get('otherDeductions') as string) || 0;
+                            const finalRefund = origDep - rentArr - utilArr - dmgRep - otherDed;
+
+                            handleSaveRefund({
+                                leaseId: editingRefund?.leaseId || refundSelectedLeaseId,
+                                tenantId: leases.find(l => l.id === (editingRefund?.leaseId || refundSelectedLeaseId))?.tenantId || '',
+                                statementDate: formData.get('statementDate') as string,
+                                originalDeposit: origDep,
+                                rentArrearsDeduction: rentArr,
+                                utilityArrearsDeduction: utilArr,
+                                damageRepairDeduction: dmgRep,
+                                otherDeductions: otherDed,
+                                otherDeductionsComments: formData.get('otherDeductionsComments') as string,
+                                refundAmount: finalRefund,
+                                paymentMethod: formData.get('paymentMethod') as string || undefined,
+                                paymentReference: formData.get('paymentReference') as string || undefined,
+                                status: editingRefund?.status || 'Pending Approval',
+                                id: editingRefund?.id,
+                                createdAt: editingRefund?.createdAt
+                            });
+                        }} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 no-scrollbar">
+                            
+                            {!editingRefund && (
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Lease</label>
+                                    <select 
+                                        required 
+                                        value={refundSelectedLeaseId}
+                                        onChange={(e) => setRefundSelectedLeaseId(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
+                                    >
+                                        <option value="">Choose Lease...</option>
+                                        {leases.map(l => {
+                                            const t = tenants.find(ten => ten.id === l.tenantId);
+                                            const u = units.find(un => un.id === l.unitId);
+                                            return <option key={l.id} value={l.id}>{t?.name || 'Unknown'} - Unit {u?.unitNumber || '—'}</option>;
+                                        })}
+                                    </select>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Statement Date</label>
+                                    <input name="statementDate" type="date" required defaultValue={editingRefund?.statementDate ? editingRefund.statementDate.split('T')[0] : new Date().toISOString().split('T')[0]} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Original Deposit (KES)</label>
+                                    <input name="originalDeposit" type="number" step="0.01" required defaultValue={editingRefund?.originalDeposit ?? originalDeposit} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="0.00" />
+                                </div>
+                            </div>
+
+                            <div className="border-t border-slate-100 dark:border-slate-700/50 my-4 pt-4 space-y-4">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Deductions</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Rent Arrears (Auto-computed)</label>
+                                        <input name="rentArrearsDeduction" type="number" step="0.01" required defaultValue={editingRefund?.rentArrearsDeduction ?? unpaidRent} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-rose-500" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Damage / Repair (From Inspection)</label>
+                                        <input name="damageRepairDeduction" type="number" step="0.01" required defaultValue={editingRefund?.damageRepairDeduction ?? damageCost} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-rose-500" />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Utility Arrears (KES)</label>
+                                        <input name="utilityArrearsDeduction" type="number" step="0.01" required defaultValue={editingRefund?.utilityArrearsDeduction || 0} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-rose-500" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Other Deductions (KES)</label>
+                                        <input name="otherDeductions" type="number" step="0.01" required defaultValue={editingRefund?.otherDeductions || 0} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-rose-500" />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Comments on Other Deductions</label>
+                                    <input name="otherDeductionsComments" defaultValue={editingRefund?.otherDeductionsComments || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="Describe other deductions (e.g. cleaning charges, legal notice fee)..." />
+                                </div>
+                            </div>
+
+                            <div className="border-t border-slate-100 dark:border-slate-700/50 my-4 pt-4 space-y-4">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Settlement Payout</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Method</label>
+                                        <select name="paymentMethod" defaultValue={editingRefund?.paymentMethod || 'Bank Transfer'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white">
+                                            <option value="Bank Transfer">Bank Transfer</option>
+                                            <option value="M-Pesa">M-Pesa</option>
+                                            <option value="Cheque">Cheque</option>
+                                            <option value="Cash">Cash</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Ref / Tx Number</label>
+                                        <input name="paymentReference" defaultValue={editingRefund?.paymentReference || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white" placeholder="e.g. MPESA Ref, Check No" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">
+                                {editingRefund ? "Save Refund Statement" : "Generate Refund Statement"}
+                            </button>
+                        </form>
+                    </Modal>
+                );
+            })()}
+
             {showBulkDateModal && (
                 <Modal show={showBulkDateModal} onClose={() => setShowBulkDateModal(false)} title="Bulk Update Lease Start Dates">
                     <form onSubmit={async (e) => {
@@ -8151,7 +8726,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         amount: parseFloat(formData.get('amount') as string) || 0,
                         description: formData.get('description') as string,
                         dueDate: formData.get('dueDate') as string,
-                        openingBalance: formData.get('openingBalance') ? parseFloat(formData.get('openingBalance') as string) : undefined
+                        openingBalance: formData.get('openingBalance') !== '' ? parseFloat(formData.get('openingBalance') as string) : 0
                     };
 
                     if (editingInvoice) {

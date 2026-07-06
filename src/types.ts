@@ -2898,6 +2898,45 @@ export interface PMUtilityReading {
     createdAt: string;
 }
 
+export interface PMInspection {
+    id: string;
+    leaseId: string;
+    tenantId: string;
+    inspectionDate: string;
+    inspectedBy?: string;
+    status: 'Draft' | 'Completed';
+    structuralCondition?: string;
+    structuralComments?: string;
+    cleaningCondition?: string;
+    cleaningComments?: string;
+    fittingsCondition?: string;
+    fittingsComments?: string;
+    repairsRequired?: string;
+    estimatedRepairCost: number;
+    tenantSignoff: boolean;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface PMDepositRefund {
+    id: string;
+    leaseId: string;
+    tenantId: string;
+    statementDate: string;
+    originalDeposit: number;
+    rentArrearsDeduction: number;
+    utilityArrearsDeduction: number;
+    damageRepairDeduction: number;
+    otherDeductions: number;
+    otherDeductionsComments?: string;
+    refundAmount: number;
+    paymentMethod?: string;
+    paymentReference?: string;
+    status: 'Pending Approval' | 'Approved' | 'Paid';
+    institutionId: string;
+    createdAt: string;
+}
+
 export type PMListingStatus = 'Active' | 'Published' | 'Draft' | 'Under Offer' | 'Sold' | 'Leased';
 export type PMListingType = 'Sale' | 'Rent' | 'Lease';
 
