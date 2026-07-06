@@ -8791,7 +8791,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 name="dueDate" 
                                 type="date" 
                                 required 
-                                defaultValue={editingInvoice ? editingInvoice.dueDate : (pmSettings?.defaultRentDueDate ? getNextRentDueDate(pmSettings.defaultRentDueDate) : new Date().toISOString().split('T')[0])}
+                                defaultValue={editingInvoice ? editingInvoice.dueDate.split('T')[0] : (pmSettings?.defaultRentDueDate ? getNextRentDueDate(pmSettings.defaultRentDueDate) : new Date().toISOString().split('T')[0])}
                                 className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" 
                             />
                         </div>
