@@ -5871,9 +5871,13 @@ export const App: React.FC = () => {
                                             {...{
                                                 currentUser,
                                                 currentInstitution: activeInstitution || undefined,
-                                                users,
+                                                users: users.filter(u => u.institutionId === (activeInstitution?.id || currentUser.institutionId)),
                                                 payrollRecords: payrollRecords as any,
-                                                onAddUser: async (u: any) => { await apiService.registerUser({ ...u, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); await loadData(false, true); },
+                                                onAddUser: async (u: any) => {
+                                                    const targetInstitutionId = u.institutionId || (currentUser?.role === 'super_admin' ? (activeInstitution?.id || 'SYSTEM') : currentUser?.institutionId);
+                                                    await apiService.registerUser({ ...u, id: generateUserId(), institutionId: targetInstitutionId }, activeInstitution?.name);
+                                                    await loadData(false, true);
+                                                },
                                                 onUpdateUser: onEditUser,
                                                 onDeleteUser: onDeleteUser,
                                                 onLogAction: handleLogAction
