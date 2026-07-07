@@ -69,6 +69,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
     });
 
     const [showPaymentModal, setShowPaymentModal] = useState<any>(null); // holds target invoice
+    const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
     const [paymentForm, setPaymentForm] = useState({
         amount: 0,
         paymentMethod: 'M-Pesa',
@@ -86,6 +87,10 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
     });
 
     const instId = currentInstitution?.id || 'GLOBAL';
+
+    const currentInvoice = showPaymentModal && showPaymentModal.isGeneric
+        ? invoices.find(i => i.id === selectedInvoiceId)
+        : showPaymentModal;
 
     // Fetch Module Data
     const fetchData = useCallback(async () => {
@@ -274,7 +279,14 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
     const handleRecordPayment = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!showPaymentModal) return;
-        const targetInvoice = showPaymentModal;
+        const targetInvoice = showPaymentModal.isGeneric
+            ? invoices.find(i => i.id === selectedInvoiceId)
+            : showPaymentModal;
+
+        if (!targetInvoice) {
+            alert('Please select a valid invoice.');
+            return;
+        }
 
         const payAmt = Number(paymentForm.amount);
         if (payAmt <= 0 || payAmt > targetInvoice.balance) {
@@ -399,6 +411,18 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                             className="px-5 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all shadow-md flex items-center gap-2"
                         >
                             <Plus className="w-4 h-4" /> Enroll Student
+                        </button>
+                    )}
+                    {['dashboard', 'finance'].includes(activeTab) && (
+                        <button
+                            onClick={() => {
+                                setSelectedInvoiceId('');
+                                setPaymentForm({ amount: 0, paymentMethod: 'M-Pesa', transactionReference: '' });
+                                setShowPaymentModal({ isGeneric: true, balance: 0 });
+                            }}
+                            className="px-5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all shadow-md flex items-center gap-2"
+                        >
+                            <DollarSign className="w-4 h-4" /> Record Payment
                         </button>
                     )}
                     {['dashboard', 'practicals'].includes(activeTab) && (
@@ -1095,18 +1119,49 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                 <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[1000] animate-in fade-in-50 duration-200">
                     <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2.5rem] p-10 border border-slate-100 dark:border-slate-750 shadow-2xl relative text-left">
                         <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white mb-2">Record Payment</h3>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6">Invoice: {showPaymentModal.invoiceNumber} • Outstanding: ${showPaymentModal.balance}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6">
+                            {currentInvoice 
+                                ? `Invoice: ${currentInvoice.invoiceNumber} • Outstanding: $${currentInvoice.balance}`
+                                : 'Select an invoice to record a payment'
+                            }
+                        </p>
                         
                         <form onSubmit={handleRecordPayment} className="space-y-6">
+                            {showPaymentModal.isGeneric && (
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase text-slate-455 tracking-wider mb-2">Select Invoice</label>
+                                    <select
+                                        required
+                                        value={selectedInvoiceId}
+                                        onChange={(e) => {
+                                            setSelectedInvoiceId(e.target.value);
+                                            const inv = invoices.find(i => i.id === e.target.value);
+                                            setPaymentForm(prev => ({
+                                                ...prev,
+                                                amount: inv ? inv.balance : 0
+                                            }));
+                                        }}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
+                                    >
+                                        <option value="">-- Choose Outstanding Invoice --</option>
+                                        {invoices.filter(i => i.balance > 0).map(i => (
+                                            <option key={i.id} value={i.id}>
+                                                {i.studentName} ({i.invoiceNumber}) - Bal: ${i.balance}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-[9px] font-black uppercase text-slate-455 tracking-wider mb-2">Amount Paid ($)</label>
                                 <input
                                     required
                                     type="number"
-                                    max={showPaymentModal.balance}
+                                    max={currentInvoice ? currentInvoice.balance : undefined}
                                     value={paymentForm.amount}
                                     onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: Number(e.target.value) }))}
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-2xl text-xs font-bold text-slate-900"
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
                                 />
                             </div>
 
