@@ -392,7 +392,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                     disabled={isLoading || !activeAcademicYear || !activeSemester}
                                     className="btn-secondary h-11 flex items-center gap-2 text-xs font-black uppercase"
                                 >
-                                    <ArrowUpTrayIcon className="w-5 h-5 text-indigo-500 group-hover:scale-110 transition-transform" /> Import Datalink
+                                    <ArrowUpTrayIcon className="w-5 h-5 text-indigo-500 group-hover:scale-110 transition-transform" /> Import Schedule (aSc / Excel)
                                 </button>
                                 <Tooltip text={isSchool ? "AI generates an optimal grade-based schedule." : "AI optimizes lecturer and room allocations."}>
                                     <button

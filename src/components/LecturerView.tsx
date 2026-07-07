@@ -31,6 +31,8 @@ import { AssessmentReports } from './AssessmentReports';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { AscScannerPanel } from './AscScannerPanel';
 
 const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 
@@ -82,6 +84,7 @@ interface LecturerViewProps {
     studentAttendances?: any[];
     studentAbsenceRequests?: any[];
     onSaveAttendance?: (lessonId: string, attendance: any[]) => Promise<void>;
+    onSaveScanSession?: (placeholderEntry: any, attendanceRows: any[]) => Promise<void>;
     onAccessAlumnaPortal?: (school: any) => void;
     schoolRegistry?: any[];
 }
@@ -187,7 +190,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     };
 
     const menuTabs = useMemo(() => {
-        const base = ['dashboard', 'academic_hub', 'my_timetable', 'eduflow', 'synergy_hub'];
+        const base = ['dashboard', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub'];
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
@@ -232,6 +235,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             {tab === 'dashboard' && <CalendarPlusIcon className="w-4 h-4" />}
                             {tab === 'academic_hub' && <ChartBarIcon className="w-4 h-4 text-amber-500" />}
                             {tab === 'my_timetable' && <ClockIcon className="w-4 h-4 text-indigo-500" />}
+                            {tab === 'scan_session' && <QrCodeIcon className="w-4 h-4 text-violet-500" />}
                             {tab === 'eduflow' && <ClipboardListIcon className="w-4 h-4 text-purple-500" />}
                             {tab === 'synergy_hub' && <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />}
                             {tab === 'my_requests' && <BookOpenIcon className="w-4 h-4 text-emerald-500" />}
@@ -344,6 +348,21 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             timetableSettings={timetableSettings}
                         />
                     </div>
+                </div>
+            )}
+
+            {activeTab === 'scan_session' && (
+                <div className="animate-fade-in-up">
+                    <AscScannerPanel
+                        currentUser={user}
+                        users={props.users || []}
+                        subjects={subjects}
+                        courses={courses}
+                        allocations={allocations.map(a => ({ subjectId: a.subjectId, lecturerId: user.id }))}
+                        activeAcademicYear={activeAcademicYear}
+                        activeSemester={activeSemester}
+                        onSaveSession={props.onSaveScanSession || (async () => { alert('Save handler not configured. Please contact admin.'); })}
+                    />
                 </div>
             )}
 

@@ -5617,7 +5617,13 @@ export const App: React.FC = () => {
                                         },
                                         studentAttendances,
                                         onSaveAttendance: handleSaveAttendance,
-                                        onAccessAlumnaPortal: handleAccessAlumnaPortal
+                                        onAccessAlumnaPortal: handleAccessAlumnaPortal,
+                                        onSaveScanSession: async (placeholderEntry: any, attendanceRows: { studentId: string; status: 'present' | 'absent' | 'late' }[]) => {
+                                            // 1. Persist the placeholder timetable entry so student_attendances FK is satisfied
+                                            await apiService.saveModuleRecord('timetable_entries', placeholderEntry);
+                                            // 2. Save attendance rows referencing that entry
+                                            await handleSaveAttendance(placeholderEntry.id, attendanceRows);
+                                        }
                                     } as any}
                                     />
                                 ) : activeRole === 'student' && (activeInstitution?.institutionType === 'Driving School' || activeInstitution?.moduleStates?.some((m: any) => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'))) ? (

@@ -123,6 +123,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
+    // Financial calculations for students grouped by class
+    function studentClassGroup(student: User) {
+        const metaGrade = student.metadata?.gradeLevel || student.metadata?.stream;
+        if (metaGrade) return metaGrade;
+        
+        const invClass = props.invoices.find(i => i.studentId === student.id && i.className)?.className;
+        if (invClass) return invClass;
+        
+        const courseName = props.courses?.find(c => c.id === student.courseId)?.name;
+        if (courseName) return courseName;
+        
+        return 'Unassigned Class';
+    }
+
     const filteredOpeningBalanceStudents = useMemo(() => {
         return props.students.filter(student => {
             const matchesSearch = student.name?.toLowerCase().includes(openingBalanceSearch.toLowerCase()) ||
@@ -139,20 +153,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // State for students balances registry sub-tab
     const [studentSubTab, setStudentSubTab] = useState<'registry' | 'balances' | 'wizard'>('registry');
     const [searchBalances, setSearchBalances] = useState('');
-
-    // Financial calculations for students grouped by class
-    const studentClassGroup = (student: User) => {
-        const metaGrade = student.metadata?.gradeLevel || student.metadata?.stream;
-        if (metaGrade) return metaGrade;
-        
-        const invClass = props.invoices.find(i => i.studentId === student.id && i.className)?.className;
-        if (invClass) return invClass;
-        
-        const courseName = props.courses?.find(c => c.id === student.courseId)?.name;
-        if (courseName) return courseName;
-        
-        return 'Unassigned Class';
-    };
 
     const studentFinanceData = useMemo(() => {
         return props.students.map(s => {
