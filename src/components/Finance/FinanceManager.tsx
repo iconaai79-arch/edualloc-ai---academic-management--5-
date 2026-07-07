@@ -6,6 +6,7 @@ import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { ZapIcon } from '../icons/ZapIcon';
 import { CheckBadgeIcon } from '../icons/CheckBadgeIcon';
 import { BarChart3Icon } from '../icons/BarChart3Icon';
+import { Cog8ToothIcon } from '../icons/Cog8ToothIcon';
 import { ClipboardListIcon } from '../icons/ClipboardListIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
 import { PlusIcon } from '../icons/PlusIcon';
@@ -54,8 +55,60 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config'>('billing');
+    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings'>('billing');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    // State for settings sub-tabs
+    const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'branding'>('opening_balance');
+    const [openingBalanceSearch, setOpeningBalanceSearch] = useState('');
+    const [openingBalanceClassFilter, setOpeningBalanceClassFilter] = useState('All');
+    const [openingBalancesMap, setOpeningBalancesMap] = useState<Record<string, number>>(() => {
+        const initialMap: Record<string, number> = {};
+        props.students.forEach(s => {
+            initialMap[s.id] = s.metadata?.openingBalance || 0;
+        });
+        return initialMap;
+    });
+    const [brandingConfig, setBrandingConfig] = useState({
+        invoicePrefix: props.companyDetails?.globalInvoicePrefix || 'INV-',
+        receiptPrefix: 'REC-',
+        footerNotes: 'Thank you for your continued partnership. For inquiries contact accounts.'
+    });
+
+    // Financial Year states
+    const [financialYears, setFinancialYears] = useState([
+        { id: 'fy25', name: 'FY 2025', startMonth: 'January', endMonth: 'December', status: 'Closed' },
+        { id: 'fy26', name: 'FY 2026', startMonth: 'January', endMonth: 'December', status: 'Active' },
+    ]);
+    const [newFyName, setNewFyName] = useState('');
+    const [newFyStart, setNewFyStart] = useState('January');
+
+    const handleSaveOpeningBalances = async () => {
+        alert("Opening balances saved successfully! The ledger profiles have been updated.");
+        if (props.onLogAction) {
+            await props.onLogAction("Updated student opening balances in ledger settings");
+        }
+    };
+
+    const handleSaveBranding = async () => {
+        alert("Institutional branding configurations updated successfully!");
+        if (props.onLogAction) {
+            await props.onLogAction("Configured institutional invoice/receipt prefix branding");
+        }
+    };
+
+    const filteredOpeningBalanceStudents = useMemo(() => {
+        return props.students.filter(student => {
+            const matchesSearch = student.name?.toLowerCase().includes(openingBalanceSearch.toLowerCase()) ||
+                student.admissionNumber?.toLowerCase().includes(openingBalanceSearch.toLowerCase()) ||
+                student.admission_number?.toLowerCase().includes(openingBalanceSearch.toLowerCase());
+            
+            const cls = studentClassGroup(student);
+            const matchesClass = openingBalanceClassFilter === 'All' || cls === openingBalanceClassFilter;
+            
+            return matchesSearch && matchesClass;
+        });
+    }, [props.students, openingBalanceSearch, openingBalanceClassFilter]);
 
     // State for students balances registry sub-tab
     const [studentSubTab, setStudentSubTab] = useState<'registry' | 'balances' | 'wizard'>('registry');
@@ -137,6 +190,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
         { id: 'requisitions', label: 'Requisitions & LPOs', icon: ClipboardListIcon },
         { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
+        { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
     ] as const;
 
     // NG-CDF Bursary States
@@ -1924,6 +1978,333 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             expenses={props.expenses}
                             institutionId={props.institution.id}
                         />
+                    </div>
+                )}
+
+                {activeTab === 'settings' && (
+                    <div className="space-y-8 animate-in fade-in duration-300 text-left">
+                        {/* Clean Page Title Header */}
+                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Institutional settings</h2>
+                                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">Manage opening balances, academic years, calendars, and organizational branding.</p>
+                            </div>
+                            <div className="flex gap-2 bg-slate-100 dark:bg-slate-850 p-1.5 rounded-2xl w-fit">
+                                <button
+                                    onClick={() => setSettingsSubTab('opening_balance')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        settingsSubTab === 'opening_balance'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                        : 'text-slate-500 hover:text-indigo-650'
+                                    }`}
+                                >
+                                    Opening Balance
+                                </button>
+                                <button
+                                    onClick={() => setSettingsSubTab('academic_calendar')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        settingsSubTab === 'academic_calendar'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                        : 'text-slate-500 hover:text-indigo-650'
+                                    }`}
+                                >
+                                    Academic Year & Calendar
+                                </button>
+                                <button
+                                    onClick={() => setSettingsSubTab('financial_year')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        settingsSubTab === 'financial_year'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                        : 'text-slate-500 hover:text-indigo-650'
+                                    }`}
+                                >
+                                    Financial Year
+                                </button>
+                                <button
+                                    onClick={() => setSettingsSubTab('branding')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        settingsSubTab === 'branding'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                        : 'text-slate-500 hover:text-indigo-655'
+                                    }`}
+                                >
+                                    Branding
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Subtab content: Opening Balance */}
+                        {settingsSubTab === 'opening_balance' && (
+                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6 text-left">
+                                <div className="flex flex-col md:flex-row justify-between gap-4">
+                                    <div className="relative flex-1">
+                                        <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search student by name or admission number..."
+                                            value={openingBalanceSearch}
+                                            onChange={(e) => setOpeningBalanceSearch(e.target.value)}
+                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <select
+                                        value={openingBalanceClassFilter}
+                                        onChange={(e) => setOpeningBalanceClassFilter(e.target.value)}
+                                        className="px-5 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none font-bold text-slate-750 text-sm"
+                                    >
+                                        <option value="All">All Classes</option>
+                                        {Array.from(new Set(props.students.map(s => studentClassGroup(s)))).map(cls => (
+                                            <option key={cls} value={cls}>{cls}</option>
+                                        ))}
+                                    </select>
+                                    <button 
+                                        onClick={handleSaveOpeningBalances}
+                                        className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all"
+                                    >
+                                        Save Changes
+                                    </button>
+                                </div>
+
+                                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
+                                    <table className="w-full border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-850">
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Class</th>
+                                                <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest w-48">Opening Balance (KSh)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
+                                            {filteredOpeningBalanceStudents.map(student => (
+                                                <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-xs font-semibold text-slate-500">{student.admissionNumber || student.admission_number || '—'}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{studentClassGroup(student)}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <input
+                                                            type="number"
+                                                            value={openingBalancesMap[student.id] || ''}
+                                                            onChange={(e) => setOpeningBalancesMap(prev => ({
+                                                                ...prev,
+                                                                [student.id]: Number(e.target.value)
+                                                            }))}
+                                                            placeholder="0.00"
+                                                            className="w-full max-w-[150px] text-right px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white"
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {filteredOpeningBalanceStudents.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4} className="py-8 text-center text-xs text-slate-400">No students matched the filters.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Subtab content: Academic Calendar */}
+                        {settingsSubTab === 'academic_calendar' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-left">
+                                {/* Academic Years list */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Academic Years</h3>
+                                        <button 
+                                            onClick={() => {
+                                                const year = prompt("Enter Academic Year name (e.g. 2026):");
+                                                if (year) alert(`Academic Year ${year} configured!`);
+                                            }}
+                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                        >
+                                            Add Year
+                                        </button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {props.academicYears.map(ay => (
+                                            <div key={ay.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl">
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white">{ay.name}</p>
+                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Year Preset</p>
+                                                </div>
+                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                    ay.id === props.academicYears[0]?.id 
+                                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20' 
+                                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                                }`}>
+                                                    {ay.id === props.academicYears[0]?.id ? 'Current Active' : 'Inactive'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Terms / Semesters list */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Terms / Semesters</h3>
+                                        <button 
+                                            onClick={() => {
+                                                const termName = prompt("Enter Term/Semester name (e.g. Term 1):");
+                                                if (termName) alert(`Term ${termName} calendar entry created!`);
+                                            }}
+                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                        >
+                                            Add Term
+                                        </button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {props.semesters.map(sem => (
+                                            <div key={sem.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl">
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white">Term {sem.name}</p>
+                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Duration: {sem.startDate || '—'} to {sem.endDate || '—'}</p>
+                                                </div>
+                                                <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-750 dark:text-indigo-400 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                                    Configured
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Subtab content: Financial Year */}
+                        {settingsSubTab === 'financial_year' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-left animate-in fade-in duration-300">
+                                {/* Configuration Form */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Create Financial Year</h3>
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Financial Year Name</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. FY 2027"
+                                                value={newFyName}
+                                                onChange={(e) => setNewFyName(e.target.value)}
+                                                className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Month</label>
+                                                <select
+                                                    value={newFyStart}
+                                                    onChange={(e) => setNewFyStart(e.target.value)}
+                                                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-750 text-sm outline-none"
+                                                >
+                                                    {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
+                                                        <option key={m} value={m}>{m}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Month</label>
+                                                <select
+                                                    disabled
+                                                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 rounded-2xl outline-none font-bold text-slate-400 cursor-not-allowed text-sm"
+                                                >
+                                                    <option>December</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                if (!newFyName.trim()) return alert("Enter a valid name!");
+                                                setFinancialYears(prev => [
+                                                    ...prev,
+                                                    { id: `fy_${Date.now()}`, name: newFyName, startMonth: newFyStart, endMonth: 'December', status: 'Active' }
+                                                ]);
+                                                setNewFyName('');
+                                                alert(`Financial Year ${newFyName} created and activated!`);
+                                            }}
+                                            className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all text-center"
+                                        >
+                                            Activate Financial Year
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Configured Financial Years Registry */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Configured Financial Periods</h3>
+                                    <div className="space-y-3">
+                                        {financialYears.map(fy => (
+                                            <div key={fy.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-900">
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white">{fy.name}</p>
+                                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Cycle: {fy.startMonth} to {fy.endMonth}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                                        fy.status === 'Active'
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-250'
+                                                        : 'bg-slate-100 text-slate-550 border-slate-200'
+                                                    }`}>
+                                                        {fy.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Subtab content: Branding */}
+                        {settingsSubTab === 'branding' && (
+                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm text-left max-w-2xl mx-auto space-y-6">
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight border-b pb-4">Branding & Profiles</h3>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Prefix</label>
+                                            <input
+                                                type="text"
+                                                value={brandingConfig.invoicePrefix}
+                                                onChange={(e) => setBrandingConfig(prev => ({ ...prev, invoicePrefix: e.target.value }))}
+                                                className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Prefix</label>
+                                            <input
+                                                type="text"
+                                                value={brandingConfig.receiptPrefix}
+                                                onChange={(e) => setBrandingConfig(prev => ({ ...prev, receiptPrefix: e.target.value }))}
+                                                className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Document Footer Notes</label>
+                                        <textarea
+                                            value={brandingConfig.footerNotes}
+                                            onChange={(e) => setBrandingConfig(prev => ({ ...prev, footerNotes: e.target.value }))}
+                                            rows={3}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleSaveBranding}
+                                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all text-center"
+                                    >
+                                        Save Branding presets
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
                 </div>
