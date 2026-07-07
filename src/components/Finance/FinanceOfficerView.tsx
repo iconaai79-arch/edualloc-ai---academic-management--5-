@@ -107,6 +107,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                     voteHeads={voteHeads}
                     courses={courses}
                     onRefreshData={onRefreshData}
+                    onLogAction={onLogAction}
                 />
             </main>
         </div>

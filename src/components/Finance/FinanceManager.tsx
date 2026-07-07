@@ -21,6 +21,7 @@ import { RetailRequisitions } from '../retail/RetailRequisitions';
 import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { isEduInstitution } from '../../utils/roleUtils';
+import { StudentEnrollmentManager } from '../common/StudentEnrollmentManager';
 
 interface FinanceManagerProps {
     invoices: Invoice[];
@@ -46,6 +47,7 @@ interface FinanceManagerProps {
     courses?: Course[];
     onRefreshData?: () => Promise<void>;
     companyDetails?: CompanyDetails;
+    onLogAction?: (message: string) => Promise<void> | void;
 }
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
@@ -56,7 +58,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // State for students balances registry sub-tab
-    const [studentSubTab, setStudentSubTab] = useState<'balances' | 'wizard'>('balances');
+    const [studentSubTab, setStudentSubTab] = useState<'registry' | 'balances' | 'wizard'>('registry');
     const [searchBalances, setSearchBalances] = useState('');
 
     // Financial calculations for students grouped by class
@@ -722,7 +724,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 </div>
 
                 <nav className="space-y-2 flex-1">
-                    {tabs.filter(item => item.id !== 'billing').map(item => (
+                    {tabs.filter(item => isDrivingSchool ? true : (item.id !== 'billing' && item.id !== 'bursaries' && item.id !== 'config')).map(item => (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id as any)}
@@ -767,7 +769,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 {!isDrivingSchool && (
                     <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm shrink-0">
                         <div className="flex flex-wrap gap-2">
-                            {tabs.map(tab => (
+                            {tabs.filter(item => item.id === 'billing' || item.id === 'bursaries' || item.id === 'config').map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
@@ -814,6 +816,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         {/* Sub-tabs for Students */}
                         <div className="flex gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit">
                             <button
+                                onClick={() => setStudentSubTab('registry')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                    studentSubTab === 'registry'
+                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                    : 'text-slate-500 hover:text-indigo-650'
+                                }`}
+                            >
+                                Students Registry
+                            </button>
+                            <button
                                 onClick={() => setStudentSubTab('balances')}
                                 className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                                     studentSubTab === 'balances'
@@ -821,7 +833,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     : 'text-slate-500 hover:text-indigo-650'
                                 }`}
                             >
-                                Student Balances
+                                Fee Balances
                             </button>
                             <button
                                 onClick={() => setStudentSubTab('wizard')}
@@ -835,7 +847,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </button>
                         </div>
 
-                        {studentSubTab === 'balances' ? (
+                        {studentSubTab === 'registry' && (
+                            <div className="animate-in fade-in duration-300">
+                                <StudentEnrollmentManager
+                                    context="academic"
+                                    currentInstitution={props.institution}
+                                    activeTab="students"
+                                    companyDetails={props.companyDetails}
+                                    currentUser={props.currentUser}
+                                    onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
+                                />
+                            </div>
+                        )}
+
+                        {studentSubTab === 'balances' && (
                             <div className="space-y-8 animate-in fade-in duration-300">
                                 {/* Search and Stats */}
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
@@ -924,7 +949,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-450">KSh {student.totals.paid.toLocaleString()}</span>
                                                                         </td>
                                                                         <td className="px-6 py-4 text-right">
-                                                                            <span className={`text-xs font-black ${student.totals.balance > 0 ? 'text-rose-600 dark:text-rose-450' : 'text-slate-850 dark:text-slate-300'}`}>
+                                                                            <span className={`text-xs font-black ${student.totals.balance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-850 dark:text-slate-300'}`}>
                                                                                 KSh {student.totals.balance.toLocaleString()}
                                                                             </span>
                                                                         </td>
@@ -950,7 +975,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     )}
                                 </div>
                             </div>
-                        ) : (
+                        )}
+
+                        {studentSubTab === 'wizard' && (
                             <AutomatedBilling 
                                 feeStructures={props.feeStructures}
                                 students={props.students}
