@@ -18,6 +18,11 @@ import { CheckIcon } from '../icons/CheckIcon';
 import { Trash2Icon } from '../icons/Trash2Icon';
 import { ScaleIcon } from '../icons/ScaleIcon';
 import { SearchIcon } from '../icons/SearchIcon';
+import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
+import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+import { PhotoIcon } from '../icons/PhotoIcon';
+import { WalletIcon } from '../icons/WalletIcon';
 import { RetailRequisitions } from '../retail/RetailRequisitions';
 import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
@@ -845,29 +850,55 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             {/* Main Content Area */}
             <div className="flex-1 w-full space-y-8 min-w-0">
-                {/* Conditionally include top menu on education */}
                 {!isDrivingSchool && (
                     <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm shrink-0">
                         <div className="flex flex-wrap gap-2">
-                            {tabs.filter(item => item.id === 'billing' || item.id === 'bursaries' || item.id === 'config').map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as any)}
-                                    className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
-                                        activeTab === tab.id 
-                                        ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105' 
-                                        : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-655'
-                                    }`}
-                                >
-                                    <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
-                                    <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>
-                                </button>
-                            ))}
+                            {activeTab === 'settings' ? (
+                                ([
+                                    { id: 'opening_balance', label: 'Opening Balance', icon: WalletIcon },
+                                    { id: 'academic_calendar', label: 'Academic Year & Calendar', icon: CalendarDaysIcon },
+                                    { id: 'financial_year', label: 'Financial Year', icon: ClockIcon },
+                                    { id: 'user_permissions', label: 'User Permissions', icon: ShieldCheckIcon },
+                                    { id: 'branding', label: 'Branding', icon: PhotoIcon }
+                                ] as const).map(sub => (
+                                    <button
+                                        key={sub.id}
+                                        onClick={() => setSettingsSubTab(sub.id as any)}
+                                        className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
+                                            settingsSubTab === sub.id 
+                                            ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105' 
+                                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-655'
+                                        }`}
+                                    >
+                                        <sub.icon className={`w-5 h-5 ${settingsSubTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
+                                        <span className="text-xs font-black uppercase tracking-widest">{sub.label}</span>
+                                    </button>
+                                ))
+                            ) : (
+                                tabs.filter(item => item.id === 'billing' || item.id === 'bursaries' || item.id === 'config').map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id as any)}
+                                        className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
+                                            activeTab === tab.id 
+                                            ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105' 
+                                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-655'
+                                        }`}
+                                    >
+                                        <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
+                                        <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>
+                                    </button>
+                                ))
+                            )}
                         </div>
                         <div className="hidden md:flex items-center gap-4 px-6 border-l border-slate-100 dark:border-slate-800">
                             <div className="text-right">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fiscal Status</p>
-                                <p className="text-sm font-black text-slate-900 dark:text-white">Education Mode</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    {activeTab === 'settings' ? 'Configuration' : 'Fiscal Status'}
+                                </p>
+                                <p className="text-sm font-black text-slate-900 dark:text-white">
+                                    {activeTab === 'settings' ? 'Settings Mode' : 'Education Mode'}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -2015,58 +2046,60 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Institutional settings</h2>
                                 <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">Manage opening balances, academic years, calendars, and organizational branding.</p>
                             </div>
-                            <div className="flex gap-2 bg-slate-100 dark:bg-slate-850 p-1.5 rounded-2xl w-fit">
-                                <button
-                                    onClick={() => setSettingsSubTab('opening_balance')}
-                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        settingsSubTab === 'opening_balance'
-                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                        : 'text-slate-500 hover:text-indigo-650'
-                                    }`}
-                                >
-                                    Opening Balance
-                                </button>
-                                <button
-                                    onClick={() => setSettingsSubTab('academic_calendar')}
-                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        settingsSubTab === 'academic_calendar'
-                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                        : 'text-slate-500 hover:text-indigo-650'
-                                    }`}
-                                >
-                                    Academic Year & Calendar
-                                </button>
-                                <button
-                                    onClick={() => setSettingsSubTab('financial_year')}
-                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        settingsSubTab === 'financial_year'
-                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                        : 'text-slate-500 hover:text-indigo-650'
-                                    }`}
-                                >
-                                    Financial Year
-                                </button>
-                                <button
-                                    onClick={() => setSettingsSubTab('user_permissions')}
-                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        settingsSubTab === 'user_permissions'
-                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                        : 'text-slate-500 hover:text-indigo-650'
-                                    }`}
-                                >
-                                    User Permissions
-                                </button>
-                                <button
-                                    onClick={() => setSettingsSubTab('branding')}
-                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        settingsSubTab === 'branding'
-                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                        : 'text-slate-550 hover:text-indigo-655'
-                                    }`}
-                                >
-                                    Branding
-                                </button>
-                            </div>
+                            {isDrivingSchool && (
+                                <div className="flex gap-2 bg-slate-100 dark:bg-slate-850 p-1.5 rounded-2xl w-fit">
+                                    <button
+                                        onClick={() => setSettingsSubTab('opening_balance')}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            settingsSubTab === 'opening_balance'
+                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                            : 'text-slate-500 hover:text-indigo-650'
+                                        }`}
+                                    >
+                                        Opening Balance
+                                    </button>
+                                    <button
+                                        onClick={() => setSettingsSubTab('academic_calendar')}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            settingsSubTab === 'academic_calendar'
+                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                            : 'text-slate-500 hover:text-indigo-650'
+                                        }`}
+                                    >
+                                        Academic Year & Calendar
+                                    </button>
+                                    <button
+                                        onClick={() => setSettingsSubTab('financial_year')}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            settingsSubTab === 'financial_year'
+                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                            : 'text-slate-500 hover:text-indigo-650'
+                                        }`}
+                                    >
+                                        Financial Year
+                                    </button>
+                                    <button
+                                        onClick={() => setSettingsSubTab('user_permissions')}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            settingsSubTab === 'user_permissions'
+                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                            : 'text-slate-500 hover:text-indigo-650'
+                                        }`}
+                                    >
+                                        User Permissions
+                                    </button>
+                                    <button
+                                        onClick={() => setSettingsSubTab('branding')}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            settingsSubTab === 'branding'
+                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                            : 'text-slate-550 hover:text-indigo-655'
+                                        }`}
+                                    >
+                                        Branding
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Subtab content: Opening Balance */}
