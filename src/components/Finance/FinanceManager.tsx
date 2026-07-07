@@ -12,6 +12,7 @@ import { PlusIcon } from '../icons/PlusIcon';
 import { TrashIcon } from '../icons/TrashIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { XIcon } from '../icons/XIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { CheckIcon } from '../icons/CheckIcon';
 import { Trash2Icon } from '../icons/Trash2Icon';
 import { ScaleIcon } from '../icons/ScaleIcon';
@@ -51,6 +52,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     
     // Dynamic Tabs based on Institution Type
     const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config'>('overview');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     const tabs = [
         { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
@@ -631,35 +633,93 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     };
 
     return (
-        <div className="space-y-8">
-            {/* Professional Navigation Bar */}
-            <div className="flex justify-between items-center bg-white p-4 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                <div className="flex flex-wrap gap-2">
-                    {tabs.map(tab => (
+        <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[750px] w-full text-left">
+            {/* Sidebar (Vertical Menu) */}
+            <div className={`${isSidebarOpen ? 'w-full lg:w-72' : 'w-full lg:w-24'} bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-[2.5rem] shadow-sm transition-all duration-500 flex flex-col p-6 shrink-0`}>
+                <div className="flex items-center gap-4 mb-8 px-2">
+                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-500/20 shrink-0">
+                        <BanknotesIcon className="w-7 h-7 animate-pulse" />
+                    </div>
+                    {isSidebarOpen && (
+                        <div className="animate-fade-in whitespace-nowrap">
+                            <h2 className="text-[13px] font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none mb-1">Fiscal Hub</h2>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Finance & Fee Control</p>
+                        </div>
+                    )}
+                </div>
+
+                <nav className="space-y-2 flex-1">
+                    {tabs.map(item => (
                         <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
-                                activeTab === tab.id 
-                                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
-                                : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                            key={item.id}
+                            onClick={() => setActiveTab(item.id as any)}
+                            className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 relative group ${
+                                activeTab === item.id 
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105' 
+                                : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-750'
                             }`}
                         >
-                            <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
-                            <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>
+                            <div className={`${activeTab === item.id ? 'scale-110' : 'group-hover:scale-110'} transition-transform duration-300`}>
+                                <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-white' : 'text-slate-400'}`} />
+                            </div>
+                            {isSidebarOpen && <span className="text-[11px] font-black uppercase tracking-widest text-left">{item.label}</span>}
+                            {activeTab === item.id && isSidebarOpen && (
+                                <div className="absolute right-4 w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                            )}
                         </button>
                     ))}
-                </div>
-                <div className="hidden md:flex items-center gap-4 px-6 border-l border-slate-100">
-                    <div className="text-right">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fiscal Status</p>
-                        <p className="text-sm font-black text-slate-900">{isDrivingSchool ? "Driving School Mode" : "Education Mode"}</p>
-                    </div>
+                </nav>
+
+                <div className="mt-8 pt-6 border-t border-slate-50 dark:border-slate-800 text-center flex flex-col items-center">
+                    <button 
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all mb-4"
+                    >
+                        {isSidebarOpen ? <XIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
+                    </button>
+                    {isSidebarOpen && (
+                        <div className="w-full p-5 bg-slate-950 rounded-[2rem] text-left relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 blur-3xl rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-700"></div>
+                           <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Fiscal Governance</p>
+                           <h4 className="text-xs font-black text-white mb-1">Encrypted Ledger</h4>
+                           <p className="text-[9px] text-slate-500 font-medium">All financial actions are audited globally.</p>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Dynamic View Engine */}
-            <div className="min-h-[600px]">
+            {/* Main Content Area */}
+            <div className="flex-1 w-full space-y-8 min-w-0">
+                {/* Conditionally include top menu on education */}
+                {!isDrivingSchool && (
+                    <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm shrink-0">
+                        <div className="flex flex-wrap gap-2">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                    className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
+                                        activeTab === tab.id 
+                                        ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105' 
+                                        : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-655'
+                                    }`}
+                                >
+                                    <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
+                                    <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="hidden md:flex items-center gap-4 px-6 border-l border-slate-100 dark:border-slate-800">
+                            <div className="text-right">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fiscal Status</p>
+                                <p className="text-sm font-black text-slate-900 dark:text-white">Education Mode</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Dynamic View Engine */}
+                <div className="min-h-[600px] w-full">
                 {activeTab === 'overview' && (
                     <RevenueWarRoom 
                         invoices={mappedInvoices}
@@ -1623,6 +1683,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         />
                     </div>
                 )}
+                </div>
             </div>
         </div>
     );
