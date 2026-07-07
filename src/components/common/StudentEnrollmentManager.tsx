@@ -43,7 +43,7 @@ import {
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course, CompanyDetails } from '../../types';
 import { apiService } from '../../services/apiService';
-import { generateEventReportPdf, generateStudentIdCardPdf } from '../../services/pdfService';
+import { generateEventReportPdf, generateStudentIdCardPdf, generateLeaveOutSheetPdf } from '../../services/pdfService';
 import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
 import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
@@ -206,13 +206,17 @@ interface StudentEnrollmentManagerProps {
     currentInstitution: Institution;
     activeTab?: 'students' | 'teachers' | 'support_staff' | 'broadcaster' | 'calendar' | 'guests';
     companyDetails?: CompanyDetails;
+    currentUser?: User;
+    onLogAction?: (message: string) => Promise<void>;
 }
 
 export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> = ({ 
     context, 
     currentInstitution,
     activeTab: passedActiveTab,
-    companyDetails
+    companyDetails,
+    currentUser,
+    onLogAction
 }) => {
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [isStaffFormOpen, setIsStaffFormOpen] = useState(false);
@@ -3569,6 +3573,93 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [previewQrCodeUrl, setPreviewQrCodeUrl] = useState<string>('');
     const [isPreviewingIdCard, setIsPreviewingIdCard] = useState(false);
 
+    const [leaveOutStudent, setLeaveOutStudent] = useState<{ enr: StudentEnrollment; user: User } | null>(null);
+    const [leaveOutForm, setLeaveOutForm] = useState({
+        reason: '',
+        isBoarder: true,
+        leaveDate: new Date().toISOString().split('T')[0],
+        returnDate: new Date(Date.now() + 86400000).toISOString().split('T')[0]
+    });
+    const [isCheckingBoarder, setIsCheckingBoarder] = useState(false);
+
+    useEffect(() => {
+        if (leaveOutStudent) {
+            setIsCheckingBoarder(true);
+            apiService.fetchBedAllocations(currentInstitution.id)
+                .then(allocations => {
+                    const isBoarder = (allocations || []).some((a: any) => a.studentId === leaveOutStudent.user.id && a.status === 'Active');
+                    setLeaveOutForm(prev => ({ ...prev, isBoarder }));
+                })
+                .catch(() => {
+                    setLeaveOutForm(prev => ({ ...prev, isBoarder: true }));
+                })
+                .finally(() => {
+                    setIsCheckingBoarder(false);
+                });
+        }
+    }, [leaveOutStudent, currentInstitution.id]);
+
+    const handleCreateLeaveOutFromEnrollment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!leaveOutStudent || !currentUser) return;
+
+        try {
+            const id = `lo_${Date.now()}`;
+            const newRequest = {
+                id,
+                institutionId: currentInstitution.id,
+                studentId: leaveOutStudent.user.id,
+                classTeacherId: currentUser.id,
+                reason: leaveOutForm.reason,
+                leaveDate: leaveOutForm.leaveDate,
+                returnDate: leaveOutForm.returnDate,
+                status: leaveOutForm.isBoarder ? 'pending_boarding' : 'pending_security',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('leave_out_requests', newRequest);
+
+            if (onLogAction) {
+                await onLogAction(`Generated leave out permission for ${leaveOutStudent.user.name} from Enrollment Manager`);
+            }
+
+            // Generate and download PDF
+            const enrichedRequest = {
+                ...newRequest,
+                studentName: leaveOutStudent.user.name,
+                studentClass: leaveOutStudent.enr.metadata?.stream || leaveOutStudent.enr.metadata?.gradeLevel || 'N/A',
+                classTeacherName: currentUser.name
+            };
+
+            const dataUri = await generateLeaveOutSheetPdf(
+                enrichedRequest as any,
+                currentInstitution,
+                companyDetails || {} as any,
+                users,
+                courses
+            );
+
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `LeaveOut_${leaveOutStudent.user.name.replace(/\s+/g, '_')}_${id}.pdf`;
+            link.click();
+
+            setLeaveOutStudent(null);
+            setLeaveOutForm({
+                reason: '',
+                isBoarder: true,
+                leaveDate: new Date().toISOString().split('T')[0],
+                returnDate: new Date(Date.now() + 86400000).toISOString().split('T')[0]
+            });
+
+            alert("Leave-out permission sheet created and PDF downloaded successfully!");
+        } catch (error) {
+            console.error("Failed to generate leave out from enrollment:", error);
+            alert("Failed to authorize leave out request.");
+        }
+    };
+
     const handleOpenIdCardPreview = async (enr: StudentEnrollment, user: User) => {
         let qrCodeUrl = '';
         const admissionNo = enr.admissionNumber || user.staffId || user.admissionNumber || user.id;
@@ -4193,6 +4284,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     >
                                                         <CreditCard className="w-4 h-4" />
                                                     </button>
+                                                    {currentUser && ['admin', 'head_teacher', 'dos', 'deputy', 'super_admin'].includes(currentUser.role) && (
+                                                        <button
+                                                            onClick={() => setLeaveOutStudent({ enr, user: user || {} as User })}
+                                                            className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"
+                                                            title="Generate Leave Out Permission"
+                                                        >
+                                                            <ExternalLink className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={() => {
                                                             setInviteModalEnrollment(enr);
@@ -8200,6 +8300,88 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             Download PDF
                         </button>
                     </div>
+                </div>
+            </div>,
+            document.body
+        )}
+        {leaveOutStudent && createPortal(
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-700/60 flex items-center justify-between">
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">New Leave Out Sheet</h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-xs">Exeat Authorization for {leaveOutStudent.user.name}</p>
+                        </div>
+                        <button onClick={() => setLeaveOutStudent(null)} className="w-10 h-10 bg-slate-50 dark:bg-slate-700 text-slate-400 hover:text-slate-650 rounded-full flex items-center justify-center transition-colors">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleCreateLeaveOutFromEnrollment} className="p-8 space-y-5 text-left">
+                        <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl">
+                            <input
+                                type="checkbox"
+                                id="enrollmentIsBoarder"
+                                checked={leaveOutForm.isBoarder}
+                                onChange={(e) => setLeaveOutForm(prev => ({ ...prev, isBoarder: e.target.checked }))}
+                                className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                            />
+                            <label htmlFor="enrollmentIsBoarder" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                                Boarding Student {isCheckingBoarder && <span className="text-[10px] text-slate-400 italic">(checking allocations...)</span>}
+                            </label>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Leave Date</label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={leaveOutForm.leaveDate}
+                                    onChange={(e) => setLeaveOutForm(prev => ({ ...prev, leaveDate: e.target.value }))}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Expected Return</label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={leaveOutForm.returnDate}
+                                    onChange={(e) => setLeaveOutForm(prev => ({ ...prev, returnDate: e.target.value }))}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Reason for Leave</label>
+                            <textarea
+                                required
+                                rows={3}
+                                value={leaveOutForm.reason}
+                                onChange={(e) => setLeaveOutForm(prev => ({ ...prev, reason: e.target.value }))}
+                                placeholder="Enter detailed reason (e.g. Medical, Funeral, Home visit...)"
+                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white placeholder:font-medium"
+                            />
+                        </div>
+
+                        <div className="pt-4 flex gap-4">
+                            <button
+                                type="button"
+                                onClick={() => setLeaveOutStudent(null)}
+                                className="flex-1 px-4 py-4 bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-300 font-bold rounded-2xl hover:bg-slate-100 transition-all uppercase text-xs tracking-widest"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="flex-1 px-4 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl hover:bg-indigo-700 transition-all uppercase text-xs tracking-widest"
+                            >
+                                Authorize & Download
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>,
             document.body

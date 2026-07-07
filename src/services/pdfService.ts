@@ -5172,16 +5172,19 @@ export const generatePMReceiptPdfDataUri = async (
 
     // Receipt details (Right side)
     doc.setFont('helvetica', 'bold');
-    doc.text('DATE:', pageWidth - margin - 40, yPos);
-    doc.text('STATUS:', pageWidth - margin - 40, yPos + 5);
+    doc.text('RECEIPT NO:', pageWidth - margin - 40, yPos);
+    doc.text('DATE:', pageWidth - margin - 40, yPos + 5);
+    doc.text('STATUS:', pageWidth - margin - 40, yPos + 10);
     doc.setFont('helvetica', 'normal');
-    doc.text(new Date(payment.paymentDate).toLocaleDateString(), pageWidth - margin, yPos, { align: 'right' });
-    doc.text(payment.status.toUpperCase(), pageWidth - margin, yPos + 5, { align: 'right' });
+    doc.text(payment.receiptNumber || 'N/A', pageWidth - margin, yPos, { align: 'right' });
+    doc.text(new Date(payment.paymentDate).toLocaleDateString(), pageWidth - margin, yPos + 5, { align: 'right' });
+    doc.text(payment.status.toUpperCase(), pageWidth - margin, yPos + 10, { align: 'right' });
 
     const body = [
+        ['Receipt Number', payment.receiptNumber || 'N/A'],
         ['Payment Method', payment.paymentMethod],
         ['Payment Type', payment.paymentType],
-        ['Reference ID', payment.id.substring(0, 8).toUpperCase()],
+        ['Reference ID', payment.reference || payment.id.substring(0, 8).toUpperCase()],
         ['Month/Year', payment.periodMonth && payment.periodYear ? `${payment.periodMonth}/${payment.periodYear}` : 'N/A'],
     ];
 
