@@ -851,8 +851,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             {/* Main Content Area */}
             <div className="flex-1 w-full space-y-8 min-w-0">
                 {!isDrivingSchool && (
-                    <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm shrink-0">
-                        <div className="flex flex-wrap gap-2">
+                    <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm shrink-0 gap-4 overflow-hidden">
+                        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar max-w-[70vw] md:max-w-full">
                             {activeTab === 'settings' ? (
                                 ([
                                     { id: 'opening_balance', label: 'Opening Balance', icon: WalletIcon },
@@ -864,14 +864,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <button
                                         key={sub.id}
                                         onClick={() => setSettingsSubTab(sub.id as any)}
-                                        className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap ${
                                             settingsSubTab === sub.id 
                                             ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105' 
                                             : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-655'
                                         }`}
                                     >
-                                        <sub.icon className={`w-5 h-5 ${settingsSubTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
-                                        <span className="text-xs font-black uppercase tracking-widest">{sub.label}</span>
+                                        <sub.icon className={`w-4 h-4 ${settingsSubTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
+                                        <span className="text-[11px] font-black uppercase tracking-widest">{sub.label}</span>
                                     </button>
                                 ))
                             ) : (
@@ -879,14 +879,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <button
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id as any)}
-                                        className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap ${
                                             activeTab === tab.id 
                                             ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105' 
                                             : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-655'
                                         }`}
                                     >
-                                        <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
-                                        <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>
+                                        <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
+                                        <span className="text-[11px] font-black uppercase tracking-widest">{tab.label}</span>
                                     </button>
                                 ))
                             )}
