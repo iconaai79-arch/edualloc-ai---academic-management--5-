@@ -1158,6 +1158,10 @@ export const apiService = {
             return savedData ? toCamelCase(savedData) : null;
         } catch (e: any) {
             console.error(`Save Exception [${module}]:`, e);
+            const msg = e.message || String(e);
+            if (msg.includes('Registry Conflict') || msg.includes('23505') || msg.toLowerCase().includes('unique constraint') || msg.toLowerCase().includes('already registered')) {
+                throw e;
+            }
             console.warn(`[apiService] Falling back to localStorage save for ${module}`);
             ls.upsert(module, payload);
             return toCamelCase(payload);
