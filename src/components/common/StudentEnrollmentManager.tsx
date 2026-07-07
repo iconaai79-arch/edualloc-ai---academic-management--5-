@@ -258,6 +258,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [gradeFilter, setGradeFilter] = useState('');
     const [streamFilter, setStreamFilter] = useState('');
 
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 15;
+
+    // Reset pagination to first page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, statusFilter, gradeFilter, streamFilter]);
+
     // Parent Invite Modal State
     const [inviteModalEnrollment, setInviteModalEnrollment] = useState<StudentEnrollment | null>(null);
     const [inviteSelectedParentIdx, setInviteSelectedParentIdx] = useState(0);
@@ -3184,7 +3192,6 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
     };
 
-    // Filtered Enrollments
     const filteredEnrollments = useMemo(() => {
         return enrollments.filter(enr => {
             const associatedUser = users.find(u => u.id === enr.userId);
@@ -3200,6 +3207,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             return matchesSearch && matchesStatus && matchesGrade && matchesStream;
         });
     }, [enrollments, users, searchTerm, statusFilter, gradeFilter, streamFilter]);
+
+    const paginatedEnrollments = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredEnrollments.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredEnrollments, currentPage]);
+
+    const totalPages = Math.ceil(filteredEnrollments.length / itemsPerPage);
 
     // Filtered Teachers
     const filteredTeachers = useMemo(() => {
@@ -4149,7 +4163,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         </div>
                     ) : (
                         <div className="space-y-3">
-                                    {filteredEnrollments.map((enr, i) => {
+                                    {paginatedEnrollments.map((enr, i) => {
                                         const user = users.find(u => u.id === enr.userId);
                                         const hasBiometrics = !!user?.metadata?.webauthnCredentials;
 
@@ -4323,6 +4337,31 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                             </div>
                                         );
                                     })}
+
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                                <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800 mt-6 text-left">
+                                    <span className="text-xs text-slate-500 font-semibold">
+                                        Showing page <span className="font-bold text-slate-800 dark:text-white">{currentPage}</span> of <span className="font-bold text-slate-800 dark:text-white">{totalPages}</span> (Total {filteredEnrollments.length} students)
+                                    </span>
+                                    <div className="flex gap-2 text-slate-850">
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                            disabled={currentPage === 1}
+                                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-xs font-black uppercase tracking-wider rounded-xl transition-all"
+                                        >
+                                            Prev
+                                        </button>
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                            disabled={currentPage === totalPages}
+                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </>
