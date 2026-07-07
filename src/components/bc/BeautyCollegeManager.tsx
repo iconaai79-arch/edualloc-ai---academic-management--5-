@@ -478,14 +478,14 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
                                     <div className="space-y-1">
                                         <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Fees Collected</span>
-                                        <h3 className="text-3xl font-black text-emerald-500">${metrics.totalCollected.toLocaleString()}</h3>
+                                        <h3 className="text-3xl font-black text-emerald-500">KSh {metrics.totalCollected.toLocaleString()}</h3>
                                     </div>
                                     <DollarSign className="w-10 h-10 text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 p-2.5 rounded-2xl" />
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
                                     <div className="space-y-1">
                                         <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Outstanding Balance</span>
-                                        <h3 className="text-3xl font-black text-rose-500">${metrics.totalOutstanding.toLocaleString()}</h3>
+                                        <h3 className="text-3xl font-black text-rose-500">KSh {metrics.totalOutstanding.toLocaleString()}</h3>
                                     </div>
                                     <DollarSign className="w-10 h-10 text-rose-500 bg-rose-50 dark:bg-rose-950/40 p-2.5 rounded-2xl" />
                                 </div>
@@ -651,11 +651,11 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                                                     { label: 'Exam Fee', amount: course.examFee, priority: course.examPriority || 3 }
                                                 ].sort((a, b) => a.priority - b.priority).map(item => (
                                                     <div key={item.label} className="flex justify-between items-center">
-                                                        <span className="text-slate-450 flex items-center gap-1.5">
+                                                        <span className="text-slate-455 flex items-center gap-1.5">
                                                             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-500 font-black text-[8px]">{item.priority}</span>
                                                             {item.label}:
                                                         </span>
-                                                        <span className="font-extrabold text-slate-900 dark:text-white">${item.amount}</span>
+                                                        <span className="font-extrabold text-slate-900 dark:text-white">KSh {item.amount}</span>
                                                     </div>
                                                 ))}
                                                 <div className="flex justify-between pt-2 border-t border-slate-50 border-dashed dark:border-slate-700/60">
@@ -701,9 +701,9 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                                                     <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10">
                                                         <td className="p-6 font-bold text-slate-900 dark:text-white">{inv.invoiceNumber}</td>
                                                         <td className="p-6 text-slate-600 dark:text-slate-300 font-bold">{inv.studentName}</td>
-                                                        <td className="p-6 text-right font-bold text-slate-500">${inv.totalAmount}</td>
-                                                        <td className="p-6 text-right font-bold text-emerald-500">${inv.paidAmount || 0}</td>
-                                                        <td className="p-6 text-right font-bold text-rose-500">${inv.balance}</td>
+                                                        <td className="p-6 text-right font-bold text-slate-500">KSh {inv.totalAmount}</td>
+                                                        <td className="p-6 text-right font-bold text-emerald-500">KSh {inv.paidAmount || 0}</td>
+                                                        <td className="p-6 text-right font-bold text-rose-500">KSh {inv.balance}</td>
                                                         <td className="p-6 text-center">
                                                             <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider ${
                                                                 inv.status === 'Paid' 
@@ -748,7 +748,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                                                         <div className="text-[10px] text-slate-400 mt-1">{pay.receiptNumber} • {pay.paymentMethod}</div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <span className="font-black text-emerald-500 text-sm">+${pay.amount}</span>
+                                                        <span className="font-black text-emerald-500 text-sm">+KSh {pay.amount}</span>
                                                         <div className="text-[9px] text-slate-400 mt-1">{new Date(pay.paymentDate).toLocaleDateString()}</div>
                                                     </div>
                                                 </div>
@@ -891,7 +891,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                                 >
                                     <option value="">-- Choose Course --</option>
                                     {courses.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name} (${Number(c.baseFee) + Number(c.kitFee) + Number(c.examFee)})</option>
+                                        <option key={c.id} value={c.id}>{c.name} (KSh {Number(c.baseFee) + Number(c.kitFee) + Number(c.examFee)})</option>
                                     ))}
                                 </select>
                             </div>
@@ -1017,7 +1017,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                                     {/* Header row */}
                                     <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-1">
                                         <span className="text-[7px] font-black uppercase text-slate-400 tracking-wider">Fee Component</span>
-                                        <span className="text-[7px] font-black uppercase text-slate-400 tracking-wider text-right w-28">Amount ($)</span>
+                                        <span className="text-[7px] font-black uppercase text-slate-400 tracking-wider text-right w-28">Amount (KSh)</span>
                                         <span className="text-[7px] font-black uppercase text-slate-400 tracking-wider text-center w-14">Priority</span>
                                     </div>
                                     {/* Tuition */}
@@ -1121,7 +1121,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                         <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white mb-2">Record Payment</h3>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6">
                             {currentInvoice 
-                                ? `Invoice: ${currentInvoice.invoiceNumber} • Outstanding: $${currentInvoice.balance}`
+                                ? `Invoice: ${currentInvoice.invoiceNumber} • Outstanding: KSh ${currentInvoice.balance}`
                                 : 'Select an invoice to record a payment'
                             }
                         </p>
@@ -1146,7 +1146,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                                         <option value="">-- Choose Outstanding Invoice --</option>
                                         {invoices.filter(i => i.balance > 0).map(i => (
                                             <option key={i.id} value={i.id}>
-                                                {i.studentName} ({i.invoiceNumber}) - Bal: ${i.balance}
+                                                {i.studentName} ({i.invoiceNumber}) - Bal: KSh {i.balance}
                                             </option>
                                         ))}
                                     </select>
@@ -1154,7 +1154,7 @@ export const BeautyCollegeManager: React.FC<BeautyCollegeManagerProps> = ({
                             )}
 
                             <div>
-                                <label className="block text-[9px] font-black uppercase text-slate-455 tracking-wider mb-2">Amount Paid ($)</label>
+                                <label className="block text-[9px] font-black uppercase text-slate-455 tracking-wider mb-2">Amount Paid (KSh)</label>
                                 <input
                                     required
                                     type="number"
