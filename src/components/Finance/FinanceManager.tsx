@@ -16,6 +16,7 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { CheckIcon } from '../icons/CheckIcon';
 import { Trash2Icon } from '../icons/Trash2Icon';
 import { ScaleIcon } from '../icons/ScaleIcon';
+import { SearchIcon } from '../icons/SearchIcon';
 import { RetailRequisitions } from '../retail/RetailRequisitions';
 import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
@@ -53,6 +54,78 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Dynamic Tabs based on Institution Type
     const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config'>('billing');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    // State for students balances registry sub-tab
+    const [studentSubTab, setStudentSubTab] = useState<'balances' | 'wizard'>('balances');
+    const [searchBalances, setSearchBalances] = useState('');
+
+    // Financial calculations for students grouped by class
+    const studentClassGroup = (student: User) => {
+        const metaGrade = student.metadata?.gradeLevel || student.metadata?.stream;
+        if (metaGrade) return metaGrade;
+        
+        const invClass = props.invoices.find(i => i.studentId === student.id && i.className)?.className;
+        if (invClass) return invClass;
+        
+        const courseName = props.courses?.find(c => c.id === student.courseId)?.name;
+        if (courseName) return courseName;
+        
+        return 'Unassigned Class';
+    };
+
+    const studentFinanceData = useMemo(() => {
+        return props.students.map(s => {
+            const studentInvoices = props.invoices.filter(inv => inv.studentId === s.id && inv.status !== 'cancelled' && inv.status !== 'quote');
+            const invoiced = studentInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+            
+            const studentReceipts = props.receipts.filter(rec => studentInvoices.some(inv => inv.id === rec.paidFor));
+            const paid = studentReceipts.reduce((sum, rec) => sum + rec.amountPaid, 0);
+            
+            const balance = Math.max(0, invoiced - paid);
+            
+            return {
+                ...s,
+                totals: {
+                    invoiced,
+                    paid,
+                    balance
+                }
+            };
+        });
+    }, [props.students, props.invoices, props.receipts]);
+
+    const filteredFinanceStudents = useMemo(() => {
+        return studentFinanceData.filter(s => {
+            if (!searchBalances) return true;
+            const searchLower = searchBalances.toLowerCase();
+            return (
+                s.name?.toLowerCase().includes(searchLower) ||
+                s.admissionNumber?.toLowerCase().includes(searchLower) ||
+                s.admission_number?.toLowerCase().includes(searchLower)
+            );
+        });
+    }, [studentFinanceData, searchBalances]);
+
+    const groupedStudents = useMemo(() => {
+        const groups: Record<string, typeof filteredFinanceStudents> = {};
+        filteredFinanceStudents.forEach(s => {
+            const cls = studentClassGroup(s);
+            if (!groups[cls]) groups[cls] = [];
+            groups[cls].push(s);
+        });
+        return groups;
+    }, [filteredFinanceStudents]);
+
+    const totalOutstandingAll = useMemo(() => {
+        return studentFinanceData.reduce((sum, s) => sum + s.totals.balance, 0);
+    }, [studentFinanceData]);
+
+    const collectionRateAll = useMemo(() => {
+        const totalInvoiced = studentFinanceData.reduce((sum, s) => sum + s.totals.invoiced, 0);
+        const totalPaid = studentFinanceData.reduce((sum, s) => sum + s.totals.paid, 0);
+        if (totalInvoiced === 0) return 100;
+        return (totalPaid / totalInvoiced) * 100;
+    }, [studentFinanceData]);
 
     const tabs = [
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
@@ -649,7 +722,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 </div>
 
                 <nav className="space-y-2 flex-1">
-                    {tabs.map(item => (
+                    {tabs.filter(item => item.id !== 'billing').map(item => (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id as any)}
@@ -737,15 +810,158 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'billing' && !isDrivingSchool && (
-                    <AutomatedBilling 
-                        feeStructures={props.feeStructures}
-                        students={props.students}
-                        academicYears={props.academicYears}
-                        semesters={props.semesters}
-                        institution={props.institution}
-                        onGenerateInvoices={props.onGenerateInvoices}
-                        companyDetails={props.companyDetails}
-                    />
+                    <div className="space-y-6">
+                        {/* Sub-tabs for Students */}
+                        <div className="flex gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit">
+                            <button
+                                onClick={() => setStudentSubTab('balances')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                    studentSubTab === 'balances'
+                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                    : 'text-slate-500 hover:text-indigo-650'
+                                }`}
+                            >
+                                Student Balances
+                            </button>
+                            <button
+                                onClick={() => setStudentSubTab('wizard')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                    studentSubTab === 'wizard'
+                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                    : 'text-slate-500 hover:text-indigo-650'
+                                }`}
+                            >
+                                Billing Wizard
+                            </button>
+                        </div>
+
+                        {studentSubTab === 'balances' ? (
+                            <div className="space-y-8 animate-in fade-in duration-300">
+                                {/* Search and Stats */}
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                    <div className="md:col-span-2 relative">
+                                        <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search student by name or admission number..."
+                                            value={searchBalances}
+                                            onChange={(e) => setSearchBalances(e.target.value)}
+                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl text-left">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Outstanding</p>
+                                        <p className="text-lg font-black text-rose-600 dark:text-rose-450">KSh {totalOutstandingAll.toLocaleString()}</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl text-left">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Collection Rate</p>
+                                        <p className="text-lg font-black text-emerald-600 dark:text-emerald-450">{collectionRateAll.toFixed(1)}%</p>
+                                    </div>
+                                </div>
+
+                                {/* Vertically Grouped Students per Class */}
+                                <div className="space-y-8 text-left">
+                                    {Object.keys(groupedStudents).length === 0 ? (
+                                        <div className="p-8 text-center text-slate-400 font-medium bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-[2rem]">
+                                            No students found matching your criteria.
+                                        </div>
+                                    ) : (
+                                        Object.entries(groupedStudents).map(([className, classData]) => {
+                                            const totalInvoiced = classData.reduce((acc, s) => acc + s.totals.invoiced, 0);
+                                            const totalPaid = classData.reduce((acc, s) => acc + s.totals.paid, 0);
+                                            const totalBal = classData.reduce((acc, s) => acc + s.totals.balance, 0);
+                                            
+                                            return (
+                                                <div key={className} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden animate-in fade-in duration-300">
+                                                    {/* Class Header Banner */}
+                                                    <div className="bg-slate-50 dark:bg-slate-800/50 p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 dark:border-slate-800">
+                                                        <div>
+                                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{className}</h3>
+                                                            <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">{classData.length} Students enrolled</p>
+                                                        </div>
+                                                        <div className="flex gap-6">
+                                                            <div>
+                                                                <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Invoiced</span>
+                                                                <span className="text-xs font-black text-slate-700 dark:text-slate-300">KSh {totalInvoiced.toLocaleString()}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Paid</span>
+                                                                <span className="text-xs font-black text-emerald-600 dark:text-emerald-450">KSh {totalPaid.toLocaleString()}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Outstanding</span>
+                                                                <span className="text-xs font-black text-rose-600 dark:text-rose-400">KSh {totalBal.toLocaleString()}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Students List inside class */}
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full border-collapse">
+                                                            <thead>
+                                                                <tr className="border-b border-slate-50 dark:border-slate-800/60">
+                                                                    <th className="px-8 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                                                    <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
+                                                                    <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoiced</th>
+                                                                    <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</th>
+                                                                    <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Balance</th>
+                                                                    <th className="px-8 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/30">
+                                                                {classData.map(student => (
+                                                                    <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                                                                        <td className="px-8 py-4 text-left">
+                                                                            <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 text-left">
+                                                                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{student.admissionNumber || student.admission_number || '—'}</span>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 text-right">
+                                                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">KSh {student.totals.invoiced.toLocaleString()}</span>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 text-right">
+                                                                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-450">KSh {student.totals.paid.toLocaleString()}</span>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 text-right">
+                                                                            <span className={`text-xs font-black ${student.totals.balance > 0 ? 'text-rose-600 dark:text-rose-450' : 'text-slate-850 dark:text-slate-300'}`}>
+                                                                                KSh {student.totals.balance.toLocaleString()}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-8 py-4 text-center">
+                                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                                                                student.totals.balance <= 0
+                                                                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
+                                                                                : student.totals.paid > 0
+                                                                                ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
+                                                                                : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'
+                                                                            }`}>
+                                                                                {student.totals.balance <= 0 ? 'Fully Paid' : student.totals.paid > 0 ? 'Partial' : 'No Payment'}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <AutomatedBilling 
+                                feeStructures={props.feeStructures}
+                                students={props.students}
+                                academicYears={props.academicYears}
+                                semesters={props.semesters}
+                                institution={props.institution}
+                                onGenerateInvoices={props.onGenerateInvoices}
+                                companyDetails={props.companyDetails}
+                            />
+                        )}
+                    </div>
                 )}
 
                 {activeTab === 'billing' && isDrivingSchool && (
