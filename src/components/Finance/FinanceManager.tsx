@@ -51,12 +51,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config'>('billing');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     const tabs = [
+        { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
-        { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Billing Engine', icon: ZapIcon },
         { id: 'bursaries', label: 'Govt & NG-CDF Bursaries', icon: ScaleIcon },
         ...(!isDrivingSchool ? [{ id: 'config', label: 'Fee Configuration', icon: CreditCardIcon }] : []),
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
