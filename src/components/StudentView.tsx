@@ -22,6 +22,7 @@ const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({
 const EduVoteBallot = lazy(() => import('./EduVoteBallot').then(m => ({ default: m.EduVoteBallot })));
 
 import { StudentDashboard } from './StudentDashboard';
+import { StudentSpaceFeed } from './StudentSpaceFeed';
 import { StudentAssignmentManager } from './StudentAssignmentManager';
 import { RatingModal } from './RatingModal';
 import { FeedbackForm } from './FeedbackForm';
@@ -424,7 +425,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         return null;
     };
 
-    const tabs = ['dashboard', 'my_timetable', 'assignments', 'feedback', 'absences', 'bursary_kit', 'nearby_classes', 'eduflow', 'eduvote'];
+    const tabs = ['dashboard', 'space_feed', 'my_timetable', 'assignments', 'feedback', 'absences', 'bursary_kit', 'nearby_classes', 'eduflow', 'eduvote'];
 
     return (
         <div className="space-y-6">
@@ -476,6 +477,14 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                     books={books}
                     onAccessAlumnaPortal={onAccessAlumnaPortal!}
                     schoolRegistry={schoolRegistry}
+                />
+            )}
+
+            {activeTab === 'space_feed' && (
+                <StudentSpaceFeed
+                    user={user}
+                    users={users}
+                    currentInstitution={currentInstitution || null}
                 />
             )}
 

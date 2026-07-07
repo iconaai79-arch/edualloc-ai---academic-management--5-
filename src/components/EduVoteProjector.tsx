@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
-    Users, Award, BarChart2, Shield, Calendar, Layers, Clock, AlertCircle, ArrowLeft
+    Users, Award, BarChart2, Shield, Calendar, Layers, Clock, AlertCircle, ArrowLeft,
+    TrendingUp, Activity, Tv
 } from 'lucide-react';
 import { apiService } from '../services/apiService';
-import type { User, ElectionEvent, ElectionCandidate, ElectionBallot } from '../types';
+import type { User, ElectionEvent, ElectionCandidate, ElectionBallot, Course, CourseLevel, ElectionVoterLedger } from '../types';
 
 interface EduVoteProjectorProps {
     electionId: string;
@@ -18,6 +19,12 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
     const [loading, setLoading] = useState(true);
     const [users, setUsers] = useState<User[]>([]);
 
+    // Turnout Analytics States
+    const [courses, setCourses] = useState<Course[]>([]);
+    const [courseLevels, setCourseLevels] = useState<CourseLevel[]>([]);
+    const [votersLedger, setVotersLedger] = useState<ElectionVoterLedger[]>([]);
+    const [projectorView, setProjectorView] = useState<'overview' | 'turnout'>('overview');
+
     // Mask/Reveal States
     const [isMasked, setIsMasked] = useState(true);
     const [countdown, setCountdown] = useState<number | null>(null);
@@ -28,21 +35,29 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
     // Fetch Election Data and Votes
     const fetchData = useCallback(async () => {
         try {
-            const instId = election?.institutionId || 'GLOBAL';
+            // First fetch election details to get institutionId
+            const elecData = await apiService.fetchModuleRecords('election_events').then(list => (list || []).find((e: any) => e.id === electionId));
             
-            // Fetch election event details
-            const [elecData, candData, ballotsData, usersData] = await Promise.all([
-                apiService.fetchModuleRecords('election_events').then(list => (list || []).find((e: any) => e.id === electionId)),
-                apiService.fetchModuleRecords('election_candidates').then(list => (list || []).filter((c: any) => c.electionId === electionId && c.status === 'approved')),
-                apiService.fetchModuleRecords('election_ballots').then(list => (list || []).filter((b: any) => b.electionId === electionId)),
-                apiService.fetchModuleRecords('users').catch(() => [])
-            ]);
-
             if (elecData) {
+                const instId = elecData.institutionId;
+                
+                // Fetch candidate data, ballots, users, courses, course levels, and voter ledger
+                const [candData, ballotsData, usersData, coursesData, levelsData, ledgerData] = await Promise.all([
+                    apiService.fetchModuleRecords('election_candidates', instId).then(list => (list || []).filter((c: any) => c.electionId === electionId && c.status === 'approved')),
+                    apiService.fetchModuleRecords('election_ballots', instId).then(list => (list || []).filter((b: any) => b.electionId === electionId)),
+                    apiService.fetchModuleRecords('users', instId).catch(() => []),
+                    apiService.fetchModuleRecords('courses', instId).catch(() => []),
+                    apiService.fetchModuleRecords('course_levels', instId).catch(() => []),
+                    apiService.fetchModuleRecords('election_voters_ledger', instId).catch(() => [])
+                ]);
+
                 setElection(elecData);
                 setCandidates(candData);
                 setBallots(ballotsData);
                 setUsers(usersData);
+                setCourses(coursesData || []);
+                setCourseLevels(levelsData || []);
+                setVotersLedger((ledgerData || []).filter((l: any) => l.electionId === electionId));
 
                 // Filter students of current institution
                 const instStudents = (usersData || []).filter(
@@ -55,7 +70,7 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
         } finally {
             setLoading(false);
         }
-    }, [electionId, election?.institutionId]);
+    }, [electionId]);
 
     useEffect(() => {
         fetchData();
@@ -188,6 +203,76 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
         });
     }, [candidates, users]);
 
+    // Class (Course) Turnout List
+    const classStats = useMemo(() => {
+        if (!election) return [];
+        const students = users.filter(u => u.role === 'student' && u.institutionId === election.institutionId);
+        
+        return courses.map(course => {
+            const studentsInClass = students.filter(s => s.courseId === course.id);
+            const votedInClass = votersLedger.filter(l => 
+                studentsInClass.some(s => s.id === l.studentId)
+            );
+            return {
+                id: course.id,
+                name: course.name,
+                code: course.code,
+                total: studentsInClass.length,
+                voted: votedInClass.length,
+                percentage: studentsInClass.length > 0 ? Math.round((votedInClass.length / studentsInClass.length) * 100) : 0
+            };
+        }).filter(c => c.total > 0)
+          .sort((a, b) => b.percentage - a.percentage);
+    }, [election, users, courses, votersLedger]);
+
+    // Stream (CourseLevel) Turnout List
+    const streamStats = useMemo(() => {
+        if (!election) return [];
+        const students = users.filter(u => u.role === 'student' && u.institutionId === election.institutionId);
+
+        return courses.flatMap(course => {
+            return (course.levels || []).map((level: any) => {
+                const studentsInLevel = students.filter(s => s.courseId === course.id && s.courseLevelId === level.id);
+                const votedInLevel = votersLedger.filter(l => 
+                    studentsInLevel.some(s => s.id === l.studentId)
+                );
+                return {
+                    id: level.id,
+                    courseId: course.id,
+                    courseName: course.name,
+                    levelName: level.name,
+                    fullName: `${course.name} - ${level.name}`,
+                    total: studentsInLevel.length,
+                    voted: votedInLevel.length,
+                    percentage: studentsInLevel.length > 0 ? Math.round((votedInLevel.length / studentsInLevel.length) * 100) : 0
+                };
+            });
+        }).filter(s => s.total > 0)
+          .sort((a, b) => b.percentage - a.percentage);
+    }, [election, users, courses, votersLedger]);
+
+    // Recent votes activity feed (Anonymous)
+    const recentVotesFeed = useMemo(() => {
+        if (!election) return [];
+        const students = users.filter(u => u.role === 'student' && u.institutionId === election.institutionId);
+
+        return votersLedger
+            .map(l => {
+                const student = students.find(s => s.id === l.studentId);
+                const course = student ? courses.find(c => c.id === student.courseId) : null;
+                const level = student && course ? (course.levels || []).find((lev: any) => lev.id === student.courseLevelId) : null;
+                return {
+                    id: l.id,
+                    votedAt: new Date(l.votedAt),
+                    className: course?.name || 'Class',
+                    streamName: level?.name || 'Stream',
+                    timeStr: new Date(l.votedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                };
+            })
+            .sort((a, b) => b.votedAt.getTime() - a.votedAt.getTime())
+            .slice(0, 12);
+    }, [election, users, courses, votersLedger]);
+
     // Candidates Slide Show Rotation
     useEffect(() => {
         if (enrichedCandidates.length === 0) return;
@@ -248,7 +333,6 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
             {/* Grid Glowing Accents */}
             <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-650/10 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-650/10 rounded-full blur-[120px] pointer-events-none" />
-
             {/* Back Navigation Bar */}
             <div className="flex justify-between items-center mb-10 z-10 relative">
                 <button
@@ -257,13 +341,29 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
                 >
                     <ArrowLeft className="w-4 h-4" /> Back to Console
                 </button>
+
+                {/* Projector Tab switcher */}
+                <div className="bg-slate-900/50 border border-slate-800/80 p-1.5 rounded-[2rem] flex items-center gap-1.5 backdrop-blur-md">
+                    <button
+                        onClick={() => setProjectorView('overview')}
+                        className={`px-6 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${projectorView === 'overview' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                    >
+                        <Tv className="w-3.5 h-3.5" /> Election Overview
+                    </button>
+                    <button
+                        onClick={() => setProjectorView('turnout')}
+                        className={`px-6 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${projectorView === 'turnout' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                    >
+                        <Activity className="w-3.5 h-3.5 animate-pulse text-indigo-400" /> Class Turnout Stream
+                    </button>
+                </div>
+
                 <div className="flex items-center gap-2">
                     <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-ping absolute" />
                     <span className="w-3.5 h-3.5 rounded-full bg-emerald-500" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Connection</span>
                 </div>
             </div>
-
             {loading || !election ? (
                 <div className="flex flex-col items-center justify-center py-40">
                     <div className="w-14 h-14 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
@@ -409,172 +509,350 @@ export const EduVoteProjector: React.FC<EduVoteProjectorProps> = ({ electionId, 
                     )}
 
                     {/* VOTING DATA DISPLAY (MASKED vs REVEALED) */}
-                    {countdown === null && isMasked && election.status !== 'closed' ? (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-                            {/* Left Column: Polling Status & Info */}
-                            <div className="bg-slate-900/30 backdrop-blur-sm p-12 rounded-[3.5rem] border border-slate-800 flex flex-col justify-center text-center lg:text-left space-y-6">
-                                <div>
-                                    <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
-                                        <Clock className="w-10 h-10 text-indigo-500 animate-pulse" />
-                                        <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 border border-indigo-500/25 px-3.5 py-1 rounded-full tracking-widest">Polling In Progress</span>
-                                    </div>
-                                    <h3 className="text-3xl font-black uppercase tracking-tight text-white mb-3">Wait For The Results</h3>
-                                    <p className="text-slate-400 text-xs leading-relaxed max-w-md">
-                                        Electoral logs are streaming and votes are being tallied securely in real-time. Results will be calculated and projected automatically as soon as the election closes.
-                                    </p>
-                                </div>
-                                <div className="pt-4 border-t border-slate-800/80 flex justify-center lg:justify-start">
-                                    <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-2xl text-[9px] uppercase tracking-widest font-black text-slate-400">
-                                        <AlertCircle className="w-4 h-4 text-amber-500" /> Results unlock when election closes
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Right Column: Dynamic Branded Candidate Slideshow */}
-                            {enrichedCandidates.length > 0 && (
-                                <div className="bg-slate-900/20 backdrop-blur-md p-10 rounded-[3.5rem] border border-slate-800/80 shadow-xl flex flex-col justify-between relative overflow-hidden h-[420px] transition-all">
-                                    {/* Rotating top background glow */}
-                                    <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 bg-indigo-500/10 rounded-full blur-[60px]" />
-                                    
-                                    {/* Slideshow Progress Bar indicator */}
-                                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-900">
-                                        <div 
-                                            key={currentSlideIndex}
-                                            className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 rounded-r transition-all" 
-                                            style={{
-                                                animation: 'slideProgress 5.5s linear forwards',
-                                                width: '0%'
-                                            }}
-                                        />
+                    {projectorView === 'turnout' ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-6 duration-300 items-start">
+                            {/* Left/Middle: Live Scoreboards */}
+                            <div className="lg:col-span-2 space-y-8">
+                                <div className="bg-slate-900/20 backdrop-blur-md p-10 rounded-[3.5rem] border border-slate-800/80 shadow-xl space-y-6">
+                                    <div className="flex justify-between items-center border-b border-slate-800/50 pb-4">
+                                        <div>
+                                            <h3 className="text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2">
+                                                <TrendingUp className="w-6 h-6 text-indigo-400" /> Class Turnout Scoreboard
+                                            </h3>
+                                            <p className="text-[9px] font-black uppercase text-slate-450 tracking-widest mt-1">Live participation streaming by class group</p>
+                                        </div>
+                                        <span className="text-[9px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-full bg-slate-950 border border-slate-850 text-slate-400">
+                                            {classStats.length} Classes Active
+                                        </span>
                                     </div>
 
-                                    {/* Candidate Card Contents */}
-                                    {(() => {
-                                        const currentCand = enrichedCandidates[currentSlideIndex];
-                                        if (!currentCand) return null;
-                                        return (
-                                            <div 
-                                                key={currentCand.id} 
-                                                className="flex flex-col h-full justify-between animate-fade-in py-4"
-                                            >
-                                                {/* Header Details */}
-                                                <div className="flex gap-5 items-center">
-                                                    <div className="gradient-border-wrap animated-candidate-photo shrink-0 scale-110">
-                                                        <div className="gradient-border-inner p-[1.5px]">
-                                                            {currentCand.studentPhoto ? (
-                                                                <img src={currentCand.studentPhoto} alt={currentCand.studentName} className="w-16 h-16 rounded-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center font-black text-indigo-400 text-lg">
-                                                                    {currentCand.studentName?.substring(0, 2).toUpperCase()}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="space-y-1 text-left">
-                                                        <span className="inline-block text-[9px] font-black uppercase text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-0.5 rounded-full tracking-wider">{currentCand.position}</span>
-                                                        <h4 className="text-2xl font-black uppercase tracking-tight text-white">{currentCand.studentName}</h4>
-                                                        {currentCand.tagline && (
-                                                            <p className="text-slate-400 text-xs italic">"{currentCand.tagline}"</p>
+                                    {classStats.length === 0 ? (
+                                        <div className="text-center py-10">
+                                            <p className="text-slate-450 text-xs italic">No class statistics available. Verify student registrations.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {classStats.map(cls => {
+                                                // Find streams inside this class to show as tiny sub-stats
+                                                const clsStreams = streamStats.filter(s => s.courseId === cls.id);
+                                                
+                                                // Color determination for class progress
+                                                const isHigh = cls.percentage >= 80;
+                                                const isMed = cls.percentage >= 50 && cls.percentage < 80;
+                                                const progressColorClass = isHigh 
+                                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' 
+                                                    : isMed 
+                                                        ? 'bg-gradient-to-r from-indigo-500 to-blue-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]'
+                                                        : 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]';
+
+                                                return (
+                                                    <div 
+                                                        key={cls.id} 
+                                                        className="bg-slate-950/40 border border-slate-900/60 p-6 rounded-[2.5rem] flex flex-col justify-between hover:border-slate-850 transition-all group relative overflow-hidden"
+                                                    >
+                                                        {/* Top visual accents */}
+                                                        {isHigh && (
+                                                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
                                                         )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Candidate Manifesto / Profile */}
-                                                <div className="bg-slate-950/40 border border-slate-900 rounded-[2rem] p-6 my-4 flex-grow flex flex-col justify-center text-left">
-                                                    <h5 className="text-[8px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Candidate Manifesto</h5>
-                                                    <p className="text-slate-300 text-xs leading-relaxed italic overflow-y-auto max-h-[140px]">
-                                                        {currentCand.manifesto || 'No manifesto details provided. Nominated to bring proactive leadership and student advocacy.'}
-                                                    </p>
-                                                </div>
-
-                                                {/* Slide Nav / Indicators */}
-                                                <div className="flex justify-between items-center text-[9px] font-black uppercase text-slate-500 tracking-widest mt-2">
-                                                    <span>Nominated Profile</span>
-                                                    <div className="flex gap-2">
-                                                        {enrichedCandidates.map((_, idx) => (
-                                                            <button 
-                                                                key={idx}
-                                                                onClick={() => setCurrentSlideIndex(idx)}
-                                                                className={`w-2 h-2 rounded-full transition-all ${idx === currentSlideIndex ? 'bg-indigo-400 w-5' : 'bg-slate-800'}`}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                    <span>Candidate {currentSlideIndex + 1} of {enrichedCandidates.length}</span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        (countdown === null || countdown === 0) && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
-                                {Object.entries(resultsByPosition).map(([pos, list]) => {
-                                    const winner = list[0];
-                                    return (
-                                        <div 
-                                            key={pos} 
-                                            className="bg-slate-900/20 backdrop-blur-md p-10 rounded-[3.5rem] border border-slate-800/80 shadow-xl space-y-6 hover:border-slate-800 transition-all relative overflow-hidden"
-                                        >
-                                            {/* Winner crown indicator */}
-                                            {winner && winner.votes > 0 && election.status === 'closed' && (
-                                                <div className="absolute right-8 top-8 bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 px-3.5 py-1.5 rounded-full text-[9px] uppercase font-black tracking-widest flex items-center gap-1">
-                                                    <Award className="w-3.5 h-3.5 text-indigo-400 fill-current animate-pulse" /> Winner Elect
-                                                </div>
-                                            )}
-
-                                            <div>
-                                                <h3 className="text-2xl font-black uppercase tracking-tight text-white">{pos}</h3>
-                                                <p className="text-[9px] font-black uppercase text-slate-450 tracking-widest mt-1">Live Vote Allocation</p>
-                                            </div>
-
-                                            <div className="space-y-6">
-                                                {list.map((cand, idx) => {
-                                                    const isTop = idx === 0 && cand.votes > 0;
-                                                    return (
-                                                        <div key={cand.candidateId} className="space-y-2.5">
-                                                            <div className="flex justify-between items-center text-sm font-bold">
-                                                                <div className="flex items-center gap-3">
-                                                                    <span className={`text-xs font-black ${isTop ? 'text-indigo-400' : 'text-slate-500'}`}>
-                                                                        #{idx + 1}
-                                                                    </span>
-                                                                    <div className="gradient-border-wrap animated-candidate-photo shrink-0">
-                                                                        <div className="gradient-border-inner p-[1px]">
-                                                                            {cand.studentPhoto ? (
-                                                                                <img src={cand.studentPhoto} alt={cand.studentName} className="w-12 h-12 rounded-full object-cover" />
-                                                                            ) : (
-                                                                                <div className="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center font-black text-indigo-400 text-xs">
-                                                                                    {cand.studentName?.substring(0, 2).toUpperCase()}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                    <span className={isTop ? 'text-white' : 'text-slate-300'}>{cand.studentName}</span>
+                                                        <div>
+                                                            <div className="flex justify-between items-start mb-3">
+                                                                <div>
+                                                                    <span className="text-[8px] font-black uppercase text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full tracking-wider">{cls.code || 'CLS'}</span>
+                                                                    <h4 className="text-lg font-black uppercase text-white tracking-tight mt-1">{cls.name}</h4>
                                                                 </div>
-                                                                <span className={isTop ? 'text-indigo-400 font-extrabold' : 'text-slate-400'}>
-                                                                    {cand.votes} Votes ({cand.percentage}%)
-                                                                </span>
+                                                                <div className="text-right">
+                                                                    <span className={`text-2xl font-black ${isHigh ? 'text-emerald-400' : isMed ? 'text-indigo-400' : 'text-amber-500'}`}>
+                                                                        {cls.percentage}%
+                                                                    </span>
+                                                                    <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mt-0.5">{cls.voted} / {cls.total} Voted</p>
+                                                                </div>
                                                             </div>
 
-                                                            <div className="w-full bg-slate-950/60 h-3 rounded-full overflow-hidden border border-slate-900">
+                                                            <div className="w-full bg-slate-900/80 h-2.5 rounded-full overflow-hidden border border-slate-900 mb-4">
                                                                 <div 
-                                                                    className={`h-full rounded-full transition-all duration-1000 ${
-                                                                        isTop 
-                                                                            ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-[0_0_8px_rgba(99,102,241,0.5)]' 
-                                                                            : 'bg-slate-700'
-                                                                    }`} 
-                                                                    style={{ width: `${cand.percentage}%` }} 
+                                                                    className={`h-full rounded-full transition-all duration-1000 ${progressColorClass}`} 
+                                                                    style={{ width: `${cls.percentage}%` }} 
                                                                 />
                                                             </div>
                                                         </div>
-                                                    );
-                                                })}
-                                            </div>
+
+                                                        {/* Mini Streams List */}
+                                                        {clsStreams.length > 0 && (
+                                                            <div className="mt-2 border-t border-slate-900/80 pt-3 space-y-1.5">
+                                                                <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Stream Turnout</p>
+                                                                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                                                    {clsStreams.map(str => (
+                                                                        <div key={str.id} className="flex items-center justify-between bg-slate-950/60 p-2 rounded-xl border border-slate-900/80">
+                                                                            <span className="text-slate-400 truncate max-w-[65px] font-medium">{str.levelName}</span>
+                                                                            <span className={`font-bold ${str.percentage >= 80 ? 'text-emerald-400' : str.percentage >= 50 ? 'text-indigo-400' : 'text-amber-500'}`}>
+                                                                                {str.percentage}%
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                    );
-                                })}
+                                    )}
+                                </div>
                             </div>
+
+                            {/* Right Column: Leaderboards & Activity Feed */}
+                            <div className="space-y-8">
+                                {/* Turnout Leaderboard widget */}
+                                <div className="bg-slate-900/20 backdrop-blur-md p-8 rounded-[3.5rem] border border-slate-800/80 shadow-xl space-y-6">
+                                    <div>
+                                        <h3 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2">
+                                            <Award className="w-5 h-5 text-indigo-400" /> Turnout Leaderboard
+                                        </h3>
+                                        <p className="text-[8px] font-black uppercase text-slate-450 tracking-widest mt-0.5">Top performing streams</p>
+                                    </div>
+
+                                    <div className="space-y-3.5">
+                                        {streamStats.slice(0, 5).map((stream, idx) => {
+                                            const isTop = idx === 0;
+                                            return (
+                                                <div 
+                                                    key={stream.id} 
+                                                    className="flex items-center justify-between p-3.5 bg-slate-950/40 border border-slate-900 rounded-[2rem] hover:border-slate-850 transition-all"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black uppercase ${
+                                                            idx === 0 ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 
+                                                            idx === 1 ? 'bg-slate-400/10 text-slate-400 border border-slate-400/20' :
+                                                            idx === 2 ? 'bg-amber-700/10 text-amber-700 border border-amber-700/20' :
+                                                            'bg-slate-900 text-slate-500'
+                                                        }`}>
+                                                            {idx + 1}
+                                                        </span>
+                                                        <div className="text-left">
+                                                            <p className="text-xs font-black uppercase tracking-tight text-white">{stream.fullName}</p>
+                                                            <p className="text-[7px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{stream.voted} / {stream.total} cast</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className={`text-sm font-black ${isTop ? 'text-emerald-400' : 'text-indigo-400'}`}>
+                                                        {stream.percentage}%
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                        {streamStats.length === 0 && (
+                                            <p className="text-slate-450 text-xs italic text-center py-4">No stream stats calculated yet.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Live Activity Ticker widget */}
+                                <div className="bg-slate-900/20 backdrop-blur-md p-8 rounded-[3.5rem] border border-slate-800/80 shadow-xl space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h3 className="text-lg font-black uppercase tracking-tight text-white flex items-center gap-2">
+                                                <Activity className="w-5 h-5 text-emerald-400 animate-pulse" /> Live Streaming Activity
+                                            </h3>
+                                            <p className="text-[8px] font-black uppercase text-slate-450 tracking-widest mt-0.5">Real-time anonymous ballot entries</p>
+                                        </div>
+                                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                                    </div>
+
+                                    <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
+                                        {recentVotesFeed.map(feed => (
+                                            <div 
+                                                key={feed.id} 
+                                                className="p-3 bg-slate-950/60 border border-slate-900 rounded-2xl flex items-center justify-between text-left text-xs gap-3 animate-in fade-in duration-200"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                                                    <div>
+                                                        <p className="text-slate-200 font-bold uppercase tracking-tight">Vote Cast Successfully</p>
+                                                        <p className="text-[8.5px] font-black uppercase text-slate-450 mt-0.5 tracking-wider">
+                                                            {feed.className} — {feed.streamName}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[8px] font-bold text-slate-500 shrink-0 uppercase tracking-widest">{feed.timeStr}</span>
+                                            </div>
+                                        ))}
+
+                                        {recentVotesFeed.length === 0 && (
+                                            <div className="text-center py-6 text-slate-450 text-xs italic">
+                                                Waiting for incoming ballots...
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        countdown === null && isMasked && election.status !== 'closed' ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+                                {/* Left Column: Polling Status & Info */}
+                                <div className="bg-slate-900/30 backdrop-blur-sm p-12 rounded-[3.5rem] border border-slate-800 flex flex-col justify-center text-center lg:text-left space-y-6">
+                                    <div>
+                                        <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
+                                            <Clock className="w-10 h-10 text-indigo-500 animate-pulse" />
+                                            <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 border border-indigo-500/25 px-3.5 py-1 rounded-full tracking-widest">Polling In Progress</span>
+                                        </div>
+                                        <h3 className="text-3xl font-black uppercase tracking-tight text-white mb-3">Wait For The Results</h3>
+                                        <p className="text-slate-400 text-xs leading-relaxed max-w-md">
+                                            Electoral logs are streaming and votes are being tallied securely in real-time. Results will be calculated and projected automatically as soon as the election closes.
+                                        </p>
+                                    </div>
+                                    <div className="pt-4 border-t border-slate-800/80 flex justify-center lg:justify-start">
+                                        <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-2xl text-[9px] uppercase tracking-widest font-black text-slate-400">
+                                            <AlertCircle className="w-4 h-4 text-amber-500" /> Results unlock when election closes
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Dynamic Branded Candidate Slideshow */}
+                                {enrichedCandidates.length > 0 && (
+                                    <div className="bg-slate-900/20 backdrop-blur-md p-10 rounded-[3.5rem] border border-slate-800/80 shadow-xl flex flex-col justify-between relative overflow-hidden h-[420px] transition-all">
+                                        {/* Rotating top background glow */}
+                                        <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 bg-indigo-500/10 rounded-full blur-[60px]" />
+                                        
+                                        {/* Slideshow Progress Bar indicator */}
+                                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-900">
+                                            <div 
+                                                key={currentSlideIndex}
+                                                className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 rounded-r transition-all" 
+                                                style={{
+                                                    animation: 'slideProgress 5.5s linear forwards',
+                                                    width: '0%'
+                                                }}
+                                            />
+                                        </div>
+
+                                        {/* Candidate Card Contents */}
+                                        {(() => {
+                                            const currentCand = enrichedCandidates[currentSlideIndex];
+                                            if (!currentCand) return null;
+                                            return (
+                                                <div 
+                                                    key={currentCand.id} 
+                                                    className="flex flex-col h-full justify-between animate-fade-in py-4"
+                                                >
+                                                    {/* Header Details */}
+                                                    <div className="flex gap-5 items-center">
+                                                        <div className="gradient-border-wrap animated-candidate-photo shrink-0 scale-110">
+                                                            <div className="gradient-border-inner p-[1.5px]">
+                                                                {currentCand.studentPhoto ? (
+                                                                    <img src={currentCand.studentPhoto} alt={currentCand.studentName} className="w-16 h-16 rounded-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center font-black text-indigo-400 text-lg">
+                                                                        {currentCand.studentName?.substring(0, 2).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1 text-left">
+                                                            <span className="inline-block text-[9px] font-black uppercase text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-0.5 rounded-full tracking-wider">{currentCand.position}</span>
+                                                            <h4 className="text-2xl font-black uppercase tracking-tight text-white">{currentCand.studentName}</h4>
+                                                            {currentCand.tagline && (
+                                                                <p className="text-slate-400 text-xs italic">"{currentCand.tagline}"</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Candidate Manifesto / Profile */}
+                                                    <div className="bg-slate-950/40 border border-slate-900 rounded-[2rem] p-6 my-4 flex-grow flex flex-col justify-center text-left">
+                                                        <h5 className="text-[8px] font-black uppercase text-slate-500 tracking-widest mb-1.5">Candidate Manifesto</h5>
+                                                        <p className="text-slate-300 text-xs leading-relaxed italic overflow-y-auto max-h-[140px]">
+                                                            {currentCand.manifesto || 'No manifesto details provided. Nominated to bring proactive leadership and student advocacy.'}
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Slide Nav / Indicators */}
+                                                    <div className="flex justify-between items-center text-[9px] font-black uppercase text-slate-500 tracking-widest mt-2">
+                                                        <span>Nominated Profile</span>
+                                                        <div className="flex gap-2">
+                                                            {enrichedCandidates.map((_, idx) => (
+                                                                <button 
+                                                                    key={idx}
+                                                                    onClick={() => setCurrentSlideIndex(idx)}
+                                                                    className={`w-2 h-2 rounded-full transition-all ${idx === currentSlideIndex ? 'bg-indigo-400 w-5' : 'bg-slate-800'}`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                        <span>Candidate {currentSlideIndex + 1} of {enrichedCandidates.length}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            (countdown === null || countdown === 0) && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
+                                    {Object.entries(resultsByPosition).map(([pos, list]) => {
+                                        const winner = list[0];
+                                        return (
+                                            <div 
+                                                key={pos} 
+                                                className="bg-slate-900/20 backdrop-blur-md p-10 rounded-[3.5rem] border border-slate-800/80 shadow-xl space-y-6 hover:border-slate-800 transition-all relative overflow-hidden"
+                                            >
+                                                {/* Winner crown indicator */}
+                                                {winner && winner.votes > 0 && election.status === 'closed' && (
+                                                    <div className="absolute right-8 top-8 bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 px-3.5 py-1.5 rounded-full text-[9px] uppercase font-black tracking-widest flex items-center gap-1">
+                                                        <Award className="w-3.5 h-3.5 text-indigo-400 fill-current animate-pulse" /> Winner Elect
+                                                    </div>
+                                                )}
+
+                                                <div>
+                                                    <h3 className="text-2xl font-black uppercase tracking-tight text-white">{pos}</h3>
+                                                    <p className="text-[9px] font-black uppercase text-slate-450 tracking-widest mt-1">Live Vote Allocation</p>
+                                                </div>
+
+                                                <div className="space-y-6">
+                                                    {list.map((cand, idx) => {
+                                                        const isTop = idx === 0 && cand.votes > 0;
+                                                        return (
+                                                            <div key={cand.candidateId} className="space-y-2.5">
+                                                                <div className="flex justify-between items-center text-sm font-bold">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className={`text-xs font-black ${isTop ? 'text-indigo-400' : 'text-slate-500'}`}>
+                                                                            #{idx + 1}
+                                                                        </span>
+                                                                        <div className="gradient-border-wrap animated-candidate-photo shrink-0">
+                                                                            <div className="gradient-border-inner p-[1px]">
+                                                                                {cand.studentPhoto ? (
+                                                                                    <img src={cand.studentPhoto} alt={cand.studentName} className="w-12 h-12 rounded-full object-cover" />
+                                                                                ) : (
+                                                                                    <div className="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center font-black text-indigo-400 text-xs">
+                                                                                        {cand.studentName?.substring(0, 2).toUpperCase()}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <span className={isTop ? 'text-white' : 'text-slate-300'}>{cand.studentName}</span>
+                                                                    </div>
+                                                                    <span className={isTop ? 'text-indigo-400 font-extrabold' : 'text-slate-400'}>
+                                                                        {cand.votes} Votes ({cand.percentage}%)
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="w-full bg-slate-950/60 h-3 rounded-full overflow-hidden border border-slate-900">
+                                                                    <div 
+                                                                        className={`h-full rounded-full transition-all duration-1000 ${
+                                                                            isTop 
+                                                                                ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-[0_0_8px_rgba(99,102,241,0.5)]' 
+                                                                                : 'bg-slate-700'
+                                                                        }`} 
+                                                                        style={{ width: `${cand.percentage}%` }} 
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )
                         )
                     )}
                 </div>

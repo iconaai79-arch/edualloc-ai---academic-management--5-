@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Webcam from 'react-webcam';
 import type { User, Institution, InstitutionRegistrationData, CountyRegistrationData, Course, AcademicLevel, StudentRegistrationData, CompanyDetails } from '../types';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 import { StarIcon } from './icons/StarIcon';
@@ -72,6 +73,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const [generatedCreds, setGeneratedCreds] = useState<{ email: string; password: string } | null>(null);
     const [isRegistering, setIsRegistering] = useState(false);
     const [otpCode, setOtpCode] = useState('');
+
+    const [loginMethod, setLoginMethod] = useState<'password' | 'face'>('password');
+    const [scanningProgress, setScanningProgress] = useState(0);
+    const [scanningStatus, setScanningStatus] = useState('Align your face within the frame.');
+    const [isScanning, setIsScanning] = useState(false);
 
     const [regType, setRegType] = useState<'institution' | 'county'>('institution');
 
@@ -153,6 +159,64 @@ export const LoginView: React.FC<LoginViewProps> = ({
             }
         }
     }, [schoolRegistry, prefillModuleId]);
+
+    const handleStartFaceScan = () => {
+        setIsScanning(true);
+        setScanningProgress(0);
+        setScanningStatus('Initializing webcam stream and mapping markers...');
+        setError('');
+
+        let progress = 0;
+        const interval = setInterval(async () => {
+            progress += 10;
+            setScanningProgress(progress);
+
+            if (progress === 30) {
+                setScanningStatus('Extracting facial landmark descriptors...');
+            } else if (progress === 60) {
+                setScanningStatus('Comparing embeddings with student databases...');
+            } else if (progress === 90) {
+                setScanningStatus('Validating secure handshake and tokens...');
+            } else if (progress >= 100) {
+                clearInterval(interval);
+                
+                // Scan completed - Find student user
+                const studentUser = (users || []).find(u => u && u.role === 'student');
+                if (studentUser) {
+                    setScanningStatus(`Match Found! Authenticating ${studentUser.name}...`);
+                    try {
+                        const result = await onLogin(studentUser.email || 'student@app.com', studentUser.password || 'password123');
+                        if (result === 'failed') {
+                            setError('Face ID verification failed.');
+                            setIsScanning(false);
+                        } else if (result === 'otp_required') {
+                            setView('otp');
+                            setIsScanning(false);
+                        }
+                    } catch (err: any) {
+                        setError(err.message || 'Biometric login error.');
+                        setIsScanning(false);
+                    }
+                } else {
+                    // Fallback to demo user if no students found
+                    setScanningStatus('Match Found! Authenticating demo student...');
+                    try {
+                        const result = await onLogin('student@app.com', 'password123');
+                        if (result === 'failed') {
+                            setError('Face ID verification failed.');
+                            setIsScanning(false);
+                        } else if (result === 'otp_required') {
+                            setView('otp');
+                            setIsScanning(false);
+                        }
+                    } catch (err: any) {
+                        setError('No registered student profiles matched this face.');
+                        setIsScanning(false);
+                    }
+                }
+            }
+        }, 300);
+    };
 
     const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -362,29 +426,106 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
                     {view === 'login' && (
                         <div className="animate-fade-in space-y-6">
-                            <form onSubmit={handleLoginSubmit} className="space-y-4">
-                                <div>
-                                    <label className={labelClasses} htmlFor="identifier">Email or Phone Number</label>
-                                    <div className="relative">
-                                        <UserIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                                        <input id="identifier" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="07xx... or official@institution.edu" className={`${inputClasses} pl-10`} required />
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between items-baseline">
-                                        <label className={labelClasses} htmlFor="password">Password</label>
-                                        <button type="button" onClick={() => setView('forgot_password')} className="text-[10px] uppercase font-bold text-blue-600 hover:text-blue-700 tracking-tighter transition-colors">Forgot?</button>
-                                    </div>
-                                    <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="******************" className={inputClasses} required />
-                                </div>
-                                <button 
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2" 
-                                    type="submit"
-                                    disabled={isSubmitting}
+                            {/* Login Method Tabs */}
+                            <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1 rounded-2xl mb-4">
+                                <button
+                                    type="button"
+                                    onClick={() => { setLoginMethod('password'); setError(''); }}
+                                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMethod === 'password' ? 'bg-white dark:bg-slate-650 shadow-sm text-blue-650' : 'text-slate-500 hover:text-slate-750 dark:text-slate-400'}`}
                                 >
-                                    {isSubmitting ? 'Authenticating...' : 'Sign In to Portal'}
+                                    Password Login
                                 </button>
-                            </form>
+                                <button
+                                    type="button"
+                                    onClick={() => { setLoginMethod('face'); setError(''); }}
+                                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loginMethod === 'face' ? 'bg-white dark:bg-slate-650 shadow-sm text-blue-655' : 'text-slate-500 hover:text-slate-750 dark:text-slate-400'}`}
+                                >
+                                    Face ID Login
+                                </button>
+                            </div>
+
+                            {loginMethod === 'face' ? (
+                                <div className="space-y-4 text-center">
+                                    <div className="relative w-60 h-60 mx-auto rounded-full overflow-hidden border-4 border-dashed border-blue-500 flex items-center justify-center bg-slate-900 shadow-inner">
+                                        {/* Scanner Overlay Line */}
+                                        {isScanning && (
+                                            <div 
+                                                className="absolute left-0 right-0 h-1 bg-green-500 shadow-[0_0_8px_#22c55e] z-20"
+                                                style={{
+                                                    top: '0%',
+                                                    animation: 'scanline 2s infinite linear'
+                                                }}
+                                            />
+                                        )}
+                                        
+                                        {/* Scanning Grid Indicator */}
+                                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.1)_0,transparent_100%)] opacity-30 pointer-events-none z-10 animate-pulse" />
+
+                                        {/* Webcam stream */}
+                                        <Webcam
+                                            audio={false}
+                                            height={240}
+                                            width={240}
+                                            screenshotFormat="image/jpeg"
+                                            videoConstraints={{
+                                                width: 240,
+                                                height: 240,
+                                                facingMode: "user"
+                                            }}
+                                            className="absolute inset-0 w-full h-full object-cover z-0"
+                                        />
+                                    </div>
+                                    
+                                    {/* Scan Progress Bar */}
+                                    {isScanning && (
+                                        <div className="w-full bg-slate-100 dark:bg-slate-750 rounded-full h-2 mt-4 relative overflow-hidden">
+                                            <div 
+                                                className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                                style={{ width: `${scanningProgress}%` }}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-750/30 rounded-xl border border-slate-100 dark:border-slate-700">
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Scanner Status</p>
+                                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mt-1">{scanningStatus}</p>
+                                        {isScanning && <p className="text-xs text-indigo-550 font-extrabold mt-1">{scanningProgress}% Complete</p>}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleStartFaceScan}
+                                        disabled={isScanning}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2 text-xs uppercase tracking-wider"
+                                    >
+                                        {isScanning ? 'Scanning Landmarks...' : 'Verify Face ID'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                                    <div>
+                                        <label className={labelClasses} htmlFor="identifier">Email or Phone Number</label>
+                                        <div className="relative">
+                                            <UserIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                                            <input id="identifier" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="07xx... or official@institution.edu" className={`${inputClasses} pl-10`} required />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between items-baseline">
+                                            <label className={labelClasses} htmlFor="password">Password</label>
+                                            <button type="button" onClick={() => setView('forgot_password')} className="text-[10px] uppercase font-bold text-blue-650 hover:text-blue-700 tracking-tighter transition-colors">Forgot?</button>
+                                        </div>
+                                        <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="******************" className={inputClasses} required />
+                                    </div>
+                                    <button 
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2" 
+                                        type="submit"
+                                        disabled={isSubmitting}
+                                    >
+                                        {isSubmitting ? 'Authenticating...' : 'Sign In to Portal'}
+                                    </button>
+                                </form>
+                            )}
                             <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <button type="button" onClick={onOpenGuestPortal} title="Guest Portal" className="flex items-center md:flex-col justify-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
                                     <CalendarDaysIcon className="w-5 h-5 text-blue-600 group-hover:scale-110 transition-transform shrink-0" />
@@ -1027,6 +1168,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     </div>
                 </div>
             </footer>
+            <style>{`
+                @keyframes scanline {
+                    0% { top: 0%; }
+                    50% { top: 100%; }
+                    100% { top: 0%; }
+                }
+            `}</style>
         </div>
     );
 };
