@@ -748,7 +748,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             } else if (isFuelStation) {
                 setActiveTab('fuel_station');
             } else if (isEdu || isSchool) {
-                setActiveTab('timetable');
+                setActiveTab(role === 'head_teacher' ? 'dashboard' : 'timetable');
                 setActiveScope('console_hub');
             }
             setHasSetDefaultTab(true);
@@ -761,8 +761,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (role === 'mechanic_admin') {
                 setActiveTab('car_service');
                 setActiveScope('logistics');
-            } else if (role === 'admin' && (isEdu || isSchool)) {
-                setActiveTab('timetable');
+            } else if ((role === 'admin' || role === 'head_teacher') && (isEdu || isSchool)) {
+                setActiveTab(role === 'head_teacher' ? 'dashboard' : 'timetable');
                 setActiveScope('console_hub');
             }
         }

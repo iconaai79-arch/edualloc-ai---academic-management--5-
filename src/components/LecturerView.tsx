@@ -182,6 +182,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [showMoreDrawer, setShowMoreDrawer] = useState(false);
     const [myRequestsSubTab, setMyRequestsSubTab] = useState<'catalog' | 'pending' | 'allocations'>('catalog');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
