@@ -839,6 +839,31 @@ export const apiService = {
         });
         return records.length > 0 ? records[0] : null;
     },
+    async fetchTeacherCheckInsRange(
+        institutionId: string,
+        startDate: string,
+        endDate: string,
+        teacherId?: string
+    ): Promise<any[]> {
+        if (!_supabase) return [];
+        let query = _supabase
+            .from('v_teacher_checkins')
+            .select('*')
+            .eq('institution_id', institutionId)
+            .gte('check_in_date', startDate)
+            .lte('check_in_date', endDate);
+        
+        if (teacherId && teacherId !== 'all') {
+            query = query.eq('teacher_id', teacherId);
+        }
+        
+        const { data, error } = await query.order('check_in_date', { ascending: false });
+        if (error) {
+            console.error('Error fetching teacher check-ins range:', error);
+            return [];
+        }
+        return toCamelCase(data);
+    },
     async processTeacherCheckIn(payload: {
         teacher_id?: string;
         institution_id?: string;

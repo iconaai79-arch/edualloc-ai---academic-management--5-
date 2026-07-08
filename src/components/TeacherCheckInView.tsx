@@ -7,6 +7,7 @@ import { BellIcon } from './icons/BellIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 import { apiService } from '../services/apiService';
+import { calculateDistance } from '../utils/locationUtils';
 
 
 interface TeacherCheckInViewProps {
@@ -28,6 +29,7 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
     const [notes, setNotes] = useState('');
     const [showReminder, setShowReminder] = useState(false);
     const [reminderType, setReminderType] = useState<CheckInType | null>(null);
+    const [checkingLocation, setCheckingLocation] = useState(false);
 
     useEffect(() => {
         loadTodayCheckIn();
@@ -91,27 +93,102 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
     const handleCheckIn = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        try {
-            const now = new Date();
-            const currentTime = now.toTimeString().split(' ')[0];
+        if (currentInstitution.checkinRadiusEnabled) {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser. Location check is required.');
+                return;
+            }
 
-            await apiService.processTeacherCheckIn({
-                teacher_id: currentUser.id,
-                institution_id: currentInstitution.id,
-                checkin_type: checkInType,
-                location: location,
-                notes: notes
-            });
+            setCheckingLocation(true);
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    
+                    if (!currentInstitution.location?.latitude || !currentInstitution.location?.longitude) {
+                        alert('School coordinates are not configured in settings. Check-in rejected.');
+                        setCheckingLocation(false);
+                        return;
+                    }
 
-            await onLogAction(`Checked in: ${checkInType} at ${currentTime}`);
-            alert(`${checkInType} check-in successful!`);
+                    const distance = calculateDistance(
+                        latitude,
+                        longitude,
+                        currentInstitution.location.latitude,
+                        currentInstitution.location.longitude
+                    );
 
-            setShowCheckInModal(false);
-            setShowReminder(false);
-            loadTodayCheckIn();
-        } catch (error) {
-            console.error('Error checking in:', error);
-            alert('Failed to check in');
+                    const radiusLimit = currentInstitution.checkinRadiusMeters || 200;
+
+                    if (distance > radiusLimit) {
+                        alert(`Out of Range: You must be within ${radiusLimit}m of the school to check in. Current distance: ${Math.round(distance)}m`);
+                        setCheckingLocation(false);
+                        return;
+                    }
+
+                    // Save with coordinates appended to the location
+                    const locationWithCoords = location 
+                        ? `${location} (GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)})`
+                        : `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+                    try {
+                        const now = new Date();
+                        const currentTime = now.toTimeString().split(' ')[0];
+
+                        await apiService.processTeacherCheckIn({
+                            teacher_id: currentUser.id,
+                            institution_id: currentInstitution.id,
+                            checkin_type: checkInType,
+                            location: locationWithCoords,
+                            notes: notes
+                        });
+
+                        await onLogAction(`Checked in: ${checkInType} at ${currentTime} (GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)})`);
+                        alert(`${checkInType} check-in successful!`);
+
+                        setShowCheckInModal(false);
+                        setShowReminder(false);
+                        loadTodayCheckIn();
+                    } catch (error) {
+                        console.error('Error checking in:', error);
+                        alert('Failed to check in');
+                    } finally {
+                        setCheckingLocation(false);
+                    }
+                },
+                (error) => {
+                    console.error('Geolocation error:', error);
+                    alert('Failed to get your current location. Location check is required to check in.');
+                    setCheckingLocation(false);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        } else {
+            // Normal flow without geofencing
+            setCheckingLocation(true);
+            try {
+                const now = new Date();
+                const currentTime = now.toTimeString().split(' ')[0];
+
+                await apiService.processTeacherCheckIn({
+                    teacher_id: currentUser.id,
+                    institution_id: currentInstitution.id,
+                    checkin_type: checkInType,
+                    location: location,
+                    notes: notes
+                });
+
+                await onLogAction(`Checked in: ${checkInType} at ${currentTime}`);
+                alert(`${checkInType} check-in successful!`);
+
+                setShowCheckInModal(false);
+                setShowReminder(false);
+                loadTodayCheckIn();
+            } catch (error) {
+                console.error('Error checking in:', error);
+                alert('Failed to check in');
+            } finally {
+                setCheckingLocation(false);
+            }
         }
     };
 
@@ -416,16 +493,27 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => setShowCheckInModal(false)}
-                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                                    disabled={checkingLocation}
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+                                    disabled={checkingLocation}
+                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:bg-blue-400"
                                 >
-                                    <CheckCircleIcon className="w-5 h-5" />
-                                    Confirm Check-In
+                                    {checkingLocation ? (
+                                        <>
+                                            <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                                            Verifying Location...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircleIcon className="w-5 h-5" />
+                                            Confirm Check-In
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </form>

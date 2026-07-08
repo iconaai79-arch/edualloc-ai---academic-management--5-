@@ -66,12 +66,12 @@ interface UpcomingLessonsWidgetProps {
 }
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; colorClass?: string }> = ({ title, value, icon, colorClass = 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' }) => (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between transition-all hover:shadow-md">
+    <div className="bg-white/80 dark:bg-slate-900/70 backdrop-blur-md p-6 rounded-[2rem] border border-slate-200/40 dark:border-slate-800/50 flex items-center justify-between transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1 group">
         <div>
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest truncate">{title}</h3>
-            <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white tracking-tighter">{value}</p>
+            <h3 className="text-[9px] font-black uppercase text-slate-450 dark:text-slate-500 tracking-widest truncate">{title}</h3>
+            <p className="mt-2 text-2.5xl font-black text-slate-950 dark:text-white tracking-tight">{value}</p>
         </div>
-        <div className={`p-4 rounded-2xl ${colorClass}`}>
+        <div className={`p-3.5 rounded-2xl transition-all duration-300 group-hover:scale-110 ${colorClass}`}>
             {icon}
         </div>
     </div>
@@ -235,14 +235,18 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({
     }
 
     return (
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 rounded-lg">
-                    <CalendarDaysIcon className="w-6 h-6 text-indigo-600" />
+        <div className="bg-gradient-to-br from-white/90 to-slate-50/50 dark:from-slate-900/90 dark:to-slate-950/50 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/60 shadow-xl shadow-slate-100/50 dark:shadow-none">
+            <div className="flex items-center gap-3 mb-8">
+                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-indigo-650 dark:text-indigo-400">
+                    <CalendarDaysIcon className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-black uppercase tracking-tight">Active Schedule Reminders</h3>
+                <div>
+                    <h3 className="text-lg font-black uppercase tracking-tight">Active Schedule Reminders</h3>
+                    <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mt-0.5">Real-time Session Verification</p>
+                </div>
             </div>
-            <div className="space-y-4">
+
+            <div className="relative border-l-2 border-slate-100 dark:border-slate-800/60 pl-6 ml-3.5 space-y-8 my-2">
                 {upcomingLessons.map(lesson => {
                     const subject = getSubjectById(lesson.subjectId);
                     const room = getRoomById(lesson.roomId);
@@ -257,67 +261,86 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({
                     const currentCheckInState = checkInState[lesson.id];
 
                     return (
-                        <div key={lesson.id} className="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{subject?.name}</p>
-                                        {isLive && <span className="inline-flex items-center gap-1.5 text-[10px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg animate-pulse uppercase tracking-widest border border-red-100">LIVE</span>}
-                                    </div>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                        {lesson.day} • {lesson.startTime} - {lesson.endTime} • Room <span className="text-indigo-600">{room?.name || 'N/A'}</span>
-                                    </p>
-                                </div>
-                                <div className="flex-shrink-0 flex items-center gap-2">
-                                    {lesson.attendanceStatus === 'present' ? (
-                                        <span className="px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-green-700 bg-green-50 border border-green-100">Handshake Verified</span>
-                                    ) : lesson.attendanceStatus === 'pending_absence_request' ? (
-                                        <span className="px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-amber-700 bg-amber-50 border border-amber-100">Absence Notified</span>
-                                    ) : (
-                                        <>
-                                            <button onClick={() => setAbsenceModalEntry(lesson)} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-slate-500 bg-white border border-slate-200 hover:bg-slate-50">Notify Absence</button>
-                                            {canCheckIn && (
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => handleCheckInAttempt(lesson)}
-                                                        className="px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-60"
-                                                        disabled={currentCheckInState?.status === 'checking'}
-                                                    >
-                                                        {currentCheckInState?.status === 'checking' ? 'Verifying...' : 'Class Check-In'}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setAttendanceModalEntry(lesson)}
-                                                        className="px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition-all flex items-center gap-1.5"
-                                                    >
-                                                        <CheckCircleIcon className="w-3.5 h-3.5" />
-                                                        Mark Students
-                                                    </button>
-                                                </div>
+                        <div key={lesson.id} className="relative group">
+                            {/* Pulsing Timeline Node */}
+                            <div className={`absolute -left-[35px] top-2 w-5 h-5 rounded-full border-4 border-white dark:border-slate-900 shadow-md transition-all duration-500 ${
+                                isLive 
+                                    ? 'bg-red-500 shadow-lg shadow-red-500/50 animate-pulse scale-110' 
+                                    : canCheckIn 
+                                        ? 'bg-indigo-500 shadow-lg shadow-indigo-500/50 scale-105' 
+                                        : 'bg-slate-350 dark:bg-slate-700'
+                            }`} />
+
+                            <div className={`bg-white/60 dark:bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/5 ${
+                                isLive 
+                                    ? 'border-red-500/20 shadow-lg shadow-red-500/5' 
+                                    : 'border-slate-150 dark:border-slate-850'
+                            }`}>
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
+                                            <p className="text-md font-black text-slate-900 dark:text-white uppercase tracking-tight">{subject?.name}</p>
+                                            {isLive && (
+                                                <span className="inline-flex items-center gap-1.5 text-[8px] font-black text-red-600 bg-red-50 dark:bg-red-950/40 dark:text-red-400 px-2.5 py-1 rounded-lg animate-pulse uppercase tracking-widest border border-red-100 dark:border-red-900/30">
+                                                    LIVE NOW
+                                                </span>
                                             )}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                            {currentCheckInState && (
-                                <div className="mt-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-start gap-3 animate-fade-in">
-                                    <InformationCircleIcon className="w-5 h-5 text-indigo-500 shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                        <p className={`text-xs font-bold ${currentCheckInState.status === 'error' ? 'text-red-600' : 'text-slate-600'}`}>
-                                            {currentCheckInState.message}
+                                        </div>
+                                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-relaxed">
+                                            {lesson.day} • {lesson.startTime} - {lesson.endTime} • Room <span className="text-indigo-600 dark:text-indigo-400">{room?.name || 'N/A'}</span>
                                         </p>
-                                        {currentCheckInState.mapUrl && (
-                                            <a
-                                                href={currentCheckInState.mapUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:underline"
-                                            >
-                                                <MapPinIcon className="w-3.5 h-3.5" /> Navigate to Registry Room
-                                            </a>
+                                    </div>
+                                    <div className="flex-shrink-0 flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                        {lesson.attendanceStatus === 'present' ? (
+                                            <span className="px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl text-green-700 bg-green-50 dark:bg-green-950/30 dark:text-green-400 border border-green-150 dark:border-green-900/40">Handshake Verified</span>
+                                        ) : lesson.attendanceStatus === 'pending_absence_request' ? (
+                                            <span className="px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-150 dark:border-amber-900/40">Absence Notified</span>
+                                        ) : (
+                                            <>
+                                                <button onClick={() => setAbsenceModalEntry(lesson)} className="px-4 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl text-slate-500 dark:text-slate-450 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all active:scale-95">Notify Absence</button>
+                                                {canCheckIn && (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleCheckInAttempt(lesson)}
+                                                            className="px-5 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none disabled:opacity-60 transition-all active:scale-95"
+                                                            disabled={currentCheckInState?.status === 'checking'}
+                                                        >
+                                                            {currentCheckInState?.status === 'checking' ? 'Verifying...' : 'Class Check-In'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setAttendanceModalEntry(lesson)}
+                                                            className="px-5 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-750 transition-all flex items-center gap-1.5 active:scale-95"
+                                                        >
+                                                            <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                            Mark Students
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </div>
-                            )}
+                                {currentCheckInState && (
+                                    <div className="mt-4 p-4 bg-white dark:bg-slate-950/40 rounded-2xl border border-slate-150 dark:border-slate-850 flex items-start gap-3 animate-fade-in">
+                                        <InformationCircleIcon className="w-5 h-5 text-indigo-500 shrink-0" />
+                                        <div className="min-w-0 flex-1">
+                                            <p className={`text-xs font-bold ${currentCheckInState.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-slate-650'}`}>
+                                                {currentCheckInState.message}
+                                            </p>
+                                            {currentCheckInState.mapUrl && (
+                                                <a
+                                                    href={currentCheckInState.mapUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="mt-2.5 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:underline"
+                                                >
+                                                    <MapPinIcon className="w-3.5 h-3.5" /> Navigate to Registry Room
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     );
                 })}
@@ -400,22 +423,57 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 
     return (
         <div className="space-y-8 font-sans text-slate-900 dark:text-slate-100">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+            {/* Header / Greeting */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/60 shadow-lg animate-fade-in">
                 <div>
-                    <h2 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white uppercase">{greeting}, {user.name.split(' ')[0]}</h2>
-                    <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1">Faculty Access Portal • {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 rounded-full text-[9px] font-black uppercase tracking-wider mb-2 border border-indigo-100/50 dark:border-indigo-900/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
+                        Online Status: Active
+                    </div>
+                    <h2 className="text-3xl font-black tracking-tighter text-slate-955 dark:text-white uppercase leading-none">{greeting}, {user.name.split(' ')[0]}</h2>
+                    <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[9px] tracking-widest mt-1.5">Faculty Access Portal • {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
                 {useRequests && (
                     <button
                         onClick={() => setActiveTab('my_requests')}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-8 py-3 rounded-2xl shadow-xl shadow-indigo-100 dark:shadow-none transition-all flex items-center gap-2 text-xs uppercase tracking-widest active:scale-95"
+                        className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-black px-8 py-3.5 rounded-2xl shadow-xl shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest active:scale-95 shrink-0"
                     >
-                        <PlusIcon className="w-5 h-5" />
-                        Request Subject Allocation
+                        <PlusIcon className="w-4 h-4" />
+                        Apply Subject Load
                     </button>
                 )}
             </div>
 
+            {/* Quick Actions Console */}
+            <div className="bg-gradient-to-br from-white/95 to-slate-50/50 dark:from-slate-900/95 dark:to-slate-950/50 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/60 shadow-xl shadow-slate-100/50 dark:shadow-none space-y-6">
+                <div>
+                    <h3 className="text-lg font-black uppercase tracking-tight">Quick Action Console</h3>
+                    <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mt-0.5">Primary Launch Pad</p>
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {[
+                        { id: 'self_checkin', label: 'Clock In/Out', desc: 'Verify Attendance', color: 'from-emerald-500/10 to-teal-500/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400', icon: <ClockInIcon className="w-6 h-6" /> },
+                        { id: 'my_timetable', label: 'Weekly Schedule', desc: 'Browse Timetable', color: 'from-indigo-500/10 to-violet-500/5 border-indigo-500/20 text-indigo-600 dark:text-indigo-400', icon: <CalendarDaysIcon className="w-6 h-6" /> },
+                        { id: 'eduflow', label: 'EduFlow Tasks', desc: 'View Workflows', color: 'from-purple-500/10 to-pink-500/5 border-purple-500/20 text-purple-600 dark:text-purple-400', icon: <ClipboardListIcon className="w-6 h-6" /> },
+                        { id: 'academic_hub', label: 'Marks Hub', desc: 'Assessments', color: 'from-amber-500/10 to-orange-500/5 border-amber-500/20 text-amber-600 dark:text-amber-400', icon: <BookOpenIcon className="w-6 h-6" /> }
+                    ].map((act) => (
+                        <button
+                            key={act.id}
+                            onClick={() => setActiveTab(act.id)}
+                            className={`flex flex-col items-start text-left p-5 rounded-3xl bg-gradient-to-br ${act.color} border hover:shadow-lg transition-all duration-305 hover:-translate-y-1 active:scale-95 group w-full`}
+                        >
+                            <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 mb-4 group-hover:scale-110 transition-transform">
+                                {act.icon}
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-wider block">{act.label}</span>
+                            <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1.5 block">{act.desc}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Upcoming Active Schedule Reminders */}
             <UpcomingLessonsWidget
                 userId={user.id}
                 timetable={generatedTimetable}
@@ -431,6 +489,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                 studentAbsences={studentAbsenceRequests || []}
             />
 
+            {/* Main Statistics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <StatCard
                     title="Allocated Units"
@@ -456,17 +515,20 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 
             {/* Registry Stepper Progress */}
             {useRequests && (registryFlowItems.pendingCount + registryFlowItems.hodCount + registryFlowItems.changesCount > 0) && (
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                <div className="bg-white/80 dark:bg-slate-900/70 backdrop-blur-md p-8 rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/60 shadow-lg">
                     <div className="flex items-center gap-3 mb-8">
-                        <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 rounded-lg">
-                            <ArrowPathIcon className="w-6 h-6 text-indigo-600" />
+                        <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-indigo-600 dark:text-indigo-400">
+                            <ArrowPathIcon className="w-6 h-6" />
                         </div>
-                        <h3 className="text-xl font-black uppercase tracking-tight">Registry Processing Pipeline</h3>
+                        <div>
+                            <h3 className="text-lg font-black uppercase tracking-tight">Registry Processing Pipeline</h3>
+                            <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-555 tracking-widest mt-0.5">Allocation Request Status</p>
+                        </div>
                     </div>
 
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative">
                         {/* Connecting Line */}
-                        <div className="hidden md:block absolute top-6 left-12 right-12 h-1 bg-slate-100 dark:bg-slate-700 -z-0"></div>
+                        <div className="hidden md:block absolute top-6 left-12 right-12 h-1 bg-slate-100 dark:bg-slate-800 -z-0"></div>
 
                         {[
                             { label: 'Departmental Review', count: registryFlowItems.pendingCount, icon: <BookOpenIcon className="w-5 h-5" />, active: registryFlowItems.pendingCount > 0 },
@@ -494,52 +556,65 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                        <div className="flex justify-between items-center mb-6">
+                    {/* Load utilization circular gauge */}
+                    <div className="bg-white/80 dark:bg-slate-900/70 backdrop-blur-md p-8 rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/60 shadow-lg flex flex-col md:flex-row items-center justify-between gap-8">
+                        <div className="flex-1 space-y-5">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
-                                    <ArrowTrendingUpIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-indigo-650 dark:text-indigo-400">
+                                    <ArrowTrendingUpIcon className="w-6 h-6" />
                                 </div>
-                                <h3 className="text-xl font-black uppercase tracking-tight">Load Utilization Progress</h3>
-                            </div>
-                            <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Target: 15/wk</span>
-                        </div>
-
-                        <div className="space-y-6">
-                            <div className="relative pt-1">
-                                <div className="flex mb-2 items-center justify-between">
-                                    <div>
-                                        <span className="text-[10px] font-black inline-block py-1 px-2 uppercase rounded-full text-indigo-600 bg-indigo-100">
-                                            Current Workload Intensity
-                                        </span>
-                                    </div>
-                                    <div className="text-right">
-                                        <span className="text-xs font-black inline-block text-indigo-600 uppercase">
-                                            {Math.round((totalAllocatedPeriods / 15) * 100)}%
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="overflow-hidden h-4 mb-4 text-xs flex rounded-full bg-indigo-50 dark:bg-slate-700 shadow-inner">
-                                    <div style={{ width: `${Math.min(100, (totalAllocatedPeriods / 15) * 100)}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-600 transition-all duration-1000 ease-out rounded-full"></div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight">Load Utilization</h3>
+                                    <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mt-0.5">Faculty Workload Allocation</p>
                                 </div>
                             </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {allocations.slice(0, 4).map(alloc => {
-                                    const subject = getSubjectById(alloc.subjectId);
-                                    return (
-                                        <div key={alloc.id} className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-slate-100 dark:border-slate-800 group hover:border-indigo-200 transition-all">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="text-[10px] font-mono font-black text-indigo-600 uppercase tracking-tighter">{subject?.code}</span>
-                                                <button onClick={() => onRequestChange?.(alloc)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-indigo-600"><ArrowsRightLeftIcon className="w-4 h-4" /></button>
-                                            </div>
-                                            <p className="font-bold text-slate-800 dark:text-white uppercase tracking-tight text-sm truncate">{subject?.name}</p>
-                                        </div>
-                                    );
-                                })}
-                                {allocations.length === 0 && <p className="col-span-2 text-center py-10 text-slate-400 font-bold uppercase text-xs tracking-widest opacity-50">No units confirmed for this cycle.</p>}
+                            <p className="text-xs text-slate-550 dark:text-slate-400 font-medium leading-relaxed">Your teaching load intensity is dynamically tracked against weekly departmental constraints.</p>
+                            <div className="flex gap-2.5">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-3.5 py-1.5 rounded-xl border border-indigo-100/50 dark:border-indigo-900/30">Target: 15 Periods/wk</span>
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-450 bg-slate-50 dark:bg-slate-800/50 px-3.5 py-1.5 rounded-xl border border-slate-200/50 dark:border-slate-700/30">Current: {totalAllocatedPeriods} Periods</span>
                             </div>
                         </div>
+
+                        {/* Circular Gauge / Reactor Core */}
+                        <div className="relative flex items-center justify-center shrink-0 w-36 h-36">
+                            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                                {/* Track Circle */}
+                                <circle cx="50" cy="50" r="40" className="stroke-slate-100 dark:stroke-slate-800/60" strokeWidth="8" fill="transparent" />
+                                {/* Progress Arc */}
+                                <circle 
+                                    cx="50" 
+                                    cy="50" 
+                                    r="40" 
+                                    className="stroke-indigo-600 dark:stroke-indigo-400 transition-all duration-1000 ease-out" 
+                                    strokeWidth="8" 
+                                    strokeDasharray={`${2 * Math.PI * 40}`}
+                                    strokeDashoffset={`${2 * Math.PI * 40 * (1 - Math.min(1, totalAllocatedPeriods / 15))}`}
+                                    strokeLinecap="round"
+                                    fill="transparent"
+                                />
+                            </svg>
+                            <div className="absolute flex flex-col items-center justify-center text-center">
+                                <span className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">{Math.round((totalAllocatedPeriods / 15) * 100)}%</span>
+                                <span className="text-[8px] font-black text-slate-450 dark:text-slate-500 uppercase tracking-widest">Utilized</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Allocated Subjects list grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {allocations.slice(0, 4).map(alloc => {
+                            const subject = getSubjectById(alloc.subjectId);
+                            return (
+                                <div key={alloc.id} className="p-5 bg-white/50 dark:bg-slate-900/40 rounded-3xl border border-slate-150 dark:border-slate-850 group hover:border-indigo-200 dark:hover:border-indigo-800 hover:shadow-lg hover:shadow-indigo-500/5 transition-all">
+                                    <div className="flex justify-between items-start mb-2.5">
+                                        <span className="text-[9px] font-mono font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tight bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">{subject?.code}</span>
+                                        <button onClick={() => onRequestChange?.(alloc)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-indigo-600"><ArrowsRightLeftIcon className="w-4 h-4" /></button>
+                                    </div>
+                                    <p className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm truncate">{subject?.name}</p>
+                                </div>
+                            );
+                        })}
+                        {allocations.length === 0 && <p className="col-span-2 text-center py-10 text-slate-400 font-bold uppercase text-xs tracking-widest opacity-50">No units confirmed for this cycle.</p>}
                     </div>
 
                     <MyTasks
@@ -551,7 +626,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                 </div>
 
                 <div className="space-y-8">
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="bg-white/80 dark:bg-slate-900/70 backdrop-blur-md p-8 rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/60 shadow-lg">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
                                 <SparklesIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
@@ -593,7 +668,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                     </div>
 
                     {useRequests && (
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="bg-white/80 dark:bg-slate-900/70 backdrop-blur-md p-8 rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/60 shadow-lg">
                             <div className="flex items-center gap-3 mb-6">
                                 <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
                                     <ClipboardListIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
@@ -608,7 +683,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                                             <RequestStatusIcon status={req.status} />
                                             <div className="min-w-0 flex-1">
                                                 <p className="text-sm font-bold text-slate-800 dark:text-white truncate uppercase tracking-tight">{subject?.name}</p>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{req.status.replace(/_/g, ' ')}</p>
+                                                <p className="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest mt-0.5">{req.status.replace(/_/g, ' ')}</p>
                                             </div>
                                             <span className="text-[10px] font-mono text-slate-400">{new Date(req.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                                         </div>

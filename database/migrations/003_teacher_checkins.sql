@@ -4,8 +4,8 @@
 -- Teacher Check-Ins Table
 CREATE TABLE IF NOT EXISTS teacher_checkins (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    teacher_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     check_in_date DATE NOT NULL DEFAULT CURRENT_DATE,
     
     -- Morning Check-In (around 8 AM)
@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS teacher_checkins (
 -- Teacher Attendance Summary Table
 CREATE TABLE IF NOT EXISTS teacher_attendance_summary (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    teacher_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     month INTEGER NOT NULL,
     year INTEGER NOT NULL,
     
@@ -55,8 +55,8 @@ CREATE TABLE IF NOT EXISTS teacher_attendance_summary (
 -- Teacher Check-In Reminders Table
 CREATE TABLE IF NOT EXISTS teacher_checkin_reminders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    teacher_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     reminder_date DATE NOT NULL,
     reminder_time TIME NOT NULL,
     reminder_type VARCHAR(20) NOT NULL, -- Morning, Afternoon
@@ -233,7 +233,7 @@ SELECT
     r.*,
     u.name as teacher_name,
     u.email as teacher_email,
-    u.phone as teacher_phone
+    u.phone_number as teacher_phone
 FROM teacher_checkin_reminders r
 JOIN users u ON r.teacher_id = u.id
 WHERE r.status = 'Pending'
@@ -242,7 +242,7 @@ WHERE r.status = 'Pending'
 ORDER BY r.reminder_time;
 
 -- Function to create daily reminders for all teachers
-CREATE OR REPLACE FUNCTION create_daily_reminders(p_institution_id UUID)
+CREATE OR REPLACE FUNCTION create_daily_reminders(p_institution_id TEXT)
 RETURNS INTEGER AS $$
 DECLARE
     v_teacher RECORD;
@@ -293,8 +293,8 @@ $$ LANGUAGE plpgsql SET search_path = public;
 
 -- Function to process a check-in
 CREATE OR REPLACE FUNCTION process_teacher_checkin(
-    p_teacher_id UUID,
-    p_institution_id UUID,
+    p_teacher_id TEXT,
+    p_institution_id TEXT,
     p_checkin_type VARCHAR(20),
     p_location VARCHAR(255) DEFAULT NULL,
     p_notes TEXT DEFAULT NULL

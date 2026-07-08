@@ -5,7 +5,7 @@ import type {
     TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig, TransportVehicle, TransportOnboarding, VehicleLog,
     TimetableSettings, Course, AcademicYear, Semester, RequestStatus,
     Institution, Priority, CompanyDetails, MpesaTransaction,
-    ExamTimetableSettings, AcademicLevel, StudentAttendance,
+    ExamTimetableSettings, AcademicLevel, StudentAttendance, TeacherCheckIn,
     Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, DisciplineIncident,
     EnrollmentRequest, AbsenceRequest, LecturerContract,
     ExamTimetableEntry, Conflict, UserTask, ExtensionRequest,
@@ -186,6 +186,7 @@ export interface AdminViewProps {
     setNotificationLimit?: React.Dispatch<React.SetStateAction<number>>;
     
     // Academic Lifecycle Props
+    teacherCheckIns?: TeacherCheckIn[];
     incidents?: DisciplineIncident[];
     marks?: AssessmentMark[];
     onAddIncident?: (data: any) => Promise<void>;
@@ -506,6 +507,34 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const [selectedInvoiceForEdit, setSelectedInvoiceForEdit] = useState<CarInvoice | null>(null);
     const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState<CarPayment | null>(null);
     const [pdfPreviewData, setPdfPreviewData] = useState<{ uri: string; title: string } | null>(null);
+
+    // Today's attendance computations for Head Teacher / Principal dashboard
+    const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+    const teachersList = useMemo(() => (props.users || []).filter(u => u && (u.role === 'teacher' || u.role === 'lecturer')), [props.users]);
+    const todayCheckInsList = useMemo(() => (props.teacherCheckIns || []).filter(c => c.checkInDate === todayStr), [props.teacherCheckIns, todayStr]);
+
+    const totalTeachersCount = teachersList.length;
+    const checkedInCount = todayCheckInsList.filter(c => c.morningCheckInStatus === 'On Time' || c.morningCheckInStatus === 'Late').length;
+    const onTimeCount = todayCheckInsList.filter(c => c.morningCheckInStatus === 'On Time').length;
+    const lateCount = todayCheckInsList.filter(c => c.morningCheckInStatus === 'Late').length;
+    const absentCount = Math.max(0, totalTeachersCount - checkedInCount);
+    const attendanceRatePct = totalTeachersCount > 0 ? Math.round((checkedInCount / totalTeachersCount) * 100) : 0;
+
+    const recentCheckInsData = useMemo(() => {
+        return [...todayCheckInsList]
+            .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())
+            .slice(0, 3)
+            .map(c => {
+                const teacher = teachersList.find(t => t.id === c.teacherId);
+                return {
+                    id: c.id,
+                    name: teacher ? teacher.name : 'Unknown Faculty',
+                    status: c.morningCheckInStatus,
+                    time: c.morningCheckInTime,
+                    location: c.morningLocation
+                };
+            });
+    }, [todayCheckInsList, teachersList]);
 
     const handlePreviewCarInvoice = async (invoice: CarInvoice) => {
         const listing = props.carListings?.find(l => l.id === invoice.listingId);
@@ -2321,6 +2350,109 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 </div>
                             )}
                         </div>
+
+                        {isEdu && (props.currentUser?.role === 'head_teacher' || props.currentUser?.role === 'admin') && (
+                            <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/60 p-8 rounded-[2.5rem] border border-indigo-500/20 text-white shadow-2xl relative overflow-hidden animate-fade-in-up">
+                                <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+                                <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-64 h-64 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
+
+                                <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+                                    <div className="flex flex-col sm:flex-row items-center gap-6 w-full lg:w-auto">
+                                        <div className="relative w-28 h-28 flex-shrink-0 flex items-center justify-center">
+                                            <svg className="w-full h-full transform -rotate-90">
+                                                <circle
+                                                    cx="56"
+                                                    cy="56"
+                                                    r="48"
+                                                    className="stroke-slate-800"
+                                                    strokeWidth="8"
+                                                    fill="transparent"
+                                                />
+                                                <circle
+                                                    cx="56"
+                                                    cy="56"
+                                                    r="48"
+                                                    className="stroke-indigo-500 transition-all duration-1000 ease-out"
+                                                    strokeWidth="8"
+                                                    fill="transparent"
+                                                    strokeDasharray={2 * Math.PI * 48}
+                                                    strokeDashoffset={2 * Math.PI * 48 * (1 - attendanceRatePct / 100)}
+                                                    strokeLinecap="round"
+                                                />
+                                            </svg>
+                                            <div className="absolute flex flex-col items-center justify-center">
+                                                <span className="text-2xl font-black tracking-tight">{attendanceRatePct}%</span>
+                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Active Rate</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="text-center sm:text-left space-y-1.5">
+                                            <div className="flex items-center justify-center sm:justify-start gap-2">
+                                                <span className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-pulse" />
+                                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Campus Attendance Pulse</h3>
+                                            </div>
+                                            <h2 className="text-xl font-black tracking-tight uppercase">Faculty Check-In Dashboard</h2>
+                                            <p className="text-xs font-semibold text-slate-400 max-w-sm">
+                                                Real-time overview of teaching staff arrivals and punctuality metrics for today.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full lg:w-auto lg:flex-grow lg:max-w-2xl">
+                                        <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800/80">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Total Faculty</span>
+                                            <span className="text-2xl font-black text-white">{totalTeachersCount}</span>
+                                        </div>
+                                        <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800/80">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 block mb-1">On Time</span>
+                                            <span className="text-2xl font-black text-indigo-400">{onTimeCount}</span>
+                                        </div>
+                                        <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800/80">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-amber-500 block mb-1">Late Arrivals</span>
+                                            <span className="text-2xl font-black text-amber-500">{lateCount}</span>
+                                        </div>
+                                        <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800/80">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-red-550 block mb-1">Absent Alerts</span>
+                                            <span className="text-2xl font-black text-red-500">{absentCount}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col items-stretch w-full lg:w-64 gap-3 shrink-0">
+                                        {props.onSwitchPerspective && (
+                                            <button
+                                                onClick={() => {
+                                                    props.onSwitchPerspective?.('hr_officer');
+                                                }}
+                                                className="w-full py-3.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-98 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <BriefcaseIcon className="w-4 h-4" />
+                                                Attendance Command Desk
+                                            </button>
+                                        )}
+                                        
+                                        {recentCheckInsData.length > 0 ? (
+                                            <div className="bg-slate-950/40 p-3 rounded-2xl border border-slate-900/80 space-y-2">
+                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">Live Checkins</span>
+                                                <div className="space-y-1">
+                                                    {recentCheckInsData.map(rc => (
+                                                        <div key={rc.id} className="flex justify-between items-center text-[10px] font-bold">
+                                                            <span className="truncate text-slate-350 max-w-[120px]">{rc.name}</span>
+                                                            <span className={rc.status === 'On Time' ? 'text-indigo-400' : 'text-amber-500'}>
+                                                                {rc.time ? rc.time.substring(0, 5) : 'Checked in'}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-slate-950/20 p-3 rounded-2xl border border-dashed border-slate-800/80 text-center">
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">No check-ins today</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {!isCommunity && (
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">

@@ -442,6 +442,8 @@ export interface Institution {
     timetableSettings?: TimetableSettings;
     examTimetableSettings?: ExamTimetableSettings;
     useAllocationRequests?: boolean;
+    checkinRadiusEnabled?: boolean;
+    checkinRadiusMeters?: number;
     scheduleProfiles?: ScheduleProfile[];
     aiModelTier?: 'free' | 'premium';
     streamDefinitions?: string[];

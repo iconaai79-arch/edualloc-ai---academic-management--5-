@@ -5886,7 +5886,9 @@ export const App: React.FC = () => {
                                                 },
                                                 onUpdateUser: onEditUser,
                                                 onDeleteUser: onDeleteUser,
-                                                onLogAction: handleLogAction
+                                                onLogAction: handleLogAction,
+                                                letterheadConfig: activeLetterheadConfig,
+                                                footerImageUrl: activeFooterImageUrl
                                             } as any}
                                         />
                                     </ModuleAccessGuard>
@@ -6024,6 +6026,7 @@ export const App: React.FC = () => {
                                                 activeRole={activeRole as any}
                                                 onLogAction={handleLogAction}
                                                 onRefreshData={loadData}
+                                                teacherCheckIns={teacherCheckIns}
                                             />
                                         </DrivingSchoolProvider>
                                     )
@@ -6065,6 +6068,7 @@ export const App: React.FC = () => {
                                         {(() => { console.log("[App] Rendering DS Manager for institutionId:", activeInstitution?.id); return null; })()}
                                         <AdminView
                                              {...superAdminProps as any}
+                                              teacherCheckIns={teacherCheckIns}
                                              currentUser={currentUser}
                                              currentInstitution={activeInstitution}
                                              activeRole={(activeRole as any) || undefined}

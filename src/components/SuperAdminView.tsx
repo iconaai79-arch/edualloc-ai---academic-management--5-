@@ -1631,6 +1631,7 @@ Please change it after login.`;
 
     const perspectiveOptions = [
         { role: 'admin', label: 'Timetable', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'head_teacher', label: 'Principal Portal', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
         { role: 'academics_officer', label: 'Academics Module', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-violet-50 text-violet-600' },
         { role: 'security', label: 'Security Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
         { role: 'store', label: 'Inventory Module', icon: <ArchiveBoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
@@ -1679,7 +1680,7 @@ Please change it after login.`;
         }
 
         if (isEdu) {
-            const eduAllowed = ['admin', 'academics_officer', 'security', 'store', 'transport_admin', 'transport_assistant', 'boarding_master', 'info_desk', 'librarian', 'parent', 'student', 'lecturer'];
+            const eduAllowed = ['admin', 'head_teacher', 'academics_officer', 'security', 'store', 'transport_admin', 'transport_assistant', 'boarding_master', 'info_desk', 'librarian', 'parent', 'student', 'lecturer'];
             return eduAllowed.includes(opt.role);
         }
 

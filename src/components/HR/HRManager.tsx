@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import type { User, PayrollRecord, LeaveRequest, Institution } from '../../types';
+import type { User, PayrollRecord, LeaveRequest, Institution, LetterheadConfig } from '../../types';
 import { PayrollEngine } from './PayrollEngine';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
@@ -8,6 +8,8 @@ import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
 import { BarChart3Icon } from '../icons/BarChart3Icon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { XIcon } from '../icons/XIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+import TeacherCheckInAdminView from '../TeacherCheckInAdminView';
 import { 
     generateStaffPayslipPdf, 
     generateStaffP9Pdf, 
@@ -15,6 +17,7 @@ import {
 } from '../../services/pdfService';
 
 interface HRManagerProps {
+    currentUser?: User;
     staff: User[];
     payrollRecords: PayrollRecord[];
     leaveRequests: LeaveRequest[];
@@ -24,9 +27,12 @@ interface HRManagerProps {
     onAddUser?: (data: any) => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
+    letterheadConfig?: LetterheadConfig;
+    footerImageUrl?: string | null;
 }
 
 export const HRManager: React.FC<HRManagerProps> = ({
+    currentUser,
     staff: rawStaff,
     payrollRecords,
     leaveRequests,
@@ -35,7 +41,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
     onUpdateLeaveStatus,
     onAddUser,
     onEditUser,
-    onDeleteUser
+    onDeleteUser,
+    letterheadConfig,
+    footerImageUrl
 }) => {
     const staff = (rawStaff || []).filter(member => {
         if (!member || !member.role) return false;
@@ -43,7 +51,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
         return r !== 'student' && r !== 'parent' && r !== 'visitor';
     });
 
-    const [activeTab, setActiveTab] = useState<'roster' | 'payroll' | 'leave' | 'reports' | 'analytics'>('roster');
+    const [activeTab, setActiveTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
 
     
     // Onboarding Form States
@@ -71,6 +79,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
         { id: 'roster', label: 'Staff Roster', icon: UserGroupIcon },
         { id: 'payroll', label: 'Payroll Hub', icon: BanknotesIcon },
         { id: 'leave', label: 'Leave Governance', icon: CalendarDaysIcon },
+        { id: 'attendance', label: 'Attendance Tracker', icon: ClockIcon },
         { id: 'reports', label: 'Compliance Reports', icon: DocumentTextIcon },
         { id: 'analytics', label: 'Workforce Intel', icon: BarChart3Icon },
     ] as const;
@@ -459,6 +468,17 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'attendance' && (
+                    <div className="animate-in fade-in">
+                        <TeacherCheckInAdminView
+                            currentUser={currentUser!}
+                            currentInstitution={institution}
+                            letterheadConfig={letterheadConfig}
+                            footerImageUrl={footerImageUrl}
+                        />
                     </div>
                 )}
             </div>

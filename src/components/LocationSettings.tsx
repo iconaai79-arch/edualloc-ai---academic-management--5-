@@ -20,12 +20,18 @@ export const LocationSettings: React.FC<LocationSettingsProps> = ({ institution,
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResult, setSearchResult] = useState<{ address: string; uri?: string } | null>(null);
+    const [checkinRadiusEnabled, setCheckinRadiusEnabled] = useState(false);
+    const [checkinRadiusMeters, setCheckinRadiusMeters] = useState(200);
 
 
     useEffect(() => {
         if (institution?.location) {
             setLatitude(institution.location.latitude.toString());
             setLongitude(institution.location.longitude.toString());
+        }
+        if (institution) {
+            setCheckinRadiusEnabled(!!institution.checkinRadiusEnabled);
+            setCheckinRadiusMeters(institution.checkinRadiusMeters || 200);
         }
     }, [institution]);
 
@@ -107,7 +113,11 @@ export const LocationSettings: React.FC<LocationSettingsProps> = ({ institution,
         
         setTimeout(() => {
             if (institution) {
-                onSave(institution.id, { location: { latitude: lat, longitude: lon } });
+                onSave(institution.id, { 
+                    location: { latitude: lat, longitude: lon },
+                    checkinRadiusEnabled,
+                    checkinRadiusMeters: checkinRadiusEnabled ? checkinRadiusMeters : null
+                });
             }
             setSaveStatus('saved');
             setTimeout(() => {
@@ -196,6 +206,44 @@ export const LocationSettings: React.FC<LocationSettingsProps> = ({ institution,
                             placeholder="36.817223"
                         />
                     </div>
+                </div>
+
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-6 space-y-4">
+                    <h4 className="text-md font-semibold text-slate-900 dark:text-white">Check-In Geofencing</h4>
+                    
+                    <div className="flex items-center">
+                        <input
+                            id="checkin-radius-enabled"
+                            type="checkbox"
+                            checked={checkinRadiusEnabled}
+                            onChange={(e) => setCheckinRadiusEnabled(e.target.checked)}
+                            className="h-4 w-4 text-[var(--color-primary)] focus:ring-[var(--color-primary)] border-slate-300 rounded dark:bg-slate-700 dark:border-slate-600"
+                        />
+                        <label htmlFor="checkin-radius-enabled" className="ml-2 block text-sm text-slate-700 dark:text-slate-300 font-medium">
+                            Enable Coordinates Radius Check for Teacher Check-In
+                        </label>
+                    </div>
+
+                    {checkinRadiusEnabled && (
+                        <div className="max-w-xs transition-all duration-300">
+                            <label htmlFor="checkin-radius-meters" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Allowed Radius (meters)
+                            </label>
+                            <input
+                                type="number"
+                                id="checkin-radius-meters"
+                                min="1"
+                                value={checkinRadiusMeters}
+                                onChange={(e) => setCheckinRadiusMeters(Math.max(1, parseInt(e.target.value) || 0))}
+                                className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                placeholder="200"
+                                required
+                            />
+                            <p className="text-xs text-slate-500 mt-1">
+                                Teachers must check in within this distance from the institution's coordinates.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex flex-wrap justify-between items-center gap-4">

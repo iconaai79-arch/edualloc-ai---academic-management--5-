@@ -8731,5 +8731,120 @@ export const downloadPMDepositRefundPdf = async (
     document.body.removeChild(link);
 };
 
+export const generateTeacherAttendanceReportPdf = async (
+    data: any[],
+    dateRange: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Teacher Attendance Report", margin, yPos);
+    yPos += 6;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Period: ${dateRange}`, margin, yPos);
+    yPos += 10;
+
+    // Detailed Stats summary on PDF
+    const stats = {
+        total: data.length,
+        morningOnTime: data.filter(c => c.morningCheckInStatus === 'On Time').length,
+        morningLate: data.filter(c => c.morningCheckInStatus === 'Late').length,
+        morningAbsent: data.filter(c => c.morningCheckInStatus === 'Absent').length,
+        afternoonOnTime: data.filter(c => c.afternoonCheckInStatus === 'On Time').length,
+        afternoonLate: data.filter(c => c.afternoonCheckInStatus === 'Late').length,
+        afternoonAbsent: data.filter(c => c.afternoonCheckInStatus === 'Absent').length,
+    };
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Attendance & Punctuality Summary", margin, yPos);
+    yPos += 5;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    
+    const totalCheckins = stats.morningOnTime + stats.morningLate + stats.afternoonOnTime + stats.afternoonLate;
+    const onTimeTotal = stats.morningOnTime + stats.afternoonOnTime;
+    const punctuality = totalCheckins > 0 ? ((onTimeTotal / totalCheckins) * 100).toFixed(1) + "%" : "100%";
+
+    doc.text(`Total Records: ${stats.total}`, margin, yPos);
+    doc.text(`Morning - On Time: ${stats.morningOnTime} | Late: ${stats.morningLate} | Absent: ${stats.morningAbsent}`, margin + 50, yPos);
+    yPos += 5;
+    doc.text(`Punctuality: ${punctuality}`, margin, yPos);
+    doc.text(`Afternoon - On Time: ${stats.afternoonOnTime} | Late: ${stats.afternoonLate} | Absent: ${stats.afternoonAbsent}`, margin + 50, yPos);
+    yPos += 10;
+
+    const head = [['Date', 'Teacher', 'Morning Check-In', 'Afternoon Check-In']];
+    const body = data.map(item => {
+        const morningStr = item.morningCheckInTime 
+            ? `${item.morningCheckInTime} (${item.morningCheckInStatus})`
+            : item.morningOverdue ? 'Overdue (Absent)' : 'Pending';
+            
+        const afternoonStr = item.afternoonCheckInTime 
+            ? `${item.afternoonCheckInTime} (${item.afternoonCheckInStatus})`
+            : item.afternoonOverdue ? 'Overdue (Absent)' : 'Pending';
+
+        return [
+            item.checkInDate,
+            item.teacherName || 'Unknown',
+            morningStr,
+            afternoonStr
+        ];
+    });
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 8 },
+        didParseCell: (data: any) => {
+            if (data.section === 'body') {
+                const cellText = data.cell.text[0] || '';
+                if (cellText.includes('Late')) {
+                    data.cell.styles.textColor = [217, 119, 6]; // orange-600
+                } else if (cellText.includes('Absent') || cellText.includes('Overdue')) {
+                    data.cell.styles.textColor = [220, 38, 38]; // rose-600
+                } else if (cellText.includes('On Time')) {
+                    data.cell.styles.textColor = [22, 163, 74]; // green-600
+                }
+            }
+        }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+export const downloadTeacherAttendanceReportPdf = async (
+    data: any[],
+    dateRange: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<void> => {
+    const dataUri = await generateTeacherAttendanceReportPdf(data, dateRange, letterheadConfig, footerImageUrl);
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = `Teacher_Attendance_Report_${dateRange.replace(/\s+/g, '_').replace(/\//g, '-')}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
 
 

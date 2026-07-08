@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import type { User, Institution, PayrollRecord, LeaveRequest } from '../../types';
+import type { User, Institution, PayrollRecord, LeaveRequest, LetterheadConfig } from '../../types';
 import { HRManager } from './HRManager';
 import { Header } from '../Header';
 
@@ -20,6 +20,8 @@ interface HROfficerViewProps {
     onAddDepartment?: (name: string) => Promise<void>;
     onUpdateDepartment?: (id: string, name: string) => void;
     onDeleteDepartment?: (id: string) => void;
+    letterheadConfig?: LetterheadConfig;
+    footerImageUrl?: string | null;
 }
 
 export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
@@ -80,6 +82,7 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
                 {/* Main Content */}
                 {activeTab === 'hr' ? (
                     <HRManager 
+                        currentUser={currentUser}
                         staff={users.filter(u => u.role?.toLowerCase().trim() !== 'student')}
                         payrollRecords={payrollRecords}
                         leaveRequests={leaveRequests}
@@ -89,6 +92,8 @@ export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
                         onAddUser={onAddUser}
                         onEditUser={onEditUser}
                         onDeleteUser={onDeleteUser}
+                        letterheadConfig={props.letterheadConfig}
+                        footerImageUrl={props.footerImageUrl}
                     />
 
                 ) : (
