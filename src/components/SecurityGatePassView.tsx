@@ -10,6 +10,7 @@ import { UserGroupIcon } from './icons/UserGroupIcon';
 import { XCircleIcon } from './icons/XCircleIcon';
 import { PrinterIcon } from './icons/PrinterIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { CameraIcon } from './icons/CameraIcon';
 
 import type { TransportVehicle, VehicleLog, User, Institution, Visitor, Course, TeacherCheckIn } from '../types';
 import { apiService } from '../services/apiService';
@@ -375,6 +376,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
     const [staffNotes, setStaffNotes] = useState('');
     const [staffCheckInType, setStaffCheckInType] = useState<'Morning' | 'Afternoon'>('Morning');
+    const [staffScanning, setStaffScanning] = useState(false);
 
     const todayStr = React.useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -1232,9 +1234,17 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                         setStaffSearchTerm(e.target.value);
                                         if (e.target.value.length > 2) setSelectedStaff(null);
                                     }}
-                                    className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-indigo-500 outline-none text-lg font-bold animate-fade-in"
+                                    className="w-full pl-12 pr-16 py-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-indigo-500 outline-none text-lg font-bold animate-fade-in"
                                     placeholder="Search Staff Name or Role..."
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setStaffScanning(true)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl text-indigo-600 transition-all flex items-center justify-center"
+                                    title="Scan Staff QR Code"
+                                >
+                                    <CameraIcon className="w-6 h-6" />
+                                </button>
                             </div>
 
                             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
@@ -1719,6 +1729,57 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     <div className="text-center py-6 text-slate-600 text-xs font-bold uppercase">
                                         No pending passes
                                     </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {staffScanning && (
+                <div className="fixed inset-0 bg-black/90 z-[200] flex flex-col items-center justify-center p-4">
+                    <div className="w-full max-w-lg text-center flex flex-col items-center">
+                        <div className="relative aspect-square w-full max-w-[320px] bg-slate-800 rounded-3xl border-4 border-indigo-500 overflow-hidden mb-6 shadow-[0_0_50px_rgba(99,102,241,0.5)] animate-fade-in">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+                                <QrCodeIcon className="w-24 h-24 text-indigo-400/20 mb-4 animate-pulse" />
+                                <p className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mb-4">Accessing Camera...</p>
+                                <button
+                                    onClick={() => setStaffScanning(false)}
+                                    className="px-6 py-2.5 bg-red-650/40 hover:bg-red-650/60 text-red-300 rounded-xl border border-red-500/20 text-xs font-black uppercase tracking-wider transition-all"
+                                >
+                                    Cancel Scan
+                                </button>
+                            </div>
+                            <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 shadow-[0_0_20px_#6366f1] animate-[scan_3s_infinite]"></div>
+                        </div>
+                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Align Staff QR Code ID</h3>
+                        <p className="text-slate-400 font-medium text-xs mb-8">Scan the digital QR code on staff portal or printed ID card</p>
+                        
+                        {/* Mock Staff Scan List */}
+                        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 text-left space-y-4">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Select Staff to Simulate Scan</h4>
+                            <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                                {filteredStaff.map(u => (
+                                    <button
+                                        key={u.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedStaff(u);
+                                            setStaffScanning(false);
+                                        }}
+                                        className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-950 hover:bg-indigo-950/20 border border-slate-800/85 hover:border-indigo-500/35 transition-all text-left"
+                                    >
+                                        <div>
+                                            <p className="text-xs font-black text-white">{u.name}</p>
+                                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">{u.role}</p>
+                                        </div>
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                            SELECT ID
+                                        </span>
+                                    </button>
+                                ))}
+                                {filteredStaff.length === 0 && (
+                                    <p className="text-center py-6 text-slate-600 text-xs font-bold uppercase">No staff members found</p>
                                 )}
                             </div>
                         </div>

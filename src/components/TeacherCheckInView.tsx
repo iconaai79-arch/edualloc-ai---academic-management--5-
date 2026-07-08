@@ -6,6 +6,8 @@ import { XCircleIcon } from './icons/XCircleIcon';
 import { BellIcon } from './icons/BellIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { CameraIcon } from './icons/CameraIcon';
 import { apiService } from '../services/apiService';
 import { calculateDistance } from '../utils/locationUtils';
 
@@ -30,6 +32,7 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
     const [showReminder, setShowReminder] = useState(false);
     const [reminderType, setReminderType] = useState<CheckInType | null>(null);
     const [checkingLocation, setCheckingLocation] = useState(false);
+    const [scanningGateQr, setScanningGateQr] = useState(false);
 
     useEffect(() => {
         loadTodayCheckIn();
@@ -279,6 +282,13 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                     </p>
                     <p className="text-lg font-semibold text-blue-600 mt-1">{getCurrentTime()}</p>
                 </div>
+                <button
+                    onClick={() => setScanningGateQr(true)}
+                    className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl shadow-lg hover:shadow-indigo-150 transition-all font-black uppercase text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98]"
+                >
+                    <QrCodeIcon className="w-5 h-5 text-white" />
+                    Scan Gate QR
+                </button>
             </div>
 
             {/* Check-In Cards */}
@@ -518,6 +528,70 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                             </div>
                         </form>
                     </div>
+                </div>
+            )}
+            {scanningGateQr && (
+                <div className="fixed inset-0 bg-black/90 z-[200] flex flex-col items-center justify-center p-4">
+                    <div className="w-full max-w-lg text-center flex flex-col items-center">
+                        <div className="relative aspect-square w-full max-w-[320px] bg-slate-800 rounded-3xl border-4 border-indigo-500 overflow-hidden mb-6 shadow-[0_0_50px_rgba(99,102,241,0.5)]">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+                                <QrCodeIcon className="w-24 h-24 text-indigo-400/20 mb-4 animate-pulse" />
+                                <p className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mb-4">Accessing Camera...</p>
+                                <button
+                                    onClick={() => setScanningGateQr(false)}
+                                    className="px-6 py-2.5 bg-red-650/40 hover:bg-red-650/60 text-red-300 rounded-xl border border-red-500/20 text-xs font-black uppercase tracking-wider transition-all"
+                                >
+                                    Cancel Scan
+                                </button>
+                            </div>
+                            <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 shadow-[0_0_20px_#6366f1] animate-[scan_3s_infinite]"></div>
+                        </div>
+                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Scan Gate printed QR Code</h3>
+                        <p className="text-slate-400 font-medium text-xs mb-8">Point your device camera at the printed QR code plate mounted at the school gate</p>
+                        
+                        {/* Mock Printed QR Scanner Targets */}
+                        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 text-left space-y-4">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Mock Scan Target (Static Gate Signboard)</h4>
+                            <button
+                                onClick={async () => {
+                                    setScanningGateQr(false);
+                                    // Determine shift type based on hour
+                                    const hour = new Date().getHours();
+                                    const shift: CheckInType = (hour >= 15) ? 'Afternoon' : 'Morning';
+                                    try {
+                                        await apiService.processTeacherCheckIn({
+                                            teacher_id: currentUser.id,
+                                            institution_id: currentInstitution.id,
+                                            checkin_type: shift,
+                                            location: 'School Gate (Scanned printed QR code)',
+                                            notes: 'Gate self-scan check-in success'
+                                        });
+                                        await onLogAction(`Checked in via Gate QR Code Scan`);
+                                        alert(`Gate QR Check-in successful! Checked in for ${shift} shift.`);
+                                        loadTodayCheckIn();
+                                    } catch (e: any) {
+                                        alert(e.message || 'Failed to check in via QR code.');
+                                    }
+                                }}
+                                className="w-full flex items-center justify-between p-4 rounded-xl bg-slate-950 hover:bg-indigo-950/20 border border-slate-800 hover:border-indigo-500/35 transition-all text-left"
+                            >
+                                <div>
+                                    <p className="text-xs font-black text-white">MAIN GATE QR SIGNPOST</p>
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Payload: school_gate_id: {currentInstitution.id}</p>
+                                </div>
+                                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded border border-indigo-500/20">
+                                    SCAN CODE
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                    <style>{`
+                        @keyframes scan {
+                            0% { transform: translateY(0); }
+                            50% { transform: translateY(320px); }
+                            100% { transform: translateY(0); }
+                        }
+                    `}</style>
                 </div>
             )}
         </div>
