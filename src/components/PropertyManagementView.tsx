@@ -3080,6 +3080,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <table className="w-full text-left">
                                     <thead className="border-b border-slate-100 dark:border-slate-700">
                                         <tr>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Unit</th>
                                             <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tenant Name</th>
                                             <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
                                             <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
@@ -3097,33 +3098,32 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
                                             return (
                                                 <tr key={payment.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                                    {/* 1. Tenant Name */}
+                                                    {/* 1. Unit */}
+                                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-xs">
+                                                        {lease ? (units.find(u => u.id === lease.unitId)?.unitNumber || 'N/A') : 'N/A'}
+                                                    </td>
+                                                    {/* 2. Tenant Name */}
                                                     <td className="p-6">
                                                         <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">{tenant?.name || 'N/A'}</p>
-                                                        {lease && (
-                                                            <p className="text-[9px] text-slate-400 font-bold uppercase">
-                                                                Unit {(units.find(u => u.id === lease.unitId)?.unitNumber) || 'N/A'}
-                                                            </p>
-                                                        )}
                                                     </td>
-                                                    {/* 2. Type */}
+                                                    {/* 3. Type */}
                                                     <td className="p-6 text-xs font-black text-blue-650 dark:text-blue-400 uppercase">{payment.paymentType}</td>
-                                                    {/* 3. Amount */}
+                                                    {/* 4. Amount */}
                                                     <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {payment.amount?.toLocaleString()}</td>
-                                                    {/* 4. Receipt No */}
+                                                    {/* 5. Receipt No */}
                                                     <td className="p-6">
                                                         <p className="text-xs font-black text-purple-650 dark:text-purple-400">{payment.receiptNumber || '—'}</p>
                                                         <p className="text-[9px] font-mono font-bold text-slate-400 mt-0.5">ID: #{payment.id.split('_')[1] || payment.id}</p>
                                                     </td>
-                                                    {/* 5. Ref */}
+                                                    {/* 6. Ref */}
                                                     <td className="p-6 text-xs font-bold text-slate-600 dark:text-slate-350 uppercase">
                                                         {payment.reference || '—'}
                                                     </td>
-                                                    {/* 6. Method */}
+                                                    {/* 7. Method */}
                                                     <td className="p-6 font-bold text-slate-500 uppercase text-[10px]">{payment.paymentMethod}</td>
-                                                    {/* 7. Date */}
+                                                    {/* 8. Date */}
                                                     <td className="p-6 text-xs font-bold text-slate-500 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</td>
-                                                    {/* 8. Status */}
+                                                    {/* 9. Status */}
                                                     <td className="p-6">
                                                         <span className="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic">{payment.status || 'Success'}</span>
                                                     </td>
