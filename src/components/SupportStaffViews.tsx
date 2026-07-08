@@ -212,7 +212,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus,
         onLogAction, courses = []
     } = props;
-    const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts' | 'gatepass' | 'reports'>('checkpoint');
+    const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts' | 'gatepass' | 'reports' | 'staff_checkin'>('checkpoint');
     const isSchool = ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.institutionType || '') ||
                      ['Primary', 'Secondary', 'ECD', 'International', 'primary', 'secondary'].includes(props.currentInstitution?.category || '');
 
@@ -674,6 +674,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                         { id: 'leaveout', label: 'Student Leave Out', icon: <ArrowUpTrayIcon className="w-4 h-4" /> },
                         { id: 'logs', label: 'Security Logs', icon: <ClipboardListIcon className="w-4 h-4" />, count: activeVisitors.length },
                         { id: 'gatepass', label: 'Gate Passes', icon: <MapPinIcon className="w-4 h-4" /> },
+                        { id: 'staff_checkin', label: 'Staff Check-In', icon: <UserIcon className="w-4 h-4" /> },
                         { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-4 h-4" /> },
                         { id: 'alerts', label: 'Security Alerts', icon: <ExclamationTriangleIcon className="w-4 h-4" />, count: securityAlerts.filter(a => a.status === 'active').length }
                     ].map(tab => (
@@ -696,20 +697,27 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                             <h3 className="text-xl font-black uppercase tracking-tight">Access Control</h3>
                             <p className="text-xs text-slate-400 font-bold uppercase mt-1">Manage physical entry and exit</p>
                         </div>
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <button onClick={() => setIsRegistering(true)} className="flex flex-col items-center justify-center p-10 bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-indigo-100 hover:border-indigo-500 shadow-sm transition-all group">
                                 <div className="p-4 bg-indigo-50 dark:bg-indigo-900 rounded-2xl text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
                                     <UserIcon className="w-10 h-10" />
                                 </div>
-                                <span className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Register Walk-in</span>
-                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-tighter">New visitor profile creation</p>
+                                <span className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white text-center">Register Walk-in</span>
+                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-tighter text-center">New visitor profile creation</p>
                             </button>
                             <button onClick={() => setIsScanning(true)} className="flex flex-col items-center justify-center p-10 bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-emerald-100 hover:border-emerald-500 shadow-sm transition-all group">
                                 <div className="p-4 bg-emerald-50 dark:bg-emerald-900 rounded-2xl text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
                                     <CameraIcon className="w-10 h-10" />
                                 </div>
-                                <span className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Scan License Plate</span>
-                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-tighter">Automated extraction via OCR</p>
+                                <span className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white text-center">Scan License Plate</span>
+                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-tighter text-center">Automated extraction via OCR</p>
+                            </button>
+                            <button onClick={() => setActiveTab('staff_checkin')} className="flex flex-col items-center justify-center p-10 bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-purple-100 hover:border-purple-500 shadow-sm transition-all group">
+                                <div className="p-4 bg-purple-50 dark:bg-purple-900 rounded-2xl text-purple-600 mb-4 group-hover:scale-110 transition-transform">
+                                    <ShieldIcon className="w-10 h-10" />
+                                </div>
+                                <span className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white text-center">Staff Check-In</span>
+                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-tighter text-center">Check-in teachers & support staff</p>
                             </button>
                         </div>
                     </div>
@@ -894,6 +902,25 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     events={institutionEvents}
                     teacherCheckIns={props.teacherCheckIns}
                     onTeacherGateCheckIn={props.onTeacherGateCheckIn}
+                />
+            )}
+
+            {activeTab === 'staff_checkin' && (
+                <SecurityGatePassView
+                    vehicles={props.vehicles || []}
+                    vehicleLogs={props.vehicleLogs || []}
+                    users={localUsers}
+                    visitors={props.visitors || []}
+                    currentUser={user}
+                    currentInstitution={props.currentInstitution!}
+                    onLogGateAction={props.onLogGateAction!}
+                    onAddVisitor={props.onAddVisitor}
+                    courses={courses}
+                    eventPins={eventPins}
+                    events={institutionEvents}
+                    teacherCheckIns={props.teacherCheckIns}
+                    onTeacherGateCheckIn={props.onTeacherGateCheckIn}
+                    initialTab="staff"
                 />
             )}
 

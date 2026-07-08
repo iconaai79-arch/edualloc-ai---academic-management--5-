@@ -335,13 +335,14 @@ interface SecurityGatePassViewProps {
     events?: any[];
     teacherCheckIns?: TeacherCheckIn[];
     onTeacherGateCheckIn?: (teacherId: string, type: 'Morning' | 'Afternoon', location: string, notes?: string) => Promise<void>;
+    initialTab?: 'vehicle' | 'parent' | 'staff';
 }
 
 export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor, courses = [],
-    eventPins, events, teacherCheckIns = [], onTeacherGateCheckIn
+    eventPins, events, teacherCheckIns = [], onTeacherGateCheckIn, initialTab
 }) => {
-    const [activeTab, setActiveTab] = useState<'vehicle' | 'parent' | 'staff'>('vehicle');
+    const [activeTab, setActiveTab] = useState<'vehicle' | 'parent' | 'staff'>(initialTab || 'vehicle');
     const [activeUsers, setActiveUsers] = useState<User[]>(users);
 
     useEffect(() => {
