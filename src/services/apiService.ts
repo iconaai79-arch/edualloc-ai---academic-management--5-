@@ -251,8 +251,9 @@ export const apiService = {
     },
     async shortenUrl(longUrl: string): Promise<string> {
         // Normalize localhost/127.0.0.1 URLs to production portal domain to ensure shortened links work globally
+        // Skip normalization for Supabase storage URLs (containing '/storage/v1/') as storage is not hosted on the portal domain.
         let normalizedUrl = longUrl;
-        if (normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1')) {
+        if ((normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1')) && !normalizedUrl.includes('/storage/v1/')) {
             normalizedUrl = normalizedUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
         }
 

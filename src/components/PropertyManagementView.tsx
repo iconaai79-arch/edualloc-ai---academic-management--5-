@@ -2337,9 +2337,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     console.warn("Supabase storage upload failed, sending SMS without attachment", uploadErr);
                                 }
                                 
+                                const tenantFirstName = tenant.name ? tenant.name.trim().split(' ')[0] : 'Tenant';
                                 const smsMessage = publicUrl 
-                                    ? `Dear ${tenant.name}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.receiptNumber}. Download receipt here: ${shortUrl} `
-                                    : `Dear ${tenant.name}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.receiptNumber}. (PDF receipt generated successfully)`;
+                                    ? `Dear ${tenantFirstName}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.receiptNumber}. Download receipt here: ${shortUrl} `
+                                    : `Dear ${tenantFirstName}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.receiptNumber}. (PDF receipt generated successfully)`;
                                 
                                 apiService.sendSms(
                                     tenant.phoneNumber, 

@@ -388,7 +388,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(400).json({ success: false, message: 'Missing url parameter.' });
             }
             // Normalize localhost/127.0.0.1 URLs to production portal domain to ensure shortened links work globally
-            if (longUrl.includes('localhost') || longUrl.includes('127.0.0.1')) {
+            // Skip normalization for Supabase storage URLs (containing '/storage/v1/') as storage is not hosted on the portal domain.
+            if ((longUrl.includes('localhost') || longUrl.includes('127.0.0.1')) && !longUrl.includes('/storage/v1/')) {
                 longUrl = longUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, 'https://portal.eduai.co.ke');
             }
             // Try is.gd first (generates unique slugs — no collision risk)
