@@ -20,4 +20,4 @@
 - [x] Hide the bulk 'Remove Arrears' button from the Arrears Manager action panel
 - [x] Add dynamic town list/datalist selector option for property town input field
 - [x] Display next assigned receipt number/range in the Record Transaction modal header
-- [/] Verify the application compiles and runs without errors
+- [x] Verify the application compiles and runs without errors

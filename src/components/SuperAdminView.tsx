@@ -598,6 +598,19 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [constituencySearchQuery, setConstituencySearchQuery] = useState('');
     const [constituencyStatusFilter, setConstituencyStatusFilter] = useState<'all' | 'fully_onboarded' | 'in_progress' | 'not_started'>('all');
 
+    const getConstituencyUsers = useCallback((constituency: Constituency | null) => {
+        if (!constituency) return [];
+        return (users || []).filter(u => {
+            if (!u) return false;
+            const instId = u.institutionId || (u as any).institution_id;
+            if (!instId) return false;
+            const cleanId = String(instId).trim().toLowerCase();
+            const cleanName = constituency.name.trim().toLowerCase();
+            const cleanConstId = constituency.id.trim().toLowerCase();
+            return cleanId === cleanName || cleanId === cleanConstId;
+        });
+    }, [users]);
+
     const fetchConstituenciesData = useCallback(async () => {
         setLoadingConstituencies(true);
         try {
@@ -3196,7 +3209,7 @@ Please change it after login.`;
                                     let notStarted = 0;
 
                                     constituencies.forEach(c => {
-                                        const cUsers = (users || []).filter(u => u.institutionId === c.name);
+                                        const cUsers = getConstituencyUsers(c);
                                         const hasAdm = cUsers.some(u => u.role === 'constituency_admin');
                                         const cFunds = (ngCdfFunds || []).filter(f => f.constituency_name === c.name);
                                         const cBursaries = (ngCdfBursaries || []).filter(b => b.constituency_name === c.name);
@@ -3286,7 +3299,7 @@ Please change it after login.`;
                                                             const matchesSearch = c.name?.toLowerCase().includes(constituencySearchQuery.toLowerCase()) || 
                                                                                   c.code?.toLowerCase().includes(constituencySearchQuery.toLowerCase());
                                                             
-                                                            const cUsers = (users || []).filter(u => u.institutionId === c.name);
+                                                            const cUsers = getConstituencyUsers(c);
                                                             const hasAdm = cUsers.some(u => u.role === 'constituency_admin');
                                                             const cFunds = (ngCdfFunds || []).filter(f => f.constituency_name === c.name);
                                                             const cBursaries = (ngCdfBursaries || []).filter(b => b.constituency_name === c.name);
@@ -3319,7 +3332,7 @@ Please change it after login.`;
                                                             );
                                                         }
                                                         return filtered.map(c => {
-                                                            const cUsers = (users || []).filter(u => u && u.institutionId === c.name);
+                                                            const cUsers = getConstituencyUsers(c);
                                                             const hasAdm = cUsers.some(u => u.role === 'constituency_admin');
                                                             const cFunds = (ngCdfFunds || []).filter(f => f.constituency_name === c.name);
                                                             const cBursaries = (ngCdfBursaries || []).filter(b => b.constituency_name === c.name);
@@ -7700,7 +7713,7 @@ Please change it after login.`;
                         </div>
                         <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
                             {(() => {
-                                const mapped = (users || []).filter(u => u && u.institutionId === viewingConstituencyUsers.name);
+                                const mapped = getConstituencyUsers(viewingConstituencyUsers);
                                 if (mapped.length === 0) {
                                     return (
                                         <div className="text-center py-10">

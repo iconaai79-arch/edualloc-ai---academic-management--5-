@@ -5277,7 +5277,7 @@ export const generateConsolidatedPMReceiptPdfDataUri = async (
     const body = payments.map(p => [
         p.paymentType,
         p.periodMonth && p.periodYear ? `${p.periodMonth}/${p.periodYear}` : 'N/A',
-        p.reference || p.id.substring(0, 8).toUpperCase(),
+        p.reference || p.receiptNumber || 'N/A',
         `KES ${(p.amount || 0).toLocaleString()}`
     ]);
 

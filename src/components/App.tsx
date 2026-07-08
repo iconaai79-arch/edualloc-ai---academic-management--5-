@@ -6022,6 +6022,19 @@ export const App: React.FC = () => {
                                             currentUser={currentUser}
                                             currentInstitution={activeInstitution!}
                                             onLogAction={handleLogAction}
+                                            users={users}
+                                            onDeleteUser={onDeleteUser}
+                                            onEditUser={onEditUser}
+                                            onImportUsers={onImportUsers}
+                                            onAddUser={async (userData: any) => {
+                                                if (!currentUser) return;
+                                                const targetInstitutionId = userData.institutionId || currentUser.institutionId;
+                                                await apiService.registerUser(
+                                                    { ...userData, id: generateUserId(), institutionId: targetInstitutionId },
+                                                    activeInstitution?.name
+                                                );
+                                                await loadData(false, true);
+                                            }}
                                         />
                                     )
                                 ) : (activeRole === 'farmer' || activeRole === 'rider' || activeRole === 'coop_admin') ? (

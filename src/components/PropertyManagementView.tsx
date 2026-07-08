@@ -163,7 +163,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     useEffect(() => {
         if (editingInspection) {
             try {
-                const parsed = JSON.parse(editingInspection.repairsRequired);
+                const parsed = JSON.parse(editingInspection.repairsRequired || '{}');
                 setInspectionDetails({
                     waterMeterNo: parsed.waterMeterNo || '',
                     waterBill: parsed.waterBill || 0,
@@ -610,40 +610,46 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     bankDetails: data.bankDetails ?? editingLandlord.bankDetails,
                     preferredPaymentMethod: data.preferredPaymentMethod ?? editingLandlord.preferredPaymentMethod,
                 };
-                await apiService.saveModuleRecord('pm_landlords', updatedLandlord);
+                await apiService.updateModuleRecord('pm_landlords', updatedLandlord.id, updatedLandlord);
+                // Optimistically update local state immediately so UI reflects changes right away
+                setLandlords(prev => prev.map(l => l.id === updatedLandlord.id ? updatedLandlord : l));
                 setShowLandlordModal(false);
                 setEditingLandlord(null);
-                loadData();
+                await loadData();
                 alert('Landlord profile updated successfully!');
             } else {
                 // CREATE new landlord
                 const landlordId = `ll_${Date.now()}`;
+                const tempPassword = Math.random().toString(36).slice(-8);
 
-                // 1. Create the system user account if email is provided
-                if (data.email) {
-                    const tempPassword = Math.random().toString(36).slice(-8);
-                    const newUser = {
-                        id: `user_${Date.now()}`,
-                        name: data.name || '',
-                        email: data.email,
-                        phoneNumber: data.phoneNumber || '',
-                        role: 'landlord',
-                        institutionId,
-                        createdAt: new Date().toISOString(),
-                        isActive: true,
-                        mustChangePassword: true,
-                        password: tempPassword
-                    };
-                    await apiService.saveModuleRecord('users', newUser);
+                // 1. Always create a portal user account (phone-based login, email optional)
+                const newUser: any = {
+                    id: `user_${Date.now()}`,
+                    name: data.name || '',
+                    email: data.email || '',           // empty string if no email
+                    phoneNumber: data.phoneNumber || '',
+                    role: 'landlord',
+                    institutionId,
+                    createdAt: new Date().toISOString(),
+                    isActive: true,
+                    mustChangePassword: true,
+                    needsEmailActivation: !data.email, // flag: collect email on first login
+                    password: tempPassword
+                };
+                await apiService.saveModuleRecord('users', newUser);
 
-                    // 2. Send email with credentials
-                    try {
+                // 2. Send credentials — SMS if no email, email if email provided
+                try {
+                    if (data.email) {
                         const subject = 'Welcome to your Landlord Portal';
-                        const body = `Welcome, ${data.name}!\n\nYou have been registered as a Landlord in the system.\nYou can now log in to view your properties, track tenant payments, and monitor your commission payouts.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                        const body = `Welcome, ${data.name}!\n\nYou have been registered as a Landlord in the system.\nYou can now log in using your phone number or email to view your properties, track tenant payments, and monitor your commission payouts.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nPhone / Email: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
                         await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
-                    } catch (emailErr) {
-                        console.error("Failed to send landlord welcome email:", emailErr);
+                    } else if (data.phoneNumber) {
+                        const smsBody = `Welcome ${data.name}! Your Landlord Portal access:\nURL: ${window.location.origin}\nPhone: ${data.phoneNumber}\nPIN: ${tempPassword}\nLogin with your phone number & PIN. You will be asked to provide your email on first login.`;
+                        await apiService.sendSms(data.phoneNumber, smsBody);
                     }
+                } catch (notifyErr) {
+                    console.error('Failed to send landlord credentials notification:', notifyErr);
                 }
 
                 // 3. Create the PM landlord record
@@ -665,12 +671,58 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 loadData();
 
                 if (data.email) {
-                    alert(`Landlord saved! Login credentials have been emailed to ${data.email}`);
+                    alert(`Landlord saved! Login credentials emailed to ${data.email}`);
                 } else {
-                    alert("Landlord saved! (No email provided, so no portal access created)");
+                    alert(`Landlord saved! Login credentials sent via SMS to ${data.phoneNumber}.\nThey can log in with their phone number and will be prompted to add their email on first login.`);
                 }
             }
         } catch (e: any) { alert(e.message || "Failed to save landlord"); console.error(e); }
+    };
+
+    const handleDeleteLandlord = async (id: string) => {
+        // Prevent deletion if the landlord owns properties
+        const ownedProperties = properties.filter(p => p.landlordId === id);
+        if (ownedProperties.length > 0) {
+            alert(`Cannot delete landlord. This landlord is currently assigned to ${ownedProperties.length} property/properties: ${ownedProperties.map(p => p.name).join(', ')}. Please reassign or delete these properties first.`);
+            return;
+        }
+
+        if (!window.confirm('Are you sure you want to delete this landlord? This cannot be undone.')) return;
+        try {
+            // Find the landlord to get their email/phone number for deleting their user account
+            const landlord = landlords.find(l => l.id === id);
+            if (landlord) {
+                // Find matching user record
+                const matchingUser = users.find(u => 
+                    u.role === 'landlord' && 
+                    ((landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
+                     (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber))
+                );
+                if (matchingUser) {
+                    await onDeleteUser(matchingUser.id);
+                }
+            }
+
+            await apiService.deleteModuleRecord('pm_landlords', id);
+            setLandlords(prev => prev.filter(l => l.id !== id));
+            await loadData();
+        } catch (e: any) { alert(e.message || 'Failed to delete landlord'); console.error(e); }
+    };
+
+    const handleResendLandlordCredentials = async (landlord: PMLandlord) => {
+        if (!landlord.email) {
+            return alert('This landlord has no email address on record. Please edit their profile and add an email first.');
+        }
+        if (!window.confirm(`Resend login credentials to ${landlord.email}?`)) return;
+        try {
+            const tempPassword = Math.random().toString(36).slice(-8);
+            // Find the user account linked to this landlord's email and reset password
+            const subject = 'Your Landlord Portal Login Credentials';
+            const body = `Dear ${landlord.name},\n\nHere are your updated login credentials for the Landlord Portal.\n\nPortal: ${window.location.origin}\nEmail: ${landlord.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password as soon as possible.\n\nBest Regards,\nProperty Management`;
+            const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
+            await apiService.sendEmail(landlord.email, subject, body, emailConfig);
+            alert(`Login credentials emailed to ${landlord.email} successfully!`);
+        } catch (e: any) { alert(e.message || 'Failed to send credentials email'); console.error(e); }
     };
 
     const handleSaveProperty = async (data: Partial<PMProperty>) => {
@@ -1072,6 +1124,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             >
                                                 <PencilIcon className="w-4 h-4" />
                                             </button>
+                                            <button
+                                                onClick={() => handleResendLandlordCredentials(landlord)}
+                                                className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-xl transition-all"
+                                                title={landlord.email ? 'Resend Login Credentials' : 'No email — cannot send credentials'}
+                                            >
+                                                <PaperAirplaneIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteLandlord(landlord.id)}
+                                                className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all"
+                                                title="Delete Landlord"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
                                         </td>
                                     </tr>
                                 );
@@ -1107,6 +1173,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             title="Edit Landlord"
                                         >
                                             <PencilIcon className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleResendLandlordCredentials(landlord)}
+                                            className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl text-emerald-600"
+                                            title="Resend Login Credentials"
+                                        >
+                                            <PaperAirplaneIcon className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteLandlord(landlord.id)}
+                                            className="p-2.5 bg-rose-100 dark:bg-rose-900/30 rounded-xl text-rose-600"
+                                            title="Delete Landlord"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
@@ -2743,7 +2823,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         }, [payments, leases, tenants, units, search, methodFilter, typeFilter, propertyFilter, monthFilter]);
 
         const sortedPayments = useMemo(() => {
-            return [...filteredPayments].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+            return [...filteredPayments].sort((a, b) => {
+                const recA = a.receiptNumber || '';
+                const recB = b.receiptNumber || '';
+                
+                if (recA && recB) {
+                    return recB.localeCompare(recA, undefined, { numeric: true, sensitivity: 'base' });
+                }
+                if (recA && !recB) return -1;
+                if (!recA && recB) return 1;
+                
+                return new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime();
+            });
         }, [filteredPayments]);
 
         const totalPages = Math.max(1, Math.ceil(sortedPayments.length / PAGE_SIZE));
@@ -2848,6 +2939,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <table className="w-full text-left">
                                     <thead className="border-b border-slate-100 dark:border-slate-700">
                                         <tr>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt No</th>
                                             <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction ID</th>
                                             <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lease Ref</th>
                                             <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
@@ -2863,7 +2955,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
                                             return (
                                                 <tr key={payment.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                                    <td className="p-6 font-mono text-xs font-bold text-slate-400">{payment.receiptNumber || `#${payment.id.split('_')[1]}`}</td>
+                                                    <td className="p-6 font-mono text-xs font-black text-purple-650 dark:text-purple-400">{payment.receiptNumber || '—'}</td>
+                                                    <td className="p-6 font-mono text-xs font-bold text-slate-400">#{payment.id.split('_')[1] || payment.id}</td>
                                                     <td className="p-6">
                                                         <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">{tenant?.name || 'N/A'}</p>
                                                         <p className="text-[9px] text-blue-600 font-bold uppercase">{payment.paymentType}</p>
@@ -2923,7 +3016,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <div key={payment.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
                                             <div className="flex justify-between items-start mb-2">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-[9px] font-mono font-bold text-slate-400">{payment.receiptNumber || `#${payment.id.split('_')[1]}`}</span>
+                                                    <span className="text-[10px] font-bold text-purple-650 dark:text-purple-400">{payment.receiptNumber || 'No Receipt'}</span>
+                                                    <span className="text-[9px] font-mono font-bold text-slate-400">| #{payment.id.split('_')[1] || payment.id}</span>
                                                     <span className="bg-emerald-50 text-emerald-600 text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase">Success</span>
                                                 </div>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</p>
@@ -6408,7 +6502,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <td className="p-5 text-xs text-slate-600 dark:text-slate-300">
                                                 {(() => {
                                                     try {
-                                                        const parsed = JSON.parse(insp.repairsRequired);
+                                                        const parsed = JSON.parse(insp.repairsRequired || '{}');
                                                         const itemsDesc = parsed.items.map((it: any) => it.description).filter(Boolean).join(', ');
                                                         let desc = '';
                                                         if (parsed.waterBill > 0) desc += `Water Bill (KES ${parsed.waterBill}), `;
