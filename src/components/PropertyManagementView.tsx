@@ -769,6 +769,83 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         }
     };
 
+    const handleBulkSendLandlordCredentials = async (method: 'email' | 'sms') => {
+        // Filter landlords that have email or phone depending on the method
+        const targetLandlords = landlords.filter(l => 
+            method === 'email' ? !!l.email : !!l.phoneNumber
+        );
+        
+        if (targetLandlords.length === 0) {
+            return alert(`No landlords have a valid ${method === 'email' ? 'email address' : 'phone number'} to send credentials to.`);
+        }
+        
+        if (!window.confirm(`Are you sure you want to resend login credentials to all ${targetLandlords.length} landlords via ${method === 'email' ? 'Email' : 'SMS'}?`)) return;
+        
+        setLoading(true);
+        let successCount = 0;
+        let failCount = 0;
+        
+        try {
+            for (const landlord of targetLandlords) {
+                try {
+                    const tempPassword = Math.random().toString(36).slice(-8);
+                    
+                    // 1. Find or create portal user
+                    const matchingUser = users.find(u => 
+                        u.role === 'landlord' && 
+                        ((landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
+                         (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber))
+                    );
+                    
+                    if (matchingUser) {
+                        const updatedUser = { 
+                            ...matchingUser, 
+                            password: tempPassword,
+                            mustChangePassword: true 
+                        };
+                        await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
+                    } else {
+                        const newUser: any = {
+                            id: `user_${Date.now()}_${Math.random().toString(36).slice(-4)}`,
+                            name: landlord.name,
+                            email: landlord.email || '',
+                            phoneNumber: landlord.phoneNumber || '',
+                            role: 'landlord',
+                            institutionId,
+                            createdAt: new Date().toISOString(),
+                            isActive: true,
+                            mustChangePassword: true,
+                            needsEmailActivation: !landlord.email,
+                            password: tempPassword
+                        };
+                        await apiService.saveModuleRecord('users', newUser);
+                    }
+                    
+                    // 2. Send notification
+                    if (method === 'email' && landlord.email) {
+                        const subject = 'Your Landlord Portal Login Credentials';
+                        const body = `Dear ${landlord.name},\n\nHere are your login credentials for the Landlord Portal.\n\nPortal: ${window.location.origin}\nEmail: ${landlord.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password as soon as possible.\n\nBest Regards,\nProperty Management`;
+                        const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
+                        await apiService.sendEmail(landlord.email, subject, body, emailConfig);
+                    } else if (method === 'sms' && landlord.phoneNumber) {
+                        const smsBody = `Hello ${landlord.name}! Your Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
+                        await apiService.sendSms(landlord.phoneNumber, smsBody);
+                    }
+                    successCount++;
+                } catch (err) {
+                    console.error(`Failed to send bulk credentials to ${landlord.name}:`, err);
+                    failCount++;
+                }
+            }
+            alert(`Bulk Send Complete!\n\nSuccessfully sent: ${successCount}\nFailed: ${failCount}`);
+            loadData();
+        } catch (e: any) {
+            alert(e.message || "Failed to process bulk credentials");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSaveProperty = async (data: Partial<PMProperty>) => {
         try {
             const propertyData: PMProperty = {
@@ -1093,15 +1170,35 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Landlord Directory</h3>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">{filtered.length} of {landlords.length} landlords</p>
                 </div>
-                <div className="relative group w-full md:w-80">
-                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
-                    <input
-                        type="text"
-                        placeholder="SEARCH LANDLORDS..."
-                        value={landlordSearch}
-                        onChange={e => { setLandlordSearch(e.target.value); setLandlordPage(1); }}
-                        className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-purple-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
-                    />
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                    {landlords.length > 0 && (
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => handleBulkSendLandlordCredentials('email')}
+                                className="px-3.5 py-3 bg-slate-900 text-white rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-sm flex items-center gap-1.5"
+                                title="Resend credentials to all landlords with email addresses"
+                            >
+                                Bulk Email Credentials
+                            </button>
+                            <button
+                                onClick={() => handleBulkSendLandlordCredentials('sms')}
+                                className="px-3.5 py-3 bg-purple-600 text-white rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-purple-750 transition-all shadow-sm flex items-center gap-1.5"
+                                title="Resend credentials to all landlords with phone numbers"
+                            >
+                                Bulk SMS Credentials
+                            </button>
+                        </div>
+                    )}
+                    <div className="relative group w-full md:w-80">
+                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
+                        <input
+                            type="text"
+                            placeholder="SEARCH LANDLORDS..."
+                            value={landlordSearch}
+                            onChange={e => { setLandlordSearch(e.target.value); setLandlordPage(1); }}
+                            className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-purple-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
+                        />
+                    </div>
                 </div>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
