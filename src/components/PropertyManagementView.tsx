@@ -710,19 +710,63 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     };
 
     const handleResendLandlordCredentials = async (landlord: PMLandlord) => {
-        if (!landlord.email) {
-            return alert('This landlord has no email address on record. Please edit their profile and add an email first.');
+        if (!landlord.email && !landlord.phoneNumber) {
+            return alert('This landlord has neither email nor phone number on record.');
         }
-        if (!window.confirm(`Resend login credentials to ${landlord.email}?`)) return;
+        
+        const destination = landlord.email ? landlord.email : landlord.phoneNumber;
+        if (!window.confirm(`Resend login credentials to ${destination}?`)) return;
+        
         try {
             const tempPassword = Math.random().toString(36).slice(-8);
-            // Find the user account linked to this landlord's email and reset password
-            const subject = 'Your Landlord Portal Login Credentials';
-            const body = `Dear ${landlord.name},\n\nHere are your updated login credentials for the Landlord Portal.\n\nPortal: ${window.location.origin}\nEmail: ${landlord.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password as soon as possible.\n\nBest Regards,\nProperty Management`;
-            const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
-            await apiService.sendEmail(landlord.email, subject, body, emailConfig);
-            alert(`Login credentials emailed to ${landlord.email} successfully!`);
-        } catch (e: any) { alert(e.message || 'Failed to send credentials email'); console.error(e); }
+            
+            // 1. Find or create the user account in the database and update the password
+            const matchingUser = users.find(u => 
+                u.role === 'landlord' && 
+                ((landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
+                 (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber))
+            );
+            
+            if (matchingUser) {
+                const updatedUser = { 
+                    ...matchingUser, 
+                    password: tempPassword,
+                    mustChangePassword: true 
+                };
+                await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
+            } else {
+                const newUser: any = {
+                    id: `user_${Date.now()}`,
+                    name: landlord.name,
+                    email: landlord.email || '',
+                    phoneNumber: landlord.phoneNumber || '',
+                    role: 'landlord',
+                    institutionId,
+                    createdAt: new Date().toISOString(),
+                    isActive: true,
+                    mustChangePassword: true,
+                    needsEmailActivation: !landlord.email,
+                    password: tempPassword
+                };
+                await apiService.saveModuleRecord('users', newUser);
+            }
+            
+            // 2. Send the notification
+            if (landlord.email) {
+                const subject = 'Your Landlord Portal Login Credentials';
+                const body = `Dear ${landlord.name},\n\nHere are your updated login credentials for the Landlord Portal.\n\nPortal: ${window.location.origin}\nEmail: ${landlord.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password as soon as possible.\n\nBest Regards,\nProperty Management`;
+                const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
+                await apiService.sendEmail(landlord.email, subject, body, emailConfig);
+                alert(`Login credentials emailed to ${landlord.email} successfully!`);
+            } else if (landlord.phoneNumber) {
+                const smsBody = `Hello ${landlord.name}! Your updated Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
+                await apiService.sendSms(landlord.phoneNumber, smsBody);
+                alert(`Login credentials sent via SMS to ${landlord.phoneNumber} successfully!`);
+            }
+        } catch (e: any) { 
+            alert(e.message || 'Failed to send credentials'); 
+            console.error(e); 
+        }
     };
 
     const handleSaveProperty = async (data: Partial<PMProperty>) => {
