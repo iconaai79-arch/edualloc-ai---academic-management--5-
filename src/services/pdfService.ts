@@ -5218,6 +5218,100 @@ export const generatePMReceiptPdfDataUri = async (
     return doc.output('datauristring');
 };
 
+export const generateConsolidatedPMReceiptPdfDataUri = async (
+    payments: PMPayment[],
+    tenant: PMTenant,
+    unit: PMUnit,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    letterheadUrl?: string | null
+): Promise<string> => {
+    if (!payments || payments.length === 0) throw new Error("No payments provided for receipt.");
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const headerImg = await loadImage(letterheadUrl || null);
+    const tableStartY = createPdfWithLetterhead(doc, 'PAYMENT RECEIPT', companyDetails, institution, logoImg, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Dynamically place metadata below header/title start position
+    let yPos = tableStartY + 5;
+
+    // Use details from the first payment row for general fields
+    const primaryPayment = payments[0];
+    const receiptNumber = primaryPayment.receiptNumber || 'N/A';
+    const paymentDateStr = new Date(primaryPayment.paymentDate).toLocaleDateString();
+    const paymentMethod = primaryPayment.paymentMethod;
+    const paymentStatus = primaryPayment.status.toUpperCase();
+
+    // Calculate total amount
+    const totalAmount = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    // Receipt Meta (Left side)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('RECEIPT FOR:', margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(tenant.name, margin, yPos + 5);
+    doc.text(`Unit: ${unit.unitNumber}`, margin, yPos + 10);
+
+    // Receipt details (Right side)
+    doc.setFont('helvetica', 'bold');
+    doc.text('RECEIPT NO:', pageWidth - margin - 45, yPos);
+    doc.text('DATE:', pageWidth - margin - 45, yPos + 5);
+    doc.text('METHOD:', pageWidth - margin - 45, yPos + 10);
+    doc.text('STATUS:', pageWidth - margin - 45, yPos + 15);
+    doc.setFont('helvetica', 'normal');
+    doc.text(receiptNumber, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(paymentDateStr, pageWidth - margin, yPos + 5, { align: 'right' });
+    doc.text(paymentMethod, pageWidth - margin, yPos + 10, { align: 'right' });
+    doc.text(paymentStatus, pageWidth - margin, yPos + 15, { align: 'right' });
+
+    // Table Headers
+    const headers = [['Payment Type', 'Period', 'Reference ID', 'Amount']];
+
+    // Table Body
+    const body = payments.map(p => [
+        p.paymentType,
+        p.periodMonth && p.periodYear ? `${p.periodMonth}/${p.periodYear}` : 'N/A',
+        p.reference || p.id.substring(0, 8).toUpperCase(),
+        `KES ${(p.amount || 0).toLocaleString()}`
+    ]);
+
+    doc.autoTable({
+        head: headers,
+        body: body,
+        startY: yPos + 25,
+        theme: 'striped',
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [79, 70, 229], textStyle: { fontStyle: 'bold' } }, // Indigo color header
+        columnStyles: { 3: { halign: 'right' } }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    let contentY = finalY;
+    if (finalY + 45 > pageHeight - margin) {
+        doc.addPage();
+        contentY = margin + 10;
+    }
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL AMOUNT RECEIVED:', margin, contentY + 20);
+    doc.text(`KES ${totalAmount.toLocaleString()}`, pageWidth - margin, contentY + 20, { align: 'right' });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.text('Thank you for choosing us!', pageWidth / 2, contentY + 40, { align: 'center' });
+
+    return doc.output('datauristring');
+};
+
 const convertNumberToWords = (amount: number): string => {
     const singleDigits = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
     const teenDigits = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];

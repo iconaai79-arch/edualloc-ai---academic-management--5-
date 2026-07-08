@@ -2202,6 +2202,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             let receiptPrefix = pmSettings?.numbering?.receiptPrefix || 'REC';
             let receiptNextNum = pmSettings?.numbering?.receiptNextNumber || 1000;
+            const receiptNumber = `${receiptPrefix}-${receiptNextNum}`;
 
             const createdPayments: PMPayment[] = [];
 
@@ -2222,8 +2223,6 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         }
                     }
                 }
-
-                const receiptNumber = `${receiptPrefix}-${receiptNextNum++}`;
 
                 const p: PMPayment = {
                     id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -2277,36 +2276,37 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     ...pmSettings,
                     numbering: {
                         ...(pmSettings.numbering || {}),
-                        receiptNextNumber: receiptNextNum
+                        receiptNextNumber: receiptNextNum + 1
                     }
                 };
                 await apiService.saveModuleRecord('pm_settings', updatedSettings);
                 setPmSettings(updatedSettings);
             }
 
-            // Generate receipt preview & delivery for each recorded payment
-            for (const p of createdPayments) {
-                const lease = leases.find(l => l.id === p.leaseId);
+            // Generate receipt preview & delivery for consolidated payments
+            if (createdPayments.length > 0) {
+                const firstPay = createdPayments[0];
+                const lease = leases.find(l => l.id === firstPay.leaseId);
                 const tenant = tenants.find(t => t.id === lease?.tenantId);
                 const unit = units.find(u => u.id === lease?.unitId);
                 if (tenant && unit) {
                     try {
-                        const dataUri = await pdfService.generatePMReceiptPdfDataUri(
-                            p, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                        const dataUri = await pdfService.generateConsolidatedPMReceiptPdfDataUri(
+                            createdPayments, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
                             pmSettings?.branding?.letterheadUrl || null
                         );
-                        // Show pdf preview for the first one
-                        if (p === createdPayments[0]) {
-                            setPreviewPdfUrl(dataUri);
-                            setPreviewPdfTitle(`Receipt - ${tenant.name}`);
-                            setShowPdfPreview(true);
-                        }
+                        
+                        setPreviewPdfUrl(dataUri);
+                        setPreviewPdfTitle(`Receipt - ${tenant.name}`);
+                        setShowPdfPreview(true);
 
                         // Instantly send email receipt to tenant if email exists
                         if (tenant.email) {
                             const base64Data = dataUri.split(',')[1];
-                            const emailSubject = `${p.paymentType} Payment Receipt - Unit ${unit.unitNumber}`;
-                            const emailBody = `Dear ${tenant.name},\n\nPlease find attached your ${p.paymentType.toLowerCase()} payment receipt for KES ${p.amount.toLocaleString()} recorded on ${p.paymentDate} for Unit ${unit.unitNumber}.\n\nBest Regards,\nProperty Management`;
+                            const totalAmount = createdPayments.reduce((sum, p) => sum + p.amount, 0);
+                            const breakdownStr = createdPayments.map(p => `${p.paymentType}: KES ${p.amount.toLocaleString()}`).join(', ');
+                            const emailSubject = `Payment Receipt - Unit ${unit.unitNumber}`;
+                            const emailBody = `Dear ${tenant.name},\n\nPlease find attached your payment receipt for KES ${totalAmount.toLocaleString()} (${breakdownStr}) recorded on ${firstPay.paymentDate} for Unit ${unit.unitNumber}.\n\nBest Regards,\nProperty Management`;
                             const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
                             
                             apiService.sendEmail(
@@ -2315,7 +2315,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 emailBody,
                                 emailConfig,
                                 undefined,
-                                [{ filename: `Receipt_${p.id.trim()}.pdf`, content: base64Data, encoding: 'base64' }]
+                                [{ filename: `Receipt_${receiptNumber}.pdf`, content: base64Data, encoding: 'base64' }]
                             ).then(() => {
                                 console.log(`Receipt email sent successfully to ${tenant.email}`);
                             }).catch(emailErr => {
@@ -2327,7 +2327,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         if (tenant.phoneNumber) {
                             try {
                                 const blob = dataUriToBlob(dataUri);
-                                const fileName = `receipts/Receipt_${p.id.trim()}.pdf`;
+                                const fileName = `receipts/Receipt_${receiptNumber}.pdf`;
                                 let publicUrl = '';
                                 let shortUrl = '';
                                 try {
@@ -2338,9 +2338,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 }
                                 
                                 const tenantFirstName = tenant.name ? tenant.name.trim().split(' ')[0] : 'Tenant';
+                                const totalAmount = createdPayments.reduce((sum, p) => sum + p.amount, 0);
+                                const breakdownStr = createdPayments.map(p => `${p.paymentType}: ${p.amount.toLocaleString()}`).join(', ');
                                 const smsMessage = publicUrl 
-                                    ? `Dear ${tenantFirstName}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.receiptNumber}. Download receipt here: ${shortUrl} `
-                                    : `Dear ${tenantFirstName}, payment of KES ${p.amount.toLocaleString()} for ${p.paymentType} at Unit ${unit.unitNumber} has been received. Receipt ID: ${p.receiptNumber}. (PDF receipt generated successfully)`;
+                                    ? `Dear ${tenantFirstName}, payment of KES ${totalAmount.toLocaleString()} (${breakdownStr}) at Unit ${unit.unitNumber} has been received. Receipt ID: ${receiptNumber}. Download receipt here: ${shortUrl} `
+                                    : `Dear ${tenantFirstName}, payment of KES ${totalAmount.toLocaleString()} (${breakdownStr}) at Unit ${unit.unitNumber} has been received. Receipt ID: ${receiptNumber}. (PDF receipt generated successfully)`;
                                 
                                 apiService.sendSms(
                                     tenant.phoneNumber, 
@@ -2675,8 +2677,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             setPreviewLoadingId(payment.id);
             try {
-                const dataUri = await pdfService.generatePMReceiptPdfDataUri(
-                    payment, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                const relatedPayments = payment.receiptNumber 
+                    ? payments.filter(p => p.receiptNumber === payment.receiptNumber)
+                    : [payment];
+
+                const dataUri = await pdfService.generateConsolidatedPMReceiptPdfDataUri(
+                    relatedPayments, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
                     pmSettings?.branding?.letterheadUrl || null
                 );
                 setPreviewPdfUrl(dataUri);
@@ -2697,8 +2703,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             if (!tenant || !unit) return alert("Tenant or Unit data missing for this payment.");
 
             try {
-                const dataUri = await pdfService.generatePMReceiptPdfDataUri(
-                    payment, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
+                const relatedPayments = payment.receiptNumber 
+                    ? payments.filter(p => p.receiptNumber === payment.receiptNumber)
+                    : [payment];
+
+                const dataUri = await pdfService.generateConsolidatedPMReceiptPdfDataUri(
+                    relatedPayments, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null,
                     pmSettings?.branding?.letterheadUrl || null
                 );
                 const link = document.createElement('a');
