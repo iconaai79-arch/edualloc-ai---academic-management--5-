@@ -225,7 +225,7 @@ export interface Unavailability {
 export interface User {
     id: string;
     name: string;
-    email?: string;
+    email: string;
     phoneNumber: string;
     staffId?: string;
     role: Role;
