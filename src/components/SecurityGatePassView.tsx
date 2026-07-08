@@ -11,7 +11,7 @@ import { XCircleIcon } from './icons/XCircleIcon';
 import { PrinterIcon } from './icons/PrinterIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
-import type { TransportVehicle, VehicleLog, User, Institution, Visitor, Course } from '../types';
+import type { TransportVehicle, VehicleLog, User, Institution, Visitor, Course, TeacherCheckIn } from '../types';
 import { apiService } from '../services/apiService';
 import { phonesMatch, phoneContains } from '../utils/stringUtils';
 
@@ -333,13 +333,15 @@ interface SecurityGatePassViewProps {
     courses?: Course[];
     eventPins?: any[];
     events?: any[];
+    teacherCheckIns?: TeacherCheckIn[];
+    onTeacherGateCheckIn?: (teacherId: string, type: 'Morning' | 'Afternoon', location: string, notes?: string) => Promise<void>;
 }
 
 export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     vehicles, vehicleLogs, users, visitors = [], currentUser, currentInstitution, onLogGateAction, onAddVisitor, courses = [],
-    eventPins, events
+    eventPins, events, teacherCheckIns = [], onTeacherGateCheckIn
 }) => {
-    const [activeTab, setActiveTab] = useState<'vehicle' | 'parent'>('vehicle');
+    const [activeTab, setActiveTab] = useState<'vehicle' | 'parent' | 'staff'>('vehicle');
     const [activeUsers, setActiveUsers] = useState<User[]>(users);
 
     useEffect(() => {
@@ -366,6 +368,23 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const [allEventPins, setAllEventPins] = useState<any[]>([]);
     const [allEvents, setAllEvents] = useState<any[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
+
+    // Staff State
+    const [staffSearchTerm, setStaffSearchTerm] = useState('');
+    const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
+    const [staffNotes, setStaffNotes] = useState('');
+    const [staffCheckInType, setStaffCheckInType] = useState<'Morning' | 'Afternoon'>('Morning');
+
+    const todayStr = React.useMemo(() => new Date().toISOString().split('T')[0], []);
+
+    const filteredStaff = React.useMemo(() => {
+        const query = staffSearchTerm.toLowerCase();
+        return (users || []).filter(u => 
+            u && u.role && 
+            !['student', 'parent', 'customer', 'super_admin', 'visitor'].includes(u.role) &&
+            (u.name.toLowerCase().includes(query) || (u.phoneNumber || '').toLowerCase().includes(query) || u.role.toLowerCase().includes(query))
+        );
+    }, [users, staffSearchTerm]);
 
     // Walk-in registration state
     const [showWalkInForm, setShowWalkInForm] = useState(false);
@@ -936,18 +955,24 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             </div>
 
             {/* Segmented Control */}
-            <div className="flex mb-8 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-full max-w-md">
+            <div className="flex mb-8 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-full max-w-lg">
                 <button
                     onClick={() => setActiveTab('vehicle')}
-                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'vehicle' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    className={`flex-1 py-3 px-4 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${activeTab === 'vehicle' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                 >
-                    <TruckIcon className="w-5 h-5" /> Vehicles
+                    <TruckIcon className="w-4 h-4" /> Vehicles
                 </button>
                 <button
                     onClick={() => setActiveTab('parent')}
-                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'parent' ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    className={`flex-1 py-3 px-4 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${activeTab === 'parent' ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                 >
-                    <UserGroupIcon className="w-5 h-5" /> Parents & Events
+                    <UserGroupIcon className="w-4 h-4" /> Parents
+                </button>
+                <button
+                    onClick={() => setActiveTab('staff')}
+                    className={`flex-1 py-3 px-4 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${activeTab === 'staff' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                >
+                    <UserIcon className="w-4 h-4" /> Staff Gate
                 </button>
             </div>
 
@@ -1007,7 +1032,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                 )}
                             </div>
                         </div>
-                    ) : (
+                    ) : activeTab === 'parent' ? (
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                              <div className="relative mb-4">
                                 <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
@@ -1195,6 +1220,61 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                 </div>
                             )}
                         </div>
+                    ) : (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+                            <div className="relative mb-6">
+                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                <input
+                                    type="text"
+                                    value={staffSearchTerm}
+                                    onChange={e => {
+                                        setStaffSearchTerm(e.target.value);
+                                        if (e.target.value.length > 2) setSelectedStaff(null);
+                                    }}
+                                    className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-indigo-500 outline-none text-lg font-bold animate-fade-in"
+                                    placeholder="Search Staff Name or Role..."
+                                />
+                            </div>
+
+                            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                {filteredStaff.map(u => {
+                                    const todayCheckIn = (teacherCheckIns || []).find(c => c.teacherId === u.id && c.checkInDate === todayStr);
+                                    return (
+                                        <button
+                                            key={u.id}
+                                            type="button"
+                                            onClick={() => { setSelectedStaff(u); setStaffSearchTerm(''); }}
+                                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${selectedStaff?.id === u.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-transparent bg-slate-50 dark:bg-slate-900 active:scale-[0.98]'}`}
+                                        >
+                                            <div className="flex items-center gap-4 text-left">
+                                                <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-xl flex items-center justify-center font-black text-sm uppercase">
+                                                    {u.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-sm text-slate-800 dark:text-white leading-tight">{u.name}</h4>
+                                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mt-1">{u.role}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {todayCheckIn?.morningCheckInTime ? (
+                                                    <span className="text-[9px] font-black uppercase bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20">AM</span>
+                                                ) : (
+                                                    <span className="text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-700 text-slate-400 px-2 py-0.5 rounded">AM</span>
+                                                )}
+                                                {todayCheckIn?.afternoonCheckInTime ? (
+                                                    <span className="text-[9px] font-black uppercase bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">PM</span>
+                                                ) : (
+                                                    <span className="text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-700 text-slate-400 px-2 py-0.5 rounded">PM</span>
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                                {filteredStaff.length === 0 && (
+                                    <p className="text-center py-6 text-slate-400 font-bold uppercase text-xs tracking-widest">No matching staff found</p>
+                                )}
+                            </div>
+                        </div>
                     )}
 
                     {/* Action Area */}
@@ -1230,7 +1310,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                 </div>
                             </div>
                         )
-                    ) : (
+                    ) : activeTab === 'parent' ? (
                         selectedParent && (
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-4">
                                 <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white mb-4">Confirm Entry</h3>
@@ -1248,6 +1328,77 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                 {!onAddVisitor && (
                                     <p className="text-red-500 text-xs font-bold mt-3 text-center uppercase">System Error: Visitor logging not connected.</p>
                                 )}
+                            </div>
+                        )
+                    ) : (
+                        selectedStaff && (
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-4 animate-fade-in">
+                                <div className="flex justify-between items-center mb-6">
+                                    <div>
+                                        <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white">Staff Gate Check-In</h3>
+                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">{selectedStaff.name}</p>
+                                    </div>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setSelectedStaff(null)} 
+                                        className="text-xs font-black text-red-500 uppercase tracking-widest hover:underline"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+
+                                <div className="mb-4">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Select Shift / Period</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setStaffCheckInType('Morning')}
+                                            className={`py-3 rounded-xl font-bold uppercase text-xs tracking-wider transition-all border ${staffCheckInType === 'Morning' ? 'bg-indigo-600 text-white border-transparent' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 border-slate-200 dark:border-slate-800'}`}
+                                        >
+                                            Morning Entry
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setStaffCheckInType('Afternoon')}
+                                            className={`py-3 rounded-xl font-bold uppercase text-xs tracking-wider transition-all border ${staffCheckInType === 'Afternoon' ? 'bg-indigo-600 text-white border-transparent' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 border-slate-200 dark:border-slate-800'}`}
+                                        >
+                                            Afternoon Exit
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="mb-6">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Gate Observation / Notes</label>
+                                    <textarea
+                                        value={staffNotes}
+                                        onChange={e => setStaffNotes(e.target.value)}
+                                        className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border-none focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        rows={2}
+                                        placeholder="e.g. Arrived on foot, carrying registry books..."
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (!onTeacherGateCheckIn) {
+                                            alert('Gate check-in callback not connected.');
+                                            return;
+                                        }
+                                        try {
+                                            await onTeacherGateCheckIn(selectedStaff.id, staffCheckInType, 'School Gate', staffNotes);
+                                            alert(`Check-in recorded successfully for ${selectedStaff.name}!`);
+                                            setStaffNotes('');
+                                            setSelectedStaff(null);
+                                        } catch (e: any) {
+                                            alert(e.message || 'Failed to record check-in.');
+                                        }
+                                    }}
+                                    className="w-full flex items-center justify-center gap-3 p-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl transition-all shadow-lg shadow-indigo-200 dark:shadow-none"
+                                >
+                                    <CheckCircleIcon className="w-6 h-6" />
+                                    <span className="font-black uppercase text-base tracking-wide">Confirm Gate Check-In</span>
+                                </button>
                             </div>
                         )
                     )}
@@ -1289,7 +1440,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                 )}
                             </div>
                         </>
-                    ) : (
+                    ) : activeTab === 'parent' ? (
                         <>
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white">Recent Event Check-Ins</h3>
@@ -1375,6 +1526,58 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                         );
                                     });
                                 })()}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white mb-6">Today's Gate Staff Check-Ins</h3>
+                            <div className="space-y-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                                {(teacherCheckIns || [])
+                                    .filter(c => c.checkInDate === todayStr)
+                                    .sort((a, b) => {
+                                        const timeA = a.morningCheckInTime || a.afternoonCheckInTime || '';
+                                        const timeB = b.morningCheckInTime || b.afternoonCheckInTime || '';
+                                        return timeB.localeCompare(timeA);
+                                    })
+                                    .map(c => {
+                                        const staff = activeUsers.find(u => u.id === c.teacherId);
+                                        if (!staff) return null;
+                                        return (
+                                            <div key={c.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 animate-fade-in animate-fade-in-up">
+                                                <div className={`p-3 rounded-full h-fit bg-indigo-100 text-indigo-600`}>
+                                                    <ClockIcon className="w-5 h-5" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex items-start justify-between">
+                                                        <div>
+                                                            <h4 className="font-black text-sm text-slate-800 dark:text-white">{staff.name}</h4>
+                                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mt-0.5">{staff.role}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            {c.morningCheckInTime && (
+                                                                <span className="inline-block text-[9px] font-black uppercase bg-green-500/10 text-green-400 px-2 py-0.5 rounded border border-green-500/20 mr-1">
+                                                                    AM: {c.morningCheckInTime.substring(0, 5)}
+                                                                </span>
+                                                            )}
+                                                            {c.afternoonCheckInTime && (
+                                                                <span className="inline-block text-[9px] font-black uppercase bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">
+                                                                    PM: {c.afternoonCheckInTime.substring(0, 5)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {(c.morningNotes || c.afternoonNotes) && (
+                                                        <p className="text-xs text-slate-500 dark:text-slate-450 mt-2 italic">
+                                                            {c.morningNotes || c.afternoonNotes}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                {(teacherCheckIns || []).filter(c => c.checkInDate === todayStr).length === 0 && (
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest text-center py-6">No staff check-ins logged today</p>
+                                )}
                             </div>
                         </>
                     )}

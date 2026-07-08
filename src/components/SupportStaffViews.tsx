@@ -134,6 +134,7 @@ export interface SupportStaffViewProps {
     departments?: Department[];
     // Info Desk Extensions
     teacherCheckIns?: TeacherCheckIn[];
+    onTeacherGateCheckIn?: (teacherId: string, type: 'Morning' | 'Afternoon', location: string, notes?: string) => Promise<void>;
     timeOffRequests?: TimeOffRequest[];
     studentAbsenceRequests?: StudentAbsenceRequest[];
     leaveOutRequests?: LeaveOutRequest[];
@@ -891,6 +892,8 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     courses={courses}
                     eventPins={eventPins}
                     events={institutionEvents}
+                    teacherCheckIns={props.teacherCheckIns}
+                    onTeacherGateCheckIn={props.onTeacherGateCheckIn}
                 />
             )}
 

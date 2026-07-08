@@ -2315,6 +2315,23 @@ export const App: React.FC = () => {
         }
     }, [currentUser, activeInstitution, loadData]);
 
+    const handleTeacherGateCheckIn = useCallback(async (teacherId: string, type: 'Morning' | 'Afternoon', location: string, notes?: string) => {
+        try {
+            await apiService.processTeacherCheckIn({
+                teacher_id: teacherId,
+                institution_id: activeInstitution?.id,
+                checkin_type: type,
+                location: location || 'School Gate',
+                notes: notes || 'Gate Check-In by Security',
+                timestamp: new Date().toISOString()
+            });
+            loadData();
+        } catch (e) {
+            console.error('[App] Teacher gate check-in error:', e);
+            throw e;
+        }
+    }, [activeInstitution, loadData]);
+
     const handleOnboardStudent = useCallback(async (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => {
         if (!activeInstitution) return;
         try {
@@ -4992,8 +5009,9 @@ export const App: React.FC = () => {
         onAddTransaction: apiService.onAddTransaction.bind(apiService),
         onRefreshData: async () => await loadData(false, true),
         onAccessAlumnaPortal: handleAccessAlumnaPortal,
-        schoolRegistry
-    }), [currentUser, activeInstitution, users, visitors, handleAddVisitor, handleCheckoutVisitor, handleAddAppointment, handleUpdateVisitor, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, handleAddAlert, handleResolveAlert, appointments, handleUpdateAppointmentStatus, retailInventory, stockTransactions, suppliers, handleAddStoreItem, handleAddSupplier, handleImportStoreItems, handleAddStoreTransaction, transactions, invoices, handleAddInvoice, receipts, handleAddReceipt, requisitions, handleVerifyRequisition, handleMarkInventoryReceived, handleLogAction, vehicles, vehicleLogs, transportOnboarding, handleLogGateAction, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, handleOnboardStudent, handleOffboardStudent, onEditUser, onDeleteUser, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry, onImportStudents, onImportUsers]);
+        schoolRegistry,
+        onTeacherGateCheckIn: handleTeacherGateCheckIn
+    }), [currentUser, activeInstitution, users, visitors, handleAddVisitor, handleCheckoutVisitor, handleAddAppointment, handleUpdateVisitor, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, handleAddAlert, handleResolveAlert, appointments, handleUpdateAppointmentStatus, retailInventory, stockTransactions, suppliers, handleAddStoreItem, handleAddSupplier, handleImportStoreItems, handleAddStoreTransaction, transactions, invoices, handleAddInvoice, receipts, handleAddReceipt, requisitions, handleVerifyRequisition, handleMarkInventoryReceived, handleLogAction, vehicles, vehicleLogs, transportOnboarding, handleLogGateAction, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, handleOnboardStudent, handleOffboardStudent, onEditUser, onDeleteUser, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry, onImportStudents, onImportUsers, handleTeacherGateCheckIn]);
 
     const boardingMasterProps = useMemo(() => ({
         currentUser: currentUser || undefined,
@@ -5778,7 +5796,9 @@ export const App: React.FC = () => {
                                             onLogGateAction: handleLogGateAction,
                                             onAddAlert: async (a: any) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alt_${Date.now()}`, status: 'active', timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
                                             onResolveAlert: async (id: string) => { const existing = securityAlerts.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('security_alerts', { ...existing, status: 'resolved' }); loadData(); } },
-                                            onLogAction: handleLogAction
+                                            onLogAction: handleLogAction,
+                                            onTeacherGateCheckIn: handleTeacherGateCheckIn,
+                                            teacherCheckIns
                                         } as any}
                                     />
                                 ) : activeRole === 'info_desk' ? (
