@@ -661,7 +661,24 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
                     } else if (data.phoneNumber) {
                         const smsBody = `Welcome ${data.name}! Your Landlord Portal access:\nURL: ${window.location.origin}\nPhone: ${data.phoneNumber}\nPIN: ${tempPassword}\nLogin with your phone number & PIN. You will be asked to provide your email on first login.`;
-                        await apiService.sendSms(data.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                        const smsBalance = currentInstitution?.smsBalance || 0;
+                        if (smsBalance < 1) {
+                            const outboxMsg = {
+                                id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                phoneNumber: data.phoneNumber,
+                                message: smsBody,
+                                status: 'pending',
+                                institutionId,
+                                createdAt: new Date().toISOString()
+                            };
+                            await apiService.saveToSmsOutbox([outboxMsg]);
+                            alert(`Landlord created. Insufficient SMS units, so credentials message was queued to outbox.`);
+                        } else {
+                            const res = await apiService.sendSms(data.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                            if (res && res.success === false) {
+                                throw new Error(res.message || "Failed to send SMS credentials");
+                            }
+                        }
                     }
                 } catch (notifyErr) {
                     console.error('Failed to send landlord credentials notification:', notifyErr);
@@ -775,8 +792,25 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 alert(`Login credentials emailed to ${landlord.email} successfully!`);
             } else if (landlord.phoneNumber) {
                 const smsBody = `Hello ${landlord.name}! Your updated Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
-                await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
-                alert(`Login credentials sent via SMS to ${landlord.phoneNumber} successfully!`);
+                const smsBalance = currentInstitution?.smsBalance || 0;
+                if (smsBalance < 1) {
+                    const outboxMsg = {
+                        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        phoneNumber: landlord.phoneNumber,
+                        message: smsBody,
+                        status: 'pending',
+                        institutionId,
+                        createdAt: new Date().toISOString()
+                    };
+                    await apiService.saveToSmsOutbox([outboxMsg]);
+                    alert(`Insufficient SMS units. The credentials message has been queued to your outbox.`);
+                } else {
+                    const res = await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                    if (res && res.success === false) {
+                        throw new Error(res.message || "Failed to send SMS credentials");
+                    }
+                    alert(`Login credentials sent via SMS to ${landlord.phoneNumber} successfully!`);
+                }
             }
         } catch (e: any) { 
             alert(e.message || 'Failed to send credentials'); 
@@ -796,6 +830,74 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         
         if (!window.confirm(`Are you sure you want to resend login credentials to all ${targetLandlords.length} landlords via ${method === 'email' ? 'Email' : 'SMS'}?`)) return;
         
+        // Confirm SMS units balance first for SMS dispatch
+        if (method === 'sms') {
+            const smsBalance = currentInstitution?.smsBalance || 0;
+            const totalUnitsNeeded = targetLandlords.length; // 1 unit per landlord credentials message
+            
+            if (smsBalance < totalUnitsNeeded) {
+                setLoading(true);
+                try {
+                    const outboxMessages = [];
+                    for (let idx = 0; idx < targetLandlords.length; idx++) {
+                        const landlord = targetLandlords[idx];
+                        const tempPassword = Math.random().toString(36).slice(-8);
+                        
+                        // Create portal user account if missing, or update password
+                        const matchingUser = users.find(u => 
+                            (landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
+                            (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber)
+                        );
+                        
+                        if (matchingUser) {
+                            const updatedUser = { 
+                                ...matchingUser, 
+                                role: matchingUser.role === 'landlord' ? matchingUser.role : 'landlord',
+                                password: tempPassword,
+                                mustChangePassword: true 
+                            };
+                            await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
+                        } else {
+                            const newUser: any = {
+                                id: `user_${Date.now()}_${idx}_${Math.random().toString(36).slice(-4)}`,
+                                name: landlord.name,
+                                email: landlord.email || '',
+                                phoneNumber: landlord.phoneNumber || '',
+                                role: 'landlord',
+                                institutionId,
+                                createdAt: new Date().toISOString(),
+                                isActive: true,
+                                mustChangePassword: true,
+                                needsEmailActivation: !landlord.email,
+                                password: tempPassword
+                            };
+                            await apiService.saveModuleRecord('users', newUser);
+                        }
+
+                        const smsBody = `Hello ${landlord.name}! Your Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
+                        
+                        outboxMessages.push({
+                            id: `msg_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
+                            phoneNumber: landlord.phoneNumber!,
+                            message: smsBody,
+                            status: 'pending',
+                            institutionId,
+                            createdAt: new Date().toISOString()
+                        });
+                    }
+
+                    await apiService.saveToSmsOutbox(outboxMessages);
+                    alert(`Insufficient SMS units (${smsBalance} units available, ${totalUnitsNeeded} required). The ${outboxMessages.length} landlord credential message(s) have been successfully queued to your outbox.`);
+                    loadData();
+                } catch (err: any) {
+                    alert(err.message || "Failed to process outbox credentials");
+                } finally {
+                    setLoading(false);
+                }
+                return;
+            }
+        }
+
         setLoading(true);
         let successCount = 0;
         let failCount = 0;
@@ -844,7 +946,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         await apiService.sendEmail(landlord.email, subject, body, emailConfig);
                     } else if (method === 'sms' && landlord.phoneNumber) {
                         const smsBody = `Hello ${landlord.name}! Your Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
-                        await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                        const res = await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                        if (res && res.success === false) {
+                            throw new Error(res.message || "Failed to send SMS credentials");
+                        }
                     }
                     successCount++;
                 } catch (err) {
