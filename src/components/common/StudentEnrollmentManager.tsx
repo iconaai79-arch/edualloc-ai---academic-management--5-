@@ -3235,8 +3235,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const role = (u.role || '').trim().toLowerCase();
             const isTeacher = teacherRoles.includes(role as any);
             const isNonSupport = nonSupportRoles.includes(role as any);
+            // Explicitly always include managing_director, hoi, hr_officer regardless of other filters
+            const isAlwaysSupport = ['managing_director', 'hoi', 'hr_officer', 'finance_officer', 'event_manager'].includes(role);
             // Include: not a teacher, not in excluded roles, and either has a role OR belongs to this institution (no role = unclassified staff)
-            const isSupport = !isTeacher && !isNonSupport && (role !== '' || !!u.institutionId);
+            const isSupport = isAlwaysSupport || (!isTeacher && !isNonSupport && (role !== '' || !!u.institutionId));
             const matchesSearch = 
                 (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||

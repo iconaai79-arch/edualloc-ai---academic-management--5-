@@ -65,7 +65,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Property Management
     if (type === 'Property Management' || subType.includes('property') || subType.includes('landlord')) {
-        return ['property_admin', 'admin', 'finance', 'finance_officer', 'security', 'reception', 'caretaker', 'driver', 'landlord', 'tenant', 'lead'];
+        return ['property_admin', 'admin', 'managing_director', 'finance', 'finance_officer', 'security', 'reception', 'caretaker', 'driver', 'landlord', 'tenant', 'lead'];
     }
 
     // Academic / Schools
@@ -95,7 +95,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Car Showroom / Automotive Marketplace
     if (type === 'Car Showroom' || subType.includes('car sales') || subType.includes('showroom') || subType.includes('automotive') || subType.includes('motors')) {
-        return ['director', 'finance', 'finance_officer', 'sales', 'reception', 'customer', 'lead'];
+        return ['director', 'managing_director', 'finance', 'finance_officer', 'sales', 'reception', 'customer', 'lead'];
     }
 
     // Driving School
@@ -103,7 +103,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
         return ['director', 'admin', 'driving_instructor', 'staff', 'student', 'security', 'driver'];
     }
 
-    return ['admin', 'staff', 'customer'] as any[];
+    return ['admin', 'managing_director', 'hr_officer', 'finance_officer', 'staff', 'security', 'driver', 'store', 'customer'] as any[];
 };
 
 /**
