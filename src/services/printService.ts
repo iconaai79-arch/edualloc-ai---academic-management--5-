@@ -32,13 +32,34 @@ export function savePrinterConfig(config: PrinterConfig) {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
 }
 
+async function callNativePlugin(methodName: string, args: any = {}): Promise<any> {
+    try {
+        if (!Print || typeof Print[methodName] !== 'function') {
+            throw new Error(`Method ${methodName} not found on Print plugin`);
+        }
+        return await Print[methodName](args);
+    } catch (e: any) {
+        const errorMsg = e?.message || String(e);
+        if (errorMsg.toLowerCase().includes("not implemented")) {
+            throw new Error(
+                "The printing plugin is not active on this APK build. \n\n" +
+                "To fix this, please:\n" +
+                "1. Completely uninstall the app from your Android device.\n" +
+                "2. Perform a 'Clean Project' and 'Rebuild Project' in Android Studio to package the new MainActivity.\n" +
+                "3. Build and install the new APK on your device."
+            );
+        }
+        throw e;
+    }
+}
+
 export async function getBluetoothPrinters(): Promise<{ name: string; address: string }[]> {
     if (!Capacitor.isNativePlatform()) {
         console.warn("getBluetoothPrinters is only available on native mobile platforms.");
         return [];
     }
     try {
-        const result = await Print.getBluetoothPrinters();
+        const result = await callNativePlugin('getBluetoothPrinters');
         return result.devices || [];
     } catch (e) {
         console.error("Failed to get Bluetooth devices:", e);
@@ -208,7 +229,7 @@ export const printService = {
     async printPdf(base64Pdf: string, docName: string = "Receipt"): Promise<void> {
         if (Capacitor.isNativePlatform()) {
             try {
-                await Print.printPdf({ base64: base64Pdf, name: docName });
+                await callNativePlugin('printPdf', { base64: base64Pdf, name: docName });
             } catch (e) {
                 console.error("Native PDF print failed, attempting fallback:", e);
                 throw e;
@@ -279,7 +300,7 @@ export const printService = {
             if (!config.bluetoothAddress) {
                 throw new Error("No Bluetooth printer configured. Please select one in POS settings.");
             }
-            await Print.printRawBluetooth({
+            await callNativePlugin('printRawBluetooth', {
                 address: config.bluetoothAddress,
                 base64Bytes: base64Bytes
             });
@@ -287,7 +308,7 @@ export const printService = {
             if (!config.ipAddress) {
                 throw new Error("No network printer IP address configured. Please set one in POS settings.");
             }
-            await Print.printRawNetwork({
+            await callNativePlugin('printRawNetwork', {
                 ipAddress: config.ipAddress,
                 port: config.port || 9100,
                 base64Bytes: base64Bytes
@@ -374,7 +395,7 @@ export const printService = {
             if (!config.bluetoothAddress) {
                 throw new Error("No Bluetooth printer configured.");
             }
-            await Print.printRawBluetooth({
+            await callNativePlugin('printRawBluetooth', {
                 address: config.bluetoothAddress,
                 base64Bytes: base64Bytes
             });
@@ -382,7 +403,7 @@ export const printService = {
             if (!config.ipAddress) {
                 throw new Error("No network printer IP address configured.");
             }
-            await Print.printRawNetwork({
+            await callNativePlugin('printRawNetwork', {
                 ipAddress: config.ipAddress,
                 port: config.port || 9100,
                 base64Bytes: base64Bytes
@@ -487,7 +508,7 @@ export const printService = {
             if (!config.bluetoothAddress) {
                 throw new Error("No Bluetooth printer configured.");
             }
-            await Print.printRawBluetooth({
+            await callNativePlugin('printRawBluetooth', {
                 address: config.bluetoothAddress,
                 base64Bytes: base64Bytes
             });
@@ -495,7 +516,7 @@ export const printService = {
             if (!config.ipAddress) {
                 throw new Error("No network printer IP address configured.");
             }
-            await Print.printRawNetwork({
+            await callNativePlugin('printRawNetwork', {
                 ipAddress: config.ipAddress,
                 port: config.port || 9100,
                 base64Bytes: base64Bytes

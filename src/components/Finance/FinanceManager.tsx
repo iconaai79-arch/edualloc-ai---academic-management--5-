@@ -1379,9 +1379,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'receipts' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left animate-in fade-in duration-300">
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 text-left animate-in fade-in duration-300">
                         {/* Left & Middle columns: Receipts list */}
-                        <div className="lg:col-span-2 space-y-6">
+                        <div className="lg:col-span-3 space-y-6">
                             <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
                                     <div>
@@ -1535,7 +1535,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
 
                         {/* Right column: Bank Feeds / MPesa Transactions */}
-                        <div className="space-y-6">
+                        <div className="lg:col-span-1 space-y-6">
                             <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
                                 <div>
                                     <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Unreconciled Bank Feed</h3>
