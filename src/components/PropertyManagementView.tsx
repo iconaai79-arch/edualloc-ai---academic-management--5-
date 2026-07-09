@@ -832,6 +832,94 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         }
     };
 
+    const handleSendEmailPromptSms = async (landlord: PMLandlord) => {
+        if (!landlord.phoneNumber) {
+            return alert("This landlord does not have a phone number on record.");
+        }
+        if (!window.confirm(`Send email update SMS prompt to ${landlord.name}?`)) return;
+        
+        try {
+            const smsBody = `Hello ${landlord.name}, please log in to your Landlord Portal at ${window.location.origin} and update your email address so you can receive direct financial statements and payment receipts. Thank you.`;
+            const smsBalance = currentInstitution?.smsBalance || 0;
+            
+            if (smsBalance < 1) {
+                const outboxMsg = {
+                    id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    phoneNumber: landlord.phoneNumber,
+                    message: smsBody,
+                    status: 'pending',
+                    institutionId,
+                    createdAt: new Date().toISOString()
+                };
+                await apiService.saveToSmsOutbox([outboxMsg]);
+                alert(`Insufficient SMS units. The email prompt message has been queued to your outbox.`);
+            } else {
+                const res = await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                if (res && res.success === false) {
+                    throw new Error(res.message || "Failed to send SMS prompt");
+                }
+                alert(`SMS email update prompt sent to ${landlord.name} successfully!`);
+            }
+        } catch (e: any) {
+            alert(e.message || "Failed to send email prompt");
+        }
+    };
+
+    const handleBulkPromptLandlordsForEmail = async () => {
+        const pendingLandlords = landlords.filter(l => !l.email && !!l.phoneNumber);
+        if (pendingLandlords.length === 0) {
+            return alert("All landlords have emails configured, or missing landlords have no phone numbers.");
+        }
+
+        if (!window.confirm(`Are you sure you want to send email update SMS prompts to all ${pendingLandlords.length} landlords?`)) return;
+
+        setLoading(true);
+        let successCount = 0;
+        let failCount = 0;
+        try {
+            const smsBalance = currentInstitution?.smsBalance || 0;
+            const totalUnitsNeeded = pendingLandlords.length;
+
+            if (smsBalance < totalUnitsNeeded) {
+                const outboxMessages = pendingLandlords.map((landlord, idx) => {
+                    const smsBody = `Hello ${landlord.name}, please log in to your Landlord Portal at ${window.location.origin} and update your email address so you can receive direct financial statements and payment receipts. Thank you.`;
+                    return {
+                        id: `msg_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
+                        phoneNumber: landlord.phoneNumber!,
+                        message: smsBody,
+                        status: 'pending',
+                        institutionId,
+                        createdAt: new Date().toISOString()
+                    };
+                });
+                await apiService.saveToSmsOutbox(outboxMessages);
+                alert(`Insufficient SMS units (${smsBalance} units available, ${totalUnitsNeeded} required). The ${outboxMessages.length} prompt message(s) have been successfully queued to your outbox.`);
+                loadData();
+                return;
+            }
+
+            for (const landlord of pendingLandlords) {
+                try {
+                    const smsBody = `Hello ${landlord.name}, please log in to your Landlord Portal at ${window.location.origin} and update your email address so you can receive direct financial statements and payment receipts. Thank you.`;
+                    const res = await apiService.sendSms(landlord.phoneNumber!, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                    if (res && res.success === false) {
+                        throw new Error(res.message || "Failed to send SMS");
+                    }
+                    successCount++;
+                } catch (err) {
+                    console.error(`Failed to send email prompt to ${landlord.name}:`, err);
+                    failCount++;
+                }
+            }
+            alert(`Bulk Prompt Complete!\n\nSuccessfully sent: ${successCount}\nFailed: ${failCount}`);
+            loadData();
+        } catch (e: any) {
+            alert(e.message || "Failed to process bulk email prompts");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleBulkSendLandlordCredentials = async (method: 'email' | 'sms') => {
         // Filter landlords that have email or phone depending on the method
         const targetLandlords = landlords.filter(l => 
@@ -1228,8 +1316,48 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         );
         const totalLandlordPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
         const paged = filtered.slice((landlordPage - 1) * PAGE_SIZE, landlordPage * PAGE_SIZE);
+        
+        const landlordsWithEmail = landlords.filter(l => !!l.email);
+        const landlordsWithoutEmail = landlords.filter(l => !l.email);
+        const emailUpdateProgress = landlords.length > 0 ? Math.round((landlordsWithEmail.length / landlords.length) * 100) : 0;
+
         return (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 mt-4">
+            {/* Email Update Tracking Progress */}
+            <div className="bg-slate-900 text-white p-6 rounded-[2.5rem] border border-slate-850 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="space-y-2 w-full md:w-2/3">
+                    <h4 className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-400">Landlord Profile Integration</h4>
+                    <h3 className="text-xl font-black italic tracking-wide uppercase">Email Update Progress</h3>
+                    <p className="text-slate-300 text-[10px] uppercase font-bold tracking-wider leading-relaxed">
+                        Landlords must configure their email address to receive monthly statements, commission payouts, and payment receipt logs directly.
+                    </p>
+                    <div className="flex items-center gap-4 mt-4">
+                        <div className="flex-1 bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                            <div 
+                                className="bg-gradient-to-r from-purple-500 to-indigo-500 h-full rounded-full transition-all duration-1000" 
+                                style={{ width: `${emailUpdateProgress}%` }}
+                            />
+                        </div>
+                        <span className="text-xs font-black italic text-purple-400">{emailUpdateProgress}%</span>
+                    </div>
+                    <div className="flex gap-4 mt-2">
+                        <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">● {landlordsWithEmail.length} Configured</span>
+                        <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">● {landlordsWithoutEmail.length} Pending</span>
+                    </div>
+                </div>
+
+                {landlordsWithoutEmail.length > 0 && (
+                    <div className="w-full md:w-auto">
+                        <button
+                            onClick={handleBulkPromptLandlordsForEmail}
+                            className="w-full md:w-auto px-5 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-750 hover:to-indigo-750 text-white rounded-full text-[9px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"
+                        >
+                            <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                            Prompt All Pending ({landlordsWithoutEmail.length}) via SMS
+                        </button>
+                    </div>
+                )}
+            </div>
             {/* Header + Search */}
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div>
@@ -1306,6 +1434,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                     <BanknotesIcon className="w-3 h-3 text-emerald-500" /> Method: {landlord.preferredPaymentMethod}
                                                 </div>
                                             )}
+                                            {landlord.email ? (
+                                                <div className="mt-2">
+                                                    <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-full text-[8px] font-black uppercase tracking-wider">Email Configured</span>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-2">
+                                                    <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-full text-[8px] font-black uppercase tracking-wider animate-pulse">Email Pending</span>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="p-6">
                                             <div className="text-xs font-black text-purple-600">{ownedProperties.length} Properties</div>
@@ -1334,10 +1471,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <button
                                                 onClick={() => handleResendLandlordCredentials(landlord)}
                                                 className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-xl transition-all"
-                                                title={landlord.email ? 'Resend Login Credentials' : 'No email — cannot send credentials'}
+                                                title="Resend Login Credentials"
                                             >
                                                 <PaperAirplaneIcon className="w-4 h-4" />
                                             </button>
+                                            {!landlord.email && landlord.phoneNumber && (
+                                                <button
+                                                    onClick={() => handleSendEmailPromptSms(landlord)}
+                                                    className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-xl transition-all animate-pulse"
+                                                    title="Send SMS Prompt to update Email"
+                                                >
+                                                    <ChatBubbleBottomCenterTextIcon className="w-4 h-4" />
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => handleDeleteLandlord(landlord.id)}
                                                 className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all"
@@ -1370,6 +1516,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <div>
                                             <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{landlord.name}</h4>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{landlord.phoneNumber}</p>
+                                            {landlord.email ? (
+                                                <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tight">{landlord.email}</p>
+                                            ) : (
+                                                <p className="text-[9px] font-black text-amber-600 dark:text-amber-400 mt-1 uppercase tracking-tight animate-pulse">Email Pending</p>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
@@ -1388,6 +1539,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         >
                                             <PaperAirplaneIcon className="w-4 h-4" />
                                         </button>
+                                        {!landlord.email && landlord.phoneNumber && (
+                                            <button
+                                                onClick={() => handleSendEmailPromptSms(landlord)}
+                                                className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl text-indigo-600 animate-pulse"
+                                                title="Send SMS Prompt to update Email"
+                                            >
+                                                <ChatBubbleBottomCenterTextIcon className="w-4 h-4" />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => handleDeleteLandlord(landlord.id)}
                                             className="p-2.5 bg-rose-100 dark:bg-rose-900/30 rounded-xl text-rose-600"
