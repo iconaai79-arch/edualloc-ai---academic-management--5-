@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { jsPDF } from 'jspdf';
 
 const Print = registerPlugin<any>('Print');
 
@@ -300,53 +301,63 @@ export const printService = {
     }): Promise<void> {
         const config = getPrinterConfig();
 
-        if (config.type === 'system' || !Capacitor.isNativePlatform()) {
-            // Web/System Print Fallback (HTML pass card)
-            const printWindow = window.open('', '_blank');
-            if (printWindow) {
-                printWindow.document.write(`
-                    <html>
-                    <head>
-                        <title>Gate Pass</title>
-                        <style>
-                            body { font-family: monospace; padding: 20px; max-width: 280px; margin: auto; line-height: 1.4; color: #000; }
-                            .center { text-align: center; }
-                            .bold { font-weight: bold; }
-                            .divider { border-top: 1px dashed black; margin: 12px 0; }
-                            .title { font-size: 16px; margin: 5px 0; letter-spacing: 1px; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="center bold title">${params.institution.name || 'Learning Institution'}</div>
-                        <div class="center bold" style="font-size: 12px;">SECURITY VISIT PASS</div>
-                        <div class="divider"></div>
-                        <div><span class="bold">VISITOR:</span> ${params.visitorData.name || params.visitorData.fullName}</div>
-                        <div><span class="bold">PHONE:</span> ${params.visitorData.phoneNumber}</div>
-                        ${params.visitorData.idNumber ? `<div><span class="bold">ID NO:</span> ${params.visitorData.idNumber}</div>` : ''}
-                        ${params.visitorData.vehiclePlate ? `<div><span class="bold">VEHICLE:</span> ${params.visitorData.vehiclePlate}</div>` : ''}
-                        <div><span class="bold">VISITING:</span> ${params.visitorData.hostName || 'General Administration'}</div>
-                        <div><span class="bold">PURPOSE:</span> ${params.visitorData.purpose || 'Official'}</div>
-                        <div><span class="bold">TIME IN:</span> ${params.visitorData.timeIn ? new Date(params.visitorData.timeIn).toLocaleString() : new Date().toLocaleString()}</div>
-                        <div class="divider"></div>
-                        <div class="center" style="font-size: 9px; font-weight: bold;">PLEASE RETAIN THIS CARD</div>
-                        <div class="center" style="font-size: 9px; font-weight: bold;">SURRENDER AT EXIT GATE</div>
-                        <script>
-                            window.onload = () => {
-                                setTimeout(() => {
-                                    try {
-                                        window.focus();
-                                        window.print();
-                                        window.close();
-                                    } catch (e) {
-                                        console.error(e);
-                                    }
-                                }, 500);
-                            };
-                        </script>
-                    </body>
-                    </html>
-                `);
-                printWindow.document.close();
+        if (config.type === 'system') {
+            if (Capacitor.isNativePlatform()) {
+                try {
+                    const base64Pdf = generateVisitorPassPdfBase64(params.visitorData, params.institution);
+                    await this.printPdf(base64Pdf, "Visitor Pass");
+                } catch (err) {
+                    console.error("Failed to generate/print native visitor pass PDF:", err);
+                    throw err;
+                }
+            } else {
+                // Web/System Print Fallback (HTML pass card)
+                const printWindow = window.open('', '_blank');
+                if (printWindow) {
+                    printWindow.document.write(`
+                        <html>
+                        <head>
+                            <title>Gate Pass</title>
+                            <style>
+                                body { font-family: monospace; padding: 20px; max-width: 280px; margin: auto; line-height: 1.4; color: #000; }
+                                .center { text-align: center; }
+                                .bold { font-weight: bold; }
+                                .divider { border-top: 1px dashed black; margin: 12px 0; }
+                                .title { font-size: 16px; margin: 5px 0; letter-spacing: 1px; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="center bold title">${params.institution.name || 'Learning Institution'}</div>
+                            <div class="center bold" style="font-size: 12px;">SECURITY VISIT PASS</div>
+                            <div class="divider"></div>
+                            <div><span class="bold">VISITOR:</span> ${params.visitorData.name || params.visitorData.fullName}</div>
+                            <div><span class="bold">PHONE:</span> ${params.visitorData.phoneNumber || params.visitorData.phone || 'N/A'}</div>
+                            ${params.visitorData.idNumber ? `<div><span class="bold">ID NO:</span> ${params.visitorData.idNumber}</div>` : ''}
+                            ${params.visitorData.vehiclePlate ? `<div><span class="bold">VEHICLE:</span> ${params.visitorData.vehiclePlate}</div>` : ''}
+                            <div><span class="bold">VISITING:</span> ${params.visitorData.hostName || 'General Administration'}</div>
+                            <div><span class="bold">PURPOSE:</span> ${params.visitorData.purpose || 'Official'}</div>
+                            <div><span class="bold">TIME IN:</span> ${params.visitorData.timeIn ? new Date(params.visitorData.timeIn).toLocaleString() : new Date().toLocaleString()}</div>
+                            <div class="divider"></div>
+                            <div class="center" style="font-size: 9px; font-weight: bold;">PLEASE RETAIN THIS CARD</div>
+                            <div class="center" style="font-size: 9px; font-weight: bold;">SURRENDER AT EXIT GATE</div>
+                            <script>
+                                window.onload = () => {
+                                    setTimeout(() => {
+                                        try {
+                                            window.focus();
+                                            window.print();
+                                            window.close();
+                                        } catch (e) {
+                                            console.error(e);
+                                        }
+                                    }, 500);
+                                };
+                            </script>
+                        </body>
+                        </html>
+                    `);
+                    printWindow.document.close();
+                }
             }
             return;
         }
@@ -354,6 +365,119 @@ export const printService = {
         // Format to ESC/POS binary data
         const escPosBytes = formatVisitorPassEscPos(
             params.visitorData,
+            params.institution,
+            config.paperWidth || 80
+        );
+        const base64Bytes = arrayBufferToBase64(escPosBytes);
+
+        if (config.type === 'bluetooth') {
+            if (!config.bluetoothAddress) {
+                throw new Error("No Bluetooth printer configured.");
+            }
+            await Print.printRawBluetooth({
+                address: config.bluetoothAddress,
+                base64Bytes: base64Bytes
+            });
+        } else if (config.type === 'network') {
+            if (!config.ipAddress) {
+                throw new Error("No network printer IP address configured.");
+            }
+            await Print.printRawNetwork({
+                ipAddress: config.ipAddress,
+                port: config.port || 9100,
+                base64Bytes: base64Bytes
+            });
+        }
+    },
+
+    async printEventPass(params: {
+        pin: any;
+        parent: any;
+        event: any;
+        institution: any;
+    }): Promise<void> {
+        const config = getPrinterConfig();
+
+        if (config.type === 'system') {
+            if (Capacitor.isNativePlatform()) {
+                try {
+                    const base64Pdf = generateEventPassPdfBase64(params.pin, params.parent, params.event, params.institution);
+                    await this.printPdf(base64Pdf, "Event Pass");
+                } catch (err) {
+                    console.error("Failed to generate/print native event pass PDF:", err);
+                    throw err;
+                }
+            } else {
+                const timestamp = new Date().toLocaleString();
+                const guests = (() => {
+                    try {
+                        const parsed = JSON.parse(params.pin.guests || '[]');
+                        return Array.isArray(parsed) ? parsed.filter((g: any) => typeof g === 'string' && g.trim()) : [];
+                    } catch (e) {
+                        return params.pin.guests && typeof params.pin.guests === 'string' && params.pin.guests.trim() ? [params.pin.guests.trim()] : [];
+                    }
+                })();
+
+                const printWindow = window.open('', '_blank');
+                if (printWindow) {
+                    printWindow.document.write(`
+                        <html>
+                        <head>
+                            <title>Event Pass</title>
+                            <style>
+                                body { font-family: monospace; padding: 20px; max-width: 280px; margin: auto; line-height: 1.4; color: #000; }
+                                .center { text-align: center; }
+                                .bold { font-weight: bold; }
+                                .divider { border-top: 1px dashed black; margin: 12px 0; }
+                                .title { font-size: 16px; margin: 5px 0; letter-spacing: 1px; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="center bold title">${params.institution.name || 'Learning Institution'}</div>
+                            <div class="center bold" style="font-size: 12px;">EVENT CHECK-IN PASS</div>
+                            <div class="divider"></div>
+                            <div><span class="bold">EVENT:</span> ${params.event?.title || 'School Event'}</div>
+                            <div><span class="bold">HOLDER:</span> ${params.parent?.name || 'Invited Guest'}</div>
+                            <div><span class="bold">PHONE:</span> ${params.parent?.phoneNumber || params.parent?.phone_number || 'N/A'}</div>
+                            ${params.pin.vehicleRegistration || params.pin.vehicle_registration ? `<div><span class="bold">VEHICLE:</span> ${params.pin.vehicleRegistration || params.pin.vehicle_registration}</div>` : ''}
+                            <div><span class="bold">TIME:</span> ${timestamp}</div>
+                            <div><span class="bold">PIN CODE:</span> ${params.pin.pin}</div>
+                            <div class="divider"></div>
+                            <div class="bold">Accompanying Guests (${guests.length}):</div>
+                            ${guests.length > 0 
+                                ? guests.map((g: string, idx: number) => `<div>${idx + 1}. ${g}</div>`).join('')
+                                : '<div>No accompanying guests</div>'
+                            }
+                            <div class="divider"></div>
+                            <div class="center" style="font-size: 9px; font-weight: bold;">ENTRY APPROVED</div>
+                            <div class="center" style="font-size: 9px; font-weight: bold;">POWERED BY EDUAI</div>
+                            <script>
+                                window.onload = () => {
+                                    setTimeout(() => {
+                                        try {
+                                            window.focus();
+                                            window.print();
+                                            window.close();
+                                        } catch (e) {
+                                            console.error(e);
+                                        }
+                                    }, 500);
+                                };
+                            </script>
+                        </body>
+                        </html>
+                    `);
+                    printWindow.document.close();
+                }
+            }
+            return;
+        }
+
+        // Format to ESC/POS binary data
+        const escPosBytes = formatEventPassEscPos(
+            params.pin,
+            params.parent,
+            params.event,
             params.institution,
             config.paperWidth || 80
         );
@@ -471,5 +595,255 @@ export function formatVisitorPassEscPos(
     cut();
 
     return new Uint8Array(bytes);
+}
+
+export function formatEventPassEscPos(
+    pin: any,
+    parent: any,
+    event: any,
+    institution: any,
+    width: 58 | 80
+): Uint8Array {
+    const cols = width === 58 ? 32 : 48;
+    const bytes: number[] = [];
+
+    const addBytes = (arr: number[]) => bytes.push(...arr);
+    const addText = (text: string) => {
+        const encoder = new TextEncoder();
+        const encoded = encoder.encode(text);
+        for (let i = 0; i < encoded.length; i++) {
+            bytes.push(encoded[i]);
+        }
+    };
+
+    // ESC/POS Helpers
+    const init = () => addBytes([0x1B, 0x40]);
+    const alignLeft = () => addBytes([0x1B, 0x61, 0x00]);
+    const alignCenter = () => addBytes([0x1B, 0x61, 0x01]);
+    const boldOn = () => addBytes([0x1B, 0x45, 0x01]);
+    const boldOff = () => addBytes([0x1B, 0x45, 0x00]);
+    const sizeLarge = () => addBytes([0x1D, 0x21, 0x11]);
+    const sizeNormal = () => addBytes([0x1D, 0x21, 0x00]);
+    const feed = (n = 1) => {
+        for (let i = 0; i < n; i++) addBytes([0x0A]);
+    };
+    const cut = () => addBytes([0x1D, 0x56, 0x42, 0x00]);
+    const line = () => {
+        addText('-'.repeat(cols));
+        feed();
+    };
+
+    // 1. Initialize
+    init();
+
+    // 2. Header
+    alignCenter();
+    boldOn();
+    sizeLarge();
+    addText(institution.name || "Learning Institution");
+    feed(2);
+
+    sizeNormal();
+    boldOff();
+    addText("EVENT CHECK-IN PASS");
+    feed();
+    line();
+
+    // 3. Pass Info
+    alignLeft();
+    boldOn();
+    addText(`EVENT: ${event?.title || 'School Event'}`);
+    feed();
+    boldOff();
+
+    addText(`Holder: ${parent?.name || 'Invited Guest'}`);
+    feed();
+
+    addText(`Phone: ${parent?.phoneNumber || parent?.phone_number || 'N/A'}`);
+    feed();
+
+    const vehicle = pin?.vehicleRegistration || pin?.vehicle_registration;
+    if (vehicle) {
+        addText(`Vehicle: ${vehicle}`);
+        feed();
+    }
+
+    const timestamp = new Date().toLocaleString();
+    addText(`Time: ${timestamp}`);
+    feed();
+
+    boldOn();
+    addText(`PIN CODE: ${pin?.pin || 'N/A'}`);
+    feed();
+    boldOff();
+    line();
+
+    // Guests
+    const guests = (() => {
+        try {
+            const parsed = JSON.parse(pin?.guests || '[]');
+            return Array.isArray(parsed) ? parsed.filter((g: any) => typeof g === 'string' && g.trim()) : [];
+        } catch (e) {
+            return pin?.guests && typeof pin.guests === 'string' && pin.guests.trim() ? [pin.guests.trim()] : [];
+        }
+    })();
+
+    addText(`Accompanying Guests (${guests.length}):`);
+    feed();
+    guests.forEach((g: string, idx: number) => {
+        addText(`${idx + 1}. ${g}`);
+        feed();
+    });
+    line();
+
+    // 4. Footer
+    alignCenter();
+    boldOn();
+    addText("ENTRY APPROVED");
+    feed();
+    boldOff();
+    addText("Please retain this pass card");
+    feed(4);
+    cut();
+
+    return new Uint8Array(bytes);
+}
+
+function generateVisitorPassPdfBase64(visitorData: any, institution: any): string {
+    const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [80, 140]
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = 10;
+    const margin = 5;
+
+    const centerText = (text: string, y: number) => {
+        const textWidth = doc.getTextWidth(text);
+        doc.text(text, (pageWidth - textWidth) / 2, y);
+    };
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    centerText(institution.name || 'Learning Institution', yPos);
+    yPos += 6;
+
+    doc.setFontSize(10);
+    centerText("SECURITY VISIT PASS", yPos);
+    yPos += 5;
+
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 6;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    
+    doc.text(`Visitor: ${visitorData.name || visitorData.fullName}`, margin, yPos); yPos += 5;
+    doc.text(`Phone: ${visitorData.phoneNumber || visitorData.phone || 'N/A'}`, margin, yPos); yPos += 5;
+    if (visitorData.idNumber) {
+        doc.text(`ID No: ${visitorData.idNumber}`, margin, yPos); yPos += 5;
+    }
+    if (visitorData.vehiclePlate) {
+        doc.text(`Vehicle: ${visitorData.vehiclePlate}`, margin, yPos); yPos += 5;
+    }
+    doc.text(`Visiting: ${visitorData.hostName || 'General Office'}`, margin, yPos); yPos += 5;
+    doc.text(`Purpose: ${visitorData.purpose || 'Official'}`, margin, yPos); yPos += 5;
+    
+    const timeIn = visitorData.timeIn ? new Date(visitorData.timeIn).toLocaleString() : new Date().toLocaleString();
+    doc.text(`Time In: ${timeIn}`, margin, yPos); yPos += 6;
+
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 6;
+
+    doc.setFont('helvetica', 'bold');
+    centerText("PLEASE KEEP THIS PASS SECURE", yPos);
+    yPos += 4;
+    centerText("SURRENDER AT EXIT GATE", yPos);
+
+    return doc.output('datauristring');
+}
+
+function generateEventPassPdfBase64(pin: any, parent: any, event: any, institution: any): string {
+    const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [80, 150]
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = 10;
+    const margin = 5;
+
+    const centerText = (text: string, y: number) => {
+        const textWidth = doc.getTextWidth(text);
+        doc.text(text, (pageWidth - textWidth) / 2, y);
+    };
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    centerText(institution.name || 'Learning Institution', yPos);
+    yPos += 6;
+
+    doc.setFontSize(10);
+    centerText("EVENT CHECK-IN PASS", yPos);
+    yPos += 5;
+
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 6;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+
+    doc.text(`Event: ${event?.title || 'School Event'}`, margin, yPos); yPos += 5;
+    doc.text(`Holder: ${parent?.name || 'Invited Guest'}`, margin, yPos); yPos += 5;
+    doc.text(`Phone: ${parent?.phoneNumber || parent?.phone_number || 'N/A'}`, margin, yPos); yPos += 5;
+    const vehicle = pin?.vehicleRegistration || pin?.vehicle_registration;
+    if (vehicle) {
+        doc.text(`Vehicle: ${vehicle}`, margin, yPos); yPos += 5;
+    }
+    const timestamp = new Date().toLocaleString();
+    doc.text(`Time: ${timestamp}`, margin, yPos); yPos += 5;
+    doc.text(`PIN Code: ${pin?.pin || 'N/A'}`, margin, yPos); yPos += 6;
+
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 6;
+
+    const guests = (() => {
+        try {
+            const parsed = JSON.parse(pin?.guests || '[]');
+            return Array.isArray(parsed) ? parsed.filter((g: any) => typeof g === 'string' && g.trim()) : [];
+        } catch (e) {
+            return pin?.guests && typeof pin.guests === 'string' && pin.guests.trim() ? [pin.guests.trim()] : [];
+        }
+    })();
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Guests (${guests.length}):`, margin, yPos); yPos += 5;
+    doc.setFont('helvetica', 'normal');
+    guests.forEach((g: string, idx: number) => {
+        doc.text(`${idx + 1}. ${g}`, margin, yPos);
+        yPos += 4;
+    });
+    yPos += 2;
+
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 6;
+
+    doc.setFont('helvetica', 'bold');
+    centerText("ENTRY APPROVED", yPos);
+    
+    return doc.output('datauristring');
 }
 

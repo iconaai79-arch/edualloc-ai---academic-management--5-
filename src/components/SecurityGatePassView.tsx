@@ -15,8 +15,18 @@ import { CameraIcon } from './icons/CameraIcon';
 import type { TransportVehicle, VehicleLog, User, Institution, Visitor, Course, TeacherCheckIn } from '../types';
 import { apiService } from '../services/apiService';
 import { phonesMatch, phoneContains } from '../utils/stringUtils';
+import { printService } from '../services/printService';
+import { Capacitor } from '@capacitor/core';
 
 export const printEposGatePass = (pin: any, parent: any, event: any, institution: any) => {
+    if (Capacitor.isNativePlatform()) {
+        printService.printEventPass({ pin, parent, event, institution }).catch(err => {
+            console.error("Native event gatepass printing failed:", err);
+            alert("Print failed: " + (err.message || err));
+        });
+        return;
+    }
+
     const guests = (() => {
         try {
             const parsed = JSON.parse(pin.guests || '[]');
@@ -198,6 +208,14 @@ export const printEposGatePass = (pin: any, parent: any, event: any, institution
 };
 
 export const printEposWalkInGatePass = (visitor: any, host: any, institution: any, hostSignature?: string, visitorSignature?: string) => {
+    if (Capacitor.isNativePlatform()) {
+        printService.printVisitorPass({ visitorData: visitor, institution }).catch(err => {
+            console.error("Native visitor gatepass printing failed:", err);
+            alert("Print failed: " + (err.message || err));
+        });
+        return;
+    }
+
     const timestamp = new Date().toLocaleString();
 
     const innerHtml = `
