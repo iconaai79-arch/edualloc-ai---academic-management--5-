@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiService } from '../services/apiService';
 import type {
     User, Course, StudentAttendance, TimetableEntry,
     Subject, Room, Building, TimetableSettings, LeaveOutRequest, TransportOnboarding, TransportVehicle,
@@ -39,6 +40,7 @@ interface ParentViewProps {
     onAcknowledgeAlert?: (id: string, parentId: string) => void;
     transportInvoices?: TransportFeeInvoice[];
     isSimulatorMode?: boolean;
+    onLogAction?: (msg: string) => Promise<void> | void;
 }
 
 import { AttendanceAnalytics } from './AttendanceAnalytics';
@@ -230,6 +232,70 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
     const [isPaying, setIsPaying] = useState(false);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const [receiptNumber, setReceiptNumber] = useState('');
+
+    // Remedial Billing States
+    const [remedialInvoices, setRemedialInvoices] = useState<any[]>([]);
+    const [selectedRemedialInvoice, setSelectedRemedialInvoice] = useState<any | null>(null);
+    const [isRemedialPaymentModalOpen, setIsRemedialPaymentModalOpen] = useState(false);
+    const [remedialInstallmentAmount, setRemedialInstallmentAmount] = useState<string>('');
+
+    const loadRemedialInvoices = async () => {
+        try {
+            const childIds = effectiveChildren.map(c => c.id);
+            const allInvoices = await apiService.fetchModuleRecords('invoices');
+            const filtered = (allInvoices || []).filter((inv: any) => 
+                inv && 
+                childIds.includes(inv.studentId) && 
+                (inv.invoiceNumber?.startsWith('REMEDIAL-') || inv.items?.[0]?.description?.includes('Remedial'))
+            );
+            setRemedialInvoices(filtered);
+        } catch (e) {
+            console.error('Failed to load remedial invoices', e);
+        }
+    };
+
+    useEffect(() => {
+        loadRemedialInvoices();
+    }, [users, user?.studentIds]);
+
+    const handlePayRemedialInstallment = async (invoiceId: string, payAmount: number, method: string) => {
+        try {
+            const invoice = remedialInvoices.find(i => i.id === invoiceId);
+            if (!invoice) return;
+
+            const currentPaid = Number(invoice.paidAmount || 0);
+            const total = Number(invoice.totalAmount || 0);
+            const newPaid = Math.min(total, currentPaid + payAmount);
+            const status = newPaid >= total ? 'paid' : 'pending';
+
+            const updatedInvoice = {
+                ...invoice,
+                paidAmount: newPaid,
+                status: status
+            };
+
+            await apiService.updateModuleRecord('invoices', invoiceId, updatedInvoice);
+            
+            // Log receipt of installment
+            const receiptId = `rec_${Date.now()}`;
+            const receiptData = {
+                id: receiptId,
+                receiptNumber: `REC-REM-${Date.now().toString().slice(-6)}`,
+                invoiceId: invoiceId,
+                amount: payAmount,
+                paymentMethod: method,
+                paymentDate: new Date().toISOString(),
+                institutionId: user?.institutionId || invoice.institutionId
+            };
+            await apiService.saveModuleRecord('receipts', receiptData);
+
+            props.onLogAction?.(`Parent paid KES ${payAmount} installment for remedial invoice ${invoice.invoiceNumber}`);
+            alert(`Installment payment of KES ${payAmount} processed successfully!`);
+            loadRemedialInvoices();
+        } catch (e: any) {
+            alert(e.message || 'Failed to process payment');
+        }
+    };
 
     // ── Simulator / demo fallback data ────────────────────────────────────────
     // When no real transport data is present (e.g. parent_portal simulator),
@@ -624,6 +690,76 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                             />
                         </div>
                     )}
+
+                    {/* Remedial Fee Invoices Status */}
+                    {remedialInvoices.length > 0 && (() => {
+                        return (
+                            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden animate-fade-in-up">
+                                <div className="p-5 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <Wallet className="w-5 h-5 text-indigo-500" />
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Remedial Extra Lessons Fees</h4>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{remedialInvoices.length} billing invoice(s)</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                                    {remedialInvoices.map(inv => {
+                                        const paid = Number(inv.paidAmount || 0);
+                                        const total = Number(inv.totalAmount || 0);
+                                        const percent = Math.min(100, Math.round((paid / total) * 100));
+                                        const balance = Math.max(0, total - paid);
+                                        const student = effectiveChildren.find(c => c.id === inv.studentId);
+
+                                        return (
+                                            <div key={inv.id} className="p-6 space-y-4 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-all">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">{inv.invoiceNumber}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Student: {student?.name || 'Child'}</p>
+                                                    </div>
+                                                    <div className="text-right sm:text-right">
+                                                        <p className="text-xs font-black text-indigo-650 font-mono">Total: KES {total.toLocaleString()}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Balance: KES {balance.toLocaleString()}</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Progress Bar */}
+                                                <div className="space-y-1.5">
+                                                    <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                        <span>Paid: KES {paid.toLocaleString()} ({percent}%)</span>
+                                                        <span>Remaining: KES {balance.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-100 dark:bg-slate-900 h-2.5 rounded-full overflow-hidden">
+                                                        <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${percent}%` }} />
+                                                    </div>
+                                                </div>
+
+                                                {balance > 0 && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedRemedialInvoice(inv);
+                                                            setRemedialInstallmentAmount(balance.toString());
+                                                            setIsRemedialPaymentModalOpen(true);
+                                                        }}
+                                                        className="px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                                    >
+                                                        Pay Installment
+                                                    </button>
+                                                )}
+                                                {balance === 0 && (
+                                                    <span className="text-[9px] text-emerald-600 font-black uppercase tracking-widest flex items-center gap-1">
+                                                        <BadgeCheck className="w-4.5 h-4.5 text-emerald-500" /> Fully Paid
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* Transport Fee Invoice Status */}
                     {effectiveTransportInvoices.length > 0 && (() => {
@@ -1176,6 +1312,143 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                     </div>
                 </div>
             )}
+
+            {/* ── Remedial Fee Installment Checkout Modal ───────────────────────────────── */}
+            {isRemedialPaymentModalOpen && selectedRemedialInvoice && (() => {
+                const total = Number(selectedRemedialInvoice.totalAmount || 0);
+                const paid = Number(selectedRemedialInvoice.paidAmount || 0);
+                const balance = total - paid;
+                const student = effectiveChildren.find(c => c.id === selectedRemedialInvoice.studentId);
+
+                const handleConfirmPayment = async () => {
+                    const payVal = Number(remedialInstallmentAmount);
+                    if (isNaN(payVal) || payVal <= 0) {
+                        return alert('Please enter a valid payment amount');
+                    }
+                    if (payVal > balance) {
+                        return alert(`Payment amount cannot exceed remaining balance of KES ${balance.toLocaleString()}`);
+                    }
+
+                    setIsPaying(true);
+                    await new Promise(r => setTimeout(r, 2000));
+                    setIsPaying(false);
+                    await handlePayRemedialInstallment(selectedRemedialInvoice.id, payVal, paymentMethod === 'mpesa' ? 'M-Pesa STK' : 'Card');
+                    setIsRemedialPaymentModalOpen(false);
+                };
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                            {/* Header */}
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
+                                <div className="flex items-center gap-2">
+                                    <Wallet className="w-5 h-5 text-indigo-500" />
+                                    <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Remedial Fee Installment</h3>
+                                </div>
+                                {!isPaying && (
+                                    <button 
+                                        onClick={() => setIsRemedialPaymentModalOpen(false)}
+                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-400 dark:text-slate-350 transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Content */}
+                            <div className="p-6 space-y-6">
+                                <div className="text-center">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Invoice: {selectedRemedialInvoice.invoiceNumber}</p>
+                                    <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">KES {balance.toLocaleString()}</p>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Outstanding Balance for <span className="font-bold text-slate-800 dark:text-slate-200">{student?.name}</span></p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {/* Installment Amount Input */}
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Installment Amount to Pay (KES)</label>
+                                        <input
+                                            type="number"
+                                            value={remedialInstallmentAmount}
+                                            onChange={(e) => setRemedialInstallmentAmount(e.target.value)}
+                                            disabled={isPaying}
+                                            max={balance}
+                                            placeholder="Enter custom amount"
+                                            className="w-full px-4 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold focus:outline-none focus:border-indigo-500 transition-colors font-mono"
+                                        />
+                                    </div>
+
+                                    {/* Payment Method Switcher */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaymentMethod('mpesa')}
+                                            disabled={isPaying}
+                                            className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all ${
+                                                paymentMethod === 'mpesa' 
+                                                ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' 
+                                                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <span className="text-xs font-black uppercase tracking-widest">M-Pesa</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaymentMethod('card')}
+                                            disabled={isPaying}
+                                            className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all ${
+                                                paymentMethod === 'card' 
+                                                ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-400' 
+                                                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <span className="text-xs font-black uppercase tracking-widest">Card Pay</span>
+                                        </button>
+                                    </div>
+
+                                    {paymentMethod === 'mpesa' ? (
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Phone Number</label>
+                                            <input
+                                                type="tel"
+                                                value={phoneNumber}
+                                                onChange={(e) => setPhoneNumber(e.target.value)}
+                                                disabled={isPaying}
+                                                className="w-full px-4 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold focus:outline-none"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Card Info</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Card number"
+                                                disabled={isPaying}
+                                                className="w-full px-4 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold focus:outline-none"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {isPaying ? (
+                                        <div className="py-4 flex flex-col items-center justify-center gap-2">
+                                            <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                            <p className="text-xs font-bold text-slate-500">Processing installment payment...</p>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={handleConfirmPayment}
+                                            className="w-full h-12 bg-slate-900 hover:bg-black text-white dark:bg-indigo-650 dark:hover:bg-indigo-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                        >
+                                            Pay KES {Number(remedialInstallmentAmount).toLocaleString()}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 };

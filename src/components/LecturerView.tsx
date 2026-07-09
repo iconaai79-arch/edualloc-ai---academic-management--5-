@@ -1,13 +1,14 @@
 
-import React, { useState, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useMemo, lazy, Suspense, useEffect } from 'react';
 import type {
     Subject, User, AllocationRequest, Department, Priority,
     TimetableEntry, AcademicYear, Semester, TimetableSettings,
     Course, LetterheadConfig, AllocationRequestPreferences, UserTask, Institution,
-    CountyInventoryItem
+    CountyInventoryItem, RemedialSession, RemedialPayout
 } from '../types';
+import { apiService } from '../services/apiService';
 import { SynergyHub } from './SynergyHub';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Play, Square, DollarSign, QrCode, CheckCircle2, Award, Clock } from 'lucide-react';
 
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
@@ -86,6 +87,11 @@ const renderTabIcon = (tab: string, className = "w-5 h-5") => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
         );
+        case 'remedials': return (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
         default: return null;
     }
 };
@@ -140,6 +146,8 @@ interface LecturerViewProps {
     onSaveScanSession?: (placeholderEntry: any, attendanceRows: any[]) => Promise<void>;
     onAccessAlumnaPortal?: (school: any) => void;
     schoolRegistry?: any[];
+    onLogAction?: (msg: string) => Promise<void> | void;
+    onTeacherLessonCheckIn?: (timetableEntryId: string) => void;
 }
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -183,6 +191,34 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
     const [activeTab, setActiveTab] = useState('dashboard');
     const [showMoreDrawer, setShowMoreDrawer] = useState(false);
+
+    // Remedial States
+    const [remedialSessions, setRemedialSessions] = useState<RemedialSession[]>([]);
+    const [remedialPayouts, setRemedialPayouts] = useState<RemedialPayout[]>([]);
+    const [selectedSubjectId, setSelectedSubjectId] = useState('');
+    const [selectedCourseId, setSelectedCourseId] = useState('');
+    const [selectedPrefectId, setSelectedPrefectId] = useState('');
+    const [signingPayout, setSigningPayout] = useState<RemedialPayout | null>(null);
+    const [anonymousToken, setAnonymousToken] = useState('');
+
+    const loadRemedialData = async () => {
+        try {
+            const [sessList, payList] = await Promise.all([
+                apiService.fetchRemedialSessions(currentInstitution?.id || user.institutionId),
+                apiService.fetchRemedialPayouts(currentInstitution?.id || user.institutionId)
+            ]);
+            setRemedialSessions((sessList || []).filter((s: RemedialSession) => s.teacherId === user.id));
+            setRemedialPayouts((payList || []).filter((p: RemedialPayout) => p.teacherId === user.id));
+        } catch (e) {
+            console.error('Failed to load remedial data', e);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'remedials') {
+            loadRemedialData();
+        }
+    }, [activeTab, currentInstitution?.id, user.institutionId]);
     const [myRequestsSubTab, setMyRequestsSubTab] = useState<'catalog' | 'pending' | 'allocations'>('catalog');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
@@ -244,7 +280,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     };
 
     const menuTabs = useMemo(() => {
-        const base = ['dashboard', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin'];
+        const base = ['dashboard', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin', 'remedials'];
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
@@ -670,10 +706,305 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             <TeacherCheckInView
                                 currentUser={user}
                                 currentInstitution={currentInstitution!}
-                                onLogAction={props.onLogAction || (async () => {})}
+                                onLogAction={async (action: string) => {
+                                    if (props.onLogAction) {
+                                        await props.onLogAction(action);
+                                    }
+                                }}
                             />
                         </div>
                     )}
+
+                    {activeTab === 'remedials' && (() => {
+                        const activeSession = remedialSessions.find(s => s.status === 'In Progress');
+                        const coursePrefects = props.users?.filter(
+                            u => u.role === 'student' && u.courseId === selectedCourseId
+                        ) || [];
+
+                        const handleStartRemedial = async () => {
+                            if (!selectedSubjectId || !selectedCourseId || !selectedPrefectId) {
+                                return alert('Please select subject, class stream, and prefect.');
+                            }
+
+                            try {
+                                const prefect = props.users?.find(u => u.id === selectedPrefectId);
+                                const course = courses?.find(c => c.id === selectedCourseId);
+                                const subject = subjects?.find(s => s.id === selectedSubjectId);
+
+                                const newSession: RemedialSession = {
+                                    id: `rem_${Date.now()}`,
+                                    teacherId: user.id,
+                                    teacherName: user.name,
+                                    subjectId: selectedSubjectId,
+                                    subjectName: subject?.name || 'Subject',
+                                    courseId: selectedCourseId,
+                                    className: course?.name || 'Class',
+                                    prefectId: selectedPrefectId,
+                                    prefectName: prefect?.name || 'Prefect',
+                                    prefectToken: `prefect_remedial_token_class_${selectedCourseId}`,
+                                    startTime: new Date().toISOString(),
+                                    status: 'In Progress',
+                                    createdAt: new Date().toISOString(),
+                                    institutionId: currentInstitution?.id || user.institutionId
+                                };
+
+                                await apiService.saveRemedialSession(newSession);
+                                props.onLogAction?.(`Started remedial lesson: ${subject?.name} for ${course?.name}`);
+                                alert('Remedial lesson started! Prefect card token verified.');
+                                loadRemedialData();
+                            } catch (err: any) {
+                                alert(err.message || 'Failed to start remedial session');
+                            }
+                        };
+
+                        const handleEndRemedial = async (session: RemedialSession) => {
+                            try {
+                                const end = new Date();
+                                const start = new Date(session.startTime);
+                                const diffMs = end.getTime() - start.getTime();
+                                const calculatedHours = Math.max(1, Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10);
+
+                                const updated = {
+                                    ...session,
+                                    endTime: end.toISOString(),
+                                    hours: calculatedHours,
+                                    status: 'Prefect Confirmed' as const
+                                };
+
+                                await apiService.saveRemedialSession(updated);
+                                props.onLogAction?.(`Ended remedial lesson: ${session.subjectName} (${calculatedHours} hrs)`);
+                                alert(`Remedial class completed successfully!\nVerified hours: ${calculatedHours} hrs.\nSent for admin approval.`);
+                                loadRemedialData();
+                            } catch (err: any) {
+                                alert(err.message || 'Failed to end remedial session');
+                            }
+                        };
+
+                        const handleSignVoucher = async (e: React.FormEvent) => {
+                            e.preventDefault();
+                            if (!signingPayout) return;
+                            if (!anonymousToken.trim()) {
+                                return alert('Please enter an anonymous signature token.');
+                            }
+
+                            try {
+                                const updatedPayout = {
+                                    ...signingPayout,
+                                    status: 'Paid' as const,
+                                    anonymousSignature: anonymousToken.trim(),
+                                    signedAt: new Date().toISOString()
+                                };
+                                await apiService.saveRemedialPayout(updatedPayout);
+                                alert('Payment voucher signed anonymously. Status updated to Paid!');
+                                setSigningPayout(null);
+                                setAnonymousToken('');
+                                loadRemedialData();
+                            } catch (err: any) {
+                                alert(err.message || 'Failed to sign voucher');
+                            }
+                        };
+
+                        return (
+                            <div className="space-y-8 animate-fade-in-up">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                        <QrCode className="w-5 h-5 text-indigo-500" /> Prefect Card Scanner Control Panel
+                                    </h3>
+                                    
+                                    {activeSession ? (
+                                        <div className="bg-indigo-50/50 dark:bg-indigo-950/20 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-900/40 space-y-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                                                <h4 className="text-sm font-black text-indigo-950 dark:text-indigo-300 uppercase tracking-wider">Lesson Currently In Progress</h4>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                                <div>Subject: <span className="text-slate-900 dark:text-white font-black">{activeSession.subjectName}</span></div>
+                                                <div>Stream: <span className="text-slate-900 dark:text-white font-black">{activeSession.className}</span></div>
+                                                <div>Prefect: <span className="text-slate-900 dark:text-white font-black">{activeSession.prefectName}</span></div>
+                                                <div>Started: <span className="text-slate-900 dark:text-white font-black">{new Date(activeSession.startTime).toLocaleTimeString()}</span></div>
+                                            </div>
+
+                                            <div className="pt-4 border-t border-indigo-100 dark:border-indigo-900/40 space-y-3">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">End Session Scan simulation</p>
+                                                <button 
+                                                    onClick={() => handleEndRemedial(activeSession)}
+                                                    className="px-5 py-3 bg-rose-650 hover:bg-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                                                >
+                                                    <Square className="w-4 h-4" /> Scan Prefect Card & End Lesson
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Subject</label>
+                                                <select 
+                                                    value={selectedSubjectId}
+                                                    onChange={e => setSelectedSubjectId(e.target.value)}
+                                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
+                                                >
+                                                    <option value="">-- Subject --</option>
+                                                    {subjects?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Class Stream</label>
+                                                <select 
+                                                    value={selectedCourseId}
+                                                    onChange={e => { setSelectedCourseId(e.target.value); setSelectedPrefectId(''); }}
+                                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
+                                                >
+                                                    <option value="">-- Stream --</option>
+                                                    {courses?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Prefect Present</label>
+                                                <select 
+                                                    value={selectedPrefectId}
+                                                    onChange={e => setSelectedPrefectId(e.target.value)}
+                                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
+                                                    disabled={!selectedCourseId}
+                                                >
+                                                    <option value="">-- Prefect --</option>
+                                                    {coursePrefects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                </select>
+                                            </div>
+
+                                            <div className="md:col-span-3 pt-4 flex justify-start">
+                                                <button 
+                                                    onClick={handleStartRemedial}
+                                                    disabled={!selectedSubjectId || !selectedCourseId || !selectedPrefectId}
+                                                    className="px-6 py-3.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    <Play className="w-4 h-4" /> Scan Prefect Card to Start
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider italic flex items-center gap-2">
+                                            <Clock className="w-4.5 h-4.5 text-indigo-500" /> Remedial Hours Logged
+                                        </h4>
+                                        <div className="max-h-[300px] overflow-y-auto space-y-3 custom-scrollbar">
+                                            {remedialSessions.length === 0 ? (
+                                                <p className="text-slate-400 font-bold text-xs uppercase tracking-wider py-8 text-center">No logs recorded.</p>
+                                            ) : (
+                                                remedialSessions.map(s => (
+                                                    <div key={s.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                        <div>
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{s.subjectName}</p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{s.className} • pref. {s.prefectName}</p>
+                                                            <p className="text-[9px] text-slate-400 font-medium">{new Date(s.startTime).toLocaleDateString()}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white">{s.hours ? `${s.hours} hrs` : 'In Progress'}</p>
+                                                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-block mt-1 ${
+                                                                s.status === 'Approved' ? 'bg-indigo-150 text-indigo-600' :
+                                                                s.status === 'Prefect Confirmed' ? 'bg-amber-100 text-amber-600' :
+                                                                s.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' :
+                                                                'bg-slate-100 text-slate-500'
+                                                            }`}>
+                                                                {s.status}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider italic flex items-center gap-2">
+                                            <DollarSign className="w-4.5 h-4.5 text-indigo-500" /> My Payout Vouchers
+                                        </h4>
+                                        <div className="max-h-[300px] overflow-y-auto space-y-3 custom-scrollbar">
+                                            {remedialPayouts.length === 0 ? (
+                                                <p className="text-slate-400 font-bold text-xs uppercase tracking-wider py-8 text-center">No payout history.</p>
+                                            ) : (
+                                                remedialPayouts.map(p => (
+                                                    <div key={p.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                        <div>
+                                                            <p className="text-xs font-black text-purple-650 font-mono">Voucher #{p.id.split('_')[1] || p.id}</p>
+                                                            <p className="text-[10px] font-black text-indigo-650 font-mono mt-0.5">KES {p.totalAmount.toLocaleString()}</p>
+                                                            <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Period: {p.totalHours} hrs @ KES {p.hourlyRate}/hr</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            {p.status === 'Pending' ? (
+                                                                <button 
+                                                                    onClick={() => setSigningPayout(p)}
+                                                                    className="px-3.5 py-2 bg-indigo-650 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-sm"
+                                                                >
+                                                                    Sign Voucher
+                                                                </button>
+                                                            ) : (
+                                                                <span className="text-[9px] text-emerald-600 font-black uppercase tracking-widest flex items-center gap-1 justify-end">
+                                                                    <CheckCircle2 className="w-3.5 h-3.5" /> Signed Anonymous
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {signingPayout && (
+                                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                                            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
+                                                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Sign Payment Voucher Anonymously</h3>
+                                                <button onClick={() => setSigningPayout(null)} className="text-slate-400 hover:text-slate-650">&times;</button>
+                                            </div>
+                                            <form onSubmit={handleSignVoucher} className="p-6 space-y-4">
+                                                <div className="text-center p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payout Amount</p>
+                                                    <p className="text-2xl font-black text-indigo-650 mt-0.5">KES {signingPayout.totalAmount.toLocaleString()}</p>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Anonymous Signature Token</label>
+                                                    <div className="flex gap-2">
+                                                        <input 
+                                                            type="text"
+                                                            value={anonymousToken}
+                                                            onChange={e => setAnonymousToken(e.target.value)}
+                                                            placeholder="Enter signature (e.g. SIG-XXXXXX)"
+                                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white"
+                                                            required
+                                                        />
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => setAnonymousToken(`SIG-${Math.random().toString(36).substring(2, 8).toUpperCase()}`)}
+                                                            className="px-3 py-2 bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-900 transition-all"
+                                                        >
+                                                            Generate
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-[9px] text-slate-500 mt-1.5 leading-relaxed">
+                                                        Your teacher identification details will **not** be recorded in the final signed voucher list to maintain complete anonymity.
+                                                    </p>
+                                                </div>
+
+                                                <button 
+                                                    type="submit"
+                                                    className="w-full py-4 bg-indigo-650 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all mt-4"
+                                                >
+                                                    Confirm & Sign Anonymously
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
 

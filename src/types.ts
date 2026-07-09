@@ -5635,3 +5635,45 @@ export interface ElectionBallot {
     receiptHash: string;
     createdAt: string;
 }
+
+export interface RemedialSession {
+    id: string;
+    teacherId: string;
+    teacherName?: string;
+    subjectId: string;
+    subjectName?: string;
+    courseId?: string;
+    className?: string;
+    prefectId: string;
+    prefectName?: string;
+    prefectToken: string;
+    startTime: string;
+    endTime?: string;
+    hours?: number;
+    status: 'In Progress' | 'Prefect Confirmed' | 'Approved' | 'Paid';
+    createdAt: string;
+    institutionId: string;
+    payoutId?: string;
+}
+
+export interface RemedialRateSetting {
+    id: string;
+    hourlyRate: number;
+    feePerStudent: number;
+    termFee: number;
+    institutionId: string;
+}
+
+export interface RemedialPayout {
+    id: string;
+    teacherId: string;
+    teacherName?: string;
+    totalHours: number;
+    hourlyRate: number;
+    totalAmount: number;
+    payoutDate: string;
+    status: 'Pending' | 'Paid';
+    anonymousSignature?: string;
+    signedAt?: string;
+    institutionId: string;
+}

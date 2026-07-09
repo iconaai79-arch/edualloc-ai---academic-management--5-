@@ -72,6 +72,7 @@ const EduAiHub = lazy(() => import('./common/EduAiHub').then(m => ({ default: m.
 
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
+import { RemedialLessonsManager } from './RemedialLessonsManager';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 
 import { DocumentTextIcon } from './icons/DocumentTextIcon';
@@ -104,6 +105,7 @@ import { CreditCardIcon } from './icons/CreditCardIcon';
 import { BeakerIcon } from './icons/BeakerIcon';
 import { CurrencyIcon } from './icons/CurrencyIcon';
 import { UserIcon } from './icons/UserIcon';
+import { ClockIcon } from './icons/ClockIcon';
 import { HeartIcon } from './icons/HeartIcon';
 import { XIcon } from './icons/XIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
@@ -481,8 +483,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub'>('dashboard');
-    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote'>('console_hub');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials'>('dashboard');
+    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>('console_hub');
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
@@ -773,6 +775,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         if (props.currentInstitution?.institutionType === 'Reseller') return true;
         if (props.currentInstitution?.id?.startsWith('demo_')) return true;
         if (moduleId === 'beauty_college' && isBC) return true;
+        if (moduleId === 'remedials') return true;
 
         const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
         if (!state) return false;
@@ -804,6 +807,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'car_service', label: 'Car Service', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'customers', label: 'Customers', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            { id: 'remedials', label: 'Remedial Lessons', icon: <ClockIcon className="w-5 h-5 mr-2" /> },
             { id: 'transport', label: 'Fleet Registry', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'logistics', label: 'Logistics Hub', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: isHeritage ? 'Records' : isCommunity ? 'Analytics' : 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
@@ -953,6 +957,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 }
                 if (activeScope === 'eduvote') {
                     return ['eduvote', 'reports'].includes(tab.id);
+                }
+                if (activeScope === 'remedials') {
+                    return ['remedials', 'reports', 'settings'].includes(tab.id);
                 }
                 if (activeScope === 'academics') {
                     const academicsTabs = ['settings', 'reports'];
@@ -2152,6 +2159,58 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 );
                             })()}
 
+                            {/* Card: Remedial Manager */}
+                            {(() => {
+                                const isActive = isModuleActive('remedials');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The Remedial Manager module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            setActiveScope('remedials'); 
+                                            setActiveTab('remedials'); 
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-indigo-650 text-white rounded-2xl w-fit shadow-lg shadow-indigo-100 dark:shadow-none">
+                                                <ClockIcon className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Remedial Manager</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Configure hourly teacher rates, print prefect QR cards, track extra hours, sign anonymous payouts, and invoice parents term flat fees.
+                                                </p>
+                                                {!isActive && (
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                await onActivateModuleTrial('remedials');
+                                                            } catch (err) {
+                                                                console.error("Failed to activate remedials trial:", err);
+                                                            }
+                                                        }}
+                                                        className="bg-indigo-650 hover:bg-indigo-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
+                                                    >
+                                                        Activate Trial
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             {/* Card 12: Car Wash Module — only for higher-ed */}
                             {isHigherEd && (() => {
                                 const isActive = isModuleActive('carwash_admin');
@@ -2575,6 +2634,19 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     )}
                 </div>
             )}
+
+                {activeTab === 'remedials' && (
+                    <div className="animate-fade-in-up">
+                        <RemedialLessonsManager
+                            currentUser={props.currentUser!}
+                            users={props.users || []}
+                            courses={props.courses || []}
+                            subjects={props.subjects || []}
+                            currentInstitution={props.currentInstitution}
+                            onLogAction={props.onLogAction}
+                        />
+                    </div>
+                )}
 
                 {activeTab === 'timetable' && (
                     <ModuleAccessGuard

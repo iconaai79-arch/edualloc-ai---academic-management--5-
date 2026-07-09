@@ -15,7 +15,8 @@ import type {
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert,
     CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
-    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, CarInvoice, CarPayment
+    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, CarInvoice, CarPayment,
+    RemedialSession, RemedialRateSetting, RemedialPayout
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -2526,6 +2527,13 @@ export const apiService = {
     async fetchVehicles(instId?: string): Promise<Vehicle[]> { return apiService.fetchModuleRecords('vehicles', instId); },
     async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return apiService.fetchModuleRecords('transport_onboarding', instId); },
     async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return apiService.fetchModuleRecords('vehicle_logs', instId); },
+    // Remedial Module
+    async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { return apiService.fetchModuleRecords('school_remedial_sessions', instId); },
+    async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { await apiService.saveModuleRecord('school_remedial_sessions', data); },
+    async fetchRemedialRateSettings(instId?: string): Promise<RemedialRateSetting[]> { return apiService.fetchModuleRecords('school_remedial_rate_settings', instId); },
+    async saveRemedialRateSetting(data: Partial<RemedialRateSetting>): Promise<void> { await apiService.saveModuleRecord('school_remedial_rate_settings', data); },
+    async fetchRemedialPayouts(instId?: string): Promise<RemedialPayout[]> { return apiService.fetchModuleRecords('school_remedial_payouts', instId); },
+    async saveRemedialPayout(data: Partial<RemedialPayout>): Promise<void> { await apiService.saveModuleRecord('school_remedial_payouts', data); },
     async clearInstitutionalData(institutionId: string, currentUserId: string): Promise<void> {
         // Supabase Logic - Moved to secure proxy
         try {
