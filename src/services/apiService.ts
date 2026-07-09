@@ -1615,7 +1615,7 @@ export const apiService = {
         await apiService.saveModuleRecord('mpesa_transactions', transaction);
         return 'completed';
     },
-    async sendSms(recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId?: string, authToken?: string): Promise<any> {
+    async sendSms(recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId?: string, authToken?: string, isSystemAlert?: boolean): Promise<any> {
         let formattedRecipient: any;
         if (Array.isArray(recipient)) {
             formattedRecipient = recipient.map(r => formatPhoneNumber(r));
@@ -1678,6 +1678,67 @@ export const apiService = {
                     message: isHtml ? `Internal Server Error (HTML returned). Status: ${response.status}` : (rawText || `HTTP Error ${response.status}`),
                     isHtmlResponse: isHtml
                 };
+            }
+
+            const isLowSmsError = !response.ok && (
+                typeof resData.message === 'string' && (
+                    resData.message.toLowerCase().includes('balance') || 
+                    resData.message.toLowerCase().includes('units') || 
+                    resData.message.toLowerCase().includes('insufficient') ||
+                    resData.message.toLowerCase().includes('low sms')
+                )
+            );
+
+            if (institutionId && !isSystemAlert && (isLowSmsError || response.ok)) {
+                // Asynchronously check balance and alert admin if needed
+                (async () => {
+                    try {
+                        const instList = await apiService.fetchModuleRecords('institutions', undefined, undefined, { 
+                            filter: { id: institutionId } 
+                        });
+                        const inst = instList?.[0];
+                        if (inst) {
+                            const smsBalance = inst.smsBalance || 0;
+                            // Trigger warning if balance is below 15 units, or if dispatch failed due to low units
+                            if (smsBalance < 15 || isLowSmsError) {
+                                const adminEmails: string[] = [];
+                                const adminPhones: string[] = [];
+                                if (inst.email) adminEmails.push(inst.email);
+                                if (inst.phoneNumber) adminPhones.push(inst.phoneNumber);
+
+                                const adminUsers = await apiService.fetchModuleRecords('users', undefined, undefined, {
+                                    filter: { institution_id: institutionId, role: 'admin' }
+                                }).catch(() => []);
+
+                                (adminUsers || []).forEach((u: any) => {
+                                    if (u.email && !adminEmails.includes(u.email)) adminEmails.push(u.email);
+                                    if (u.phoneNumber && !adminPhones.includes(u.phoneNumber)) adminPhones.push(u.phoneNumber);
+                                });
+
+                                const subject = "Low SMS Balance Alert";
+                                const mailMsg = `Dear Administrator,\n\nYour institution account (${inst.name}) has low SMS units remaining.\nCurrent Balance: ${smsBalance} units.\n\nPlease top up your SMS units to ensure uninterrupted system operations.\n\nBest Regards,\nSaaS Administrator`;
+
+                                for (const email of adminEmails) {
+                                    await apiService.sendEmail(email, subject, mailMsg).catch(() => {});
+                                }
+
+                                for (const phone of adminPhones) {
+                                    await apiService.sendSms(
+                                        phone, 
+                                        `ALERT: Your account SMS balance is low (${smsBalance} units left). Please purchase more units to avoid service disruptions.`, 
+                                        undefined, 
+                                        1, 
+                                        institutionId, 
+                                        undefined, 
+                                        true
+                                    ).catch(() => {});
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error('[apiService] Background SMS balance check / alert failed:', err);
+                    }
+                })();
             }
 
             if (!response.ok) {

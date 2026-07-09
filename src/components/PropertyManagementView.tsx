@@ -622,21 +622,36 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 const landlordId = `ll_${Date.now()}`;
                 const tempPassword = Math.random().toString(36).slice(-8);
 
-                // 1. Always create a portal user account (phone-based login, email optional)
-                const newUser: any = {
-                    id: `user_${Date.now()}`,
-                    name: data.name || '',
-                    email: data.email || '',           // empty string if no email
-                    phoneNumber: data.phoneNumber || '',
-                    role: 'landlord',
-                    institutionId,
-                    createdAt: new Date().toISOString(),
-                    isActive: true,
-                    mustChangePassword: true,
-                    needsEmailActivation: !data.email, // flag: collect email on first login
-                    password: tempPassword
-                };
-                await apiService.saveModuleRecord('users', newUser);
+                // 1. Always find or create a portal user account (match email or phone to avoid conflicts)
+                const matchingUser = users.find(u => 
+                    (data.email && u.email?.toLowerCase() === data.email.toLowerCase()) || 
+                    (data.phoneNumber && u.phoneNumber === data.phoneNumber)
+                );
+
+                if (matchingUser) {
+                    const updatedUser = { 
+                        ...matchingUser, 
+                        role: matchingUser.role === 'landlord' ? matchingUser.role : 'landlord',
+                        password: tempPassword,
+                        mustChangePassword: true 
+                    };
+                    await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
+                } else {
+                    const newUser: any = {
+                        id: `user_${Date.now()}`,
+                        name: data.name || '',
+                        email: data.email || '',           // empty string if no email
+                        phoneNumber: data.phoneNumber || '',
+                        role: 'landlord',
+                        institutionId,
+                        createdAt: new Date().toISOString(),
+                        isActive: true,
+                        mustChangePassword: true,
+                        needsEmailActivation: !data.email, // flag: collect email on first login
+                        password: tempPassword
+                    };
+                    await apiService.saveModuleRecord('users', newUser);
+                }
 
                 // 2. Send credentials — SMS if no email, email if email provided
                 try {
@@ -722,14 +737,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             
             // 1. Find or create the user account in the database and update the password
             const matchingUser = users.find(u => 
-                u.role === 'landlord' && 
-                ((landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
-                 (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber))
+                (landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
+                (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber)
             );
             
             if (matchingUser) {
                 const updatedUser = { 
                     ...matchingUser, 
+                    role: matchingUser.role === 'landlord' ? matchingUser.role : 'landlord',
                     password: tempPassword,
                     mustChangePassword: true 
                 };
@@ -792,14 +807,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     
                     // 1. Find or create portal user
                     const matchingUser = users.find(u => 
-                        u.role === 'landlord' && 
-                        ((landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
-                         (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber))
+                        (landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
+                        (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber)
                     );
                     
                     if (matchingUser) {
                         const updatedUser = { 
                             ...matchingUser, 
+                            role: matchingUser.role === 'landlord' ? matchingUser.role : 'landlord',
                             password: tempPassword,
                             mustChangePassword: true 
                         };
@@ -966,22 +981,37 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         try {
             const tenantId = editingTenant?.id || `tenant_${Date.now()}`;
 
-            // 1. Create system user account for the tenant if email is provided (only for new tenants)
+            // 1. Create or update system user account for the tenant if email is provided (only for new tenants)
             if (!editingTenant && data.email) {
                 const tempPassword = Math.random().toString(36).slice(-8);
-                const newUser = {
-                    id: `user_${Date.now()}`,
-                    name: data.name || '',
-                    email: data.email,
-                    phoneNumber: data.phoneNumber || '',
-                    role: 'tenant',
-                    institutionId,
-                    createdAt: new Date().toISOString(),
-                    isActive: true,
-                    mustChangePassword: true,
-                    password: tempPassword
-                };
-                await apiService.saveModuleRecord('users', newUser);
+                const matchingUser = users.find(u => 
+                    (data.email && u.email?.toLowerCase() === data.email.toLowerCase()) || 
+                    (data.phoneNumber && u.phoneNumber === data.phoneNumber)
+                );
+
+                if (matchingUser) {
+                    const updatedUser = {
+                        ...matchingUser,
+                        role: matchingUser.role === 'tenant' ? matchingUser.role : 'tenant',
+                        password: tempPassword,
+                        mustChangePassword: true
+                    };
+                    await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
+                } else {
+                    const newUser = {
+                        id: `user_${Date.now()}`,
+                        name: data.name || '',
+                        email: data.email,
+                        phoneNumber: data.phoneNumber || '',
+                        role: 'tenant',
+                        institutionId,
+                        createdAt: new Date().toISOString(),
+                        isActive: true,
+                        mustChangePassword: true,
+                        password: tempPassword
+                    };
+                    await apiService.saveModuleRecord('users', newUser);
+                }
 
                 // 2. Send tenant welcome email
                 try {
@@ -10281,6 +10311,32 @@ const ArrearsManager: React.FC<{
         setSendingSms(true);
         let sent = 0;
         try {
+            // Calculate total SMS units needed (160 characters per unit page)
+            const totalUnitsNeeded = listWithArrears.reduce((sum, item) => {
+                const msg = getSmsMessage(item);
+                return sum + Math.ceil(msg.length / 160);
+            }, 0);
+
+            const smsBalance = currentInstitution?.smsBalance || 0;
+
+            if (smsBalance < totalUnitsNeeded) {
+                // Not enough SMS units. Queue them in outbox instead.
+                const outboxMessages = listWithArrears.map((item, idx) => ({
+                    id: `msg_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
+                    phoneNumber: item.tenant!.phoneNumber!,
+                    message: getSmsMessage(item),
+                    status: 'pending',
+                    institutionId,
+                    createdAt: new Date().toISOString()
+                }));
+
+                await apiService.saveToSmsOutbox(outboxMessages);
+                alert(`Insufficient SMS units (${smsBalance} units available, ${totalUnitsNeeded} required). The ${outboxMessages.length} reminder message(s) have been moved to your outbox.`);
+                setShowSmsModal(false);
+                setSmsAdditionalText('');
+                return;
+            }
+
             for (const item of listWithArrears) {
                 const msg = getSmsMessage(item);
                 await apiService.sendSms(item.tenant!.phoneNumber!, msg, currentInstitution.smsConfig, 1, institutionId);
