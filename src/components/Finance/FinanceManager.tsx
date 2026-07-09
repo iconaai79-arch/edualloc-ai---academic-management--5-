@@ -1147,7 +1147,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     )}
                 </div>
 
-                <nav className="space-y-2 flex-1">
+                <nav className="space-y-2 flex-1 overflow-y-auto max-h-[calc(100vh-280px)] pr-1 no-scrollbar">
                     {tabs.filter(item => isDrivingSchool ? true : (item.id !== 'billing' && item.id !== 'bursaries' && item.id !== 'config')).map(item => (
                         <button
                             key={item.id}
