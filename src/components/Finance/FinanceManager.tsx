@@ -451,6 +451,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
     }, [props.receipts, searchReceiptQuery, receiptSourceFilter, props.students]);
 
+    const [receiptCurrentPage, setReceiptCurrentPage] = useState(1);
+
+    const paginatedReceipts = useMemo(() => {
+        const startIndex = (receiptCurrentPage - 1) * 10;
+        return filteredReceipts.slice(startIndex, startIndex + 10);
+    }, [filteredReceipts, receiptCurrentPage]);
+
+    const totalReceiptPages = Math.ceil(filteredReceipts.length / 10) || 1;
+
+    useEffect(() => {
+        setReceiptCurrentPage(1);
+    }, [searchReceiptQuery, receiptSourceFilter]);
+
     const fetchBankFeeds = async () => {
         try {
             setLoadingFeeds(true);
@@ -1406,37 +1419,46 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <option value="Bank Transfer">Bank Feed</option>
                                         <option value="Bursary">Bursary</option>
                                     </select>
-                                </div>
-
-                                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
+                                </div>                                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
                                     <table className="w-full border-collapse">
                                         <thead>
                                             <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/60">
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Receipt #</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
                                                 <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Grade</th>
                                                 <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                                                <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Method</th>
                                                 <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Reference</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Receipt #</th>
+                                                <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Method</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
                                                 <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
-                                            {filteredReceipts.map(rec => {
+                                            {paginatedReceipts.map(rec => {
                                                 const student = props.students.find(s => s.id === rec.studentId);
+                                                const admNum = student?.admissionNumber || student?.admission_number || '—';
+                                                const studentName = student?.name || 'Unknown Student';
+                                                const gradeName = student ? studentClassGroup(student) : '—';
                                                 return (
                                                     <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
-                                                        <td className="px-6 py-4">
-                                                            <span className="text-xs font-black text-indigo-650 dark:text-indigo-400">{rec.receiptNumber}</span>
+                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
+                                                            {admNum}
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <span className="text-xs font-bold text-slate-900 dark:text-white">{student?.name || 'Unknown Student'}</span>
+                                                            <span className="text-xs font-bold text-slate-900 dark:text-white">{studentName}</span>
                                                         </td>
                                                         <td className="px-6 py-4 text-xs font-semibold text-slate-500">
-                                                            {rec.paymentDate ? new Date(rec.paymentDate).toLocaleDateString() : 'N/A'}
+                                                            {gradeName}
                                                         </td>
                                                         <td className="px-6 py-4 text-right">
                                                             <span className="text-xs font-black text-slate-900 dark:text-white">KES {rec.amountPaid?.toLocaleString()}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
+                                                            {rec.relatedTransactionId || '—'}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="text-xs font-black text-indigo-650 dark:text-indigo-400">{rec.receiptNumber}</span>
                                                         </td>
                                                         <td className="px-6 py-4 text-center">
                                                             <span className={`inline-flex px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border ${
@@ -1449,8 +1471,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 {rec.paymentMethod}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
-                                                            {rec.relatedTransactionId || '—'}
+                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-500">
+                                                            {rec.paymentDate ? new Date(rec.paymentDate).toLocaleDateString() : 'N/A'}
                                                         </td>
                                                         <td className="px-6 py-4 text-center">
                                                             <button
@@ -1465,12 +1487,50 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             })}
                                             {filteredReceipts.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={7} className="py-12 text-center text-xs text-slate-400 font-medium italic">No receipts matched your criteria.</td>
+                                                    <td colSpan={9} className="py-12 text-center text-xs text-slate-400 font-medium italic">No receipts matched your criteria.</td>
                                                 </tr>
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {/* Pagination Controls */}
+                                {totalReceiptPages > 1 && (
+                                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-100 dark:border-slate-800/60">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            Showing {Math.min(filteredReceipts.length, (receiptCurrentPage - 1) * 10 + 1)} to {Math.min(filteredReceipts.length, receiptCurrentPage * 10)} of {filteredReceipts.length} Receipts
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button
+                                                disabled={receiptCurrentPage === 1}
+                                                onClick={() => setReceiptCurrentPage(p => Math.max(1, p - 1))}
+                                                className="px-4 py-2 border border-slate-205 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-850"
+                                            >
+                                                Previous
+                                            </button>
+                                            {Array.from({ length: totalReceiptPages }, (_, i) => i + 1).map(p => (
+                                                <button
+                                                    key={p}
+                                                    onClick={() => setReceiptCurrentPage(p)}
+                                                    className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${
+                                                        receiptCurrentPage === p 
+                                                        ? 'bg-indigo-600 text-white shadow-md' 
+                                                        : 'border border-slate-205 text-slate-550 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850'
+                                                    }`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            ))}
+                                            <button
+                                                disabled={receiptCurrentPage === totalReceiptPages}
+                                                onClick={() => setReceiptCurrentPage(p => Math.min(totalReceiptPages, p + 1))}
+                                                className="px-4 py-2 border border-slate-205 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-850"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
