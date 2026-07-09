@@ -6026,6 +6026,7 @@ export const App: React.FC = () => {
                                             onDeleteUser={onDeleteUser}
                                             onEditUser={onEditUser}
                                             onImportUsers={onImportUsers}
+                                             transactions={transactions}
                                             onAddUser={async (userData: any) => {
                                                 if (!currentUser) return;
                                                 const targetInstitutionId = userData.institutionId || currentUser.institutionId;

@@ -596,6 +596,76 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         };
     }, [propertiesCollectionData]);
 
+    const findOrCreatePortalUser = async (name: string, email: string | null | undefined, phoneNumber: string | null | undefined, role: 'landlord' | 'tenant', tempPassword: string) => {
+        let matchingUser: any = null;
+
+        // 1. First search in local state array as a fast check
+        const localMatch = users.find(u => 
+            (email && u.email?.toLowerCase() === email.toLowerCase()) || 
+            (phoneNumber && u.phoneNumber === phoneNumber)
+        );
+        if (localMatch) {
+            matchingUser = localMatch;
+        } else {
+            // 2. If not found locally, check the database globally via email
+            if (email) {
+                try {
+                    const dbMatches = await apiService.fetchModuleRecords('users', undefined, undefined, { 
+                        filter: { email: email.toLowerCase() } 
+                    });
+                    if (dbMatches && dbMatches.length > 0) {
+                        matchingUser = dbMatches[0];
+                    }
+                } catch (e) {
+                    console.warn("Global email check failed:", e);
+                }
+            }
+            
+            // 3. If still not found, check the database globally via phone number
+            if (!matchingUser && phoneNumber) {
+                try {
+                    const dbMatches = await apiService.fetchModuleRecords('users', undefined, undefined, { 
+                        filter: { phoneNumber: phoneNumber } 
+                    });
+                    if (dbMatches && dbMatches.length > 0) {
+                        matchingUser = dbMatches[0];
+                    }
+                } catch (e) {
+                    console.warn("Global phone check failed:", e);
+                }
+            }
+        }
+
+        if (matchingUser) {
+            // Update existing user profile
+            const updatedUser = { 
+                ...matchingUser, 
+                role: matchingUser.role === role ? matchingUser.role : role,
+                password: tempPassword,
+                mustChangePassword: true 
+            };
+            await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
+            return matchingUser;
+        } else {
+            // Create a new user profile
+            const newUser: any = {
+                id: `user_${Date.now()}_${Math.random().toString(36).slice(-4)}`,
+                name: name,
+                email: email || '',
+                phoneNumber: phoneNumber || '',
+                role: role,
+                institutionId,
+                createdAt: new Date().toISOString(),
+                isActive: true,
+                mustChangePassword: true,
+                needsEmailActivation: !email,
+                password: tempPassword
+            };
+            await apiService.saveModuleRecord('users', newUser);
+            return newUser;
+        }
+    };
+
     const handleSaveLandlord = async (data: Partial<PMLandlord>) => {
         try {
             if (editingLandlord) {
@@ -622,36 +692,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 const landlordId = `ll_${Date.now()}`;
                 const tempPassword = Math.random().toString(36).slice(-8);
 
-                // 1. Always find or create a portal user account (match email or phone to avoid conflicts)
-                const matchingUser = users.find(u => 
-                    (data.email && u.email?.toLowerCase() === data.email.toLowerCase()) || 
-                    (data.phoneNumber && u.phoneNumber === data.phoneNumber)
-                );
-
-                if (matchingUser) {
-                    const updatedUser = { 
-                        ...matchingUser, 
-                        role: matchingUser.role === 'landlord' ? matchingUser.role : 'landlord',
-                        password: tempPassword,
-                        mustChangePassword: true 
-                    };
-                    await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
-                } else {
-                    const newUser: any = {
-                        id: `user_${Date.now()}`,
-                        name: data.name || '',
-                        email: data.email || '',           // empty string if no email
-                        phoneNumber: data.phoneNumber || '',
-                        role: 'landlord',
-                        institutionId,
-                        createdAt: new Date().toISOString(),
-                        isActive: true,
-                        mustChangePassword: true,
-                        needsEmailActivation: !data.email, // flag: collect email on first login
-                        password: tempPassword
-                    };
-                    await apiService.saveModuleRecord('users', newUser);
-                }
+                // 1. Find or create portal user account globally (avoids conflicts)
+                await findOrCreatePortalUser(data.name || '', data.email, data.phoneNumber, 'landlord', tempPassword);
 
                 // 2. Send credentials — SMS if no email, email if email provided
                 try {
@@ -752,36 +794,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         try {
             const tempPassword = Math.random().toString(36).slice(-8);
             
-            // 1. Find or create the user account in the database and update the password
-            const matchingUser = users.find(u => 
-                (landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
-                (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber)
-            );
-            
-            if (matchingUser) {
-                const updatedUser = { 
-                    ...matchingUser, 
-                    role: matchingUser.role === 'landlord' ? matchingUser.role : 'landlord',
-                    password: tempPassword,
-                    mustChangePassword: true 
-                };
-                await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
-            } else {
-                const newUser: any = {
-                    id: `user_${Date.now()}`,
-                    name: landlord.name,
-                    email: landlord.email || '',
-                    phoneNumber: landlord.phoneNumber || '',
-                    role: 'landlord',
-                    institutionId,
-                    createdAt: new Date().toISOString(),
-                    isActive: true,
-                    mustChangePassword: true,
-                    needsEmailActivation: !landlord.email,
-                    password: tempPassword
-                };
-                await apiService.saveModuleRecord('users', newUser);
-            }
+            // 1. Find or create the user account in the database and update the password (avoids conflicts)
+            await findOrCreatePortalUser(landlord.name, landlord.email, landlord.phoneNumber, 'landlord', tempPassword);
             
             // 2. Send the notification
             if (landlord.email) {
@@ -843,36 +857,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         const landlord = targetLandlords[idx];
                         const tempPassword = Math.random().toString(36).slice(-8);
                         
-                        // Create portal user account if missing, or update password
-                        const matchingUser = users.find(u => 
-                            (landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
-                            (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber)
-                        );
-                        
-                        if (matchingUser) {
-                            const updatedUser = { 
-                                ...matchingUser, 
-                                role: matchingUser.role === 'landlord' ? matchingUser.role : 'landlord',
-                                password: tempPassword,
-                                mustChangePassword: true 
-                            };
-                            await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
-                        } else {
-                            const newUser: any = {
-                                id: `user_${Date.now()}_${idx}_${Math.random().toString(36).slice(-4)}`,
-                                name: landlord.name,
-                                email: landlord.email || '',
-                                phoneNumber: landlord.phoneNumber || '',
-                                role: 'landlord',
-                                institutionId,
-                                createdAt: new Date().toISOString(),
-                                isActive: true,
-                                mustChangePassword: true,
-                                needsEmailActivation: !landlord.email,
-                                password: tempPassword
-                            };
-                            await apiService.saveModuleRecord('users', newUser);
-                        }
+                        // Find or create portal user account globally (avoids conflicts)
+                        await findOrCreatePortalUser(landlord.name, landlord.email, landlord.phoneNumber, 'landlord', tempPassword);
 
                         const smsBody = `Hello ${landlord.name}! Your Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
                         
@@ -907,36 +893,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 try {
                     const tempPassword = Math.random().toString(36).slice(-8);
                     
-                    // 1. Find or create portal user
-                    const matchingUser = users.find(u => 
-                        (landlord.email && u.email?.toLowerCase() === landlord.email.toLowerCase()) || 
-                        (landlord.phoneNumber && u.phoneNumber === landlord.phoneNumber)
-                    );
-                    
-                    if (matchingUser) {
-                        const updatedUser = { 
-                            ...matchingUser, 
-                            role: matchingUser.role === 'landlord' ? matchingUser.role : 'landlord',
-                            password: tempPassword,
-                            mustChangePassword: true 
-                        };
-                        await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
-                    } else {
-                        const newUser: any = {
-                            id: `user_${Date.now()}_${Math.random().toString(36).slice(-4)}`,
-                            name: landlord.name,
-                            email: landlord.email || '',
-                            phoneNumber: landlord.phoneNumber || '',
-                            role: 'landlord',
-                            institutionId,
-                            createdAt: new Date().toISOString(),
-                            isActive: true,
-                            mustChangePassword: true,
-                            needsEmailActivation: !landlord.email,
-                            password: tempPassword
-                        };
-                        await apiService.saveModuleRecord('users', newUser);
-                    }
+                    // 1. Find or create portal user account globally (avoids conflicts)
+                    await findOrCreatePortalUser(landlord.name, landlord.email, landlord.phoneNumber, 'landlord', tempPassword);
                     
                     // 2. Send notification
                     if (method === 'email' && landlord.email) {
@@ -1085,38 +1043,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const handleSaveTenant = async (data: Partial<PMTenant>) => {
         try {
             const tenantId = editingTenant?.id || `tenant_${Date.now()}`;
+            const tempPassword = Math.random().toString(36).slice(-8);
 
             // 1. Create or update system user account for the tenant if email is provided (only for new tenants)
             if (!editingTenant && data.email) {
-                const tempPassword = Math.random().toString(36).slice(-8);
-                const matchingUser = users.find(u => 
-                    (data.email && u.email?.toLowerCase() === data.email.toLowerCase()) || 
-                    (data.phoneNumber && u.phoneNumber === data.phoneNumber)
-                );
-
-                if (matchingUser) {
-                    const updatedUser = {
-                        ...matchingUser,
-                        role: matchingUser.role === 'tenant' ? matchingUser.role : 'tenant',
-                        password: tempPassword,
-                        mustChangePassword: true
-                    };
-                    await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
-                } else {
-                    const newUser = {
-                        id: `user_${Date.now()}`,
-                        name: data.name || '',
-                        email: data.email,
-                        phoneNumber: data.phoneNumber || '',
-                        role: 'tenant',
-                        institutionId,
-                        createdAt: new Date().toISOString(),
-                        isActive: true,
-                        mustChangePassword: true,
-                        password: tempPassword
-                    };
-                    await apiService.saveModuleRecord('users', newUser);
-                }
+                await findOrCreatePortalUser(data.name || '', data.email, data.phoneNumber, 'tenant', tempPassword);
 
                 // 2. Send tenant welcome email
                 try {
