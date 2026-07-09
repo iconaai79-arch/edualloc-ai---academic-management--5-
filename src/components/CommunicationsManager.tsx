@@ -59,6 +59,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     }, [currentInstitution, moduleContext]);
     const isChurch = useMemo(() => currentInstitution?.institutionType === 'Church', [currentInstitution]);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
+    const [selectedTransactionForReceipt, setSelectedTransactionForReceipt] = useState<MpesaTransaction | null>(null);
     const [recipientTarget, setRecipientTarget] = useState('individual'); // individual, all_staff, all_students, department, course, institution
     const [selectedId, setSelectedId] = useState(''); // Holds user ID, dept ID, course ID, or institution ID
     const [selectedInstitutionRoleFilter, setSelectedInstitutionRoleFilter] = useState<'all' | 'admins'>('all');
@@ -700,6 +701,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                 <th className="py-4 px-6">Amount</th>
                                 <th className="py-4 px-6">Provider</th>
                                 <th className="py-4 px-6">Status</th>
+                                <th className="py-4 px-6 text-right">Receipt</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
@@ -724,10 +726,18 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                             {txn.status}
                                         </span>
                                     </td>
+                                    <td className="py-4 px-6 text-right">
+                                        <button
+                                            onClick={() => setSelectedTransactionForReceipt(txn)}
+                                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                                        >
+                                            View Receipt
+                                        </button>
+                                    </td>
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={5} className="py-12 text-center text-slate-400 text-xs italic">
+                                    <td colSpan={6} className="py-12 text-center text-slate-400 text-xs italic">
                                         No purchase history found.
                                     </td>
                                 </tr>
@@ -955,6 +965,91 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     minSmsUnits={(smsConfig as any)?.minSmsUnits || 0}
                     requesterId={currentUser?.id}
                 />
+            )}
+            {selectedTransactionForReceipt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                        {/* Printable Area Wrapper */}
+                        <div id="sms-receipt-print-area" className="p-8 space-y-6">
+                            {/* Header */}
+                            <div className="text-center space-y-2 pb-6 border-b border-dashed border-slate-200 dark:border-slate-800">
+                                <div className="inline-flex p-3.5 bg-indigo-600/10 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-400 rounded-3xl">
+                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">SMS Topup Receipt</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{currentInstitution?.name || 'Education AI Portal'}</p>
+                            </div>
+
+                            {/* Details */}
+                            <div className="space-y-4 text-xs">
+                                <div className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-800/50">
+                                    <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Receipt Reference</span>
+                                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{selectedTransactionForReceipt.transactionId || selectedTransactionForReceipt.id}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-800/50">
+                                    <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Date & Time</span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200">{new Date(selectedTransactionForReceipt.timestamp).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-800/50">
+                                    <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Payment Provider</span>
+                                    <span className="font-bold text-slate-850 dark:text-slate-150 uppercase text-[10px]">{selectedTransactionForReceipt.provider}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-800/50">
+                                    <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">SMS Units Purchased</span>
+                                    <span className="font-extrabold text-indigo-600 dark:text-indigo-400 text-sm">
+                                        {selectedTransactionForReceipt.metadata?.units || Math.round(selectedTransactionForReceipt.amount / (currentInstitution?.customSmsPrice || (currentInstitution as any)?.custom_sms_price || (smsConfig as any)?.smsUnitPrice || (smsConfig as any)?.sms_unit_price || companyDetails?.smsConfig?.smsUnitPrice || (companyDetails?.smsConfig as any)?.sms_unit_price || (companyDetails as any)?.smsUnitPrice || (companyDetails as any)?.sms_unit_price || 2))} Units
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center py-3 bg-slate-50 dark:bg-slate-900/50 px-4 rounded-2xl">
+                                    <span className="font-black text-slate-400 uppercase text-[9px] tracking-wider">Amount Paid</span>
+                                    <span className="font-black text-slate-900 dark:text-white text-base">KES {selectedTransactionForReceipt.amount?.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2">
+                                    <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Status</span>
+                                    <span className="px-2 py-0.5 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 rounded-full text-[9px] font-black uppercase tracking-wider">{selectedTransactionForReceipt.status}</span>
+                                </div>
+                            </div>
+
+                            {/* Footer note */}
+                            <div className="text-center text-[9px] text-slate-400 font-bold uppercase tracking-widest pt-4 border-t border-slate-100 dark:border-slate-800">
+                                Thank you for your purchase!
+                            </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex gap-4 p-6 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                                onClick={() => {
+                                    const printContent = document.getElementById('sms-receipt-print-area')?.innerHTML;
+                                    const originalContent = document.body.innerHTML;
+                                    if (printContent) {
+                                        document.body.innerHTML = `
+                                            <div style="font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 2rem;">
+                                                <div style="width: 100%; max-width: 400px; border: 1px solid #e2e8f0; padding: 2rem; border-radius: 1.5rem;">
+                                                    ${printContent}
+                                                </div>
+                                            </div>
+                                        `;
+                                        window.print();
+                                        document.body.innerHTML = originalContent;
+                                        window.location.reload(); // Reload to restore React state cleanly
+                                    }
+                                }}
+                                className="flex-1 py-3.5 bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-750 text-white rounded-full text-[10px] font-black uppercase tracking-widest transition-all text-center shadow-md"
+                            >
+                                Print Receipt
+                            </button>
+                            <button
+                                onClick={() => setSelectedTransactionForReceipt(null)}
+                                className="flex-1 py-3.5 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-750 text-slate-900 dark:text-white rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 transition-all text-center"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
             <style>{`
                 .form-input, .form-select { display: block; width: 100%; border-radius: 0.375rem; border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; background-color: white; }
