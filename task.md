@@ -20,4 +20,7 @@
 - [x] Hide the bulk 'Remove Arrears' button from the Arrears Manager action panel
 - [x] Add dynamic town list/datalist selector option for property town input field
 - [x] Display next assigned receipt number/range in the Record Transaction modal header
+- [x] Render the 3-column configuration dashboard under Settings tab
+- [x] Prepopulate bank name input with Kenyan banks datalist suggestions
+- [x] Validate compilation with Vite build check and update Capacitor android resources
 - [x] Verify the application compiles and runs without errors
