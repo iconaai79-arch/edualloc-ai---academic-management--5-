@@ -14,6 +14,9 @@ public class MainActivity extends BridgeActivity {
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         
+        // Register local print plugin
+        registerPlugin(PrintPlugin.class);
+        
         createNotificationChannels();
     }
 
