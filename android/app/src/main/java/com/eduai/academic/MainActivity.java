@@ -10,12 +10,12 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Register local print plugin BEFORE super.onCreate
+        registerPlugin(PrintPlugin.class);
+        
         super.onCreate(savedInstanceState);
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        
-        // Register local print plugin
-        registerPlugin(PrintPlugin.class);
         
         createNotificationChannels();
     }
