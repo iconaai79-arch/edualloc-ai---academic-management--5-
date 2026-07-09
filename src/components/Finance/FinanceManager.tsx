@@ -31,6 +31,8 @@ import { StudentEnrollmentManager } from '../common/StudentEnrollmentManager';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+import * as pdfService from '../../services/pdfService';
 
 interface FinanceManagerProps {
     invoices: Invoice[];
@@ -63,7 +65,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'balances' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings'>('billing');
+    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'balances' | 'receipts' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings'>('billing');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // State for settings sub-tabs
@@ -357,6 +359,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
+        { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
         { id: 'bursaries', label: 'Govt & NG-CDF Bursaries', icon: ScaleIcon },
         ...(!isDrivingSchool ? [{ id: 'config', label: 'Fee Configuration', icon: CreditCardIcon }] : []),
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
@@ -401,6 +404,188 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [dsPayAmount, setDsPayAmount] = useState<number>(0);
     const [dsPayMethod, setDsPayMethod] = useState('M-Pesa');
     const [dsPayReference, setDsPayReference] = useState('');
+
+    // Receipts states
+    const [searchReceiptQuery, setSearchReceiptQuery] = useState('');
+    const [receiptSourceFilter, setReceiptSourceFilter] = useState('All');
+    const [unreconciledFeeds, setUnreconciledFeeds] = useState<any[]>([]);
+    const [loadingFeeds, setLoadingFeeds] = useState(false);
+    const [selectedFeedTx, setSelectedFeedTx] = useState<any | null>(null);
+    const [showPostModal, setShowPostModal] = useState(false);
+    const [showReconcileModal, setShowReconcileModal] = useState(false);
+
+    // Post payment form states
+    const [manualPayStudentId, setManualPayStudentId] = useState('');
+    const [manualPayInvoiceId, setManualPayInvoiceId] = useState('');
+    const [manualPayAmount, setManualPayAmount] = useState<number>(0);
+    const [manualPayDate, setManualPayDate] = useState('');
+    const [manualPayMethod, setManualPayMethod] = useState('Cash');
+    const [manualPayReference, setManualPayReference] = useState('');
+    const [isSavingManualPay, setIsSavingManualPay] = useState(false);
+
+    // Reconcile form states
+    const [reconcileStudentId, setReconcileStudentId] = useState('');
+    const [reconcileInvoiceId, setReconcileInvoiceId] = useState('');
+    const [isReconciling, setIsReconciling] = useState(false);
+
+    const studentPendingInvoices = useMemo(() => {
+        const selectedId = showPostModal ? manualPayStudentId : reconcileStudentId;
+        if (!selectedId) return [];
+        return props.invoices.filter(inv => inv.studentId === selectedId && inv.status !== 'paid');
+    }, [props.invoices, manualPayStudentId, reconcileStudentId, showPostModal]);
+
+    const filteredReceipts = useMemo(() => {
+        const query = searchReceiptQuery.toLowerCase();
+        return (props.receipts || []).filter(rec => {
+            const student = props.students.find(s => s.id === rec.studentId);
+            const matchesQuery = 
+                (rec.receiptNumber || '').toLowerCase().includes(query) ||
+                (student?.name || '').toLowerCase().includes(query) ||
+                (rec.relatedTransactionId || '').toLowerCase().includes(query);
+            
+            const matchesSource = 
+                receiptSourceFilter === 'All' ||
+                rec.paymentMethod === receiptSourceFilter;
+
+            return matchesQuery && matchesSource;
+        });
+    }, [props.receipts, searchReceiptQuery, receiptSourceFilter, props.students]);
+
+    const fetchBankFeeds = async () => {
+        try {
+            setLoadingFeeds(true);
+            const feeds = await apiService.fetchModuleRecords('mpesa_transactions', props.institution.id);
+            setUnreconciledFeeds((feeds || []).filter((f: any) => f.status === 'pending'));
+        } catch (e) {
+            console.error("Failed to load bank feeds:", e);
+        } finally {
+            setLoadingFeeds(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'receipts') {
+            fetchBankFeeds();
+        }
+    }, [activeTab]);
+
+    const handlePostManualPayment = async () => {
+        if (!manualPayStudentId || !manualPayInvoiceId || manualPayAmount <= 0) {
+            alert("Please select a student, target invoice, and enter a valid payment amount.");
+            return;
+        }
+        setIsSavingManualPay(true);
+        try {
+            const invoice = props.invoices.find(inv => inv.id === manualPayInvoiceId);
+            if (!invoice) throw new Error("Target invoice not found");
+
+            const amountPaidNum = Number(manualPayAmount);
+            const receiptId = `RCT_${Date.now()}`;
+            const receiptNumber = `RCT-${Date.now().toString().slice(-6)}`;
+
+            await apiService.saveModuleRecord('receipts', {
+                id: receiptId,
+                receiptNumber: receiptNumber,
+                institutionId: props.institution.id,
+                paymentDate: manualPayDate || new Date().toISOString().split('T')[0],
+                amountPaid: amountPaidNum,
+                paidFor: invoice.invoiceNumber || 'School Fees',
+                paymentMethod: manualPayMethod,
+                relatedTransactionId: manualPayReference || '',
+                invoiceId: manualPayInvoiceId,
+                studentId: manualPayStudentId
+            });
+
+            const currentReceipts = await apiService.fetchModuleRecords<Receipt>('receipts', undefined, undefined, {
+                filter: { invoice_id: manualPayInvoiceId }
+            }).catch(() => []);
+
+            const totalPaid = currentReceipts.reduce((sum, r) => sum + (r.amountPaid || 0), 0) + amountPaidNum;
+            const newStatus = totalPaid >= invoice.totalAmount ? 'paid' : 'partial';
+
+            await apiService.saveModuleRecord('invoices', {
+                id: manualPayInvoiceId,
+                status: newStatus
+            });
+
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+
+            alert(`Receipt ${receiptNumber} generated and invoice updated successfully!`);
+
+            setManualPayStudentId('');
+            setManualPayInvoiceId('');
+            setManualPayAmount(0);
+            setManualPayReference('');
+            setShowPostModal(false);
+        } catch (e: any) {
+            alert("Failed to post receipt: " + (e.message || e));
+        } finally {
+            setIsSavingManualPay(false);
+        }
+    };
+
+    const handleReconcileBankFeed = async () => {
+        if (!selectedFeedTx || !reconcileStudentId || !reconcileInvoiceId) {
+            alert("Please select a student and target invoice.");
+            return;
+        }
+        setIsReconciling(true);
+        try {
+            const updatedTx = {
+                ...selectedFeedTx,
+                status: 'reconciled',
+                metadata: JSON.stringify({
+                    studentId: reconcileStudentId,
+                    invoiceId: reconcileInvoiceId
+                })
+            };
+
+            await apiService.saveModuleRecord('mpesa_transactions', updatedTx);
+            await apiService.reconcilePayment(updatedTx);
+
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+
+            await fetchBankFeeds();
+
+            alert("Bank feed transaction reconciled and receipt generated successfully!");
+
+            setReconcileStudentId('');
+            setReconcileInvoiceId('');
+            setSelectedFeedTx(null);
+            setShowReconcileModal(false);
+        } catch (e: any) {
+            alert("Failed to reconcile bank feed: " + (e.message || e));
+        } finally {
+            setIsReconciling(false);
+        }
+    };
+
+    const handleDownloadReceipt = async (receipt: Receipt) => {
+        try {
+            let relatedTx = null;
+            if (receipt.relatedTransactionId) {
+                relatedTx = {
+                    transactionId: receipt.relatedTransactionId,
+                    amount: receipt.amountPaid,
+                    provider: receipt.paymentMethod,
+                    description: receipt.paidFor || 'Fees Payment'
+                } as any;
+            }
+            await pdfService.downloadReceiptPdf(
+                receipt,
+                relatedTx,
+                props.institution,
+                props.companyDetails || {} as any,
+                props.institution.logoUrl || null
+            );
+        } catch (err: any) {
+            alert("Failed to generate PDF: " + (err.message || err));
+        }
+    };
 
     // Education Fee Config Sub-tab State
     const [configSubTab, setConfigSubTab] = useState<'voteheads' | 'builder'>('voteheads');
@@ -1176,6 +1361,162 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     );
                                 })
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'receipts' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left animate-in fade-in duration-300">
+                        {/* Left & Middle columns: Receipts list */}
+                        <div className="lg:col-span-2 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Receipt Ledger</h3>
+                                        <p className="text-xs text-slate-500 font-semibold mt-0.5">Manage fees received from Cash, Bank Feed, or Bursary allocations.</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowPostModal(true)}
+                                        className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        Post Receipt
+                                    </button>
+                                </div>
+
+                                <div className="flex flex-col md:flex-row gap-4">
+                                    <div className="relative flex-1">
+                                        <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search by student name or receipt number..."
+                                            value={searchReceiptQuery}
+                                            onChange={(e) => setSearchReceiptQuery(e.target.value)}
+                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <select
+                                        value={receiptSourceFilter}
+                                        onChange={(e) => setReceiptSourceFilter(e.target.value)}
+                                        className="px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-300 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="All">All Methods</option>
+                                        <option value="Cash">Cash (Manual)</option>
+                                        <option value="M-Pesa">M-Pesa</option>
+                                        <option value="Bank Transfer">Bank Feed</option>
+                                        <option value="Bursary">Bursary</option>
+                                    </select>
+                                </div>
+
+                                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
+                                    <table className="w-full border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/60">
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Receipt #</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                                <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                                <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Method</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Reference</th>
+                                                <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
+                                            {filteredReceipts.map(rec => {
+                                                const student = props.students.find(s => s.id === rec.studentId);
+                                                return (
+                                                    <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                                                        <td className="px-6 py-4">
+                                                            <span className="text-xs font-black text-indigo-650 dark:text-indigo-400">{rec.receiptNumber}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="text-xs font-bold text-slate-900 dark:text-white">{student?.name || 'Unknown Student'}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-500">
+                                                            {rec.paymentDate ? new Date(rec.paymentDate).toLocaleDateString() : 'N/A'}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <span className="text-xs font-black text-slate-900 dark:text-white">KES {rec.amountPaid?.toLocaleString()}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border ${
+                                                                rec.paymentMethod === 'Cash' 
+                                                                ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-250 dark:border-amber-500/20' 
+                                                                : rec.paymentMethod === 'Bursary'
+                                                                ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-250 dark:border-purple-500/20'
+                                                                : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-250 dark:border-emerald-500/20'
+                                                            }`}>
+                                                                {rec.paymentMethod}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
+                                                            {rec.relatedTransactionId || '—'}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <button
+                                                                onClick={() => handleDownloadReceipt(rec)}
+                                                                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-650 dark:hover:bg-indigo-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                                            >
+                                                                PDF
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {filteredReceipts.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={7} className="py-12 text-center text-xs text-slate-400 font-medium italic">No receipts matched your criteria.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right column: Bank Feeds / MPesa Transactions */}
+                        <div className="space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                <div>
+                                    <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Unreconciled Bank Feed</h3>
+                                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Approve and match incoming bank or MPesa feed transactions to students.</p>
+                                </div>
+
+                                <div className="space-y-4 max-h-[480px] overflow-y-auto pr-1">
+                                    {unreconciledFeeds.map(tx => (
+                                        <div key={tx.id} className="p-5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col gap-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <span className="text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest">{tx.provider || 'BANK'} feed</span>
+                                                    <h4 className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">{tx.transactionId}</h4>
+                                                </div>
+                                                <span className="text-xs font-black text-slate-900 dark:text-white">KES {tx.amount}</span>
+                                            </div>
+                                            <div className="text-[10px] text-slate-550 dark:text-slate-405 font-semibold space-y-0.5">
+                                                <p><span className="font-black text-slate-400 uppercase text-[8px] tracking-wider block">Sender</span> {tx.senderName || tx.phoneNumber || 'N/A'}</p>
+                                                <p><span className="font-black text-slate-400 uppercase text-[8px] tracking-wider block">Date</span> {new Date(tx.timestamp).toLocaleString()}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedFeedTx(tx);
+                                                    setShowReconcileModal(true);
+                                                }}
+                                                className="w-full py-2.5 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-650 text-indigo-650 dark:text-indigo-405 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all text-center"
+                                            >
+                                                Reconcile & Match
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {loadingFeeds && (
+                                        <div className="py-8 text-center text-xs text-slate-400">Loading bank feeds...</div>
+                                    )}
+                                    {!loadingFeeds && unreconciledFeeds.length === 0 && (
+                                        <div className="py-12 text-center text-xs text-slate-400 italic font-medium bg-slate-50 dark:bg-slate-950 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                                            No pending bank feed transactions.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -2912,6 +3253,206 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Post Receipt Modal */}
+                {showPostModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left animate-in zoom-in-95 duration-200">
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Post Manual Receipt</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Record a payment manually received from cash, cheque or bursary</p>
+                                </div>
+                                <button 
+                                    onClick={() => setShowPostModal(false)}
+                                    className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    <XIcon className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Student *</label>
+                                    <select
+                                        value={manualPayStudentId}
+                                        onChange={(e) => {
+                                            setManualPayStudentId(e.target.value);
+                                            setManualPayInvoiceId('');
+                                        }}
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                    >
+                                        <option value="">-- Choose Student --</option>
+                                        {props.students.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} ({s.admissionNumber || s.admission_number || 'No Adm'})</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {manualPayStudentId && (
+                                    <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Pending Invoice *</label>
+                                        <select
+                                            value={manualPayInvoiceId}
+                                            onChange={(e) => {
+                                                setManualPayInvoiceId(e.target.value);
+                                                const selectedInvoice = studentPendingInvoices.find(inv => inv.id === e.target.value);
+                                                if (selectedInvoice) {
+                                                    setManualPayAmount(selectedInvoice.totalAmount);
+                                                }
+                                            }}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                        >
+                                            <option value="">-- Choose Invoice --</option>
+                                            {studentPendingInvoices.map(inv => (
+                                                <option key={inv.id} value={inv.id}>
+                                                    {inv.invoiceNumber} ({inv.description || 'Fees'} - KES {inv.totalAmount.toLocaleString()}) [{inv.status}]
+                                                </option>
+                                            ))}
+                                            {studentPendingInvoices.length === 0 && (
+                                                <option disabled>No outstanding invoices for this student</option>
+                                            )}
+                                        </select>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Method *</label>
+                                        <select
+                                            value={manualPayMethod}
+                                            onChange={(e) => setManualPayMethod(e.target.value)}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                        >
+                                            <option value="Cash">Cash (Manual)</option>
+                                            <option value="Bank Transfer">Bank Feed / Transfer</option>
+                                            <option value="M-Pesa">M-Pesa</option>
+                                            <option value="Cheque">Cheque</option>
+                                            <option value="Bursary">Bursary</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount Paid (KES) *</label>
+                                        <input
+                                            type="number"
+                                            value={manualPayAmount || ''}
+                                            onChange={(e) => setManualPayAmount(Number(e.target.value))}
+                                            placeholder="Enter amount paid"
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Date</label>
+                                        <input
+                                            type="date"
+                                            value={manualPayDate}
+                                            onChange={(e) => setManualPayDate(e.target.value)}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Transaction Ref / Slip Code</label>
+                                        <input
+                                            type="text"
+                                            value={manualPayReference}
+                                            onChange={(e) => setManualPayReference(e.target.value)}
+                                            placeholder="Cheque # or bank slip ref"
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={handlePostManualPayment}
+                                    disabled={isSavingManualPay || !manualPayStudentId || !manualPayInvoiceId || manualPayAmount <= 0}
+                                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98]"
+                                >
+                                    {isSavingManualPay ? 'Saving Receipt...' : 'Confirm and Post Receipt'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Reconcile Bank Feed Modal */}
+                {showReconcileModal && selectedFeedTx && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left animate-in zoom-in-95 duration-200">
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Reconcile Bank Feed</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Match feed transaction {selectedFeedTx.transactionId} (KES {selectedFeedTx.amount}) to student</p>
+                                </div>
+                                <button 
+                                    onClick={() => { setShowReconcileModal(false); setSelectedFeedTx(null); }}
+                                    className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    <XIcon className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
+                                <div className="p-5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl text-xs space-y-2 font-semibold">
+                                    <p><span className="font-black text-slate-400 uppercase text-[9px] tracking-wider block">Source</span> {selectedFeedTx.provider || 'BANK'}</p>
+                                    <p><span className="font-black text-slate-400 uppercase text-[9px] tracking-wider block">Amount</span> KES {selectedFeedTx.amount}</p>
+                                    <p><span className="font-black text-slate-400 uppercase text-[9px] tracking-wider block">Sender Info</span> {selectedFeedTx.senderName || selectedFeedTx.phoneNumber || 'N/A'}</p>
+                                    <p><span className="font-black text-slate-400 uppercase text-[9px] tracking-wider block">Original Message</span> {selectedFeedTx.description || 'N/A'}</p>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Match to Student *</label>
+                                    <select
+                                        value={reconcileStudentId}
+                                        onChange={(e) => {
+                                            setReconcileStudentId(e.target.value);
+                                            setReconcileInvoiceId('');
+                                        }}
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                    >
+                                        <option value="">-- Choose Student --</option>
+                                        {props.students.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} ({s.admissionNumber || s.admission_number || 'No Adm'})</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {reconcileStudentId && (
+                                    <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Match to Outstanding Invoice *</label>
+                                        <select
+                                            value={reconcileInvoiceId}
+                                            onChange={(e) => setReconcileInvoiceId(e.target.value)}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                        >
+                                            <option value="">-- Choose Invoice --</option>
+                                            {studentPendingInvoices.map(inv => (
+                                                <option key={inv.id} value={inv.id}>
+                                                    {inv.invoiceNumber} ({inv.description || 'Fees'} - KES {inv.totalAmount.toLocaleString()}) [{inv.status}]
+                                                </option>
+                                            ))}
+                                            {studentPendingInvoices.length === 0 && (
+                                                <option disabled>No outstanding invoices for this student</option>
+                                            )}
+                                        </select>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={handleReconcileBankFeed}
+                                    disabled={isReconciling || !reconcileStudentId || !reconcileInvoiceId}
+                                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98]"
+                                >
+                                    {isReconciling ? 'Reconciling...' : 'Reconcile and Generate Receipt'}
+                                </button>
                             </div>
                         </div>
                     </div>
