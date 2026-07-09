@@ -28,6 +28,9 @@ import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { isEduInstitution } from '../../utils/roleUtils';
 import { StudentEnrollmentManager } from '../common/StudentEnrollmentManager';
+import * as XLSX from 'xlsx';
+import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
 
 interface FinanceManagerProps {
     invoices: Invoice[];
@@ -74,6 +77,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
         return initialMap;
     });
+
+    // Importer State
+    const [showImporter, setShowImporter] = useState(false);
+    const [importerFile, setImporterFile] = useState<File | null>(null);
+    const [importerStep, setImporterStep] = useState<'upload' | 'map'>('upload');
+    const [importerRawData, setImporterRawData] = useState<any[]>([]);
+    const [importerHeaders, setImporterHeaders] = useState<string[]>([]);
+    const [importerMappings, setImporterMappings] = useState({
+        identifier: '',
+        balance: ''
+    });
+    const [importerMatchField, setImporterMatchField] = useState<'admissionNumber' | 'name'>('admissionNumber');
+    const [isSavingBalances, setIsSavingBalances] = useState(false);
     const [brandingConfig, setBrandingConfig] = useState({
         invoicePrefix: props.companyDetails?.globalInvoicePrefix || 'INV-',
         receiptPrefix: 'REC-',
@@ -115,10 +131,134 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     };
 
     const handleSaveOpeningBalances = async () => {
-        alert("Opening balances saved successfully! The ledger profiles have been updated.");
-        if (props.onLogAction) {
-            await props.onLogAction("Updated student opening balances in ledger settings");
+        setIsSavingBalances(true);
+        try {
+            // Find all students whose opening balance was modified
+            const studentsToUpdate = props.students.filter(s => {
+                const originalBalance = s.metadata?.openingBalance || 0;
+                const newBalance = openingBalancesMap[s.id] || 0;
+                return originalBalance !== newBalance;
+            });
+
+            if (studentsToUpdate.length > 0) {
+                // Update them in the database
+                for (const student of studentsToUpdate) {
+                    const updatedMetadata = {
+                        ...(student.metadata || {}),
+                        openingBalance: openingBalancesMap[student.id] || 0
+                    };
+                    
+                    await apiService.saveModuleRecord('users', {
+                        id: student.id,
+                        metadata: updatedMetadata
+                    });
+                }
+                
+                if (props.onRefreshData) {
+                    await props.onRefreshData();
+                }
+            }
+
+            alert("Opening balances saved successfully! The ledger profiles have been updated.");
+            if (props.onLogAction) {
+                await props.onLogAction("Updated student opening balances in ledger settings");
+            }
+        } catch (e: any) {
+            alert("Failed to save opening balances: " + (e.message || e));
+        } finally {
+            setIsSavingBalances(false);
         }
+    };
+
+    const handleImporterFileSelect = (selectedFile: File) => {
+        setImporterFile(selectedFile);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // Parse headers
+                const sheetData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                if (sheetData.length === 0) {
+                    alert("Spreadsheet is empty.");
+                    return;
+                }
+                const headers = sheetData[0].filter((h: any) => h !== null && h !== '').map(String);
+                setImporterHeaders(headers);
+
+                // Auto-detect columns
+                const detectedId = headers.find(h => /adm|number|reg|identifier|student|name/i.test(h)) || '';
+                const detectedBal = headers.find(h => /bal|amount|open/i.test(h)) || '';
+                setImporterMappings({
+                    identifier: detectedId,
+                    balance: detectedBal
+                });
+
+                if (/name|student/i.test(detectedId)) {
+                    setImporterMatchField('name');
+                } else {
+                    setImporterMatchField('admissionNumber');
+                }
+
+                const rowsJson = XLSX.utils.sheet_to_json(worksheet);
+                setImporterRawData(rowsJson);
+                setImporterStep('map');
+            } catch (err: any) {
+                alert("Failed to parse sheet: " + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(selectedFile);
+    };
+
+    const handleConfirmImportBalances = () => {
+        if (!importerMappings.identifier || !importerMappings.balance) {
+            alert("Please map both the Student Identifier and Balance columns.");
+            return;
+        }
+
+        let matchCount = 0;
+        let skipCount = 0;
+        const newBalancesMap = { ...openingBalancesMap };
+
+        importerRawData.forEach(row => {
+            const rawId = String(row[importerMappings.identifier] || '').trim();
+            const rawBal = Number(row[importerMappings.balance]);
+
+            if (!rawId || isNaN(rawBal)) {
+                skipCount++;
+                return;
+            }
+
+            // Find matching student
+            let matchedStudent: User | undefined;
+            if (importerMatchField === 'admissionNumber') {
+                matchedStudent = props.students.find(s => {
+                    const adm = s.admissionNumber || s.admission_number || '';
+                    return adm.trim().toLowerCase() === rawId.toLowerCase();
+                });
+            } else {
+                matchedStudent = props.students.find(s => {
+                    return s.name.trim().toLowerCase() === rawId.toLowerCase();
+                });
+            }
+
+            if (matchedStudent) {
+                newBalancesMap[matchedStudent.id] = rawBal;
+                matchCount++;
+            } else {
+                skipCount++;
+            }
+        });
+
+        setOpeningBalancesMap(newBalancesMap);
+        alert(`Import complete! Matched and updated ${matchCount} students. Skipped ${skipCount} unmatched rows. Don't forget to click 'Save Changes' to persist updates!`);
+        
+        setImporterFile(null);
+        setImporterStep('upload');
+        setShowImporter(false);
     };
 
     const handleSaveBranding = async () => {
@@ -2126,12 +2266,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <option key={cls} value={cls}>{cls}</option>
                                         ))}
                                     </select>
-                                    <button 
-                                        onClick={handleSaveOpeningBalances}
-                                        className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all"
-                                    >
-                                        Save Changes
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => setShowImporter(true)}
+                                            className="px-5 py-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-650 hover:text-white transition-all flex items-center gap-2 border border-emerald-100 dark:border-emerald-900/50"
+                                        >
+                                            <ArrowUpTrayIcon className="w-4 h-4" />
+                                            Import Excel
+                                        </button>
+                                        <button 
+                                            onClick={handleSaveOpeningBalances}
+                                            disabled={isSavingBalances}
+                                            className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50"
+                                        >
+                                            {isSavingBalances ? 'Saving...' : 'Save Changes'}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
@@ -2503,6 +2653,149 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Importer Modal */}
+                {showImporter && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left">
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Import Opening Balances</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                        {importerStep === 'upload' ? 'Upload opening balances Excel sheet' : 'Map spreadsheet columns to student record fields'}
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => { setShowImporter(false); setImporterFile(null); setImporterStep('upload'); }} 
+                                    className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    <XIcon className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            <div className="p-8 space-y-6">
+                                {importerStep === 'upload' ? (
+                                    <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer text-center relative">
+                                        <input 
+                                            type="file" 
+                                            accept=".xlsx,.xls,.csv" 
+                                            className="hidden" 
+                                            id="balance-excel-upload-finance"
+                                            onChange={(e) => {
+                                                if (e.target.files?.[0]) handleImporterFileSelect(e.target.files[0]);
+                                            }}
+                                        />
+                                        <label htmlFor="balance-excel-upload-finance" className="cursor-pointer block">
+                                            <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                                                <ArrowUpTrayIcon className="w-10 h-10 text-indigo-650" />
+                                            </div>
+                                            <h4 className="text-base font-black text-slate-900 dark:text-white mb-2">Drop your Excel/CSV file here</h4>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">or click to browse from files</p>
+                                        </label>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-5">
+                                        <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-[2rem] border border-slate-100 dark:border-slate-800/60">
+                                            <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl">
+                                                <SparklesIcon className="w-5 h-5 text-emerald-650" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-bold text-slate-900 dark:text-white text-xs truncate">{importerFile?.name}</h4>
+                                                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">
+                                                    {(importerFile ? importerFile.size / 1024 : 0).toFixed(1)} KB • {importerRawData.length} Rows
+                                                </p>
+                                            </div>
+                                            <button 
+                                                onClick={() => { setImporterFile(null); setImporterStep('upload'); }} 
+                                                className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                            >
+                                                Change
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {/* Match Field Type Selection */}
+                                            <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/40 space-y-2 text-left">
+                                                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Match Students By *</label>
+                                                <div className="flex gap-4">
+                                                    <label className="flex items-center gap-2 text-xs font-bold text-slate-750 dark:text-slate-300 cursor-pointer">
+                                                        <input 
+                                                            type="radio" 
+                                                            name="matchField"
+                                                            checked={importerMatchField === 'admissionNumber'} 
+                                                            onChange={() => setImporterMatchField('admissionNumber')} 
+                                                            className="text-indigo-650 focus:ring-indigo-500 h-4 w-4 border-slate-300"
+                                                        />
+                                                        Admission Number
+                                                    </label>
+                                                    <label className="flex items-center gap-2 text-xs font-bold text-slate-750 dark:text-slate-300 cursor-pointer">
+                                                        <input 
+                                                            type="radio" 
+                                                            name="matchField"
+                                                            checked={importerMatchField === 'name'} 
+                                                            onChange={() => setImporterMatchField('name')} 
+                                                            className="text-indigo-650 focus:ring-indigo-500 h-4 w-4 border-slate-300"
+                                                        />
+                                                        Student Full Name
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {/* Column Mappings */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/40 flex flex-col gap-2">
+                                                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Student Identifier Column *</label>
+                                                    <select
+                                                        value={importerMappings.identifier}
+                                                        onChange={(e) => setImporterMappings(prev => ({ ...prev, identifier: e.target.value }))}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs text-slate-700 dark:text-slate-200"
+                                                    >
+                                                        <option value="">-- Select Column --</option>
+                                                        {importerHeaders.map(h => (
+                                                            <option key={h} value={h}>{h}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/40 flex flex-col gap-2">
+                                                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Opening Balance Column *</label>
+                                                    <select
+                                                        value={importerMappings.balance}
+                                                        onChange={(e) => setImporterMappings(prev => ({ ...prev, balance: e.target.value }))}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs text-slate-700 dark:text-slate-200"
+                                                    >
+                                                        <option value="">-- Select Column --</option>
+                                                        {importerHeaders.map(h => (
+                                                            <option key={h} value={h}>{h}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-4 border-t border-slate-100 dark:border-slate-850 flex gap-4">
+                                            <button 
+                                                type="button"
+                                                onClick={() => { setImporterFile(null); setImporterStep('upload'); }}
+                                                className="flex-1 py-3 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 rounded-xl font-bold text-xs uppercase tracking-wider text-center"
+                                            >
+                                                Back
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={handleConfirmImportBalances}
+                                                disabled={!importerMappings.identifier || !importerMappings.balance}
+                                                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md disabled:opacity-50"
+                                            >
+                                                Apply Import
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
                 </div>
