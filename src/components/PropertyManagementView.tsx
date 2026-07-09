@@ -661,7 +661,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
                     } else if (data.phoneNumber) {
                         const smsBody = `Welcome ${data.name}! Your Landlord Portal access:\nURL: ${window.location.origin}\nPhone: ${data.phoneNumber}\nPIN: ${tempPassword}\nLogin with your phone number & PIN. You will be asked to provide your email on first login.`;
-                        await apiService.sendSms(data.phoneNumber, smsBody);
+                        await apiService.sendSms(data.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
                     }
                 } catch (notifyErr) {
                     console.error('Failed to send landlord credentials notification:', notifyErr);
@@ -775,7 +775,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 alert(`Login credentials emailed to ${landlord.email} successfully!`);
             } else if (landlord.phoneNumber) {
                 const smsBody = `Hello ${landlord.name}! Your updated Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
-                await apiService.sendSms(landlord.phoneNumber, smsBody);
+                await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
                 alert(`Login credentials sent via SMS to ${landlord.phoneNumber} successfully!`);
             }
         } catch (e: any) { 
@@ -844,7 +844,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         await apiService.sendEmail(landlord.email, subject, body, emailConfig);
                     } else if (method === 'sms' && landlord.phoneNumber) {
                         const smsBody = `Hello ${landlord.name}! Your Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
-                        await apiService.sendSms(landlord.phoneNumber, smsBody);
+                        await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
                     }
                     successCount++;
                 } catch (err) {
