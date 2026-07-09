@@ -3,6 +3,7 @@ import { apiService } from '../../services/apiService';
 import { generateRetailReceiptPdf } from '../../services/pdfService';
 import { RetailInventoryItem, RetailStore, User, CafeMenuItem, RetailCustomer } from '../../types';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { printService, getPrinterConfig, savePrinterConfig, getBluetoothPrinters, PrinterConfig } from '../../services/printService';
 import { RectangleStackIcon as Layers } from '../icons/RectangleStackIcon';
 
 import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
@@ -33,6 +34,49 @@ interface DualModePOSProps {
 
 export function DualModePOS({ institutionId, currentUser, isEducation, preSelectedUser, onClearPreSelectedUser }: DualModePOSProps) {
     const [activeMode, setActiveMode] = useState<'shop' | 'field'>('shop');
+
+    // Printer State Configuration
+    const [printerConfig, setPrinterConfig] = useState<PrinterConfig | null>(null);
+    const [pairedPrinters, setPairedPrinters] = useState<{ name: string; address: string }[]>([]);
+    const [showPrinterSettings, setShowPrinterSettings] = useState(false);
+    const [isBluetoothLoading, setIsBluetoothLoading] = useState(false);
+
+    useEffect(() => {
+        setPrinterConfig(getPrinterConfig());
+    }, []);
+
+    const handleLoadBluetoothPrinters = async () => {
+        setIsBluetoothLoading(true);
+        try {
+            const devices = await getBluetoothPrinters();
+            setPairedPrinters(devices);
+        } catch (e: any) {
+            console.error("Bluetooth printers search failed:", e);
+        } finally {
+            setIsBluetoothLoading(false);
+        }
+    };
+
+    const handlePrint = async () => {
+        if (!receiptPdfUrl || !checkoutSuccess) return;
+
+        const completeSaleData = {
+            ...checkoutSuccess,
+            id: checkoutSuccess.id || Date.now().toString(),
+        };
+        const actualInst = institution || { name: 'School Store', phoneNumber: '', email: '' };
+
+        try {
+            await printService.printReceipt({
+                pdfBase64: receiptPdfUrl,
+                saleData: completeSaleData,
+                institution: actualInst,
+                isEducation: isEducation || false
+            });
+        } catch (e: any) {
+            alert(`Printing failed: ${e.message || e}`);
+        }
+    };
     const [activeStore, setActiveStore] = useState<RetailStore | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [products, setProducts] = useState<(RetailInventoryItem | CafeMenuItem)[]>([]);
@@ -913,47 +957,156 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                     )}
                                 </div>
 
-                                {receiptPdfUrl && (
-                                    <button
-                                        onClick={() => {
-                                            const printWindow = window.open('', '_blank');
-                                            if (printWindow) {
-                                                printWindow.document.write(`
-                                                    <html>
-                                                    <head>
-                                                        <title>Print Receipt</title>
-                                                        <style>
-                                                            body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-                                                            iframe { border: none; width: 100%; height: 100%; }
-                                                        </style>
-                                                    </head>
-                                                    <body>
-                                                        <iframe id="pdfFrame" src="${receiptPdfUrl}"></iframe>
-                                                        <script>
-                                                            const iframe = document.getElementById('pdfFrame');
-                                                            iframe.onload = () => {
-                                                                setTimeout(() => {
-                                                                    try {
-                                                                        iframe.contentWindow.focus();
-                                                                        iframe.contentWindow.print();
-                                                                    } catch (e) {
-                                                                        console.error("Iframe print failed, falling back to window print:", e);
-                                                                        window.print();
+                                {receiptPdfUrl && printerConfig && (
+                                    <div className="space-y-4 mb-4">
+                                        <button
+                                            type="button"
+                                            onClick={handlePrint}
+                                            className="w-full py-4 bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:opacity-90 text-white font-black uppercase text-[12px] tracking-[0.4em] rounded-[1.5rem] transition-all shadow-xl flex items-center justify-center gap-2"
+                                        >
+                                            <Printer className="w-5 h-5" />
+                                            Print Receipt
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPrinterSettings(!showPrinterSettings)}
+                                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-350 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5"
+                                        >
+                                            ⚙️ Configure Printer ({printerConfig.type === 'system' ? 'System Print' : printerConfig.type === 'bluetooth' ? 'Bluetooth' : 'Network/IP'})
+                                        </button>
+
+                                        {showPrinterSettings && (
+                                            <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/50 rounded-2xl space-y-4 text-left animate-in slide-in-from-top-2 duration-300">
+                                                <div>
+                                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2">Printer Interface Type</label>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {(['system', 'bluetooth', 'network'] as const).map((type) => (
+                                                            <button
+                                                                key={type}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const updated = { ...printerConfig, type };
+                                                                    setPrinterConfig(updated);
+                                                                    savePrinterConfig(updated);
+                                                                    if (type === 'bluetooth' && pairedPrinters.length === 0) {
+                                                                        handleLoadBluetoothPrinters();
                                                                     }
-                                                                }, 1000);
-                                                            };
-                                                        </script>
-                                                    </body>
-                                                    </html>
-                                                `);
-                                                printWindow.document.close();
-                                            }
-                                        }}
-                                        className="w-full py-4 mb-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase text-[12px] tracking-[0.4em] rounded-[1.5rem] transition-all shadow-xl flex items-center justify-center gap-2"
-                                    >
-                                        <Printer className="w-5 h-5" />
-                                        Print Receipt
-                                    </button>
+                                                                }}
+                                                                className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                                                                    printerConfig.type === type
+                                                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                                                                }`}
+                                                            >
+                                                                {type === 'system' ? 'System PDF' : type === 'bluetooth' ? 'Bluetooth' : 'IP / Wi-Fi'}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {printerConfig.type === 'bluetooth' && (
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center">
+                                                            <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Select Bluetooth Device</label>
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleLoadBluetoothPrinters}
+                                                                className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                                                disabled={isBluetoothLoading}
+                                                            >
+                                                                {isBluetoothLoading ? 'Searching...' : 'Refresh Devices'}
+                                                            </button>
+                                                        </div>
+                                                        {pairedPrinters.length > 0 ? (
+                                                            <select
+                                                                value={printerConfig.bluetoothAddress || ''}
+                                                                onChange={(e) => {
+                                                                    const selected = pairedPrinters.find(p => p.address === e.target.value);
+                                                                    const updated = {
+                                                                        ...printerConfig,
+                                                                        bluetoothAddress: e.target.value,
+                                                                        bluetoothName: selected?.name
+                                                                    };
+                                                                    setPrinterConfig(updated);
+                                                                    savePrinterConfig(updated);
+                                                                }}
+                                                                className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-850 dark:text-slate-200 outline-none"
+                                                            >
+                                                                <option value="">-- Choose a Printer --</option>
+                                                                {pairedPrinters.map(p => (
+                                                                    <option key={p.address} value={p.address}>
+                                                                        {p.name} ({p.address})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        ) : (
+                                                            <p className="text-[10px] text-slate-400 italic">No paired Bluetooth devices loaded. Try refreshing.</p>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {printerConfig.type === 'network' && (
+                                                    <div className="grid grid-cols-3 gap-3">
+                                                        <div className="col-span-2">
+                                                            <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Printer IP Address</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="e.g. 192.168.1.100"
+                                                                value={printerConfig.ipAddress || ''}
+                                                                onChange={(e) => {
+                                                                    const updated = { ...printerConfig, ipAddress: e.target.value };
+                                                                    setPrinterConfig(updated);
+                                                                    savePrinterConfig(updated);
+                                                                }}
+                                                                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-850 dark:text-slate-200 outline-none"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Port</label>
+                                                            <input
+                                                                type="number"
+                                                                placeholder="9100"
+                                                                value={printerConfig.port || 9100}
+                                                                onChange={(e) => {
+                                                                    const updated = { ...printerConfig, port: parseInt(e.target.value) || 9100 };
+                                                                    setPrinterConfig(updated);
+                                                                    savePrinterConfig(updated);
+                                                                }}
+                                                                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-850 dark:text-slate-200 outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {printerConfig.type !== 'system' && (
+                                                    <div>
+                                                        <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2">Paper Roll Size</label>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {([58, 80] as const).map((size) => (
+                                                                <button
+                                                                    key={size}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const updated = { ...printerConfig, paperWidth: size };
+                                                                        setPrinterConfig(updated);
+                                                                        savePrinterConfig(updated);
+                                                                    }}
+                                                                    className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                                                                        printerConfig.paperWidth === size
+                                                                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                                                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                                                                    }`}
+                                                                >
+                                                                    {size}mm Receipt Roll
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
 
                                 <button
