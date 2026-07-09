@@ -69,7 +69,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                 onLogout={() => window.location.reload()}
             />
             
-            <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-10">
+            <main className="flex-1 p-8 w-full space-y-10">
                 {/* Hero / Welcome Section */}
                 <div className="flex justify-between items-end">
                     <div className="space-y-2">
