@@ -69,7 +69,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // State for settings sub-tabs
-    const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'user_permissions' | 'branding'>('opening_balance');
+    const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'user_permissions' | 'branding'>('opening_balance');
     const [openingBalanceSearch, setOpeningBalanceSearch] = useState('');
     const [openingBalanceClassFilter, setOpeningBalanceClassFilter] = useState('All');
     const [openingBalancesMap, setOpeningBalancesMap] = useState<Record<string, number>>(() => {
@@ -169,6 +169,179 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to save opening balances: " + (e.message || e));
         } finally {
             setIsSavingBalances(false);
+        }
+    };
+
+    // Accounts & Grants sub-tab states
+    const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+    const [isLoadingBanks, setIsLoadingBanks] = useState(false);
+    const [newBankName, setNewBankName] = useState('');
+    const [newAccountName, setNewAccountName] = useState('');
+    const [newAccountNumber, setNewAccountNumber] = useState('');
+    const [newBranchName, setNewBranchName] = useState('');
+    const [newCurrency, setNewCurrency] = useState('KES');
+    const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null);
+
+    const [schoolGrants, setSchoolGrants] = useState<any[]>([]);
+    const [isLoadingGrants, setIsLoadingGrants] = useState(false);
+    const [newGrantConstituency, setNewGrantConstituency] = useState('');
+    const [newGrantCheque, setNewGrantCheque] = useState('');
+    const [newGrantAmount, setNewGrantAmount] = useState('');
+    const [newGrantFY, setNewGrantFY] = useState('2025/2026');
+    const [newGrantPurpose, setNewGrantPurpose] = useState('');
+    const [newGrantNotes, setNewGrantNotes] = useState('');
+    const [editingGrantId, setEditingGrantId] = useState<string | null>(null);
+
+    const [settingsVoteName, setSettingsVoteName] = useState('');
+    const [settingsVotePriority, setSettingsVotePriority] = useState(10);
+    const [settingsVoteAllocatedAmount, setSettingsVoteAllocatedAmount] = useState(0);
+    const [editingSettingsVoteheadId, setEditingSettingsVoteheadId] = useState<string | null>(null);
+
+    const fetchBankAccounts = async () => {
+        setIsLoadingBanks(true);
+        try {
+            const data = await apiService.fetchModuleRecords<any>('school_bank_accounts', props.institution.id).catch(() => []);
+            setBankAccounts(data || []);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoadingBanks(false);
+        }
+    };
+
+    const fetchSchoolGrants = async () => {
+        setIsLoadingGrants(true);
+        try {
+            const data = await apiService.fetchModuleRecords<any>('ng_cdf_school_grants', props.institution.id).catch(() => []);
+            setSchoolGrants(data || []);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoadingGrants(false);
+        }
+    };
+
+    const handleSaveBankAccount = async (accountData: any) => {
+        try {
+            const payload = {
+                id: accountData.id || `bank_${Date.now()}`,
+                institutionId: props.institution.id,
+                bankName: accountData.bankName,
+                accountName: accountData.accountName,
+                accountNumber: accountData.accountNumber,
+                branchName: accountData.branchName || '',
+                currency: accountData.currency || 'KES',
+                status: accountData.status || 'Active',
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('school_bank_accounts', payload);
+            alert('Bank account saved successfully!');
+            fetchBankAccounts();
+            
+            setNewBankName('');
+            setNewAccountName('');
+            setNewAccountNumber('');
+            setNewBranchName('');
+            setNewCurrency('KES');
+            setEditingBankAccountId(null);
+        } catch (err: any) {
+            console.error('Failed to save bank account:', err);
+            alert('Failed to save bank account: ' + (err.message || err));
+        }
+    };
+
+    const handleDeleteBankAccount = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this bank account?')) return;
+        try {
+            await apiService.deleteModuleRecord('school_bank_accounts', id);
+            alert('Bank account deleted!');
+            fetchBankAccounts();
+        } catch (err: any) {
+            console.error('Failed to delete bank account:', err);
+            alert('Failed to delete bank account: ' + (err.message || err));
+        }
+    };
+
+    const handleSaveSchoolGrant = async (grantData: any) => {
+        try {
+            const payload = {
+                id: grantData.id || `grant_${Date.now()}`,
+                institutionId: props.institution.id,
+                constituencyName: grantData.constituencyName,
+                chequeNumber: grantData.chequeNumber,
+                amount: Number(grantData.amount) || 0,
+                financialYear: grantData.financialYear,
+                purpose: grantData.purpose || '',
+                notes: grantData.notes || '',
+                receivedDate: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('ng_cdf_school_grants', payload);
+            alert('Subsidy/Grant record saved successfully!');
+            fetchSchoolGrants();
+            
+            setNewGrantConstituency('');
+            setNewGrantCheque('');
+            setNewGrantAmount('');
+            setNewGrantFY('2025/2026');
+            setNewGrantPurpose('');
+            setNewGrantNotes('');
+            setEditingGrantId(null);
+        } catch (err: any) {
+            console.error('Failed to save grant:', err);
+            alert('Failed to save grant: ' + (err.message || err));
+        }
+    };
+
+    const handleDeleteSchoolGrant = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this grant record?')) return;
+        try {
+            await apiService.deleteModuleRecord('ng_cdf_school_grants', id);
+            alert('Grant record deleted!');
+            fetchSchoolGrants();
+        } catch (err: any) {
+            console.error('Failed to delete grant:', err);
+            alert('Failed to delete grant: ' + (err.message || err));
+        }
+    };
+
+    const handleSaveSettingsVoteHeadDirect = async (voteHead: Partial<VoteHead>) => {
+        try {
+            const payload = {
+                id: voteHead.id || `vh_${Date.now()}`,
+                name: voteHead.name,
+                allocatedAmount: Number(voteHead.allocatedAmount) || 0,
+                amountSpent: voteHead.amountSpent || 0,
+                academicYearId: voteHead.academicYearId || '',
+                priority: Number(voteHead.priority) || 10,
+                institutionId: props.institution.id,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('vote_heads', payload);
+            alert('Vote Head saved successfully!');
+            setEditingSettingsVoteheadId(null);
+            setSettingsVoteName('');
+            setSettingsVotePriority(10);
+            setSettingsVoteAllocatedAmount(0);
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+        } catch (e) {
+            console.error("Failed to save votehead:", e);
+            alert("Failed to save votehead.");
+        }
+    };
+
+    const handleDeleteSettingsVoteHeadDirect = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this votehead?")) return;
+        try {
+            await apiService.deleteModuleRecord('vote_heads', id);
+            alert('Vote Head deleted successfully!');
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+        } catch (e) {
+            console.error("Failed to delete votehead:", e);
+            alert("Failed to delete votehead.");
         }
     };
 
@@ -662,6 +835,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             .then(res => setBursaryRecords(res || []))
             .catch(err => console.error("Failed to load ng_cdf_bursaries:", err));
     }, [props.institution.id]);
+
+    useEffect(() => {
+        if (activeTab === 'settings' && settingsSubTab === 'accounts_grants') {
+            fetchBankAccounts();
+            fetchSchoolGrants();
+        }
+    }, [activeTab, settingsSubTab, props.institution.id]);
 
     // Pre-populate builder amounts from existing structures
     useEffect(() => {
@@ -1197,6 +1377,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     { id: 'opening_balance', label: 'Opening Balance', icon: WalletIcon },
                                     { id: 'academic_calendar', label: 'Academic Year & Calendar', icon: CalendarDaysIcon },
                                     { id: 'financial_year', label: 'Financial Year', icon: ClockIcon },
+                                    { id: 'accounts_grants', label: 'Voteheads, Banks & Grants', icon: ScaleIcon },
                                     { id: 'user_permissions', label: 'User Permissions', icon: ShieldCheckIcon },
                                     { id: 'branding', label: 'Branding', icon: PhotoIcon }
                                 ] as const).map(sub => (
@@ -2738,6 +2919,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         Financial Year
                                     </button>
                                     <button
+                                        onClick={() => setSettingsSubTab('accounts_grants')}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            settingsSubTab === 'accounts_grants'
+                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                            : 'text-slate-500 hover:text-indigo-650'
+                                        }`}
+                                    >
+                                        Accounts & Grants
+                                    </button>
+                                    <button
                                         onClick={() => setSettingsSubTab('user_permissions')}
                                         className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                                             settingsSubTab === 'user_permissions'
@@ -3169,6 +3360,402 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     >
                                         Save Branding presets
                                     </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Subtab content: Voteheads, Banks & Grants */}
+                        {settingsSubTab === 'accounts_grants' && (
+                            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start text-left">
+                                {/* COLUMN 1: Vote Heads Management */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                    <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Vote Heads</h3>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Budget Allocations & Priorities</p>
+                                    </div>
+                                    
+                                    {/* Add / Edit Form */}
+                                    <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800/60">
+                                        <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                            {editingSettingsVoteheadId ? '✏️ Edit Vote Head' : '➕ Register Vote Head'}
+                                        </h4>
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Label</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="e.g. Tuition Fee" 
+                                                    value={settingsVoteName}
+                                                    onChange={e => setSettingsVoteName(e.target.value)}
+                                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Priority</label>
+                                                    <input 
+                                                        type="number" 
+                                                        min="1" 
+                                                        value={settingsVotePriority}
+                                                        onChange={e => setSettingsVotePriority(Number(e.target.value))}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Budget</label>
+                                                    <input 
+                                                        type="number" 
+                                                        placeholder="0.00" 
+                                                        value={settingsVoteAllocatedAmount || ''}
+                                                        onChange={e => setSettingsVoteAllocatedAmount(Number(e.target.value))}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 pt-2">
+                                                {editingSettingsVoteheadId ? (
+                                                    <>
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditingSettingsVoteheadId(null);
+                                                                setSettingsVoteName('');
+                                                                setSettingsVotePriority(10);
+                                                                setSettingsVoteAllocatedAmount(0);
+                                                            }}
+                                                            className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleSaveSettingsVoteHeadDirect({ id: editingSettingsVoteheadId, name: settingsVoteName, priority: settingsVotePriority, allocatedAmount: settingsVoteAllocatedAmount })}
+                                                            className="flex-1 py-2.5 bg-indigo-650 text-white rounded-xl text-[10px] font-black uppercase tracking-wider"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button 
+                                                        onClick={() => handleSaveSettingsVoteHeadDirect({ name: settingsVoteName, priority: settingsVotePriority, allocatedAmount: settingsVoteAllocatedAmount })}
+                                                        className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
+                                                    >
+                                                        Register Vote Head
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* List */}
+                                    <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 no-scrollbar">
+                                        {[...(props.voteHeads || [])].sort((a,b) => (a.priority || 99) - (b.priority || 99)).map(vh => (
+                                            <div key={vh.id} className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/60 rounded-2xl flex justify-between items-center">
+                                                <div>
+                                                    <p className="text-xs font-bold text-slate-800 dark:text-white">{vh.name}</p>
+                                                    <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">Budget: KES {vh.allocatedAmount?.toLocaleString()}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 bg-indigo-55/60 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-full font-black text-[9px]">
+                                                        #{vh.priority}
+                                                    </span>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setEditingSettingsVoteheadId(vh.id);
+                                                            setSettingsVoteName(vh.name);
+                                                            setSettingsVotePriority(vh.priority || 10);
+                                                            setSettingsVoteAllocatedAmount(vh.allocatedAmount || 0);
+                                                        }}
+                                                        className="p-1 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-500/20 text-slate-500 hover:text-indigo-600 rounded"
+                                                    >
+                                                        <PencilIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteSettingsVoteHeadDirect(vh.id)}
+                                                        className="p-1 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-600 rounded"
+                                                    >
+                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {(props.voteHeads || []).length === 0 && (
+                                            <p className="text-[11px] text-slate-400 italic text-center py-6">No vote heads registered.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* COLUMN 2: Bank Accounts Management */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                    <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Bank Accounts</h3>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Manage School Accounts</p>
+                                    </div>
+                                    
+                                    {/* Add / Edit Form */}
+                                    <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800/60">
+                                        <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                            {editingBankAccountId ? '✏️ Edit Account' : '➕ Register Account'}
+                                        </h4>
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Bank Name</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="e.g. Equity Bank" 
+                                                    value={newBankName}
+                                                    onChange={e => setNewBankName(e.target.value)}
+                                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Account Holder Name</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="e.g. Primary School Operations" 
+                                                    value={newAccountName}
+                                                    onChange={e => setNewAccountName(e.target.value)}
+                                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Account Number</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Account No." 
+                                                        value={newAccountNumber}
+                                                        onChange={e => setNewAccountNumber(e.target.value)}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Branch Name</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Branch (e.g. Nairobi)" 
+                                                        value={newBranchName}
+                                                        onChange={e => setNewBranchName(e.target.value)}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 pt-2">
+                                                {editingBankAccountId ? (
+                                                    <>
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditingBankAccountId(null);
+                                                                setNewBankName('');
+                                                                setNewAccountName('');
+                                                                setNewAccountNumber('');
+                                                                setNewBranchName('');
+                                                                setNewCurrency('KES');
+                                                            }}
+                                                            className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleSaveBankAccount({ id: editingBankAccountId, bankName: newBankName, accountName: newAccountName, accountNumber: newAccountNumber, branchName: newBranchName, currency: newCurrency })}
+                                                            className="flex-1 py-2.5 bg-indigo-650 text-white rounded-xl text-[10px] font-black uppercase tracking-wider"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button 
+                                                        onClick={() => handleSaveBankAccount({ bankName: newBankName, accountName: newAccountName, accountNumber: newAccountNumber, branchName: newBranchName, currency: newCurrency })}
+                                                        className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
+                                                    >
+                                                        Register Account
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* List */}
+                                    <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 no-scrollbar">
+                                        {bankAccounts.map(ba => (
+                                            <div key={ba.id} className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/60 rounded-2xl flex justify-between items-center">
+                                                <div>
+                                                    <p className="text-xs font-bold text-slate-800 dark:text-white">{ba.bankName}</p>
+                                                    <p className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 tracking-wider mt-0.5">{ba.accountNumber}</p>
+                                                    <p className="text-[9px] text-slate-400 font-semibold">{ba.accountName} {ba.branchName && `(${ba.branchName} Branch)`}</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        onClick={() => {
+                                                            setEditingBankAccountId(ba.id);
+                                                            setNewBankName(ba.bankName);
+                                                            setNewAccountName(ba.accountName);
+                                                            setNewAccountNumber(ba.accountNumber);
+                                                            setNewBranchName(ba.branchName || '');
+                                                            setNewCurrency(ba.currency || 'KES');
+                                                        }}
+                                                        className="p-1 bg-slate-100 hover:bg-indigo-55/60 dark:bg-slate-800 dark:hover:bg-indigo-500/20 text-slate-500 hover:text-indigo-600 rounded"
+                                                    >
+                                                        <PencilIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteBankAccount(ba.id)}
+                                                        className="p-1 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-600 rounded"
+                                                    >
+                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {bankAccounts.length === 0 && (
+                                            <p className="text-[11px] text-slate-400 italic text-center py-6">No bank accounts registered.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* COLUMN 3: Subsidies & Grants Management */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                    <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Subsidies & Grants</h3>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Record Constituency & Gov Grants</p>
+                                    </div>
+                                    
+                                    {/* Add / Edit Form */}
+                                    <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800/60">
+                                        <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                            {editingGrantId ? '✏️ Edit Grant' : '➕ Record Grant'}
+                                        </h4>
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Donor/Constituency Name</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="e.g. Westlands Constituency NG-CDF" 
+                                                    value={newGrantConstituency}
+                                                    onChange={e => setNewGrantConstituency(e.target.value)}
+                                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Cheque/Ref Number</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Cheque No." 
+                                                        value={newGrantCheque}
+                                                        onChange={e => setNewGrantCheque(e.target.value)}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Grant Amount (KES)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        placeholder="0.00" 
+                                                        value={newGrantAmount}
+                                                        onChange={e => setNewGrantAmount(e.target.value)}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Financial Year</label>
+                                                    <select
+                                                        value={newGrantFY}
+                                                        onChange={e => setNewGrantFY(e.target.value)}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    >
+                                                        <option value="2025/2026">2025/2026</option>
+                                                        <option value="2026/2027">2026/2027</option>
+                                                        <option value="2027/2028">2027/2028</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Purpose</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="e.g. Infrastructure Dev" 
+                                                        value={newGrantPurpose}
+                                                        onChange={e => setNewGrantPurpose(e.target.value)}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 pt-2">
+                                                {editingGrantId ? (
+                                                    <>
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditingGrantId(null);
+                                                                setNewGrantConstituency('');
+                                                                setNewGrantCheque('');
+                                                                setNewGrantAmount('');
+                                                                setNewGrantFY('2025/2026');
+                                                                setNewGrantPurpose('');
+                                                                setNewGrantNotes('');
+                                                            }}
+                                                            className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleSaveSchoolGrant({ id: editingGrantId, constituencyName: newGrantConstituency, chequeNumber: newGrantCheque, amount: newGrantAmount, financialYear: newGrantFY, purpose: newGrantPurpose, notes: newGrantNotes })}
+                                                            className="flex-1 py-2.5 bg-indigo-650 text-white rounded-xl text-[10px] font-black uppercase tracking-wider"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button 
+                                                        onClick={() => handleSaveSchoolGrant({ constituencyName: newGrantConstituency, chequeNumber: newGrantCheque, amount: newGrantAmount, financialYear: newGrantFY, purpose: newGrantPurpose, notes: newGrantNotes })}
+                                                        className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
+                                                    >
+                                                        Record Grant
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* List */}
+                                    <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 no-scrollbar">
+                                        {schoolGrants.map(sg => (
+                                            <div key={sg.id} className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/60 rounded-2xl flex justify-between items-center">
+                                                <div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <p className="text-xs font-bold text-slate-800 dark:text-white">{sg.constituencyName}</p>
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-655 dark:text-slate-300 rounded uppercase">{sg.financialYear}</span>
+                                                    </div>
+                                                    <p className="text-[10px] font-extrabold text-emerald-600 tracking-wider mt-0.5">KES {sg.amount?.toLocaleString()}</p>
+                                                    <p className="text-[9px] text-slate-400 font-semibold truncate max-w-[180px]">Purpose: {sg.purpose || 'General Funding'} {sg.chequeNumber && `(Cheque #${sg.chequeNumber})`}</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        onClick={() => {
+                                                            setEditingGrantId(sg.id);
+                                                            setNewGrantConstituency(sg.constituencyName);
+                                                            setNewGrantCheque(sg.chequeNumber);
+                                                            setNewGrantAmount(String(sg.amount));
+                                                            setNewGrantFY(sg.financialYear || '2025/2026');
+                                                            setNewGrantPurpose(sg.purpose || '');
+                                                            setNewGrantNotes(sg.notes || '');
+                                                        }}
+                                                        className="p-1 bg-slate-100 hover:bg-indigo-55/60 dark:bg-slate-800 dark:hover:bg-indigo-500/20 text-slate-500 hover:text-indigo-600 rounded"
+                                                    >
+                                                        <PencilIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteSchoolGrant(sg.id)}
+                                                        className="p-1 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-600 rounded"
+                                                    >
+                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {schoolGrants.length === 0 && (
+                                            <p className="text-[11px] text-slate-400 italic text-center py-6">No subsidies or grants recorded.</p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}
