@@ -184,8 +184,13 @@ public class PrintPlugin extends Plugin {
                 os.write(bytes);
                 os.flush();
                 
-                // Pause to let printer clear its buffer before closing
-                Thread.sleep(800);
+                // Shut down output to signal EOF (End of File) to printer
+                try {
+                    socket.getOutputStream().close();
+                } catch (IOException ignored) {}
+                
+                // Sleep longer to give printer enough time to roll out paper before closing socket
+                Thread.sleep(2500);
                 
                 socket.close();
                 call.resolve();
