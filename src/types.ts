@@ -826,6 +826,7 @@ export interface SubscriptionConfig {
     libraryCostPerStudent?: number;
     boardingCostPerStudent?: number;
     transportCostPerStudent?: number;
+    propertyCostPerTenant?: number;
 }
 
 export interface DatabaseConfig {

@@ -135,6 +135,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
     const [activeLibraryStudents, setActiveLibraryStudents] = useState(0);
     const [activeBoardingStudents, setActiveBoardingStudents] = useState(0);
     const [activeTransportStudents, setActiveTransportStudents] = useState(0);
+    const [activePropertyTenants, setActivePropertyTenants] = useState(0);
 
     useEffect(() => {
         if (institution.institutionType === 'Reseller') return;
@@ -142,11 +143,12 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
         const fetchModuleData = async () => {
             try {
                 // Fetch required data in parallel
-                const [usersData, bedAllocationsData, transportOnboardingData, academicYearsData] = await Promise.all([
+                const [usersData, bedAllocationsData, transportOnboardingData, academicYearsData, pmTenantsData] = await Promise.all([
                     apiService.fetchModuleRecords<any>('users', institution.id).catch(() => []),
                     apiService.fetchModuleRecords<any>('bed_allocations', institution.id).catch(() => []),
                     apiService.fetchModuleRecords<any>('transport_onboarding', institution.id).catch(() => []),
                     apiService.fetchModuleRecords<any>('academic_years', institution.id).catch(() => []),
+                    apiService.fetchModuleRecords<any>('pm_tenants', institution.id).catch(() => []),
                 ]);
 
                 // Filter users to only 'student' role
@@ -163,6 +165,9 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 // Determine active transport students
                 const onboardedTransport = transportOnboardingData.filter((t: any) => t.status === 'onboarded');
                 setActiveTransportStudents(onboardedTransport.length);
+
+                // Determine active property tenants
+                setActivePropertyTenants(pmTenantsData.length);
             } catch (error) {
                 console.error("Failed to fetch module data for billing calculation", error);
             }
@@ -287,10 +292,16 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                             <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents)?.toLocaleString()}</span>
                                         </div>
                                     )}
+                                    {subscriptionConfig.propertyCostPerTenant !== undefined && subscriptionConfig.propertyCostPerTenant > 0 && activePropertyTenants > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Property Tenants ({activePropertyTenants} active):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.propertyCostPerTenant * activePropertyTenants)?.toLocaleString()}</span>
+                                        </div>
+                                    )}
                                     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                         <span className="text-slate-900 dark:text-white font-bold">Total:</span>
                                         <span className="text-2xl font-bold text-[var(--color-primary)]">
-                                            KES {(monthlyPrice + (subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents + (subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents + (subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents)?.toLocaleString()}
+                                            KES {(monthlyPrice + (subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents + (subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents + (subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents + (subscriptionConfig.propertyCostPerTenant || 0) * activePropertyTenants)?.toLocaleString()}
                                             <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">/mo</span>
                                         </span>
                                     </div>
@@ -326,10 +337,16 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                             <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents * 12)?.toLocaleString()}</span>
                                         </div>
                                     )}
+                                    {subscriptionConfig.propertyCostPerTenant !== undefined && subscriptionConfig.propertyCostPerTenant > 0 && activePropertyTenants > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Property Tenants ({activePropertyTenants} active x 12):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.propertyCostPerTenant * activePropertyTenants * 12)?.toLocaleString()}</span>
+                                        </div>
+                                    )}
                                     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                         <span className="text-slate-900 dark:text-white font-bold">Total:</span>
                                         <span className="text-2xl font-bold text-[var(--color-primary)]">
-                                            KES {(yearlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 12) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 12) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 12))?.toLocaleString()}
+                                            KES {(yearlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 12) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 12) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 12) + ((subscriptionConfig.propertyCostPerTenant || 0) * activePropertyTenants * 12))?.toLocaleString()}
                                             <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">/yr</span>
                                         </span>
                                     </div>
@@ -366,10 +383,16 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                             <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents * 4)?.toLocaleString()}</span>
                                         </div>
                                     )}
+                                    {subscriptionConfig.propertyCostPerTenant !== undefined && subscriptionConfig.propertyCostPerTenant > 0 && activePropertyTenants > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Property Tenants ({activePropertyTenants} active x 4):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.propertyCostPerTenant * activePropertyTenants * 4)?.toLocaleString()}</span>
+                                        </div>
+                                    )}
                                     <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                         <span className="text-slate-900 dark:text-white font-bold">Total:</span>
                                         <span className="text-2xl font-bold text-[var(--color-primary)]">
-                                            KES {(quarterlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 4) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 4) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 4))?.toLocaleString()}
+                                            KES {(quarterlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 4) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 4) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 4) + ((subscriptionConfig.propertyCostPerTenant || 0) * activePropertyTenants * 4))?.toLocaleString()}
                                             <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">/qtr</span>
                                         </span>
                                     </div>
@@ -580,8 +603,8 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 <PayNowModal
                     isOpen={isPayModalOpen}
                     onClose={() => setIsPayModalOpen(false)}
-                    monthlyPrice={monthlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents)}
-                    yearlyPrice={yearlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 12) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 12) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 12)}
+                    monthlyPrice={monthlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents) + ((subscriptionConfig.propertyCostPerTenant || 0) * activePropertyTenants)}
+                    yearlyPrice={yearlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 12) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 12) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 12) + ((subscriptionConfig.propertyCostPerTenant || 0) * activePropertyTenants * 12)}
                     onPay={handlePayNow}
                     institutionName={institution.name}
                     institutionId={institution.id}
