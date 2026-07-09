@@ -91,6 +91,7 @@ export interface SupportStaffViewProps {
     securityAlerts?: SecurityAlert[];
     onAddAlert?: (alert: Omit<SecurityAlert, 'id' | 'institutionId' | 'createdBy' | 'createdAt' | 'status'>) => void;
     onResolveAlert?: (id: string) => void;
+    onDeleteAlert?: (id: string) => void;
     onAddIncident?: (data: any) => Promise<void>;
     appointments?: Appointment[];
     onUpdateAppointmentStatus?: (id: string, status: Appointment['status']) => void;
@@ -209,7 +210,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const {
         user = { name: 'User', institutionId: '' } as any,
         securityAlerts = [], visitors = [], appointments = [], users = [],
-        onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus,
+        onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onDeleteAlert, onUpdateAppointmentStatus,
         onLogAction, courses = []
     } = props;
     const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts' | 'gatepass' | 'reports' | 'staff_checkin'>('checkpoint');
@@ -885,7 +886,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 />
             )}
 
-            {activeTab === 'alerts' && (<SecurityAlertManager alerts={securityAlerts} users={props.users || []} onAddAlert={onAddAlert!} onResolveAlert={onResolveAlert!} />)}
+            {activeTab === 'alerts' && (<SecurityAlertManager alerts={securityAlerts} users={props.users || []} onAddAlert={onAddAlert!} onResolveAlert={onResolveAlert!} onDeleteAlert={onDeleteAlert} currentUserRole={user?.role} />)}
 
             {activeTab === 'gatepass' && (
                 <SecurityGatePassView

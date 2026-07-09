@@ -4,6 +4,7 @@ import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { XIcon } from './icons/XIcon';
+import { TrashIcon } from './icons/TrashIcon';
 
 
 interface SecurityAlertManagerProps {
@@ -11,9 +12,12 @@ interface SecurityAlertManagerProps {
     users: User[];
     onAddAlert: (data: Omit<SecurityAlert, 'id' | 'institutionId' | 'createdBy' | 'createdAt' | 'status'>) => void;
     onResolveAlert: (alertId: string) => void;
+    onDeleteAlert?: (alertId: string) => void;
+    currentUserRole?: string;
 }
 
-export const SecurityAlertManager: React.FC<SecurityAlertManagerProps> = ({ alerts, users, onAddAlert, onResolveAlert }) => {
+export const SecurityAlertManager: React.FC<SecurityAlertManagerProps> = ({ alerts, users, onAddAlert, onResolveAlert, onDeleteAlert, currentUserRole }) => {
+    const isSuperAdmin = currentUserRole === 'super_admin';
     const [targetType, setTargetType] = useState<'student' | 'lecturer' | 'guest'>('student');
     const [targetId, setTargetId] = useState('');
     const [guestName, setGuestName] = useState('');
@@ -183,9 +187,24 @@ export const SecurityAlertManager: React.FC<SecurityAlertManagerProps> = ({ aler
                                     <p className="text-sm text-slate-600 dark:text-slate-300">{alert.description}</p>
                                     <p className="text-xs text-slate-400 mt-2">{alert.createdAt ? new Date(alert.createdAt).toLocaleString() : 'N/A'}</p>
                                 </div>
-                                <button onClick={() => onResolveAlert(alert.id)} className="text-green-600 hover:text-green-800 text-sm font-medium flex items-center gap-1">
-                                    <CheckIcon className="w-4 h-4" /> Resolve
-                                </button>
+                                <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                                    <button onClick={() => onResolveAlert(alert.id)} className="text-green-600 hover:text-green-800 text-sm font-medium flex items-center gap-1">
+                                        <CheckIcon className="w-4 h-4" /> Resolve
+                                    </button>
+                                    {isSuperAdmin && onDeleteAlert && (
+                                        <button
+                                            onClick={() => {
+                                                if (window.confirm(`Permanently delete this alert for "${alert.targetName}"? This cannot be undone.`)) {
+                                                    onDeleteAlert(alert.id);
+                                                }
+                                            }}
+                                            title="Delete log entry (Super Admin only)"
+                                            className="text-red-400 hover:text-red-600 flex items-center gap-1 text-sm font-medium transition-colors"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )) : (
                             <p className="text-center text-slate-500 py-4">No active security alerts.</p>
@@ -194,27 +213,43 @@ export const SecurityAlertManager: React.FC<SecurityAlertManagerProps> = ({ aler
                 </div>
             </div>
 
-            {/* Resolved History (Optional/Collapsible could be better, simple list for now) */}
+            {/* Resolved History */}
              {resolvedAlerts.length > 0 && (
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                    <h3 className="text-lg font-bold mb-4 text-slate-500">Resolved History</h3>
+                    <h3 className="text-lg font-bold mb-4 text-slate-500">Resolved History ({resolvedAlerts.length})</h3>
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
                                 <tr className="text-left text-slate-500 border-b dark:border-slate-700">
-                                    <th className="pb-2">Target</th>
-                                    <th className="pb-2">Type</th>
-                                    <th className="pb-2">Description</th>
-                                    <th className="pb-2">Date Created</th>
+                                    <th className="pb-2 pr-4">Target</th>
+                                    <th className="pb-2 pr-4">Type</th>
+                                    <th className="pb-2 pr-4">Description</th>
+                                    <th className="pb-2 pr-4">Date Created</th>
+                                    {isSuperAdmin && onDeleteAlert && <th className="pb-2">Action</th>}
                                 </tr>
                             </thead>
                             <tbody>
-                                {resolvedAlerts.slice(0, 5).map(alert => (
-                                    <tr key={alert.id} className="border-b dark:border-slate-700 last:border-0">
-                                        <td className="py-2">{alert.targetName}</td>
-                                        <td className="py-2">{alert.type}</td>
-                                        <td className="py-2 text-slate-500 truncate max-w-xs">{alert.description}</td>
-                                        <td className="py-2 text-slate-400">{alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : 'N/A'}</td>
+                                {resolvedAlerts.map(alert => (
+                                    <tr key={alert.id} className="border-b dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                        <td className="py-2 pr-4 font-medium">{alert.targetName}</td>
+                                        <td className="py-2 pr-4">{alert.type}</td>
+                                        <td className="py-2 pr-4 text-slate-500 truncate max-w-xs">{alert.description}</td>
+                                        <td className="py-2 pr-4 text-slate-400 whitespace-nowrap">{alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : 'N/A'}</td>
+                                        {isSuperAdmin && onDeleteAlert && (
+                                            <td className="py-2">
+                                                <button
+                                                    onClick={() => {
+                                                        if (window.confirm(`Permanently delete this resolved log entry for "${alert.targetName}"? This cannot be undone.`)) {
+                                                            onDeleteAlert(alert.id);
+                                                        }
+                                                    }}
+                                                    title="Delete log entry (Super Admin only)"
+                                                    className="text-red-400 hover:text-red-600 flex items-center gap-1 text-xs font-medium transition-colors"
+                                                >
+                                                    <TrashIcon className="w-3.5 h-3.5" /> Delete
+                                                </button>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>

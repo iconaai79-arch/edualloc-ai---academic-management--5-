@@ -5858,6 +5858,7 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                             onLogGateAction: handleLogGateAction,
                                             onAddAlert: async (a: any) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alt_${Date.now()}`, status: 'active', timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
                                             onResolveAlert: async (id: string) => { const existing = securityAlerts.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('security_alerts', { ...existing, status: 'resolved' }); loadData(); } },
+                                            onDeleteAlert: async (id: string) => { if (currentUser?.role === 'super_admin') { await apiService.deleteModuleRecord('security_alerts', id); loadData(); } },
                                             onLogAction: handleLogAction,
                                             onTeacherGateCheckIn: handleTeacherGateCheckIn,
                                             teacherCheckIns
