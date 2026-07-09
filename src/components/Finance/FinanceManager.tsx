@@ -3501,10 +3501,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <input 
                                                     type="text" 
                                                     placeholder="e.g. Equity Bank" 
+                                                    list="kenyan-banks"
                                                     value={newBankName}
                                                     onChange={e => setNewBankName(e.target.value)}
                                                     className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
                                                 />
+                                                <datalist id="kenyan-banks">
+                                                    <option value="Equity Bank" />
+                                                    <option value="KCB Bank" />
+                                                    <option value="Co-operative Bank of Kenya" />
+                                                    <option value="NCBA Bank" />
+                                                    <option value="Absa Bank Kenya" />
+                                                    <option value="Standard Chartered Bank" />
+                                                    <option value="Diamond Trust Bank (DTB)" />
+                                                    <option value="I&M Bank" />
+                                                    <option value="Stanbic Bank" />
+                                                    <option value="Family Bank" />
+                                                    <option value="National Bank of Kenya" />
+                                                    <option value="Sidian Bank" />
+                                                    <option value="Credit Bank" />
+                                                    <option value="Consolidated Bank of Kenya" />
+                                                    <option value="M-Pesa (Safaricom)" />
+                                                    <option value="Airtel Money" />
+                                                </datalist>
                                             </div>
                                             <div className="space-y-1">
                                                 <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Account Holder Name</label>
