@@ -63,7 +63,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings'>('billing');
+    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'balances' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings'>('billing');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // State for settings sub-tabs
@@ -356,6 +356,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const tabs = [
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
+        { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'bursaries', label: 'Govt & NG-CDF Bursaries', icon: ScaleIcon },
         ...(!isDrivingSchool ? [{ id: 'config', label: 'Fee Configuration', icon: CreditCardIcon }] : []),
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
@@ -1060,6 +1061,123 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         setTransactionLimit={props.setTransactionLimit}
                         transactions={props.transactions || []}
                     />
+                )}
+
+                {activeTab === 'balances' && (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                        {/* Search and Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                            <div className="md:col-span-2 relative">
+                                <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search student by name or admission number..."
+                                    value={searchBalances}
+                                    onChange={(e) => setSearchBalances(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white"
+                                />
+                            </div>
+                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl text-left">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Outstanding</p>
+                                <p className="text-lg font-black text-rose-600 dark:text-rose-450">KSh {totalOutstandingAll.toLocaleString()}</p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl text-left">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Collection Rate</p>
+                                <p className="text-lg font-black text-emerald-600 dark:text-emerald-450">{collectionRateAll.toFixed(1)}%</p>
+                            </div>
+                        </div>
+
+                        {/* Vertically Grouped Students per Class */}
+                        <div className="space-y-8 text-left">
+                            {Object.keys(groupedStudents).length === 0 ? (
+                                <div className="p-8 text-center text-slate-405 font-medium bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-[2rem]">
+                                    No students found matching your criteria.
+                                </div>
+                            ) : (
+                                Object.entries(groupedStudents).map(([className, classData]) => {
+                                    const totalInvoiced = classData.reduce((acc, s) => acc + s.totals.invoiced, 0);
+                                    const totalPaid = classData.reduce((acc, s) => acc + s.totals.paid, 0);
+                                    const totalBal = classData.reduce((acc, s) => acc + s.totals.balance, 0);
+                                    
+                                    return (
+                                        <div key={className} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden animate-in fade-in duration-300">
+                                            {/* Class Header Banner */}
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 dark:border-slate-800">
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{className}</h3>
+                                                    <p className="text-slate-505 dark:text-slate-400 text-xs font-semibold">{classData.length} Students enrolled</p>
+                                                </div>
+                                                <div className="flex gap-6">
+                                                    <div>
+                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Invoiced</span>
+                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-300">KSh {totalInvoiced.toLocaleString()}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Paid</span>
+                                                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-450">KSh {totalPaid.toLocaleString()}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Outstanding</span>
+                                                        <span className="text-xs font-black text-rose-600 dark:text-rose-400">KSh {totalBal.toLocaleString()}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Students List inside class */}
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full border-collapse">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-50 dark:border-slate-800/60">
+                                                            <th className="px-8 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
+                                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoiced</th>
+                                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</th>
+                                                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Balance</th>
+                                                            <th className="px-8 py-4 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/30">
+                                                        {classData.map(student => (
+                                                            <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                                                                <td className="px-8 py-4 text-left">
+                                                                    <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-left">
+                                                                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{student.admissionNumber || student.admission_number || '—'}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">KSh {student.totals.invoiced.toLocaleString()}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-450">KSh {student.totals.paid.toLocaleString()}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <span className={`text-xs font-black ${student.totals.balance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-300'}`}>
+                                                                        KSh {student.totals.balance.toLocaleString()}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-8 py-4 text-center">
+                                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                                                        student.totals.balance <= 0
+                                                                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
+                                                                        : student.totals.paid > 0
+                                                                        ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
+                                                                        : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'
+                                                                    }`}>
+                                                                        {student.totals.balance <= 0 ? 'Fully Paid' : student.totals.paid > 0 ? 'Partial' : 'No Payment'}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
                 )}
 
                 {activeTab === 'billing' && !isDrivingSchool && (
