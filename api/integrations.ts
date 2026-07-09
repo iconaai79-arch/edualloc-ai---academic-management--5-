@@ -608,6 +608,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const recipientCount = normalizedRecipients.length;
             const totalUnitsToDeduct = unitsToDeduct * recipientCount;
 
+            // Define transactional/system messages that can consume the systemSmsBalance
+            const isPropertySystemSms = isSystemMessage || 
+                msgLower.includes('rent invoice') || 
+                msgLower.includes('rent arrears') ||
+                msgLower.includes('invoice #') || 
+                msgLower.includes('payment receipt') || 
+                msgLower.includes('payment notification') || 
+                msgLower.includes('payment reminder') || 
+                msgLower.includes('payment received') ||
+                msgLower.includes('payment of kes') ||
+                msgLower.includes('credentials');
+
+            let instBalance = 0;
+            let instConfig: any = {};
+            let systemSmsBal = 0;
+            let deductedFromSystem = 0;
+            let deductedFromGeneral = 0;
+
             // Load institution-specific config if available and not overridden by explicit body config
             if (institutionId !== 'SYSTEM') {
                 const { data: institution, error: configError } = await supabase
@@ -617,15 +635,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     .maybeSingle();
 
                 if (!configError && institution) {
-                    const instBalance = institution.sms_balance ?? institution.smsBalance ?? 0;
-                    const instConfig = institution.sms_config || institution.smsConfig;
+                    instBalance = institution.sms_balance ?? institution.smsBalance ?? 0;
+                    instConfig = institution.sms_config || institution.smsConfig || {};
+                    systemSmsBal = instConfig.systemSmsBalance || 0;
 
-                    // Check balance for non-system messages
-                    if (user.id !== 'system' && !isSystemMessage && instBalance < totalUnitsToDeduct) {
+                    if (isPropertySystemSms) {
+                        if (systemSmsBal >= totalUnitsToDeduct) {
+                            deductedFromSystem = totalUnitsToDeduct;
+                        } else {
+                            deductedFromSystem = systemSmsBal;
+                            deductedFromGeneral = totalUnitsToDeduct - systemSmsBal;
+                        }
+                    } else {
+                        deductedFromGeneral = totalUnitsToDeduct;
+                    }
+
+                    const availableTotal = instBalance + systemSmsBal;
+
+                    // Check balance for non-system messages, or system messages if they exceed the allocated system balance
+                    if (user.id !== 'system' && availableTotal < totalUnitsToDeduct) {
                         return res.status(402).json({
                             success: false,
-                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${instBalance}.`,
-                            balance: instBalance,
+                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${availableTotal}.`,
+                            balance: availableTotal,
                             required: totalUnitsToDeduct,
                             buy_url: '/settings?tab=billing'
                         });
@@ -779,11 +811,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // Deduct balance and Log (simplified for bulk)
-                if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
-                    await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: totalUnitsToDeduct });
+                if (institutionId !== 'SYSTEM' && user.id !== 'system') {
+                    if (deductedFromSystem > 0) {
+                        const newSystemBal = Math.max(0, (instConfig.systemSmsBalance || 0) - deductedFromSystem);
+                        const updatedConfig = { ...instConfig, systemSmsBalance: newSystemBal };
+                        await supabase
+                            .from('institutions')
+                            .update({ 
+                                sms_config: updatedConfig,
+                                smsConfig: updatedConfig
+                            })
+                            .eq('id', institutionId);
+                    }
 
-                    if (user.role === 'super_admin') {
-                        await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: totalUnitsToDeduct });
+                    if (deductedFromGeneral > 0) {
+                        await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+
+                        if (user.role === 'super_admin') {
+                            await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+                        }
                     }
 
                     try {
@@ -796,7 +842,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             units: totalUnitsToDeduct,
                             status: 'sent',
                             provider: provider,
-                            gateway_response: { batch_count: Math.ceil(normalizedRecipients.length / batchSize), success_batches: successBatchCount }
+                            gateway_response: { 
+                                batch_count: Math.ceil(normalizedRecipients.length / batchSize), 
+                                success_batches: successBatchCount,
+                                deducted_from_system: deductedFromSystem,
+                                deducted_from_general: deductedFromGeneral
+                            }
                         });
                     } catch (logErr) {
                         console.error('[SMS Logging] Failed to record log:', logErr);
@@ -885,12 +936,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // Deduct balance and Log
-                if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
+                if (institutionId !== 'SYSTEM' && user.id !== 'system') {
                     const supabase = getSupabase();
                     if (supabase) {
-                        await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: totalUnitsToDeduct });
-                        if (user.role === 'super_admin') {
-                            await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: totalUnitsToDeduct });
+                        if (deductedFromSystem > 0) {
+                            const newSystemBal = Math.max(0, (instConfig.systemSmsBalance || 0) - deductedFromSystem);
+                            const updatedConfig = { ...instConfig, systemSmsBalance: newSystemBal };
+                            await supabase
+                                .from('institutions')
+                                .update({ 
+                                    sms_config: updatedConfig,
+                                    smsConfig: updatedConfig
+                                })
+                                .eq('id', institutionId);
+                        }
+
+                        if (deductedFromGeneral > 0) {
+                            await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+
+                            if (user.role === 'super_admin') {
+                                await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+                            }
                         }
 
                         try {
@@ -902,7 +968,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 units: totalUnitsToDeduct,
                                 status: 'sent',
                                 provider: 'Sematime',
-                                gateway_response: { batch_count: Math.ceil(normalizedRecipients.length / batchSize), success_batches: successBatchCount }
+                                gateway_response: { 
+                                    batch_count: Math.ceil(normalizedRecipients.length / batchSize), 
+                                    success_batches: successBatchCount,
+                                    deducted_from_system: deductedFromSystem,
+                                    deducted_from_general: deductedFromGeneral
+                                }
                             });
                         } catch (logErr) {
                             console.error('[Sematime Logging] Failed to record log:', logErr);
