@@ -242,8 +242,13 @@ public class PrintPlugin extends Plugin {
                 os.write(bytes);
                 os.flush();
                 
-                // Allow print buffer to process
-                Thread.sleep(500);
+                // Signal End of Stream (TCP FIN) to the network printer
+                try {
+                    socket.shutdownOutput();
+                } catch (IOException ignored) {}
+                
+                // Allow network printer buffer to print before closing socket
+                Thread.sleep(1500);
                 
                 socket.close();
                 call.resolve();
