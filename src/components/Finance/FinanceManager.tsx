@@ -671,7 +671,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
-        { id: 'payroll', label: 'HR & Payroll', icon: BriefcaseIcon },
         { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
@@ -680,6 +679,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'goods_in_lieu', label: 'Goods in Lieu', icon: DocumentTextIcon },
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
         { id: 'requisitions', label: 'Requisitions & LPOs', icon: ClipboardListIcon },
+        { id: 'payroll', label: 'HR & Payroll', icon: BriefcaseIcon },
         { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
         { id: 'reports', label: 'Reports', icon: FileTextIcon },
