@@ -26,6 +26,7 @@ import { WalletIcon } from '../icons/WalletIcon';
 import { RetailRequisitions } from '../retail/RetailRequisitions';
 import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
+import { AnnualReportWizard } from './AnnualReportWizard';
 import { isEduInstitution } from '../../utils/roleUtils';
 import { StudentEnrollmentManager } from '../common/StudentEnrollmentManager';
 import * as XLSX from 'xlsx';
@@ -70,6 +71,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
+
+    // State for audit sub-tabs
+    const [auditSubTab, setAuditSubTab] = useState<'audit_dashboard' | 'annual_report'>('audit_dashboard');
 
     // Dynamic settings sub-tabs based on school type
     const settingsSubTabs = useMemo(() => {
@@ -1011,7 +1015,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const initialAmounts: Record<string, number> = {};
             (props.voteHeads || []).forEach(v => {
                 const fs = matchingFS.find(item => item.voteHeadId === v.id);
-                initialAmounts[v.id] = fs ? fs.amount : 0;
+                initialAmounts[v.id] = fs ? Number(fs.amount || (fs as any).allocatedAmount || 0) : 0;
             });
             setBuilderAmounts(initialAmounts);
         } else {
@@ -1119,10 +1123,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const matchedPriority = matchedVoteHead ? matchedVoteHead.priority : 10;
                 
                 const existing = existingList.find(e => e.voteHeadId === voteHeadId);
-                const payload: FeeStructure = {
+                const payload: any = {
                     id: existing ? existing.id : `fs_${Date.now()}_${Math.random().toString(36).substring(2,6)}`,
                     name: `${matchedName}`,
                     amount: amount,
+                    allocatedAmount: amount, // set both to be compatible with different database schemas
                     academicYearId: builderAYId,
                     term: builderTerm,
                     courseId: builderCourseId,
@@ -2768,13 +2773,53 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'audit' && (
-                    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-                        <FinancialAuditDashboard
-                            invoices={props.invoices}
-                            receipts={props.receipts}
-                            expenses={props.expenses}
-                            institutionId={props.institution.id}
-                        />
+                    <div className="space-y-6 animate-in fade-in duration-300">
+                        {/* Sub-tab toggle */}
+                        <div className="flex gap-3 flex-wrap">
+                            <button
+                                onClick={() => setAuditSubTab('audit_dashboard')}
+                                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                                    auditSubTab === 'audit_dashboard'
+                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                🔍 Automated Audit
+                            </button>
+                            <button
+                                onClick={() => setAuditSubTab('annual_report')}
+                                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                                    auditSubTab === 'annual_report'
+                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                📄 Annual Financial Report (MOE)
+                            </button>
+                        </div>
+
+                        {auditSubTab === 'audit_dashboard' && (
+                            <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <FinancialAuditDashboard
+                                    invoices={props.invoices}
+                                    receipts={props.receipts}
+                                    expenses={props.expenses}
+                                    institutionId={props.institution.id}
+                                />
+                            </div>
+                        )}
+
+                        {auditSubTab === 'annual_report' && (
+                            <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <AnnualReportWizard
+                                    invoices={props.invoices}
+                                    receipts={props.receipts}
+                                    expenses={props.expenses}
+                                    institution={props.institution}
+                                    companyDetails={props.companyDetails}
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
 

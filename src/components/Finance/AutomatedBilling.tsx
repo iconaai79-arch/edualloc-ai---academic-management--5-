@@ -40,7 +40,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
     const totalProjectedRevenue = students.reduce((sum, s) => {
         const studentFeeStructures = activeFeeStructures.filter(f => !f.courseId || f.courseId === s.courseId);
-        return sum + studentFeeStructures.reduce((acc, f) => acc + f.amount, 0);
+        return sum + studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
     }, 0);
 
     const handleRunBilling = async () => {
@@ -57,7 +57,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         const prefix = (companyDetails?.globalInvoicePrefix || 'INV-').trim();
         const mockInvoices = students.map(s => {
             const studentFeeStructures = activeFeeStructures.filter(f => !f.courseId || f.courseId === s.courseId);
-            const totalAmount = studentFeeStructures.reduce((acc, f) => acc + f.amount, 0);
+            const totalAmount = studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
             return {
                 id: `inv_auto_${Date.now()}_${s.id}`,
                 invoiceNumber: `${prefix}${Date.now().toString().slice(-6)}-${s.id.slice(-4)}`,
@@ -70,8 +70,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 items: studentFeeStructures.map(f => ({
                     description: f.name,
                     quantity: 1,
-                    unitPrice: f.amount,
-                    amount: f.amount
+                    unitPrice: Number(f.amount || (f as any).allocatedAmount || 0),
+                    amount: Number(f.amount || (f as any).allocatedAmount || 0)
                 })),
                 institutionId: institution.id
             };
@@ -156,7 +156,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                         <p className="text-sm font-bold text-slate-700">{f.name}</p>
                                         {f.courseId && <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Course Restricted</p>}
                                     </div>
-                                    <span className="text-sm font-black text-slate-900">KES {f.amount?.toLocaleString()}</span>
+                                    <span className="text-sm font-black text-slate-900">KES {Number(f.amount || (f as any).allocatedAmount || 0)?.toLocaleString()}</span>
                                 </div>
                             ))
                         )}
