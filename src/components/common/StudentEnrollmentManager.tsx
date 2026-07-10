@@ -476,6 +476,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             priorAttendedDays: 0,
             gradeLevel: '',
             stream: '',
+            boardingStatus: 'day_scholar',
             subjects: [] as string[],
             parentName: '',
             parentPhone: '',
@@ -790,7 +791,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         ...(existingUser.metadata || {}),
                         passportPhoto: formData.passportPhoto || existingUser.metadata?.passportPhoto,
                         webauthnCredentials: formData.biometricCredentials || existingUser.metadata?.webauthnCredentials,
-                        fingerprintTemplate: formData.biometricTemplate || existingUser.metadata?.fingerprintTemplate
+                        fingerprintTemplate: formData.biometricTemplate || existingUser.metadata?.fingerprintTemplate,
+                        boardingStatus: formData.metadata.boardingStatus,
+                        residenceType: formData.metadata.boardingStatus
                     }
                 };
                 if (formData.gender && existingUser.gender !== formData.gender) {
@@ -821,7 +824,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     metadata: {
                         passportPhoto: formData.passportPhoto,
                         webauthnCredentials: formData.biometricCredentials,
-                        fingerprintTemplate: formData.biometricTemplate
+                        fingerprintTemplate: formData.biometricTemplate,
+                        boardingStatus: formData.metadata.boardingStatus,
+                        residenceType: formData.metadata.boardingStatus
                     }
                 };
                 if (formData.gender) {
@@ -895,6 +900,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     priorAttendedDays: 0,
                     gradeLevel: '',
                     stream: '',
+                    boardingStatus: 'day_scholar',
                     subjects: [],
                     parentName: '',
                     parentPhone: '',
@@ -950,6 +956,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 priorAttendedDays: enr.metadata?.priorAttendedDays || 0,
                 gradeLevel: enr.metadata?.gradeLevel || '',
                 stream: enr.metadata?.stream || '',
+                boardingStatus: enr.metadata?.boardingStatus || enr.metadata?.residenceType || associatedUser?.metadata?.boardingStatus || associatedUser?.metadata?.residenceType || 'day_scholar',
                 subjects: enr.metadata?.subjects || [],
                 parentName: enr.metadata?.parentName || '',
                 parentPhone: enr.metadata?.parentPhone || '',
@@ -4263,6 +4270,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                     {enr.metadata.stream}
                                                                 </span>
                                                             )}
+                                                            {enr.metadata?.boardingStatus && (
+                                                                <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded text-center whitespace-nowrap border mt-0.5 ${
+                                                                    enr.metadata.boardingStatus === 'boarder'
+                                                                    ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-800/40 dark:text-rose-400'
+                                                                    : 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800/40 dark:text-emerald-400'
+                                                                }`}>
+                                                                    {enr.metadata.boardingStatus === 'boarder' ? 'Boarder' : 'Day Scholar'}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -6208,7 +6224,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div>
                                             <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Grade Level</label>
                                             <select
@@ -6239,6 +6255,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 {formStreamsList.map(stream => (
                                                     <option key={stream} value={stream}>{stream}</option>
                                                 ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Residence Status</label>
+                                            <select
+                                                value={formData.metadata.boardingStatus || 'day_scholar'}
+                                                onChange={e => setFormData({ 
+                                                    ...formData, 
+                                                    metadata: { ...formData.metadata, boardingStatus: e.target.value } 
+                                                })}
+                                                className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                            >
+                                                <option value="day_scholar">Day Scholar</option>
+                                                <option value="boarder">Boarder</option>
                                             </select>
                                         </div>
                                     </div>

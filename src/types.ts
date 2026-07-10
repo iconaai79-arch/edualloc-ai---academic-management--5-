@@ -284,6 +284,7 @@ export interface StudentEnrollment {
         parentName?: string;
         parentPhone?: string;
         parentEmail?: string;
+        boardingStatus?: 'day_scholar' | 'boarder';
     } | any;
     createdAt?: string;
     updatedAt?: string;
@@ -1622,6 +1623,8 @@ export interface FeeStructure {
     voteHeadId?: string;
     priority?: number;
     institutionId: string;
+    applicableTo?: 'all' | 'boarder' | 'day_scholar';
+    applicable_to?: 'all' | 'boarder' | 'day_scholar';
 }
 
 export interface FinancialPeriod {
@@ -2288,6 +2291,21 @@ export interface LeaveOutWithDetails extends LeaveOutRequest {
     classTeacherName: string;
     boardingMasterName?: string;
     securityName?: string;
+}
+
+export interface FeeGoodsProposal {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    itemName: string;
+    quantity: number;
+    unit: string;
+    unitValue: number;
+    totalValue: number;
+    status: 'pending' | 'approved' | 'delivered' | 'rejected';
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 // ============================================

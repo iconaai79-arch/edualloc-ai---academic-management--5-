@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RetailDashboard } from './RetailDashboard';
+import { GoodsInLieuProposalsManager } from './GoodsInLieuProposalsManager';
 import { NotificationBell } from '../NotificationBell';
 import { supabase } from '../../lib/supabase';
 import { apiService } from '../../services/apiService';
@@ -64,7 +65,7 @@ interface RetailManagerProps {
 
 export function RetailManager(props: RetailManagerProps) {
     const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution, activeTab, onTabChange, hideNavigation, countyInventory = [], onMarkInventoryReceived, onEditUser } = props;
-    const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'stock_inwards' | 'shipments' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'support_staff' | 'students' | 'reports' | 'config'>('dashboard');
+    const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'stock_inwards' | 'shipments' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'support_staff' | 'students' | 'reports' | 'config' | 'goods_in_lieu'>('dashboard');
     const [selectedUserForPOS, setSelectedUserForPOS] = useState<User | null>(null);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
@@ -149,6 +150,7 @@ export function RetailManager(props: RetailManagerProps) {
         { id: 'stores', label: 'Departments', icon: Store },
         { id: 'expenses', label: 'Expenses', icon: Receipt },
         { id: 'requisitions', label: 'Requests', icon: FileText },
+        { id: 'goods_in_lieu', label: 'Goods in Lieu', icon: HandCoins },
         { id: 'vendors', label: 'Suppliers', icon: BuildingIcon },
         { id: 'transfers', label: 'Transfers', icon: Truck },
         { id: 'config', label: 'Config', icon: Cog },
@@ -313,6 +315,14 @@ export function RetailManager(props: RetailManagerProps) {
                         onUpdateRequisition={onUpdateRequisition}
                         isEducation={isEducation}
                         allUsers={allUsers}
+                    />
+                )}
+
+                {activeView === 'goods_in_lieu' && (
+                    <GoodsInLieuProposalsManager
+                        institutionId={institutionId}
+                        users={allUsers}
+                        inventory={inventory as any}
                     />
                 )}
 

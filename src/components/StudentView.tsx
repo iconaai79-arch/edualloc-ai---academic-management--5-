@@ -248,6 +248,25 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
     const [studentInvoices, setStudentInvoices] = useState<Invoice[]>([]);
     const [studentReceipts, setStudentReceipts] = useState<Receipt[]>([]);
     const [isLoadingBilling, setIsLoadingBilling] = useState(false);
+    const [goodsProposals, setGoodsProposals] = useState<any[]>([]);
+    const [isProposalFormOpen, setIsProposalFormOpen] = useState(false);
+    const [proposalForm, setProposalForm] = useState({
+        itemName: '',
+        quantity: 0,
+        unit: 'Bags',
+        unitValue: 0,
+        notes: ''
+    });
+
+    const fetchGoodsProposals = () => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('fee_goods_proposals', currentInstitution.id)
+                .then(res => {
+                    setGoodsProposals((res || []).filter((p: any) => p.studentId === user.id));
+                })
+                .catch(err => console.error("Failed to fetch goods proposals:", err));
+        }
+    };
 
     useEffect(() => {
         if (currentInstitution?.id && user.id) {
@@ -263,8 +282,41 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
             }).finally(() => {
                 setIsLoadingBilling(false);
             });
+            fetchGoodsProposals();
         }
     }, [currentInstitution?.id, user.id]);
+
+    const handleSubmitProposal = async () => {
+        if (!proposalForm.itemName.trim() || !proposalForm.quantity || !proposalForm.unit.trim() || !proposalForm.unitValue) {
+            alert("Please fill in all required fields.");
+            return;
+        }
+        if (!currentInstitution) return;
+        try {
+            const proposalPayload = {
+                id: `prop_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                institutionId: currentInstitution.id,
+                studentId: user.id,
+                itemName: proposalForm.itemName,
+                quantity: proposalForm.quantity,
+                unit: proposalForm.unit,
+                unitValue: proposalForm.unitValue,
+                totalValue: proposalForm.quantity * proposalForm.unitValue,
+                status: 'pending' as const,
+                notes: proposalForm.notes,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('fee_goods_proposals', proposalPayload);
+            setIsProposalFormOpen(false);
+            setProposalForm({ itemName: '', quantity: 0, unit: 'Bags', unitValue: 0, notes: '' });
+            fetchGoodsProposals();
+            alert("Proposal submitted successfully! The school store and administration will review your request.");
+        } catch (e) {
+            console.error("Failed to submit proposal", e);
+            alert("Failed to submit proposal.");
+        }
+    };
 
     const handleDownloadBursaryKit = async () => {
         if (!currentInstitution) return;
@@ -425,7 +477,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         return null;
     };
 
-    const tabs = ['dashboard', 'space_feed', 'my_timetable', 'assignments', 'feedback', 'absences', 'bursary_kit', 'nearby_classes', 'eduflow', 'eduvote'];
+    const tabs = ['dashboard', 'space_feed', 'my_timetable', 'assignments', 'feedback', 'absences', 'bursary_kit', 'goods_in_lieu', 'nearby_classes', 'eduflow', 'eduvote'];
 
     return (
         <div className="space-y-6">
@@ -656,6 +708,157 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                                 </>
                             )}
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'goods_in_lieu' && (
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 text-left animate-in fade-in duration-300">
+                    <div className="flex justify-between items-center flex-wrap gap-4">
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Pay Fees with Goods & Services</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Submit a proposal to supply agricultural produce, timber, or services to pay your fees.</p>
+                        </div>
+                        <button
+                            onClick={() => setIsProposalFormOpen(true)}
+                            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all hover:scale-[1.02] shadow-md flex items-center gap-2"
+                        >
+                            Submit New Proposal
+                        </button>
+                    </div>
+
+                    {isProposalFormOpen && (
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6">
+                            <h4 className="text-sm font-black text-slate-850 dark:text-white uppercase tracking-wider">New Goods/Services Proposal</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Item/Service Name *</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Maize Grade A, Firewood"
+                                        value={proposalForm.itemName}
+                                        onChange={e => setProposalForm(p => ({ ...p, itemName: e.target.value }))}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Quantity *</label>
+                                    <input
+                                        type="number"
+                                        placeholder="e.g. 5, 10"
+                                        value={proposalForm.quantity || ''}
+                                        onChange={e => setProposalForm(p => ({ ...p, quantity: Number(e.target.value) }))}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Unit of Measure *</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Bags (90kg), Tonnes"
+                                        value={proposalForm.unit}
+                                        onChange={e => setProposalForm(p => ({ ...p, unit: e.target.value }))}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Estimated Unit Value (KES) *</label>
+                                    <input
+                                        type="number"
+                                        placeholder="e.g. 3200"
+                                        value={proposalForm.unitValue || ''}
+                                        onChange={e => setProposalForm(p => ({ ...p, unitValue: Number(e.target.value) }))}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Additional Description / Notes</label>
+                                <textarea
+                                    rows={2}
+                                    placeholder="Explain condition of items, delivery timeline or service terms..."
+                                    value={proposalForm.notes}
+                                    onChange={e => setProposalForm(p => ({ ...p, notes: e.target.value }))}
+                                    className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-900 dark:text-white"
+                                />
+                            </div>
+
+                            <div className="flex justify-between items-center pt-2">
+                                <span className="text-xs font-black text-slate-500">
+                                    Calculated Total Fee Credit Proposal: <span className="text-indigo-650 text-base ml-1">KES {(proposalForm.quantity * proposalForm.unitValue).toLocaleString()}</span>
+                                </span>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setIsProposalFormOpen(false)}
+                                        className="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSubmitProposal}
+                                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-indigo-700 shadow-md"
+                                    >
+                                        Submit Proposal
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Proposal & Delivery History</h4>
+                        {goodsProposals.length === 0 ? (
+                            <p className="text-center text-xs font-medium text-slate-400 py-8 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border">No proposals submitted yet.</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b dark:border-slate-800">
+                                            <th className="p-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
+                                            <th className="p-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Item Name</th>
+                                            <th className="p-3 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Quantity</th>
+                                            <th className="p-3 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Unit Value</th>
+                                            <th className="p-3 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Total Value</th>
+                                            <th className="p-3 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {goodsProposals.map((p) => {
+                                            const statusColors: Record<string, string> = {
+                                                pending: 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400',
+                                                approved: 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400',
+                                                delivered: 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400',
+                                                rejected: 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400'
+                                            };
+                                            return (
+                                                <tr key={p.id} className="border-b dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors">
+                                                    <td className="p-3 text-xs font-bold text-slate-600 dark:text-slate-350">
+                                                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}
+                                                    </td>
+                                                    <td className="p-3 text-xs font-black text-slate-800 dark:text-white">
+                                                        {p.itemName}
+                                                    </td>
+                                                    <td className="p-3 text-xs font-bold text-slate-600 dark:text-slate-350 text-right">
+                                                        {p.quantity} {p.unit}
+                                                    </td>
+                                                    <td className="p-3 text-xs font-bold text-slate-600 dark:text-slate-350 text-right">
+                                                        KES {p.unitValue?.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-3 text-xs font-black text-slate-800 dark:text-white text-right">
+                                                        KES {p.totalValue?.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <span className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${statusColors[p.status] || 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                                                            {p.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

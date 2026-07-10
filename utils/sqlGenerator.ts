@@ -353,7 +353,8 @@ CREATE TABLE IF NOT EXISTS fee_structures (
     course_id TEXT REFERENCES courses(id) ON DELETE CASCADE,
     vote_head_id TEXT REFERENCES vote_heads(id) ON DELETE SET NULL,
     priority INTEGER,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    applicable_to TEXT DEFAULT 'all'
 );
 
 CREATE TABLE IF NOT EXISTS mpesa_transactions (
@@ -403,6 +404,21 @@ CREATE TABLE IF NOT EXISTS receipts (
     payment_method TEXT,
     related_transaction_id TEXT,
     student_id TEXT REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS fee_goods_proposals (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    item_name TEXT NOT NULL,
+    quantity DECIMAL(12, 2) NOT NULL,
+    unit TEXT NOT NULL,
+    unit_value DECIMAL(12, 2) NOT NULL,
+    total_value DECIMAL(12, 2) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS bank_transactions (

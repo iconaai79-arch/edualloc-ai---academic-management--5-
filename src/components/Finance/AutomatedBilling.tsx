@@ -1,8 +1,12 @@
-
-import React, { useState } from 'react';
-import type { FeeStructure, User, AcademicYear, Semester, Institution, CompanyDetails } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import type { FeeStructure, User, AcademicYear, Semester, Institution, CompanyDetails, Course } from '../../types';
+import { apiService } from '../../services/apiService';
 import { ZapIcon } from '../icons/ZapIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { UserIcon } from '../icons/UserIcon';
+import { UserGroupIcon } from '../icons/UserGroupIcon';
+import { AcademicCapIcon } from '../icons/AcademicCapIcon';
 
 interface AutomatedBillingProps {
     feeStructures: FeeStructure[];
@@ -12,6 +16,7 @@ interface AutomatedBillingProps {
     institution: Institution;
     onGenerateInvoices: (invoices: any[]) => Promise<void>;
     companyDetails?: CompanyDetails;
+    courses?: Course[];
 }
 
 export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
@@ -21,42 +26,122 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     semesters: rawSemesters,
     institution,
     onGenerateInvoices,
-    companyDetails
+    companyDetails,
+    courses: rawCourses = []
 }) => {
     const feeStructures = Array.isArray(rawFeeStructures) ? rawFeeStructures : [];
     const students = Array.isArray(rawStudents) ? rawStudents : [];
     const academicYears = Array.isArray(rawAcademicYears) ? rawAcademicYears : [];
     const semesters = Array.isArray(rawSemesters) ? rawSemesters : [];
+    const courses = Array.isArray(rawCourses) ? rawCourses : [];
+
     const [selectedAY, setSelectedAY] = useState('');
     const [selectedSem, setSelectedSem] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [progress, setProgress] = useState(0);
     const [step, setStep] = useState<'config' | 'preview' | 'processing' | 'done'>('config');
 
+    // Selection criteria states
+    const [targetType, setTargetType] = useState<'all' | 'individual' | 'class' | 'course'>('all');
+    const [selectedStudentId, setSelectedStudentId] = useState('');
+    const [selectedClass, setSelectedClass] = useState('');
+    const [selectedCourseId, setSelectedCourseId] = useState('');
+
+    // Boarding student registry status mapping
+    const [bedAllocations, setBedAllocations] = useState<any[]>([]);
+
+    useEffect(() => {
+        apiService.fetchBedAllocations(institution.id)
+            .then(res => setBedAllocations(res || []))
+            .catch(err => console.error("Failed to load bed allocations for billing:", err));
+    }, [institution.id]);
+
+    const isStudentBoarder = (student: User) => {
+        const metaResidence = student?.metadata?.boardingStatus || student?.metadata?.residenceType;
+        if (metaResidence === 'boarder' || metaResidence === 'boarding') {
+            return true;
+        }
+        return bedAllocations.some(a => a.studentId === student.id && a.status === 'Active');
+    };
+
+    // Extract unique classes/grade levels from student registry
+    const classes = useMemo(() => {
+        return Array.from(
+            new Set(
+                students.map(s => s.metadata?.gradeLevel || s.metadata?.stream).filter(Boolean)
+            )
+        ) as string[];
+    }, [students]);
+
+    // Filter students target pool based on target selection
+    const billingStudents = useMemo(() => {
+        if (targetType === 'individual') {
+            return students.filter(s => s.id === selectedStudentId);
+        }
+        if (targetType === 'class') {
+            return students.filter(s => (s.metadata?.gradeLevel || s.metadata?.stream) === selectedClass);
+        }
+        if (targetType === 'course') {
+            return students.filter(s => s.courseId === selectedCourseId);
+        }
+        return students;
+    }, [students, targetType, selectedStudentId, selectedClass, selectedCourseId]);
+
     const activeFeeStructures = feeStructures.filter(f => 
         f.academicYearId === selectedAY && 
         String(f.term || '') === String(selectedSem)
     );
 
-    const totalProjectedRevenue = students.reduce((sum, s) => {
-        const studentFeeStructures = activeFeeStructures.filter(f => !f.courseId || f.courseId === s.courseId);
+    const totalProjectedRevenue = billingStudents.reduce((sum, s) => {
+        const boarder = isStudentBoarder(s);
+        const studentFeeStructures = activeFeeStructures.filter(f => {
+            // Course restriction filter
+            const matchesCourse = !f.courseId || f.courseId === s.courseId;
+            if (!matchesCourse) return false;
+
+            // Boarding/Residence status filter
+            const appTo = f.applicableTo || f.applicable_to || 'all';
+            if (appTo === 'all') return true;
+            if (appTo === 'boarder') return boarder;
+            if (appTo === 'day_scholar') return !boarder;
+
+            return true;
+        });
         return sum + studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
     }, 0);
+
+    const isTargetValid = useMemo(() => {
+        if (targetType === 'individual') return !!selectedStudentId;
+        if (targetType === 'class') return !!selectedClass;
+        if (targetType === 'course') return !!selectedCourseId;
+        return true;
+    }, [targetType, selectedStudentId, selectedClass, selectedCourseId]);
 
     const handleRunBilling = async () => {
         setIsGenerating(true);
         setStep('processing');
         
         // Mock processing logic
-        const total = students.length;
+        const total = billingStudents.length;
         for (let i = 0; i <= 100; i += 10) {
             setProgress(i);
             await new Promise(r => setTimeout(r, 200));
         }
 
         const prefix = (companyDetails?.globalInvoicePrefix || 'INV-').trim();
-        const mockInvoices = students.map(s => {
-            const studentFeeStructures = activeFeeStructures.filter(f => !f.courseId || f.courseId === s.courseId);
+        const mockInvoices = billingStudents.map(s => {
+            const boarder = isStudentBoarder(s);
+            const studentFeeStructures = activeFeeStructures.filter(f => {
+                const matchesCourse = !f.courseId || f.courseId === s.courseId;
+                if (!matchesCourse) return false;
+
+                const appTo = f.applicableTo || f.applicable_to || 'all';
+                if (appTo === 'all') return true;
+                if (appTo === 'boarder') return boarder;
+                if (appTo === 'day_scholar') return !boarder;
+
+                return true;
+            });
             const totalAmount = studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
             return {
                 id: `inv_auto_${Date.now()}_${s.id}`,
@@ -90,7 +175,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 </div>
                 <h2 className="text-4xl font-black text-slate-900 tracking-tight">Institutional Billing Wizard</h2>
                 <p className="text-slate-500 font-medium max-w-lg mx-auto">
-                    Automate your revenue lifecycle. Generate term-based invoices for all registered students in seconds.
+                    Automate your revenue lifecycle. Generate term-based invoices for targeted students in seconds.
                 </p>
             </div>
 
@@ -121,20 +206,100 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                         </div>
                     </div>
 
+                    {/* Target Selector */}
+                    <div className="space-y-4 pt-6 border-t border-slate-100 text-left">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Billing Target</label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {[
+                                { id: 'all', label: 'All Students', desc: 'Invoices entire registry', icon: UsersIcon },
+                                { id: 'individual', label: 'Single Student', desc: 'Invoices one account', icon: UserIcon },
+                                { id: 'class', label: 'Class Group', desc: 'Filter by grade/stream', icon: UserGroupIcon },
+                                { id: 'course', label: 'By Course', desc: 'Filter by program', icon: AcademicCapIcon },
+                            ].map(option => (
+                                <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={() => setTargetType(option.id as any)}
+                                    className={`p-5 rounded-3xl border-2 text-left transition-all duration-300 relative overflow-hidden group flex flex-col justify-between min-h-[120px] ${
+                                        targetType === option.id 
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg scale-105' 
+                                        : 'bg-slate-50 dark:bg-slate-950 border-transparent hover:bg-slate-100 hover:scale-[1.02] text-slate-700 dark:text-slate-355'
+                                    }`}
+                                >
+                                    <option.icon className={`w-6 h-6 mb-3 ${targetType === option.id ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'} transition-colors`} />
+                                    <div>
+                                        <p className="text-xs font-black uppercase tracking-tight">{option.label}</p>
+                                        <p className={`text-[9px] font-bold mt-0.5 ${targetType === option.id ? 'text-indigo-200' : 'text-slate-400'}`}>{option.desc}</p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {targetType === 'individual' && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-top-4 duration-300 text-left">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Select Student</label>
+                            <select 
+                                value={selectedStudentId}
+                                onChange={(e) => setSelectedStudentId(e.target.value)}
+                                className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
+                            >
+                                <option value="">Select a student...</option>
+                                {students.map(s => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.name} ({s.admissionNumber || s.admission_number || 'No Adm'})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {targetType === 'class' && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-top-4 duration-300 text-left">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Select Class / Grade Level</label>
+                            <select 
+                                value={selectedClass}
+                                onChange={(e) => setSelectedClass(e.target.value)}
+                                className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
+                            >
+                                <option value="">Select class...</option>
+                                {classes.map(cls => (
+                                    <option key={cls} value={cls}>{cls}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {targetType === 'course' && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-top-4 duration-300 text-left">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Select Course / Program</label>
+                            <select 
+                                value={selectedCourseId}
+                                onChange={(e) => setSelectedCourseId(e.target.value)}
+                                className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
+                            >
+                                <option value="">Select course...</option>
+                                {courses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
                     <div className="bg-amber-50/50 border border-amber-100 p-6 rounded-3xl space-y-3">
                         <div className="flex items-center gap-2 text-amber-700">
                             <ZapIcon className="w-5 h-5" />
                             <span className="text-[10px] font-black uppercase tracking-widest">Impact Analysis</span>
                         </div>
-                        <p className="text-sm font-bold text-amber-800/80 leading-relaxed">
-                            Generating billing for {students.length} students across {activeFeeStructures.length} active fee categories. 
+                        <p className="text-sm font-bold text-amber-800/80 leading-relaxed text-left">
+                            Generating billing for {billingStudents.length} students across {activeFeeStructures.length} active fee categories. 
                             Estimated revenue projection: <span className="font-black">KES {totalProjectedRevenue?.toLocaleString()}</span>.
                         </p>
                     </div>
 
                     <button 
                         onClick={() => setStep('preview')}
-                        disabled={!selectedAY || !selectedSem}
+                        disabled={!selectedAY || !selectedSem || !isTargetValid || billingStudents.length === 0}
                         className="w-full py-6 bg-slate-900 text-white rounded-[2rem] text-xs font-black uppercase tracking-[0.3em] hover:bg-indigo-600 transition-all hover:scale-[1.02] active:scale-95 shadow-xl disabled:opacity-50"
                     >
                         Preview Billing Run
@@ -144,17 +309,28 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
             {step === 'preview' && (
                 <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-2xl space-y-8 animate-in slide-in-from-right-8 duration-500">
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest text-sm border-l-4 border-indigo-600 pl-4">Billing Preview Summary</h3>
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest text-sm border-l-4 border-indigo-600 pl-4 text-left">Billing Preview Summary</h3>
                     
                     <div className="space-y-4 max-h-64 overflow-y-auto pr-4 custom-scrollbar">
                         {activeFeeStructures.length === 0 ? (
                             <p className="text-center text-xs font-medium text-slate-400 p-4">No active fee structures configured for this academic year and semester.</p>
                         ) : (
                             activeFeeStructures.map((f, i) => (
-                                <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <div key={i} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left">
                                     <div>
                                         <p className="text-sm font-bold text-slate-700">{f.name}</p>
-                                        {f.courseId && <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Course Restricted</p>}
+                                        <div className="flex flex-wrap gap-2 items-center mt-1">
+                                            {f.courseId && <span className="text-[8px] font-black bg-indigo-50 text-indigo-650 px-1.5 py-0.5 rounded uppercase tracking-wider">Course Restricted</span>}
+                                            {(f.applicableTo || f.applicable_to) && (f.applicableTo || f.applicable_to) !== 'all' && (
+                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                                    (f.applicableTo || f.applicable_to) === 'boarder' 
+                                                    ? 'bg-rose-50 text-rose-650' 
+                                                    : 'bg-emerald-50 text-emerald-650'
+                                                }`}>
+                                                    {(f.applicableTo || f.applicable_to) === 'boarder' ? 'Boarders Only' : 'Day Scholars Only'}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                     <span className="text-sm font-black text-slate-900">KES {Number(f.amount || (f as any).allocatedAmount || 0)?.toLocaleString()}</span>
                                 </div>
@@ -191,7 +367,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                     <div className="space-y-4">
                         <h3 className="text-3xl font-black text-slate-900">Lifecycle Executed</h3>
                         <p className="text-slate-500 font-medium">
-                            The billing engine has successfully generated and distributed invoices to <span className="text-indigo-600 font-black">{students.length}</span> student accounts.
+                            The billing engine has successfully generated and distributed invoices to <span className="text-indigo-600 font-black">{billingStudents.length}</span> student accounts.
                         </p>
                     </div>
                     <div className="flex gap-4 justify-center">
@@ -203,4 +379,3 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         </div>
     );
 };
-
