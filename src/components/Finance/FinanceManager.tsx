@@ -972,9 +972,65 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Fee Structure Builder States
     const [builderCourseId, setBuilderCourseId] = useState('');
     const [builderAYId, setBuilderAYId] = useState('');
-    const [builderTerm, setBuilderTerm] = useState('');
-    const [builderAmounts, setBuilderAmounts] = useState<Record<string, number>>({});
-    const [builderTargets, setBuilderTargets] = useState<Record<string, 'all' | 'boarder' | 'day_scholar'>>({});
+
+    // Spreadsheet-like states
+    const [spreadsheetAmounts, setSpreadsheetAmounts] = useState<Record<string, Record<string, number>>>({});
+    const [spreadsheetTargets, setSpreadsheetTargets] = useState<Record<string, 'all' | 'boarder' | 'day_scholar'>>({});
+
+    // When builderCourseId or builderAYId changes, load existing structures
+    useEffect(() => {
+        if (builderCourseId && builderAYId && props.feeStructures) {
+            const newAmounts: Record<string, Record<string, number>> = {};
+            const newTargets: Record<string, 'all' | 'boarder' | 'day_scholar'> = {};
+
+            // Initialize all voteheads with 0 for each semester/term
+            (props.voteHeads || []).forEach(vh => {
+                newAmounts[vh.id] = {};
+                (props.semesters || []).forEach(sem => {
+                    newAmounts[vh.id][sem.id] = 0;
+                });
+                newTargets[vh.id] = 'all';
+            });
+
+            // Populate with existing database records
+            props.feeStructures.forEach(fs => {
+                if (fs.courseId === builderCourseId && fs.academicYearId === builderAYId) {
+                    if (fs.voteHeadId) {
+                        if (!newAmounts[fs.voteHeadId]) {
+                            newAmounts[fs.voteHeadId] = {};
+                        }
+                        // Match by term string or term/semester ID
+                        const matchedSem = (props.semesters || []).find(s => s.id === fs.term || s.name === fs.term);
+                        if (matchedSem) {
+                            newAmounts[fs.voteHeadId][matchedSem.id] = fs.amount || fs.allocatedAmount || 0;
+                        }
+                        if (fs.applicableTo || fs.applicable_to) {
+                            newTargets[fs.voteHeadId] = (fs.applicableTo || fs.applicable_to) as any;
+                        }
+                    }
+                }
+            });
+
+            setSpreadsheetAmounts(newAmounts);
+            setSpreadsheetTargets(newTargets);
+        }
+    }, [builderCourseId, builderAYId, props.feeStructures, props.voteHeads, props.semesters]);
+
+    const getTermTotal = (semId: string) => {
+        let total = 0;
+        Object.keys(spreadsheetAmounts).forEach(vhId => {
+            total += spreadsheetAmounts[vhId]?.[semId] || 0;
+        });
+        return total;
+    };
+
+    const getYearlyTotal = () => {
+        let total = 0;
+        (props.semesters || []).forEach(sem => {
+            total += getTermTotal(sem.id);
+        });
+        return total;
+    };
 
     useEffect(() => {
         const instId = props.institution.id;
@@ -1133,54 +1189,76 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Fee cohort saving
     const handleSaveFeeStructure = async () => {
-        if (!builderCourseId || !builderAYId || !builderTerm) {
-            alert("Please select Course, Academic Year, and Semester.");
+        if (!builderCourseId || !builderAYId) {
+            alert("Please select Course and Academic Year.");
             return;
         }
         try {
-            const activeVotes = Object.entries(builderAmounts).filter(([_, amt]) => amt > 0);
+            // Find all existing records for this Course + Academic Year to clean up or update
             const existingList = props.feeStructures.filter(f =>
                 f.courseId === builderCourseId &&
-                f.academicYearId === builderAYId &&
-                f.term === builderTerm
+                f.academicYearId === builderAYId
             );
 
-            await Promise.all(activeVotes.map(async ([voteHeadId, amount]) => {
-                const matchedVoteHead = (props.voteHeads || []).find(v => v.id === voteHeadId);
+            // Construct all active entries
+            const savePromises: Promise<any>[] = [];
+            const activeKeys = new Set<string>(); // Keep track of (voteheadId_semName) that we are saving
+
+            for (const vhId of Object.keys(spreadsheetAmounts)) {
+                const matchedVoteHead = (props.voteHeads || []).find(v => v.id === vhId);
                 const matchedName = matchedVoteHead ? matchedVoteHead.name : 'Fee Item';
                 const matchedPriority = matchedVoteHead ? matchedVoteHead.priority : 10;
-                const applicableTo = builderTargets[voteHeadId] || 'all';
-                
-                const existing = existingList.find(e => e.voteHeadId === voteHeadId);
-                const payload: any = {
-                    id: existing ? existing.id : `fs_${Date.now()}_${Math.random().toString(36).substring(2,6)}`,
-                    name: `${matchedName}`,
-                    amount: amount,
-                    allocatedAmount: amount, // set both to be compatible with different database schemas
-                    academicYearId: builderAYId,
-                    term: builderTerm,
-                    courseId: builderCourseId,
-                    voteHeadId: voteHeadId,
-                    priority: matchedPriority,
-                    institutionId: props.institution.id,
-                    applicableTo: applicableTo,
-                    applicable_to: applicableTo
-                };
-                await apiService.saveModuleRecord('fee_structures', payload);
-            }));
+                const applicableTo = spreadsheetTargets[vhId] || 'all';
 
-            // Delete any existing structures that were set to 0 or left out
-            const keptVoteIds = new Set(activeVotes.map(([id]) => id));
-            const deletedStructures = existingList.filter(e => e.voteHeadId && !keptVoteIds.has(e.voteHeadId));
+                for (const semId of Object.keys(spreadsheetAmounts[vhId])) {
+                    const amount = spreadsheetAmounts[vhId][semId];
+                    if (amount > 0) {
+                        const matchedSem = (props.semesters || []).find(s => s.id === semId);
+                        const semName = matchedSem ? matchedSem.name : semId;
+                        
+                        // Look up existing record to update
+                        const existing = existingList.find(e => 
+                            e.voteHeadId === vhId && 
+                            (e.term === semId || e.term === semName)
+                        );
+
+                        const payload: any = {
+                            id: existing ? existing.id : `fs_${Date.now()}_${Math.random().toString(36).substring(2,6)}`,
+                            name: matchedName,
+                            amount: amount,
+                            allocatedAmount: amount,
+                            academicYearId: builderAYId,
+                            term: semName, // Save human-readable term name
+                            courseId: builderCourseId,
+                            voteHeadId: vhId,
+                            priority: matchedPriority,
+                            institutionId: props.institution.id,
+                            applicableTo: applicableTo,
+                            applicable_to: applicableTo
+                        };
+                        savePromises.push(apiService.saveModuleRecord('fee_structures', payload));
+                        activeKeys.add(`${vhId}_${semName}`);
+                    }
+                }
+            }
+
+            await Promise.all(savePromises);
+
+            // Delete any existing structures that were left out or set to 0
+            const deletedStructures = existingList.filter(e => {
+                if (!e.voteHeadId) return false;
+                const key = `${e.voteHeadId}_${e.term}`;
+                return !activeKeys.has(key);
+            });
             await Promise.all(deletedStructures.map(d => apiService.deleteModuleRecord('fee_structures', d.id)));
 
             if (props.onRefreshData) {
                 await props.onRefreshData();
             }
-            alert("Fee structure cohort configuration saved successfully!");
-        } catch (err) {
-            console.error("Failed to save fee structures:", err);
-            alert("Failed to save fee structures.");
+            alert("Fee structure cohort spreadsheet configuration saved successfully!");
+        } catch (e) {
+            console.error("Failed to save fee structure spreadsheet:", e);
+            alert("Failed to save fee structure.");
         }
     };
 
@@ -4214,10 +4292,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-8 text-left w-full">
                                     <div>
                                         <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Cohort Fee Structure Builder</h3>
-                                        <p className="text-xs font-medium text-slate-400">Map specific courses, academic years, and terms/semesters to itemized votehead amounts to structure institutional billing structures.</p>
+                                        <p className="text-xs font-medium text-slate-400">Map specific courses and academic years to itemized votehead amounts across Term 1, Term 2, and Term 3 in a spreadsheet-like grid.</p>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Select Cohort Course</label>
                                             <select 
@@ -4240,67 +4318,96 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 {(props.academicYears || []).map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
                                             </select>
                                         </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Term / Semester</label>
-                                            <select 
-                                                value={builderTerm}
-                                                onChange={e => setBuilderTerm(e.target.value)}
-                                                className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-355 text-sm"
-                                            >
-                                                <option value="">Select Semester</option>
-                                                {(props.semesters || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                            </select>
-                                        </div>
                                     </div>
 
-                                    {/* Grid of configured voteheads for amount assignment */}
-                                    {builderCourseId && builderAYId && builderTerm && (
+                                    {/* Spreadsheet Grid of configured voteheads for multi-term amount assignment */}
+                                    {builderCourseId && builderAYId && (
                                         <div className="space-y-6 animate-in slide-in-from-bottom duration-300">
-                                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest pb-2 border-b">Configure amounts for this cohort</h4>
+                                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest pb-2 border-b">Configure Multi-Term Amounts & Targets</h4>
                                             
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                {(props.voteHeads || []).length === 0 ? (
-                                                    <p className="col-span-2 text-center text-xs text-slate-400 p-4">No configured voteheads found. Setup voteheads in settings to assign values.</p>
-                                                ) : (
-                                                    (props.voteHeads || []).map(vh => (
-                                                        <div key={vh.id} className="flex items-center gap-4 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/60">
-                                                            <div className="flex-1 space-y-2 text-left">
-                                                                <div>
-                                                                    <p className="text-sm font-bold text-slate-800 dark:text-white">{vh.name}</p>
-                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                                        Priority Rank #{vh.priority}
-                                                                        {(vh as any).isPercentage && <span className="ml-2 px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-650 dark:text-indigo-400 rounded text-[8px] font-black uppercase">{(vh as any).percentage}% split</span>}
-                                                                    </p>
-                                                                </div>
-                                                                <select
-                                                                    value={builderTargets[vh.id] || 'all'}
-                                                                    onChange={e => setBuilderTargets(prev => ({ ...prev, [vh.id]: e.target.value as any }))}
-                                                                    disabled={(vh as any).isPercentage}
-                                                                    className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-2.5 py-1.5 rounded-lg border-none focus:ring-1 focus:ring-indigo-500 cursor-pointer outline-none"
-                                                                >
-                                                                    <option value="all">All Students</option>
-                                                                    <option value="boarder">Boarders Only</option>
-                                                                    <option value="day_scholar">Day Scholars Only</option>
-                                                                </select>
-                                                            </div>
-                                                            <div className="w-1/3">
-                                                                <input 
-                                                                    type="number" 
-                                                                    placeholder="KES 0.00"
-                                                                    value={builderAmounts[vh.id] || ''}
-                                                                    onChange={e => setBuilderAmounts(prev => ({ ...prev, [vh.id]: Number(e.target.value) }))}
-                                                                    disabled={(vh as any).isPercentage}
-                                                                    className="w-full px-3 py-2 border dark:border-slate-800 rounded-xl outline-none font-bold text-right text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-600 disabled:opacity-50"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                )}
+                                            <div className="overflow-x-auto rounded-3xl border border-slate-200 dark:border-slate-850 bg-slate-50 dark:bg-slate-950">
+                                                <table className="w-full border-collapse text-left text-xs">
+                                                    <thead>
+                                                        <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 font-black uppercase tracking-widest text-[9px] text-slate-450">
+                                                            <th className="p-4">Votehead Name</th>
+                                                            {(props.semesters || []).map(sem => (
+                                                                <th key={sem.id} className="p-4 text-right">{sem.name}</th>
+                                                            ))}
+                                                            <th className="p-4 text-center w-48">Applicable To</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {(props.voteHeads || []).length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={(props.semesters || []).length + 2} className="p-8 text-center text-slate-400 italic">No configured voteheads found. Setup voteheads in settings to assign values.</td>
+                                                            </tr>
+                                                        ) : (
+                                                            (props.voteHeads || []).map(vh => (
+                                                                <tr key={vh.id} className="border-b border-slate-200 dark:border-slate-850 hover:bg-slate-100/50 dark:hover:bg-slate-900/40 transition-colors">
+                                                                    <td className="p-4 font-bold text-slate-800 dark:text-white">
+                                                                        <p className="font-extrabold text-sm">{vh.name}</p>
+                                                                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Priority Rank #{vh.priority}</p>
+                                                                    </td>
+                                                                    {(props.semesters || []).map(sem => (
+                                                                        <td key={sem.id} className="p-2 text-right">
+                                                                            <input
+                                                                                type="number"
+                                                                                placeholder="0"
+                                                                                value={spreadsheetAmounts[vh.id]?.[sem.id] || ''}
+                                                                                onChange={e => {
+                                                                                    const val = Number(e.target.value);
+                                                                                    setSpreadsheetAmounts(prev => ({
+                                                                                        ...prev,
+                                                                                        [vh.id]: {
+                                                                                            ...(prev[vh.id] || {}),
+                                                                                            [sem.id]: val
+                                                                                        }
+                                                                                    }));
+                                                                                }}
+                                                                                className="w-28 px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-right text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-1 focus:ring-indigo-500"
+                                                                            />
+                                                                        </td>
+                                                                    ))}
+                                                                    <td className="p-2 text-center">
+                                                                        <select
+                                                                            value={spreadsheetTargets[vh.id] || 'all'}
+                                                                            onChange={e => {
+                                                                                const val = e.target.value as any;
+                                                                                setSpreadsheetTargets(prev => ({
+                                                                                    ...prev,
+                                                                                    [vh.id]: val
+                                                                                }));
+                                                                            }}
+                                                                            className="px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 cursor-pointer outline-none w-full"
+                                                                        >
+                                                                            <option value="all">All Students</option>
+                                                                            <option value="boarder">Boarders Only</option>
+                                                                            <option value="day_scholar">Day Scholars Only</option>
+                                                                        </select>
+                                                                    </td>
+                                                                </tr>
+                                                            ))
+                                                        )}
+                                                    </tbody>
+                                                    <tfoot>
+                                                        <tr className="bg-slate-100 dark:bg-slate-900 font-extrabold border-t border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                                                            <td className="p-4 text-xs font-black">Term / Semester Totals</td>
+                                                            {(props.semesters || []).map(sem => (
+                                                                <td key={sem.id} className="p-4 text-right text-xs font-black text-slate-900 dark:text-white">
+                                                                    KES {getTermTotal(sem.id).toLocaleString()}
+                                                                </td>
+                                                            ))}
+                                                            <td className="p-4 text-center">
+                                                                <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400">Clearances</span>
+                                                            </td>
+                                                        </tr>
+                                                    </tfoot>
+                                                </table>
                                             </div>
 
                                             <div className="pt-6 border-t border-slate-100 dark:border-slate-850 flex justify-between items-center">
-                                                <div className="text-slate-500 font-medium text-sm">
-                                                    Total Structure Amount: <span className="font-black text-slate-900 dark:text-white text-lg">KES {Object.values(builderAmounts).reduce((sum, a) => sum + (a || 0), 0)?.toLocaleString()}</span>
+                                                <div className="text-slate-500 font-extrabold text-sm">
+                                                    Yearly Cumulative Total: <span className="font-black text-indigo-650 text-xl ml-2">KES {getYearlyTotal().toLocaleString()}</span>
                                                 </div>
                                                 <button 
                                                     onClick={handleSaveFeeStructure}

@@ -1,8 +1,8 @@
 # Task List: Property Management Enhancements
 
-- [x] Implement state & useMemos for dynamic filters and period selectors in PropertyManagementView
-- [x] Connect dynamic monthly rent collection trend chart using real payments data
-- [x] Build per-property collection progress metrics and list view with search
+- [x] Initialize local states for academic years, semesters, and inputs in FinanceManager.tsx
+- [/] Replace simple browser prompt with inline form for Academic Years in settings
+- [/] Replace simple browser prompt with inline form for Terms/Semesters in settings and list view with search
 - [x] Implement unit-level drill-down collection status panel
 - [x] Fix duplicates in the Arrears Manager by deduplicating active leases by unit/ID
 - [x] Constrain rent arrears in Arrears Manager to only check current month plus previous month

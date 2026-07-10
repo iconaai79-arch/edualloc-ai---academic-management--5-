@@ -20,14 +20,18 @@ CREATE TABLE IF NOT EXISTS public.fee_goods_proposals (
 ALTER TABLE public.fee_goods_proposals ENABLE ROW LEVEL SECURITY;
 
 -- Add RLS Policies
+DROP POLICY IF EXISTS "Allow select for institution members" ON public.fee_goods_proposals;
 CREATE POLICY "Allow select for institution members" ON public.fee_goods_proposals
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow insert for institution members" ON public.fee_goods_proposals;
 CREATE POLICY "Allow insert for institution members" ON public.fee_goods_proposals
     FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow update for institution members" ON public.fee_goods_proposals;
 CREATE POLICY "Allow update for institution members" ON public.fee_goods_proposals
     FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Allow delete for institution members" ON public.fee_goods_proposals;
 CREATE POLICY "Allow delete for institution members" ON public.fee_goods_proposals
     FOR DELETE USING (true);
