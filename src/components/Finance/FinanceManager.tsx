@@ -2914,19 +2914,33 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </div>
                                                 </div>
                                                 <button 
-                                                    onClick={() => {
+                                                    onClick={async () => {
                                                         if (!newAyName.trim() || !newAyStartDate || !newAyEndDate) {
                                                             return alert("Please fill in all fields!");
                                                         }
-                                                        setLocalAcademicYears(prev => [
-                                                            ...prev,
-                                                            { id: `ay_${Date.now()}`, name: newAyName, startDate: newAyStartDate, endDate: newAyEndDate, institutionId: props.institution.id, status: 'inactive' }
-                                                        ]);
-                                                        setNewAyName('');
-                                                        setNewAyStartDate('');
-                                                        setNewAyEndDate('');
-                                                        setIsCreatingAy(false);
-                                                        alert(`Academic Year ${newAyName} registered successfully!`);
+                                                        const newAy = { 
+                                                            id: `ay_${Date.now()}`, 
+                                                            name: newAyName, 
+                                                            startDate: newAyStartDate, 
+                                                            endDate: newAyEndDate, 
+                                                            institutionId: props.institution.id, 
+                                                            status: 'inactive' as const 
+                                                        };
+                                                        try {
+                                                            await apiService.saveModuleRecord('academic_years', newAy);
+                                                            setLocalAcademicYears(prev => [...prev, newAy]);
+                                                            setNewAyName('');
+                                                            setNewAyStartDate('');
+                                                            setNewAyEndDate('');
+                                                            setIsCreatingAy(false);
+                                                            alert(`Academic Year ${newAyName} registered successfully!`);
+                                                            if (props.onRefreshData) {
+                                                                await props.onRefreshData();
+                                                            }
+                                                        } catch (err: any) {
+                                                            console.error("Failed to save academic year:", err);
+                                                            alert("Failed to save academic year: " + (err.message || err));
+                                                        }
                                                     }}
                                                     className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
                                                 >
@@ -3004,19 +3018,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </div>
                                                 </div>
                                                 <button 
-                                                    onClick={() => {
+                                                    onClick={async () => {
                                                         if (!newTermName.trim() || !newTermStartDate || !newTermEndDate) {
                                                             return alert("Please fill in all fields!");
                                                         }
-                                                        setLocalSemesters(prev => [
-                                                            ...prev,
-                                                            { id: `term_${Date.now()}`, name: newTermName, academicYearId: localAcademicYears[0]?.id || '', institutionId: props.institution.id, startDate: newTermStartDate, endDate: newTermEndDate }
-                                                        ]);
-                                                        setNewTermName('');
-                                                        setNewTermStartDate('');
-                                                        setNewTermEndDate('');
-                                                        setIsCreatingTerm(false);
-                                                        alert(`Term ${newTermName} calendar entry created!`);
+                                                        const targetAyId = localAcademicYears[0]?.id || '';
+                                                        if (!targetAyId) {
+                                                            return alert("Please register an Academic Year first!");
+                                                        }
+                                                        const newSem = { 
+                                                            id: `term_${Date.now()}`, 
+                                                            name: newTermName, 
+                                                            academicYearId: targetAyId, 
+                                                            institutionId: props.institution.id, 
+                                                            startDate: newTermStartDate, 
+                                                            endDate: newTermEndDate 
+                                                        };
+                                                        try {
+                                                            await apiService.saveModuleRecord('semesters', newSem);
+                                                            setLocalSemesters(prev => [...prev, newSem]);
+                                                            setNewTermName('');
+                                                            setNewTermStartDate('');
+                                                            setNewTermEndDate('');
+                                                            setIsCreatingTerm(false);
+                                                            alert(`Term ${newTermName} calendar entry created!`);
+                                                            if (props.onRefreshData) {
+                                                                await props.onRefreshData();
+                                                            }
+                                                        } catch (err: any) {
+                                                            console.error("Failed to save term:", err);
+                                                            alert("Failed to save term: " + (err.message || err));
+                                                        }
                                                     }}
                                                     className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
                                                 >
