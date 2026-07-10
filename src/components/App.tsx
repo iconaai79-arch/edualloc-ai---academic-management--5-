@@ -5946,6 +5946,13 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
                                                 })));
                                                 await loadData();
                                             }}
+                                            users={users.filter(u => u.institutionId === (activeInstitution?.id || currentUser?.institutionId))}
+                                            payrollRecords={payrollRecords as any}
+                                            leaveRequests={(requests || []) as any}
+                                            onProcessPayroll={handleProcessPayroll}
+                                            onUpdateLeaveStatus={handleUpdateLeaveStatus}
+                                            onEditUser={onEditUser}
+                                            onDeleteUser={onDeleteUser}
                                         />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'hr_officer' ? (

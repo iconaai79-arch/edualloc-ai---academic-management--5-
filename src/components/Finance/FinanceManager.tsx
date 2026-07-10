@@ -34,6 +34,8 @@ import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import * as pdfService from '../../services/pdfService';
+import { BriefcaseIcon } from '../icons/BriefcaseIcon';
+const HRManager = React.lazy(() => import('../HR/HRManager').then(m => ({ default: m.HRManager })));
 
 interface FinanceManagerProps {
     invoices: Invoice[];
@@ -60,13 +62,21 @@ interface FinanceManagerProps {
     onRefreshData?: () => Promise<void>;
     companyDetails?: CompanyDetails;
     onLogAction?: (message: string) => Promise<void> | void;
+    // HR & Payroll integration
+    users?: User[];
+    payrollRecords?: any[];
+    leaveRequests?: any[];
+    onProcessPayroll?: (records: any[]) => Promise<void>;
+    onUpdateLeaveStatus?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+    onEditUser?: (id: string, data: any) => Promise<void>;
+    onDeleteUser?: (id: string) => Promise<void>;
 }
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu'>('billing');
+    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll'>('billing');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // State for settings sub-tabs
@@ -653,6 +663,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const tabs = [
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
+        { id: 'payroll', label: 'HR & Payroll', icon: BriefcaseIcon },
         { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
@@ -2172,6 +2183,39 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         )}
 
 
+                    </div>
+                )}
+
+                {activeTab === 'payroll' && (
+                    <div className="space-y-6 animate-in fade-in duration-300">
+                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+                                <div className="w-12 h-12 rounded-2xl bg-teal-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
+                                    <BriefcaseIcon className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">HR &amp; Payroll</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Staff management, payroll runs &amp; leave tracking</p>
+                                </div>
+                            </div>
+                            <React.Suspense fallback={
+                                <div className="h-64 flex items-center justify-center">
+                                    <div className="w-8 h-8 animate-spin border-4 border-teal-500 border-t-transparent rounded-full" />
+                                </div>
+                            }>
+                                <HRManager
+                                    currentUser={props.currentUser}
+                                    staff={(props.users || []).filter((u: any) => u.role?.toLowerCase().trim() !== 'student')}
+                                    payrollRecords={props.payrollRecords || []}
+                                    leaveRequests={props.leaveRequests || []}
+                                    institution={props.institution}
+                                    onProcessPayroll={props.onProcessPayroll || (async () => {})}
+                                    onUpdateLeaveStatus={props.onUpdateLeaveStatus || (async () => {})}
+                                    onEditUser={props.onEditUser || (async () => {})}
+                                    onDeleteUser={props.onDeleteUser || (async () => {})}
+                                />
+                            </React.Suspense>
+                        </div>
                     </div>
                 )}
 

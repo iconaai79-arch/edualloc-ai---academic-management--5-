@@ -31,6 +31,14 @@ interface FinanceOfficerViewProps {
     courses?: Course[];
     onRefreshData?: () => Promise<void>;
     companyDetails?: CompanyDetails;
+    // HR & Payroll
+    users?: User[];
+    payrollRecords?: any[];
+    leaveRequests?: any[];
+    onProcessPayroll?: (records: any[]) => Promise<void>;
+    onUpdateLeaveStatus?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+    onEditUser?: (id: string, data: any) => Promise<void>;
+    onDeleteUser?: (id: string) => Promise<void>;
 }
 
 export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
@@ -59,7 +67,14 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     voteHeads,
     courses,
     onRefreshData,
-    companyDetails
+    companyDetails,
+    users,
+    payrollRecords,
+    leaveRequests,
+    onProcessPayroll,
+    onUpdateLeaveStatus,
+    onEditUser,
+    onDeleteUser
 }) => {
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -108,6 +123,13 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                     courses={courses}
                     onRefreshData={onRefreshData}
                     onLogAction={onLogAction}
+                    users={users}
+                    payrollRecords={payrollRecords}
+                    leaveRequests={leaveRequests}
+                    onProcessPayroll={onProcessPayroll}
+                    onUpdateLeaveStatus={onUpdateLeaveStatus}
+                    onEditUser={onEditUser}
+                    onDeleteUser={onDeleteUser}
                 />
             </main>
         </div>

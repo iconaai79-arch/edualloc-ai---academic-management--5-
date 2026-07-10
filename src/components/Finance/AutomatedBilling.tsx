@@ -87,10 +87,29 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         return students;
     }, [students, targetType, selectedStudentId, selectedClass, selectedCourseId]);
 
-    const activeFeeStructures = feeStructures.filter(f => 
-        f.academicYearId === selectedAY && 
-        String(f.term || '') === String(selectedSem)
-    );
+    // Resolve selected semester to its name (fee structures store the human-readable name e.g. "Term 1")
+    const selectedSemName = useMemo(() => {
+        const sem = semesters.find(s => s.id === selectedSem);
+        return sem ? sem.name : selectedSem;
+    }, [semesters, selectedSem]);
+
+    const activeFeeStructures = useMemo(() => {
+        const filtered = feeStructures.filter(f =>
+            f.academicYearId === selectedAY &&
+            (
+                String(f.term || '') === String(selectedSemName) ||
+                String(f.term || '') === String(selectedSem)
+            )
+        );
+        // Deduplicate by voteHeadId + name to avoid showing the same votehead twice
+        const seen = new Set<string>();
+        return filtered.filter(f => {
+            const key = f.voteHeadId ? String(f.voteHeadId) : String(f.name);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }, [feeStructures, selectedAY, selectedSem, selectedSemName]);
 
     const totalProjectedRevenue = billingStudents.reduce((sum, s) => {
         const boarder = isStudentBoarder(s);
