@@ -3382,15 +3382,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <PlusIcon className="w-3.5 h-3.5" />
                                                 Add Vote Head
                                             </button>
-                                            {gridVoteHeads.length > 0 && (
-                                                <button
-                                                    onClick={handleSaveAllVoteHeads}
-                                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5"
-                                                >
-                                                    <CheckIcon className="w-3.5 h-3.5" />
-                                                    Save All Changes
-                                                </button>
-                                            )}
+                                            <button
+                                                onClick={handleSaveAllVoteHeads}
+                                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5"
+                                            >
+                                                <CheckIcon className="w-3.5 h-3.5" />
+                                                Save All Changes
+                                            </button>
                                         </div>
                                     </div>
 
