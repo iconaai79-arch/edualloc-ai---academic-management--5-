@@ -98,13 +98,39 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         footerNotes: 'Thank you for your continued partnership. For inquiries contact accounts.'
     });
 
+    // Local Academic Calendar States
+    const [localAcademicYears, setLocalAcademicYears] = useState(() => props.academicYears || []);
+    const [localSemesters, setLocalSemesters] = useState(() => props.semesters || []);
+
+    // Sync from props
+    useEffect(() => {
+        setLocalAcademicYears(props.academicYears || []);
+    }, [props.academicYears]);
+
+    useEffect(() => {
+        setLocalSemesters(props.semesters || []);
+    }, [props.semesters]);
+
+    // Creation states for Academic Year
+    const [isCreatingAy, setIsCreatingAy] = useState(false);
+    const [newAyName, setNewAyName] = useState('');
+    const [newAyStartDate, setNewAyStartDate] = useState('');
+    const [newAyEndDate, setNewAyEndDate] = useState('');
+
+    // Creation states for Semester/Term
+    const [isCreatingTerm, setIsCreatingTerm] = useState(false);
+    const [newTermName, setNewTermName] = useState('');
+    const [newTermStartDate, setNewTermStartDate] = useState('');
+    const [newTermEndDate, setNewTermEndDate] = useState('');
+
     // Financial Year states
     const [financialYears, setFinancialYears] = useState([
-        { id: 'fy25', name: 'FY 2025', startMonth: 'January', endMonth: 'December', status: 'Closed' },
-        { id: 'fy26', name: 'FY 2026', startMonth: 'January', endMonth: 'December', status: 'Active' },
+        { id: 'fy25', name: 'FY 2025', startDate: '2025-01-01', endDate: '2025-12-31', status: 'Closed' },
+        { id: 'fy26', name: 'FY 2026', startDate: '2026-01-01', endDate: '2026-12-31', status: 'Active' },
     ]);
     const [newFyName, setNewFyName] = useState('');
-    const [newFyStart, setNewFyStart] = useState('January');
+    const [newFyStartDate, setNewFyStartDate] = useState('');
+    const [newFyEndDate, setNewFyEndDate] = useState('');
 
     // User Permissions states
     const [selectedRole, setSelectedRole] = useState<'Accountant' | 'Teacher' | 'Registrar' | 'Admin'>('Accountant');
@@ -2714,6 +2740,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         Accounts & Grants
                                     </button>
                                     <button
+                                        onClick={() => setSettingsSubTab('fee_structure_builder')}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            settingsSubTab === 'fee_structure_builder'
+                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                            : 'text-slate-500 hover:text-indigo-650'
+                                        }`}
+                                    >
+                                        Fee Structure Builder
+                                    </button>
+                                    <button
                                         onClick={() => setSettingsSubTab('user_permissions')}
                                         className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                                             settingsSubTab === 'user_permissions'
@@ -2828,34 +2864,91 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {/* Subtab content: Academic Calendar */}
                         {settingsSubTab === 'academic_calendar' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-left">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-left animate-in fade-in duration-300">
                                 {/* Academic Years list */}
                                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
-                                    <div className="flex justify-between items-center">
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                                         <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Academic Years</h3>
                                         <button 
-                                            onClick={() => {
-                                                const year = prompt("Enter Academic Year name (e.g. 2026):");
-                                                if (year) alert(`Academic Year ${year} configured!`);
-                                            }}
-                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                            onClick={() => setIsCreatingAy(!isCreatingAy)}
+                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                         >
-                                            Add Year
+                                            {isCreatingAy ? 'Cancel' : 'Add Year'}
                                         </button>
                                     </div>
-                                    <div className="space-y-3">
-                                        {props.academicYears.map(ay => (
-                                            <div key={ay.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl">
+
+                                    {isCreatingAy && (
+                                        <div className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800/60 space-y-4 animate-in slide-in-from-top duration-200">
+                                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">➕ Register Academic Year</h4>
+                                            <div className="space-y-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Academic Year Name</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="e.g. 2026" 
+                                                        value={newAyName}
+                                                        onChange={e => setNewAyName(e.target.value)}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Start Date</label>
+                                                        <input 
+                                                            type="date" 
+                                                            value={newAyStartDate}
+                                                            onChange={e => setNewAyStartDate(e.target.value)}
+                                                            className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">End Date</label>
+                                                        <input 
+                                                            type="date" 
+                                                            value={newAyEndDate}
+                                                            onChange={e => setNewAyEndDate(e.target.value)}
+                                                            className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => {
+                                                        if (!newAyName.trim() || !newAyStartDate || !newAyEndDate) {
+                                                            return alert("Please fill in all fields!");
+                                                        }
+                                                        setLocalAcademicYears(prev => [
+                                                            ...prev,
+                                                            { id: `ay_${Date.now()}`, name: newAyName, startDate: newAyStartDate, endDate: newAyEndDate, institutionId: props.institution.id, status: 'inactive' }
+                                                        ]);
+                                                        setNewAyName('');
+                                                        setNewAyStartDate('');
+                                                        setNewAyEndDate('');
+                                                        setIsCreatingAy(false);
+                                                        alert(`Academic Year ${newAyName} registered successfully!`);
+                                                    }}
+                                                    className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
+                                                >
+                                                    Register Academic Year
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 no-scrollbar">
+                                        {localAcademicYears.map((ay, idx) => (
+                                            <div key={ay.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-955 rounded-2xl border border-slate-100 dark:border-slate-900">
                                                 <div>
                                                     <p className="text-sm font-black text-slate-900 dark:text-white">{ay.name}</p>
-                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Year Preset</p>
+                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                                                        {ay.startDate && ay.endDate ? `Duration: ${ay.startDate} to ${ay.endDate}` : 'Year Preset'}
+                                                    </p>
                                                 </div>
                                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                                    ay.id === props.academicYears[0]?.id 
+                                                    idx === 0 
                                                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20' 
                                                     : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                                                 }`}>
-                                                    {ay.id === props.academicYears[0]?.id ? 'Current Active' : 'Inactive'}
+                                                    {idx === 0 ? 'Current Active' : 'Inactive'}
                                                 </span>
                                             </div>
                                         ))}
@@ -2864,26 +2957,81 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 {/* Terms / Semesters list */}
                                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
-                                    <div className="flex justify-between items-center">
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                                         <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Terms / Semesters</h3>
                                         <button 
-                                            onClick={() => {
-                                                const termName = prompt("Enter Term/Semester name (e.g. Term 1):");
-                                                if (termName) alert(`Term ${termName} calendar entry created!`);
-                                            }}
-                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                            onClick={() => setIsCreatingTerm(!isCreatingTerm)}
+                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                         >
-                                            Add Term
+                                            {isCreatingTerm ? 'Cancel' : 'Add Term'}
                                         </button>
                                     </div>
-                                    <div className="space-y-3">
-                                        {props.semesters.map(sem => (
-                                            <div key={sem.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl">
+
+                                    {isCreatingTerm && (
+                                        <div className="p-5 bg-slate-50 dark:bg-slate-955 rounded-3xl border border-slate-100 dark:border-slate-800/60 space-y-4 animate-in slide-in-from-top duration-200">
+                                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">➕ Register Term / Semester</h4>
+                                            <div className="space-y-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Term / Semester Name</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="e.g. Term 1" 
+                                                        value={newTermName}
+                                                        onChange={e => setNewTermName(e.target.value)}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Start Date</label>
+                                                        <input 
+                                                            type="date" 
+                                                            value={newTermStartDate}
+                                                            onChange={e => setNewTermStartDate(e.target.value)}
+                                                            className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">End Date</label>
+                                                        <input 
+                                                            type="date" 
+                                                            value={newTermEndDate}
+                                                            onChange={e => setNewTermEndDate(e.target.value)}
+                                                            className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => {
+                                                        if (!newTermName.trim() || !newTermStartDate || !newTermEndDate) {
+                                                            return alert("Please fill in all fields!");
+                                                        }
+                                                        setLocalSemesters(prev => [
+                                                            ...prev,
+                                                            { id: `term_${Date.now()}`, name: newTermName, academicYearId: localAcademicYears[0]?.id || '', institutionId: props.institution.id, startDate: newTermStartDate, endDate: newTermEndDate }
+                                                        ]);
+                                                        setNewTermName('');
+                                                        setNewTermStartDate('');
+                                                        setNewTermEndDate('');
+                                                        setIsCreatingTerm(false);
+                                                        alert(`Term ${newTermName} calendar entry created!`);
+                                                    }}
+                                                    className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
+                                                >
+                                                    Save Term Entry
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 no-scrollbar">
+                                        {localSemesters.map(sem => (
+                                            <div key={sem.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-955 rounded-2xl border border-slate-100 dark:border-slate-900">
                                                 <div>
                                                     <p className="text-sm font-black text-slate-900 dark:text-white">Term {sem.name}</p>
-                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Duration: {sem.startDate || '—'} to {sem.endDate || '—'}</p>
+                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Duration: {sem.startDate || '—'} to {sem.endDate || '—'}</p>
                                                 </div>
-                                                <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-750 dark:text-indigo-400 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                                <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-750 dark:text-indigo-400 rounded-full text-[9px] font-black uppercase tracking-wider border border-indigo-100 dark:border-indigo-550/20">
                                                     Configured
                                                 </span>
                                             </div>
@@ -2912,35 +3060,36 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-1">
-                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Month</label>
-                                                <select
-                                                    value={newFyStart}
-                                                    onChange={(e) => setNewFyStart(e.target.value)}
-                                                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-750 text-sm outline-none"
-                                                >
-                                                    {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
-                                                        <option key={m} value={m}>{m}</option>
-                                                    ))}
-                                                </select>
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={newFyStartDate}
+                                                    onChange={(e) => setNewFyStartDate(e.target.value)}
+                                                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                                />
                                             </div>
                                             <div className="space-y-1">
-                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Month</label>
-                                                <select
-                                                    disabled
-                                                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 rounded-2xl outline-none font-bold text-slate-400 cursor-not-allowed text-sm"
-                                                >
-                                                    <option>December</option>
-                                                </select>
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={newFyEndDate}
+                                                    onChange={(e) => setNewFyEndDate(e.target.value)}
+                                                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                                />
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => {
-                                                if (!newFyName.trim()) return alert("Enter a valid name!");
+                                                if (!newFyName.trim() || !newFyStartDate || !newFyEndDate) {
+                                                    return alert("Please enter name, start date, and end date!");
+                                                }
                                                 setFinancialYears(prev => [
                                                     ...prev,
-                                                    { id: `fy_${Date.now()}`, name: newFyName, startMonth: newFyStart, endMonth: 'December', status: 'Active' }
+                                                    { id: `fy_${Date.now()}`, name: newFyName, startDate: newFyStartDate, endDate: newFyEndDate, status: 'Active' }
                                                 ]);
                                                 setNewFyName('');
+                                                setNewFyStartDate('');
+                                                setNewFyEndDate('');
                                                 alert(`Financial Year ${newFyName} created and activated!`);
                                             }}
                                             className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all text-center"
@@ -2958,7 +3107,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <div key={fy.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-900">
                                                 <div>
                                                     <p className="text-sm font-black text-slate-900 dark:text-white">{fy.name}</p>
-                                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Cycle: {fy.startMonth} to {fy.endMonth}</p>
+                                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                                                        Cycle: {fy.startDate || '—'} to {fy.endDate || '—'}
+                                                    </p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
