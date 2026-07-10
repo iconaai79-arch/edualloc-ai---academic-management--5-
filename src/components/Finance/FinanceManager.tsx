@@ -414,6 +414,36 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
+    const handleSaveAllVoteHeads = async () => {
+        const invalidRows = gridVoteHeads.filter(row => !row.name.trim());
+        if (invalidRows.length > 0) {
+            alert('All Vote Head names must be filled out.');
+            return;
+        }
+        try {
+            await Promise.all(gridVoteHeads.map(async (row) => {
+                const payload = {
+                    id: row.id.startsWith('new_') ? `vh_${Date.now()}_${Math.floor(Math.random() * 1000)}` : row.id,
+                    name: row.name,
+                    priority: Number(row.priority) || 10,
+                    allocatedAmount: row.isPercentage ? 0 : (Number(row.allocatedAmount) || 0),
+                    isPercentage: !!row.isPercentage,
+                    percentage: row.isPercentage ? (Number(row.percentage) || 0) : 0,
+                    institutionId: props.institution.id,
+                    createdAt: row.createdAt || new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('vote_heads', payload);
+            }));
+            alert('All Vote Heads saved successfully!');
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Failed to save Vote Heads.');
+        }
+    };
+
     const handleDeleteGridRow = async (row: any) => {
         if (row.id.startsWith('new_')) {
             setGridVoteHeads(prev => prev.filter(v => v.id !== row.id));
@@ -3344,13 +3374,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Vote Heads Spreadsheet</h3>
                                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Manage priorities, allocation types (Fixed vs Percentage) and budgets in a spreadsheet grid</p>
                                         </div>
-                                        <button
-                                            onClick={handleAddGridRow}
-                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5"
-                                        >
-                                            <PlusIcon className="w-3.5 h-3.5" />
-                                            Add Vote Head
-                                        </button>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={handleAddGridRow}
+                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5"
+                                            >
+                                                <PlusIcon className="w-3.5 h-3.5" />
+                                                Add Vote Head
+                                            </button>
+                                            {gridVoteHeads.length > 0 && (
+                                                <button
+                                                    onClick={handleSaveAllVoteHeads}
+                                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5"
+                                                >
+                                                    <CheckIcon className="w-3.5 h-3.5" />
+                                                    Save All Changes
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
@@ -3430,10 +3471,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <div className="flex items-center justify-center gap-2">
                                                                 <button
                                                                     onClick={() => handleSaveGridRow(row)}
-                                                                    className="p-1.5 bg-indigo-55/60 hover:bg-indigo-600 text-indigo-600 hover:text-white dark:bg-indigo-950 dark:hover:bg-indigo-650 dark:text-indigo-400 rounded-md transition-colors"
-                                                                    title="Save Changes"
+                                                                    className="p-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:hover:bg-emerald-600 dark:text-emerald-400 rounded-md transition-colors"
+                                                                    title="Save Vote Head"
                                                                 >
-                                                                    <ArrowUpTrayIcon className="w-3.5 h-3.5" />
+                                                                    <CheckIcon className="w-3.5 h-3.5" />
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleDeleteGridRow(row)}
