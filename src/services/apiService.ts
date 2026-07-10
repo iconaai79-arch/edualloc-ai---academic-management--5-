@@ -1121,6 +1121,64 @@ export const apiService = {
         }
     },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
+        if (module === 'invoices' && data && (data as any).studentId && ((data as any).status === 'pending' || !(data as any).status)) {
+            const invData = data as any;
+            try {
+                // Fetch student receipts
+                const allReceipts = await apiService.fetchModuleRecords<any>('receipts').catch(() => []);
+                const studentReceipts = allReceipts.filter((r: any) => r.studentId === invData.studentId || r.student_id === invData.studentId);
+                const totalPaid = studentReceipts.reduce((sum, r) => sum + Number(r.amountPaid || 0), 0);
+
+                // Fetch student existing invoices (excluding this invoice if it already exists in DB)
+                const allInvoices = await apiService.fetchModuleRecords<any>('invoices').catch(() => []);
+                const studentInvoices = allInvoices.filter((i: any) => 
+                    (i.studentId === invData.studentId || i.student_id === invData.studentId) && 
+                    i.status !== 'cancelled' && 
+                    i.status !== 'quote' && 
+                    i.id !== invData.id
+                );
+                const totalInvoiced = studentInvoices.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
+
+                let prepayment = totalPaid - totalInvoiced;
+                if (prepayment > 0) {
+                    // Extract items of this new invoice
+                    let items: any[] = [];
+                    if (typeof invData.items === 'string') {
+                        try { items = JSON.parse(invData.items); } catch(e) {}
+                    } else if (Array.isArray(invData.items)) {
+                        items = invData.items;
+                    }
+
+                    // Sort items by priority ascending (e.g. priority 1 first, priority 2 next, etc. Null/undefined gets 99)
+                    const sortedItems = [...items].sort((a: any, b: any) => {
+                        const prioA = a.priority !== undefined ? Number(a.priority) : 99;
+                        const prioB = b.priority !== undefined ? Number(b.priority) : 99;
+                        return prioA - prioB;
+                    });
+
+                    let totalAllocated = 0;
+                    const updatedItems = sortedItems.map(item => {
+                        const itemTotal = Number(item.amount || item.unitPrice || 0);
+                        const itemPaid = Number(item.paid || 0);
+                        const itemRemaining = Math.max(0, itemTotal - itemPaid);
+                        const allocated = Math.min(prepayment, itemRemaining);
+                        prepayment -= allocated;
+                        totalAllocated += allocated;
+                        return {
+                            ...item,
+                            paid: itemPaid + allocated
+                        };
+                    });
+
+                    invData.items = updatedItems;
+                    const finalPaidSum = updatedItems.reduce((sum, it) => sum + (it.paid || 0), 0);
+                    invData.status = finalPaidSum >= invData.totalAmount ? 'paid' : (finalPaidSum > 0 ? 'partial' : 'pending');
+                }
+            } catch (err) {
+                console.error("Failed to automatically apply prepayment to invoice:", err);
+            }
+        }
+
         let payload = apiService.sanitizePayload(module, toSnakeCase(data));
 
         if (!_supabase) {
@@ -2037,36 +2095,199 @@ export const apiService = {
             status: data.status || 'pending'
         });
     },
+    async postStudentPayment(params: {
+        studentId: string;
+        amount: number;
+        paymentMethod: string;
+        reference: string;
+        paymentDate: string;
+        institutionId: string;
+        paidForLabel?: string;
+        targetInvoiceId?: string;
+    }) {
+        const amountPaidNum = Number(params.amount);
+        const instId = params.institutionId;
+
+        // Fetch all active invoices of the student that are not fully paid
+        const allInvoices = await apiService.fetchModuleRecords<any>('invoices').catch(() => []);
+        const studentInvoices = allInvoices.filter((inv: any) => 
+            inv.studentId === params.studentId && 
+            inv.status !== 'cancelled' && 
+            inv.status !== 'quote'
+        );
+
+        // Fetch all receipts of the student to calculate paid amount so far
+        const allReceipts = await apiService.fetchModuleRecords<any>('receipts').catch(() => []);
+        
+        const invoicePaidAmounts: Record<string, number> = {};
+        allReceipts.forEach((rec: any) => {
+            const invId = rec.invoiceId || rec.invoice_id;
+            if (invId) {
+                invoicePaidAmounts[invId] = (invoicePaidAmounts[invId] || 0) + Number(rec.amountPaid || 0);
+            }
+        });
+
+        const unpaidInvoices = studentInvoices.filter((inv: any) => {
+            const paid = invoicePaidAmounts[inv.id] || 0;
+            return paid < inv.totalAmount;
+        });
+
+        // Sort invoices: if targetInvoiceId is provided, place it first, then others sorted by issueDate/createdAt
+        const sortedInvoices = [...unpaidInvoices].sort((a: any, b: any) => {
+            if (params.targetInvoiceId) {
+                if (a.id === params.targetInvoiceId) return -1;
+                if (b.id === params.targetInvoiceId) return 1;
+            }
+            const dateA = new Date(a.issueDate || a.issue_date || 0).getTime();
+            const dateB = new Date(b.issueDate || b.issue_date || 0).getTime();
+            return dateA - dateB;
+        });
+
+        let remainingAmount = amountPaidNum;
+        const allocations: Array<{
+            invoiceId: string;
+            invoiceNumber: string;
+            voteHeadId?: string;
+            description: string;
+            amount: number;
+        }> = [];
+
+        // Distribute to sorted invoices
+        for (const inv of sortedInvoices) {
+            if (remainingAmount <= 0) break;
+
+            // Extract items of this invoice
+            let items: any[] = [];
+            if (typeof inv.items === 'string') {
+                try { items = JSON.parse(inv.items); } catch(e) {}
+            } else if (Array.isArray(inv.items)) {
+                items = inv.items;
+            }
+
+            // Sort items by priority ascending (e.g. priority 1 first, priority 2 next, etc. Null/undefined gets 99)
+            const sortedItems = [...items].sort((a: any, b: any) => {
+                const prioA = a.priority !== undefined ? Number(a.priority) : 99;
+                const prioB = b.priority !== undefined ? Number(b.priority) : 99;
+                return prioA - prioB;
+            });
+
+            let invoiceModified = false;
+            for (const item of sortedItems) {
+                if (remainingAmount <= 0) break;
+
+                const itemTotal = Number(item.amount || item.unitPrice || 0);
+                const itemPaid = Number(item.paid || 0);
+                const itemRemaining = Math.max(0, itemTotal - itemPaid);
+
+                if (itemRemaining > 0) {
+                    const allocated = Math.min(remainingAmount, itemRemaining);
+                    item.paid = itemPaid + allocated;
+                    remainingAmount -= allocated;
+                    invoiceModified = true;
+
+                    allocations.push({
+                        invoiceId: inv.id,
+                        invoiceNumber: inv.invoiceNumber || inv.invoice_number,
+                        voteHeadId: item.voteHeadId || item.vote_head_id,
+                        description: item.description,
+                        amount: allocated
+                    });
+                }
+            }
+
+            if (invoiceModified) {
+                // Determine new status
+                const updatedItemsPaid = sortedItems.reduce((sum, it) => sum + (it.paid || 0), 0);
+                const newStatus = updatedItemsPaid >= inv.totalAmount ? 'paid' : 'partial';
+
+                // Save updated invoice back to DB
+                await apiService.saveModuleRecord('invoices', {
+                    ...inv,
+                    items: sortedItems,
+                    status: newStatus
+                });
+            }
+        }
+
+        // Prepayment check: if there is still remainingAmount > 0 and no more unpaid invoices, apply it to prepayment
+        if (remainingAmount > 0) {
+            allocations.push({
+                invoiceId: '', // No specific invoice
+                invoiceNumber: 'Prepayment',
+                description: 'Prepayment / Credit',
+                amount: remainingAmount
+            });
+        }
+
+        // Receipt generation: "but generation of receipts all the related votes from different invoices are grouped"
+        // Group allocations by votehead description / name
+        const groupedAllocations: Record<string, number> = {};
+        allocations.forEach(alloc => {
+            groupedAllocations[alloc.description] = (groupedAllocations[alloc.description] || 0) + alloc.amount;
+        });
+
+        // Construct receipt description
+        const paidForParts = Object.entries(groupedAllocations).map(([desc, amt]) => `${desc}: KES ${amt.toLocaleString()}`);
+        const paidForText = params.paidForLabel || paidForParts.join(', ');
+
+        const receiptId = `RCT_${Date.now()}_${Math.random().toString(36).substring(2,6)}`;
+        const receiptNumber = `RCT-${Date.now().toString().slice(-6)}`;
+
+        // Save the single grouped receipt
+        // Link to targetInvoiceId if provided, or the first invoice paid, or null if it's purely prepayment
+        const primaryInvoiceId = params.targetInvoiceId || (allocations[0] ? allocations[0].invoiceId : null);
+
+        const receiptPayload = {
+            id: receiptId,
+            receiptNumber: receiptNumber,
+            receipt_number: receiptNumber,
+            institutionId: instId,
+            institution_id: instId,
+            paymentDate: params.paymentDate,
+            payment_date: params.paymentDate,
+            amountPaid: amountPaidNum,
+            amount_paid: amountPaidNum,
+            paidFor: paidForText,
+            paid_for: paidForText,
+            paymentMethod: params.paymentMethod,
+            payment_method: params.paymentMethod,
+            relatedTransactionId: params.reference,
+            related_transaction_id: params.reference,
+            invoiceId: primaryInvoiceId || '',
+            invoice_id: primaryInvoiceId || '',
+            studentId: params.studentId,
+            student_id: params.studentId,
+            allocations: JSON.stringify(allocations)
+        };
+
+        await apiService.saveModuleRecord('receipts', receiptPayload);
+
+        return { receiptNumber, allocations };
+    },
     async reconcilePayment(transaction: MpesaTransaction) {
         try {
             const metadata = typeof transaction.metadata === 'string' ? JSON.parse(transaction.metadata) : transaction.metadata;
             const invoiceId = metadata?.invoiceId;
-            if (!invoiceId) return;
+            const studentId = metadata?.studentId;
+            if (!studentId) return;
 
-            // 1. Create a receipt
-            await apiService.saveModuleRecord('receipts', {
-                id: `RCT_${Date.now()}`,
-                receiptNumber: `RCT-${Date.now()}`,
-                institutionId: transaction.institutionId,
-                paymentDate: new Date().toISOString(),
-                amountPaid: transaction.amount,
-                paidFor: transaction.description || 'Service Payment',
-                paymentMethod: transaction.provider,
-                relatedTransactionId: transaction.transactionId,
-                invoiceId: invoiceId,
-                studentId: metadata?.studentId
+            // Update transaction status in db
+            await apiService.saveModuleRecord('mpesa_transactions', {
+                id: transaction.id,
+                status: 'reconciled',
+                metadata: JSON.stringify(metadata)
             });
 
-            // 2. Update invoice status if fully paid
-            const invoice = await apiService.fetchModuleRecords<Invoice>('invoices', undefined, undefined, { filter: { id: invoiceId }, limit: 1 });
-            if (invoice?.[0]) {
-                const totalPaid = (await apiService.fetchModuleRecords<Receipt>('receipts', undefined, undefined, { filter: { invoice_id: invoiceId } }))
-                    .reduce((sum, r) => sum + (r.amountPaid || 0), 0);
-                
-                if (totalPaid >= invoice[0].totalAmount) {
-                    await apiService.saveModuleRecord('invoices', { id: invoiceId, status: 'paid' });
-                }
-            }
+            // Call unified payment posting engine
+            await apiService.postStudentPayment({
+                studentId,
+                amount: transaction.amount,
+                paymentMethod: transaction.provider || 'Mpesa',
+                reference: transaction.transactionId,
+                paymentDate: new Date().toISOString().split('T')[0],
+                institutionId: transaction.institutionId,
+                targetInvoiceId: invoiceId
+            });
         } catch (e) {
             console.error("Reconciliation Error:", e);
         }

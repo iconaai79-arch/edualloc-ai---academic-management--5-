@@ -600,17 +600,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const studentInvoices = props.invoices.filter(inv => inv.studentId === s.id && inv.status !== 'cancelled' && inv.status !== 'quote');
             const invoiced = studentInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
             
-            const studentReceipts = props.receipts.filter(rec => studentInvoices.some(inv => inv.id === rec.paidFor));
-            const paid = studentReceipts.reduce((sum, rec) => sum + rec.amountPaid, 0);
+            const studentReceipts = props.receipts.filter(rec => rec.studentId === s.id || rec.student_id === s.id);
+            const paid = studentReceipts.reduce((sum, rec) => sum + (rec.amountPaid || 0), 0);
             
             const balance = Math.max(0, invoiced - paid);
+            const prepayment = Math.max(0, paid - invoiced);
             
             return {
                 ...s,
                 totals: {
                     invoiced,
                     paid,
-                    balance
+                    balance,
+                    prepayment
                 }
             };
         });
@@ -840,49 +842,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [activeTab]);
 
     const handlePostManualPayment = async () => {
-        if (!manualPayStudentId || !manualPayInvoiceId || manualPayAmount <= 0) {
-            alert("Please select a student, target invoice, and enter a valid payment amount.");
+        if (!manualPayStudentId || manualPayAmount <= 0) {
+            alert("Please select a student and enter a valid payment amount.");
             return;
         }
         setIsSavingManualPay(true);
         try {
-            const invoice = props.invoices.find(inv => inv.id === manualPayInvoiceId);
-            if (!invoice) throw new Error("Target invoice not found");
-
-            const amountPaidNum = Number(manualPayAmount);
-            const receiptId = `RCT_${Date.now()}`;
-            const receiptNumber = `RCT-${Date.now().toString().slice(-6)}`;
-
-            await apiService.saveModuleRecord('receipts', {
-                id: receiptId,
-                receiptNumber: receiptNumber,
-                institutionId: props.institution.id,
-                paymentDate: manualPayDate || new Date().toISOString().split('T')[0],
-                amountPaid: amountPaidNum,
-                paidFor: invoice.invoiceNumber || 'School Fees',
+            const { receiptNumber } = await apiService.postStudentPayment({
+                studentId: manualPayStudentId,
+                amount: Number(manualPayAmount),
                 paymentMethod: manualPayMethod,
-                relatedTransactionId: manualPayReference || '',
-                invoiceId: manualPayInvoiceId,
-                studentId: manualPayStudentId
-            });
-
-            const currentReceipts = await apiService.fetchModuleRecords<Receipt>('receipts', undefined, undefined, {
-                filter: { invoice_id: manualPayInvoiceId }
-            }).catch(() => []);
-
-            const totalPaid = currentReceipts.reduce((sum, r) => sum + (r.amountPaid || 0), 0) + amountPaidNum;
-            const newStatus = totalPaid >= invoice.totalAmount ? 'paid' : 'partial';
-
-            await apiService.saveModuleRecord('invoices', {
-                id: manualPayInvoiceId,
-                status: newStatus
+                reference: manualPayReference || '',
+                paymentDate: manualPayDate || new Date().toISOString().split('T')[0],
+                institutionId: props.institution.id,
+                targetInvoiceId: manualPayInvoiceId || undefined
             });
 
             if (props.onRefreshData) {
                 await props.onRefreshData();
             }
 
-            alert(`Receipt ${receiptNumber} generated and invoice updated successfully!`);
+            alert(`Receipt ${receiptNumber} generated and payment allocated successfully!`);
 
             setManualPayStudentId('');
             setManualPayInvoiceId('');
@@ -1084,28 +1064,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     }, [activeTab, settingsSubTab, props.institution.id]);
 
-    // Pre-populate builder amounts and targets from existing structures
-    useEffect(() => {
-        if (builderCourseId && builderAYId && builderTerm) {
-            const matchingFS = props.feeStructures.filter(f =>
-                f.courseId === builderCourseId &&
-                f.academicYearId === builderAYId &&
-                f.term === builderTerm
-            );
-            const initialAmounts: Record<string, number> = {};
-            const initialTargets: Record<string, 'all' | 'boarder' | 'day_scholar'> = {};
-            (props.voteHeads || []).forEach(v => {
-                const fs = matchingFS.find(item => item.voteHeadId === v.id);
-                initialAmounts[v.id] = fs ? Number(fs.amount || (fs as any).allocatedAmount || 0) : 0;
-                initialTargets[v.id] = fs ? ((fs as any).applicableTo || (fs as any).applicable_to || 'all') : 'all';
-            });
-            setBuilderAmounts(initialAmounts);
-            setBuilderTargets(initialTargets);
-        } else {
-            setBuilderAmounts({});
-            setBuilderTargets({});
-        }
-    }, [builderCourseId, builderAYId, builderTerm, props.feeStructures, props.voteHeads]);
 
     // Translate DS structures to standard Dashboard Invoice models dynamically
     const mappedInvoices = useMemo(() => {
@@ -1801,13 +1759,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </td>
                                                                 <td className="px-8 py-4 text-center">
                                                                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
-                                                                        student.totals.balance <= 0
+                                                                        student.totals.prepayment > 0
+                                                                        ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20'
+                                                                        : student.totals.balance <= 0
                                                                         ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
                                                                         : student.totals.paid > 0
                                                                         ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
                                                                         : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'
                                                                     }`}>
-                                                                        {student.totals.balance <= 0 ? 'Fully Paid' : student.totals.paid > 0 ? 'Partial' : 'No Payment'}
+                                                                        {student.totals.prepayment > 0 
+                                                                            ? `Prepaid (KSh ${student.totals.prepayment.toLocaleString()})`
+                                                                            : student.totals.balance <= 0 
+                                                                            ? 'Fully Paid' 
+                                                                            : student.totals.paid > 0 
+                                                                            ? 'Partial' 
+                                                                            : 'No Payment'
+                                                                        }
                                                                     </span>
                                                                 </td>
                                                             </tr>
@@ -2173,13 +2140,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         </td>
                                                                         <td className="px-8 py-4 text-center">
                                                                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
-                                                                                student.totals.balance <= 0
+                                                                                student.totals.prepayment > 0
+                                                                                ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20'
+                                                                                : student.totals.balance <= 0
                                                                                 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
                                                                                 : student.totals.paid > 0
                                                                                 ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
                                                                                 : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20'
                                                                             }`}>
-                                                                                {student.totals.balance <= 0 ? 'Fully Paid' : student.totals.paid > 0 ? 'Partial' : 'No Payment'}
+                                                                                {student.totals.prepayment > 0 
+                                                                                    ? `Prepaid (KSh ${student.totals.prepayment.toLocaleString()})`
+                                                                                    : student.totals.balance <= 0 
+                                                                                    ? 'Fully Paid' 
+                                                                                    : student.totals.paid > 0 
+                                                                                    ? 'Partial' 
+                                                                                    : 'No Payment'
+                                                                                }
                                                                             </span>
                                                                         </td>
                                                                     </tr>
