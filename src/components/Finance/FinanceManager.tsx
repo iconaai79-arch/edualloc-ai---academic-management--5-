@@ -1576,12 +1576,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     )}
                 </div>
 
-                <nav className="space-y-2 flex-1 overflow-y-auto max-h-[calc(100vh-280px)] pr-1 no-scrollbar">
+                <nav className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 no-scrollbar">
                     {tabs.filter(item => isDrivingSchool ? (item.id !== 'wizard') : (item.id !== 'billing' && item.id !== 'bursaries')).map(item => (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id as any)}
-                            className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 relative group ${
+                            className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 relative group ${
                                 activeTab === item.id 
                                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105' 
                                 : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-750'
