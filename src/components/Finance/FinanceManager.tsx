@@ -70,6 +70,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
+
+    // Dynamic settings sub-tabs based on school type
+    const settingsSubTabs = useMemo(() => {
+        if (isDrivingSchool) {
+            return [
+                { id: 'opening_balance', label: 'Opening Balance', icon: WalletIcon },
+                { id: 'accounts_grants', label: 'Bank Accounts', icon: ScaleIcon },
+                { id: 'fee_structure_builder', label: 'Fee Structures', icon: CreditCardIcon },
+                { id: 'user_permissions', label: 'User Permissions', icon: ShieldCheckIcon },
+                { id: 'branding', label: 'Branding', icon: PhotoIcon }
+            ] as const;
+        }
+        return [
+            { id: 'opening_balance', label: 'Opening Balance', icon: WalletIcon },
+            { id: 'academic_calendar', label: 'Academic Year & Calendar', icon: CalendarDaysIcon },
+            { id: 'financial_year', label: 'Financial Year', icon: ClockIcon },
+            { id: 'accounts_grants', label: 'Voteheads, Banks & Grants', icon: ScaleIcon },
+            { id: 'fee_structure_builder', label: 'Fee Structure Builder', icon: CreditCardIcon },
+            { id: 'user_permissions', label: 'User Permissions', icon: ShieldCheckIcon },
+            { id: 'branding', label: 'Branding', icon: PhotoIcon }
+        ] as const;
+    }, [isDrivingSchool]);
+
+    // Driving School Settings Fee Structure States
+    const [showDsFeeForm, setShowDsFeeForm] = useState(false);
+    const [editingDsFee, setEditingDsFee] = useState<any>(null);
     const [openingBalanceSearch, setOpeningBalanceSearch] = useState('');
     const [openingBalanceClassFilter, setOpeningBalanceClassFilter] = useState('All');
     const [openingBalancesMap, setOpeningBalancesMap] = useState<Record<string, number>>(() => {
@@ -426,8 +452,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 setImporterHeaders(headers);
 
                 // Auto-detect columns
-                const detectedId = headers.find(h => /adm|number|reg|identifier|student|name/i.test(h)) || '';
-                const detectedBal = headers.find(h => /bal|amount|open/i.test(h)) || '';
+                const detectedId = headers.find((h: string) => /adm|number|reg|identifier|student|name/i.test(h)) || '';
+                const detectedBal = headers.find((h: string) => /bal|amount|open/i.test(h)) || '';
                 setImporterMappings({
                     identifier: detectedId,
                     balance: detectedBal
@@ -625,6 +651,47 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isCreatingDsInvoice, setIsCreatingDsInvoice] = useState(false);
     const [selectedDsInvoice, setSelectedDsInvoice] = useState<any | null>(null);
     const [isRecordingDsPayment, setIsRecordingDsPayment] = useState(false);
+
+    const fetchDsFeeStructures = async () => {
+        try {
+            const res = await apiService.fetchModuleRecords<any>('ds_fee_structures', props.institution.id);
+            setDsFeeStructures(res || []);
+        } catch (e) {
+            console.error("Failed to fetch ds_fee_structures:", e);
+        }
+    };
+
+    const handleSaveDsFeeStructure = async (payload: any) => {
+        try {
+            await apiService.saveModuleRecord('ds_fee_structures', {
+                id: payload.id || `ds_fs_${Date.now()}`,
+                institutionId: props.institution.id,
+                className: payload.className,
+                description: payload.description,
+                items: Array.isArray(payload.items) ? payload.items : [],
+                totalAmount: payload.totalAmount,
+                createdAt: payload.createdAt || new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            });
+            alert('Fee structure saved successfully!');
+            await fetchDsFeeStructures();
+        } catch (err: any) {
+            console.error('Failed to save ds fee structure:', err);
+            alert('Failed to save fee structure: ' + (err.message || err));
+        }
+    };
+
+    const handleDeleteDsFeeStructure = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this fee structure?')) return;
+        try {
+            await apiService.deleteModuleRecord('ds_fee_structures', id);
+            alert('Fee structure deleted!');
+            await fetchDsFeeStructures();
+        } catch (err: any) {
+            console.error('Failed to delete ds fee structure:', err);
+            alert('Failed to delete fee structure: ' + (err.message || err));
+        }
+    };
 
     // DS New Invoice Form States
     const [dsFormStudentId, setDsFormStudentId] = useState('');
@@ -1433,22 +1500,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm shrink-0 gap-4 overflow-hidden">
                         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar max-w-[70vw] md:max-w-full">
                             {activeTab === 'settings' ? (
-                                ([
-                                    { id: 'opening_balance', label: 'Opening Balance', icon: WalletIcon },
-                                    { id: 'academic_calendar', label: 'Academic Year & Calendar', icon: CalendarDaysIcon },
-                                    { id: 'financial_year', label: 'Financial Year', icon: ClockIcon },
-                                    { id: 'accounts_grants', label: 'Voteheads, Banks & Grants', icon: ScaleIcon },
-                                    { id: 'fee_structure_builder', label: 'Fee Structure Builder', icon: CreditCardIcon },
-                                    { id: 'user_permissions', label: 'User Permissions', icon: ShieldCheckIcon },
-                                    { id: 'branding', label: 'Branding', icon: PhotoIcon }
-                                ] as const).map(sub => (
+                                settingsSubTabs.map(sub => (
                                     <button
                                         key={sub.id}
                                         onClick={() => setSettingsSubTab(sub.id as any)}
                                         className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap ${
                                             settingsSubTab === sub.id 
                                             ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105' 
-                                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-655'
+                                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600'
                                         }`}
                                     >
                                         <sub.icon className={`w-4 h-4 ${settingsSubTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
@@ -1463,7 +1522,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap ${
                                             activeTab === tab.id 
                                             ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105' 
-                                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-655'
+                                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600'
                                         }`}
                                     >
                                         <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
@@ -2699,76 +2758,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
                             {isDrivingSchool && (
                                 <div className="flex gap-2 bg-slate-100 dark:bg-slate-850 p-1.5 rounded-2xl w-fit">
-                                    <button
-                                        onClick={() => setSettingsSubTab('opening_balance')}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                            settingsSubTab === 'opening_balance'
-                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                            : 'text-slate-500 hover:text-indigo-650'
-                                        }`}
-                                    >
-                                        Opening Balance
-                                    </button>
-                                    <button
-                                        onClick={() => setSettingsSubTab('academic_calendar')}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                            settingsSubTab === 'academic_calendar'
-                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                            : 'text-slate-500 hover:text-indigo-650'
-                                        }`}
-                                    >
-                                        Academic Year & Calendar
-                                    </button>
-                                    <button
-                                        onClick={() => setSettingsSubTab('financial_year')}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                            settingsSubTab === 'financial_year'
-                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                            : 'text-slate-500 hover:text-indigo-650'
-                                        }`}
-                                    >
-                                        Financial Year
-                                    </button>
-                                    <button
-                                        onClick={() => setSettingsSubTab('accounts_grants')}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                            settingsSubTab === 'accounts_grants'
-                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                            : 'text-slate-500 hover:text-indigo-650'
-                                        }`}
-                                    >
-                                        Accounts & Grants
-                                    </button>
-                                    <button
-                                        onClick={() => setSettingsSubTab('fee_structure_builder')}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                            settingsSubTab === 'fee_structure_builder'
-                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                            : 'text-slate-500 hover:text-indigo-650'
-                                        }`}
-                                    >
-                                        Fee Structure Builder
-                                    </button>
-                                    <button
-                                        onClick={() => setSettingsSubTab('user_permissions')}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                            settingsSubTab === 'user_permissions'
-                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                            : 'text-slate-500 hover:text-indigo-650'
-                                        }`}
-                                    >
-                                        User Permissions
-                                    </button>
-                                    <button
-                                        onClick={() => setSettingsSubTab('branding')}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                            settingsSubTab === 'branding'
-                                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
-                                            : 'text-slate-550 hover:text-indigo-655'
-                                        }`}
-                                    >
-                                        Branding
-                                    </button>
+                                    {settingsSubTabs.map(sub => (
+                                        <button
+                                            key={sub.id}
+                                            onClick={() => setSettingsSubTab(sub.id as any)}
+                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                settingsSubTab === sub.id
+                                                ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md'
+                                                : 'text-slate-500 hover:text-indigo-650'
+                                            }`}
+                                        >
+                                            {sub.label}
+                                        </button>
+                                    ))}
                                 </div>
                             )}
                         </div>
@@ -3735,95 +3737,316 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         )}
 
                         {settingsSubTab === 'fee_structure_builder' && (
-                            <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-8 text-left w-full">
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Cohort Fee Structure Builder</h3>
-                                    <p className="text-xs font-medium text-slate-400">Map specific courses, academic years, and terms/semesters to itemized votehead amounts to structure institutional billing structures.</p>
-                                </div>
+                            isDrivingSchool ? (
+                                <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-8 text-left w-full">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Driving School Fee Structures</h3>
+                                            <p className="text-xs font-medium text-slate-400">Configure pricing and standard fee vote breakdowns for license classes.</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                setEditingDsFee({
+                                                    className: 'Class B',
+                                                    description: 'Standard License Course',
+                                                    items: [
+                                                        { name: 'Tuition Fee', amount: 15000, priority: 1 },
+                                                        { name: 'PDL', amount: 1500, priority: 2 },
+                                                        { name: 'Assessment', amount: 2000, priority: 3 }
+                                                    ],
+                                                    totalAmount: 18500
+                                                });
+                                                setShowDsFeeForm(true);
+                                            }}
+                                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-md animate-pulse"
+                                        >
+                                            <PlusIcon className="w-4 h-4" />
+                                            Add Class Fee
+                                        </button>
+                                    </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Select Cohort Course</label>
-                                        <select 
-                                            value={builderCourseId}
-                                            onChange={e => setBuilderCourseId(e.target.value)}
-                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-350 text-sm"
-                                        >
-                                            <option value="">Choose Course</option>
-                                            {(props.courses || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Academic Year</label>
-                                        <select 
-                                            value={builderAYId}
-                                            onChange={e => setBuilderAYId(e.target.value)}
-                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-355 text-sm"
-                                        >
-                                            <option value="">Select Academic Year</option>
-                                            {(props.academicYears || []).map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Term / Semester</label>
-                                        <select 
-                                            value={builderTerm}
-                                            onChange={e => setBuilderTerm(e.target.value)}
-                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-355 text-sm"
-                                        >
-                                            <option value="">Select Semester</option>
-                                            {(props.semesters || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
+                                    {showDsFeeForm && (
+                                        <div className="p-8 bg-slate-50 dark:bg-slate-950 rounded-[2rem] border border-slate-200 dark:border-slate-800 space-y-6">
+                                            <div className="flex justify-between items-center">
+                                                <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                                    {editingDsFee?.id ? 'Edit Class Fee Structure' : 'Add New Class Fee Structure'}
+                                                </h4>
+                                                <button 
+                                                    onClick={() => {
+                                                        setShowDsFeeForm(false);
+                                                        setEditingDsFee(null);
+                                                    }}
+                                                    className="text-slate-400 hover:text-slate-600 transition-colors"
+                                                >
+                                                    <XIcon className="w-5 h-5" />
+                                                </button>
+                                            </div>
 
-                                {/* Grid of configured voteheads for amount assignment */}
-                                {builderCourseId && builderAYId && builderTerm && (
-                                    <div className="space-y-6 animate-in slide-in-from-bottom duration-300">
-                                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest pb-2 border-b">Configure amounts for this cohort</h4>
-                                        
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {(props.voteHeads || []).length === 0 ? (
-                                                <p className="col-span-2 text-center text-xs text-slate-400 p-4">No configured voteheads found. Setup voteheads in settings to assign values.</p>
-                                            ) : (
-                                                (props.voteHeads || []).map(vh => (
-                                                    <div key={vh.id} className="flex items-center gap-4 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/60">
-                                                        <div className="flex-1">
-                                                            <p className="text-sm font-bold text-slate-800 dark:text-white">{vh.name}</p>
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                                Priority Rank #{vh.priority}
-                                                                {(vh as any).isPercentage && <span className="ml-2 px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-650 dark:text-indigo-400 rounded text-[8px] font-black uppercase">{(vh as any).percentage}% split</span>}
-                                                            </p>
-                                                        </div>
-                                                        <div className="w-1/3">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-2 text-left">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Class / Category *</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={editingDsFee?.className || ''}
+                                                        onChange={e => setEditingDsFee((prev: any) => ({ ...prev, className: e.target.value }))}
+                                                        placeholder="e.g. Class B"
+                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs text-slate-900 dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2 text-left">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={editingDsFee?.description || ''}
+                                                        onChange={e => setEditingDsFee((prev: any) => ({ ...prev, description: e.target.value }))}
+                                                        placeholder="e.g. Standard Manual Car Course"
+                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs text-slate-900 dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-center">
+                                                    <h5 className="text-[10px] font-black text-indigo-650 uppercase tracking-widest">Fee Vote Items (Breakdown)</h5>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const currentItems = editingDsFee?.items || [];
+                                                            setEditingDsFee((prev: any) => ({
+                                                                ...prev,
+                                                                items: [...currentItems, { name: '', amount: 0, priority: currentItems.length + 1 }]
+                                                            }));
+                                                        }}
+                                                        className="text-[10px] font-black text-indigo-600 hover:text-indigo-750 uppercase tracking-widest flex items-center gap-1"
+                                                    >
+                                                        <PlusIcon className="w-3.5 h-3.5" /> Add Item
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    {(editingDsFee?.items || []).map((item: any, idx: number) => (
+                                                        <div key={idx} className="flex gap-4 items-center bg-white dark:bg-slate-900 p-4 rounded-xl border dark:border-slate-800">
+                                                            <input 
+                                                                type="text" 
+                                                                value={item.name} 
+                                                                onChange={e => {
+                                                                    const updatedItems = [...(editingDsFee?.items || [])];
+                                                                    updatedItems[idx].name = e.target.value;
+                                                                    setEditingDsFee((prev: any) => ({ ...prev, items: updatedItems }));
+                                                                }}
+                                                                placeholder="Fee Item Name (e.g. Tuition Fee)"
+                                                                className="flex-1 px-4 py-2 border dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg font-bold text-xs"
+                                                            />
                                                             <input 
                                                                 type="number" 
-                                                                placeholder="KES 0.00"
-                                                                value={builderAmounts[vh.id] || ''}
-                                                                onChange={e => setBuilderAmounts(prev => ({ ...prev, [vh.id]: Number(e.target.value) }))}
-                                                                disabled={(vh as any).isPercentage}
-                                                                className="w-full px-3 py-2 border dark:border-slate-800 rounded-xl outline-none font-bold text-right text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-600 disabled:opacity-50"
+                                                                value={item.amount || ''} 
+                                                                onChange={e => {
+                                                                    const updatedItems = [...(editingDsFee?.items || [])];
+                                                                    updatedItems[idx].amount = Number(e.target.value);
+                                                                    setEditingDsFee((prev: any) => ({ ...prev, items: updatedItems }));
+                                                                }}
+                                                                placeholder="Amount KES"
+                                                                className="w-32 px-4 py-2 border dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg text-right font-bold text-xs"
                                                             />
+                                                            <button 
+                                                                onClick={() => {
+                                                                    const updatedItems = (editingDsFee?.items || []).filter((_: any, i: number) => i !== idx);
+                                                                    setEditingDsFee((prev: any) => ({ ...prev, items: updatedItems }));
+                                                                }}
+                                                                className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
                                                         </div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-
-                                        <div className="pt-6 border-t border-slate-100 dark:border-slate-850 flex justify-between items-center">
-                                            <div className="text-slate-500 font-medium text-sm">
-                                                Total Structure Amount: <span className="font-black text-slate-900 dark:text-white text-lg">KES {Object.values(builderAmounts).reduce((sum, a) => sum + (a || 0), 0)?.toLocaleString()}</span>
+                                                    ))}
+                                                </div>
                                             </div>
-                                            <button 
-                                                onClick={handleSaveFeeStructure}
-                                                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg hover:scale-105 transition-all"
+
+                                            <div className="flex justify-between items-center pt-4 border-t">
+                                                <div className="font-bold text-sm text-slate-500">
+                                                    Total Structure Fee: <span className="font-black text-slate-900 dark:text-white text-lg">KES {
+                                                        (editingDsFee?.items || []).reduce((sum: number, it: any) => sum + (it.amount || 0), 0).toLocaleString()
+                                                    }</span>
+                                                </div>
+                                                <div className="flex gap-3">
+                                                    <button 
+                                                        onClick={() => {
+                                                            setShowDsFeeForm(false);
+                                                            setEditingDsFee(null);
+                                                        }}
+                                                        className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-355 rounded-xl text-xs font-black uppercase tracking-wider"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button 
+                                                        onClick={async () => {
+                                                            if (!editingDsFee?.className?.trim()) {
+                                                                alert('Please specify a Class Name.');
+                                                                return;
+                                                            }
+                                                            const total = (editingDsFee?.items || []).reduce((sum: number, it: any) => sum + (it.amount || 0), 0);
+                                                            const payload = {
+                                                                ...editingDsFee,
+                                                                totalAmount: total
+                                                            };
+                                                            await handleSaveDsFeeStructure(payload);
+                                                            setShowDsFeeForm(false);
+                                                            setEditingDsFee(null);
+                                                        }}
+                                                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md"
+                                                    >
+                                                        Save Fee Structure
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {dsFeeStructures.length === 0 ? (
+                                            <p className="col-span-2 text-center text-xs font-medium text-slate-400 py-8">No fee structures configured yet.</p>
+                                        ) : (
+                                            dsFeeStructures.map((fee: any) => {
+                                                let itemsArr: any[] = [];
+                                                if (typeof fee.items === 'string') {
+                                                    try { itemsArr = JSON.parse(fee.items); } catch(e){}
+                                                } else if (Array.isArray(fee.items)) {
+                                                    itemsArr = fee.items;
+                                                }
+                                                return (
+                                                    <div key={fee.id} className="p-8 bg-slate-50 dark:bg-slate-800/40 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 group relative text-left">
+                                                        <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setEditingDsFee({
+                                                                        ...fee,
+                                                                        items: itemsArr
+                                                                    });
+                                                                    setShowDsFeeForm(true);
+                                                                }}
+                                                                className="p-2 bg-white dark:bg-slate-700 rounded-lg text-slate-400 hover:text-indigo-650 shadow-sm border border-slate-100 dark:border-slate-600"
+                                                            >
+                                                                <PencilIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleDeleteDsFeeStructure(fee.id)}
+                                                                className="p-2 bg-white dark:bg-slate-700 rounded-lg text-slate-400 hover:text-rose-600 shadow-sm border border-slate-100 dark:border-slate-600"
+                                                            >
+                                                                <TrashIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <span className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest">{fee.className}</span>
+                                                            <p className="text-lg font-black text-slate-900 dark:text-white tracking-tight">KES {fee.totalAmount?.toLocaleString()}</p>
+                                                        </div>
+                                                        <h4 className="text-xs font-bold text-slate-700 dark:text-slate-350 mb-1">{fee.description || 'Standard Course'}</h4>
+                                                        <p className="text-[10px] font-medium text-slate-400 mb-3">{itemsArr.length} Fee items included</p>
+                                                        {itemsArr.length > 0 && (
+                                                            <div className="mt-4 space-y-2 border-t border-slate-100 dark:border-slate-700/50 pt-3">
+                                                                {itemsArr.map((item: any, i: number) => (
+                                                                    <div key={i} className="flex items-center justify-between text-[11px]">
+                                                                        <span className="text-slate-500 dark:text-slate-400 font-medium">{item.name}</span>
+                                                                        <span className="text-slate-700 dark:text-slate-300 font-bold">KES {item.amount?.toLocaleString()}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-8 text-left w-full">
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Cohort Fee Structure Builder</h3>
+                                        <p className="text-xs font-medium text-slate-400">Map specific courses, academic years, and terms/semesters to itemized votehead amounts to structure institutional billing structures.</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Select Cohort Course</label>
+                                            <select 
+                                                value={builderCourseId}
+                                                onChange={e => setBuilderCourseId(e.target.value)}
+                                                className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-350 text-sm"
                                             >
-                                                Save Structure Cohort
-                                            </button>
+                                                <option value="">Choose Course</option>
+                                                {(props.courses || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Academic Year</label>
+                                            <select 
+                                                value={builderAYId}
+                                                onChange={e => setBuilderAYId(e.target.value)}
+                                                className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-355 text-sm"
+                                            >
+                                                <option value="">Select Academic Year</option>
+                                                {(props.academicYears || []).map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Term / Semester</label>
+                                            <select 
+                                                value={builderTerm}
+                                                onChange={e => setBuilderTerm(e.target.value)}
+                                                className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-355 text-sm"
+                                            >
+                                                <option value="">Select Semester</option>
+                                                {(props.semesters || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                            </select>
                                         </div>
                                     </div>
-                                )}
-                            </div>
+
+                                    {/* Grid of configured voteheads for amount assignment */}
+                                    {builderCourseId && builderAYId && builderTerm && (
+                                        <div className="space-y-6 animate-in slide-in-from-bottom duration-300">
+                                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest pb-2 border-b">Configure amounts for this cohort</h4>
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {(props.voteHeads || []).length === 0 ? (
+                                                    <p className="col-span-2 text-center text-xs text-slate-400 p-4">No configured voteheads found. Setup voteheads in settings to assign values.</p>
+                                                ) : (
+                                                    (props.voteHeads || []).map(vh => (
+                                                        <div key={vh.id} className="flex items-center gap-4 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/60">
+                                                            <div className="flex-1">
+                                                                <p className="text-sm font-bold text-slate-800 dark:text-white">{vh.name}</p>
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                                    Priority Rank #{vh.priority}
+                                                                    {(vh as any).isPercentage && <span className="ml-2 px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-650 dark:text-indigo-400 rounded text-[8px] font-black uppercase">{(vh as any).percentage}% split</span>}
+                                                                </p>
+                                                            </div>
+                                                            <div className="w-1/3">
+                                                                <input 
+                                                                    type="number" 
+                                                                    placeholder="KES 0.00"
+                                                                    value={builderAmounts[vh.id] || ''}
+                                                                    onChange={e => setBuilderAmounts(prev => ({ ...prev, [vh.id]: Number(e.target.value) }))}
+                                                                    disabled={(vh as any).isPercentage}
+                                                                    className="w-full px-3 py-2 border dark:border-slate-800 rounded-xl outline-none font-bold text-right text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-600 disabled:opacity-50"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+
+                                            <div className="pt-6 border-t border-slate-100 dark:border-slate-850 flex justify-between items-center">
+                                                <div className="text-slate-500 font-medium text-sm">
+                                                    Total Structure Amount: <span className="font-black text-slate-900 dark:text-white text-lg">KES {Object.values(builderAmounts).reduce((sum, a) => sum + (a || 0), 0)?.toLocaleString()}</span>
+                                                </div>
+                                                <button 
+                                                    onClick={handleSaveFeeStructure}
+                                                    className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg hover:scale-105 transition-all"
+                                                >
+                                                    Save Structure Cohort
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )
                         )}
                     </div>
                 )}
@@ -4023,7 +4246,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <option value="">-- Choose Invoice --</option>
                                             {studentPendingInvoices.map(inv => (
                                                 <option key={inv.id} value={inv.id}>
-                                                    {inv.invoiceNumber} ({inv.description || 'Fees'} - KES {inv.totalAmount.toLocaleString()}) [{inv.status}]
+                                                    {inv.invoiceNumber} ({(inv as any).description || 'Fees'} - KES {inv.totalAmount.toLocaleString()}) [{inv.status}]
                                                 </option>
                                             ))}
                                             {studentPendingInvoices.length === 0 && (
@@ -4149,7 +4372,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <option value="">-- Choose Invoice --</option>
                                             {studentPendingInvoices.map(inv => (
                                                 <option key={inv.id} value={inv.id}>
-                                                    {inv.invoiceNumber} ({inv.description || 'Fees'} - KES {inv.totalAmount.toLocaleString()}) [{inv.status}]
+                                                    {inv.invoiceNumber} ({(inv as any).description || 'Fees'} - KES {inv.totalAmount.toLocaleString()}) [{inv.status}]
                                                 </option>
                                             ))}
                                             {studentPendingInvoices.length === 0 && (
