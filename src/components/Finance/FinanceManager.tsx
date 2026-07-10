@@ -69,7 +69,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // State for settings sub-tabs
-    const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'user_permissions' | 'branding'>('opening_balance');
+    const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
     const [openingBalanceSearch, setOpeningBalanceSearch] = useState('');
     const [openingBalanceClassFilter, setOpeningBalanceClassFilter] = useState('All');
     const [openingBalancesMap, setOpeningBalancesMap] = useState<Record<string, number>>(() => {
@@ -569,7 +569,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
         { id: 'bursaries', label: 'Govt & NG-CDF Bursaries', icon: ScaleIcon },
-        ...(!isDrivingSchool ? [{ id: 'config', label: 'Fee Configuration', icon: CreditCardIcon }] : []),
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
         { id: 'requisitions', label: 'Requisitions & LPOs', icon: ClipboardListIcon },
         { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
@@ -1363,7 +1362,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 </div>
 
                 <nav className="space-y-2 flex-1 overflow-y-auto max-h-[calc(100vh-280px)] pr-1 no-scrollbar">
-                    {tabs.filter(item => isDrivingSchool ? true : (item.id !== 'billing' && item.id !== 'bursaries' && item.id !== 'config')).map(item => (
+                    {tabs.filter(item => isDrivingSchool ? true : (item.id !== 'billing' && item.id !== 'bursaries')).map(item => (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id as any)}
@@ -1413,6 +1412,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     { id: 'academic_calendar', label: 'Academic Year & Calendar', icon: CalendarDaysIcon },
                                     { id: 'financial_year', label: 'Financial Year', icon: ClockIcon },
                                     { id: 'accounts_grants', label: 'Voteheads, Banks & Grants', icon: ScaleIcon },
+                                    { id: 'fee_structure_builder', label: 'Fee Structure Builder', icon: CreditCardIcon },
                                     { id: 'user_permissions', label: 'User Permissions', icon: ShieldCheckIcon },
                                     { id: 'branding', label: 'Branding', icon: PhotoIcon }
                                 ] as const).map(sub => (
@@ -1430,7 +1430,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </button>
                                 ))
                             ) : (
-                                tabs.filter(item => item.id === 'billing' || item.id === 'bursaries' || item.id === 'config').map(tab => (
+                                tabs.filter(item => item.id === 'billing' || item.id === 'bursaries').map(tab => (
                                     <button
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id as any)}
@@ -2277,256 +2277,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     )}
                                 </div>
                             </>
-                        )}
-                    </div>
-                )}
-
-                {/* New Fee Configuration Tab for Education Institutions */}
-                {activeTab === 'config' && !isDrivingSchool && (
-                    <div className="space-y-8 animate-in fade-in duration-500">
-                        {/* Configuration sub-tabs bar */}
-                        <div className="flex border-b border-slate-200 pb-2">
-                            <button
-                                onClick={() => setConfigSubTab('voteheads')}
-                                className={`px-6 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all ${
-                                    configSubTab === 'voteheads' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400'
-                                }`}
-                            >
-                                Vote Heads & Priorities
-                            </button>
-                            <button
-                                onClick={() => setConfigSubTab('builder')}
-                                className={`px-6 py-2 text-xs font-black uppercase tracking-widest border-b-2 transition-all ${
-                                    configSubTab === 'builder' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400'
-                                }`}
-                            >
-                                Fee Structure Builder
-                            </button>
-                        </div>
-
-                        {configSubTab === 'voteheads' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                {/* Voteheads left panel: creation */}
-                                <div className="lg:col-span-1">
-                                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-6">
-                                        <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                                            {editingVoteheadId ? 'Edit Vote Head' : 'Add Vote Head'}
-                                        </h3>
-                                        
-                                        <div className="space-y-4">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Vote Head Label</label>
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="e.g. Tuition Fee" 
-                                                    value={editingVoteheadId ? editVoteName : newVoteName}
-                                                    onChange={e => editingVoteheadId ? setEditVoteName(e.target.value) : setNewVoteName(e.target.value)}
-                                                    className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-xl outline-none font-bold text-slate-700 text-sm"
-                                                />
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payment Priority Ranking</label>
-                                                <input 
-                                                    type="number" 
-                                                    min="1" 
-                                                    max="100"
-                                                    placeholder="e.g. 1" 
-                                                    value={editingVoteheadId ? editVotePriority : newVotePriority}
-                                                    onChange={e => editingVoteheadId ? setEditVotePriority(Number(e.target.value)) : setNewVotePriority(Number(e.target.value))}
-                                                    className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-xl outline-none font-bold text-slate-700 text-sm"
-                                                />
-                                                <p className="text-[9px] font-medium text-slate-400 leading-tight">Priority ranking determines order of fee payment allocation (lower number = paid first).</p>
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Allocated Budget (Optional)</label>
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="0.00" 
-                                                    value={editingVoteheadId ? editVoteAllocatedAmount : newVoteAllocatedAmount}
-                                                    onChange={e => editingVoteheadId ? setEditVoteAllocatedAmount(Number(e.target.value)) : setNewVoteAllocatedAmount(Number(e.target.value))}
-                                                    className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-xl outline-none font-bold text-slate-700 text-sm"
-                                                />
-                                            </div>
-
-                                            {editingVoteheadId ? (
-                                                <div className="flex gap-2">
-                                                    <button 
-                                                        onClick={() => setEditingVoteheadId(null)}
-                                                        className="flex-1 py-3 bg-slate-100 rounded-xl text-xs font-bold"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleSaveVoteHead({ id: editingVoteheadId, name: editVoteName, priority: editVotePriority, allocatedAmount: editVoteAllocatedAmount })}
-                                                        className="flex-[2] py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider"
-                                                    >
-                                                        Save Changes
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button 
-                                                    onClick={() => handleSaveVoteHead({ name: newVoteName, priority: newVotePriority, allocatedAmount: newVoteAllocatedAmount })}
-                                                    className="w-full py-4 bg-slate-900 text-white hover:bg-indigo-600 rounded-xl text-xs font-black uppercase tracking-wider transition-colors shadow-md"
-                                                >
-                                                    Register Vote Head
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Voteheads right panel: grid/table */}
-                                <div className="lg:col-span-2 space-y-6">
-                                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-4">Active Institutional Vote Heads</h3>
-                                        
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left">
-                                                <thead>
-                                                    <tr className="border-b">
-                                                        <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">Vote Head Name</th>
-                                                        <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Priority</th>
-                                                        <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Budget</th>
-                                                        <th className="py-3 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100">
-                                                    {(props.voteHeads || []).length === 0 ? (
-                                                        <tr>
-                                                            <td colSpan={4} className="py-8 text-center text-xs text-slate-400">No Vote Heads configured yet. Setup presets using the form.</td>
-                                                        </tr>
-                                                    ) : (
-                                                        [...(props.voteHeads || [])].sort((a,b) => (a.priority || 99) - (b.priority || 99)).map(vh => (
-                                                            <tr key={vh.id} className="hover:bg-slate-50/50">
-                                                                <td className="py-4 text-xs font-bold text-slate-800">{vh.name}</td>
-                                                                <td className="py-4 text-xs text-center">
-                                                                    <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full font-black text-[10px]">
-                                                                        #{vh.priority}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="py-4 text-xs text-right text-slate-500">KES {vh.allocatedAmount?.toLocaleString()}</td>
-                                                                <td className="py-4 text-xs text-right">
-                                                                    <div className="inline-flex gap-2">
-                                                                        <button 
-                                                                            onClick={() => {
-                                                                                setEditingVoteheadId(vh.id);
-                                                                                setEditVoteName(vh.name);
-                                                                                setEditVotePriority(vh.priority || 10);
-                                                                                setEditVoteAllocatedAmount(vh.allocatedAmount || 0);
-                                                                            }}
-                                                                            className="p-1.5 bg-slate-50 text-slate-500 hover:text-indigo-600 rounded-md"
-                                                                            title="Edit"
-                                                                        >
-                                                                            <PencilIcon className="w-4 h-4" />
-                                                                        </button>
-                                                                        <button 
-                                                                            onClick={() => handleDeleteVoteHead(vh.id)}
-                                                                            className="p-1.5 bg-slate-50 text-slate-500 hover:text-rose-600 rounded-md"
-                                                                            title="Delete"
-                                                                        >
-                                                                            <Trash2Icon className="w-4 h-4" />
-                                                                        </button>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        ))
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {configSubTab === 'builder' && (
-                            <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm space-y-8">
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Cohort Fee Structure Builder</h3>
-                                    <p className="text-xs font-medium text-slate-400">Map specific courses, academic years, and terms/semesters to itemized votehead amounts to structure institutional billing structures.</p>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Select Cohort Course</label>
-                                        <select 
-                                            value={builderCourseId}
-                                            onChange={e => setBuilderCourseId(e.target.value)}
-                                            className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
-                                        >
-                                            <option value="">Choose Course</option>
-                                            {(props.courses || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Academic Year</label>
-                                        <select 
-                                            value={builderAYId}
-                                            onChange={e => setBuilderAYId(e.target.value)}
-                                            className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
-                                        >
-                                            <option value="">Select Academic Year</option>
-                                            {(props.academicYears || []).map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Term / Semester</label>
-                                        <select 
-                                            value={builderTerm}
-                                            onChange={e => setBuilderTerm(e.target.value)}
-                                            className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
-                                        >
-                                            <option value="">Select Semester</option>
-                                            {(props.semesters || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {/* Grid of configured voteheads for amount assignment */}
-                                {builderCourseId && builderAYId && builderTerm && (
-                                    <div className="space-y-6 animate-in slide-in-from-bottom duration-300">
-                                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest pb-2 border-b">Configure amounts for this cohort</h4>
-                                        
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {(props.voteHeads || []).length === 0 ? (
-                                                <p className="col-span-2 text-center text-xs text-slate-400 p-4">No configured voteheads found. Setup voteheads in the first tab to assign values.</p>
-                                            ) : (
-                                                (props.voteHeads || []).map(vh => (
-                                                    <div key={vh.id} className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border">
-                                                        <div className="flex-1">
-                                                            <p className="text-sm font-bold text-slate-800">{vh.name}</p>
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Priority Rank #{vh.priority}</p>
-                                                        </div>
-                                                        <div className="w-1/3">
-                                                            <input 
-                                                                type="number" 
-                                                                placeholder="KES 0.00"
-                                                                value={builderAmounts[vh.id] || ''}
-                                                                onChange={e => setBuilderAmounts(prev => ({ ...prev, [vh.id]: Number(e.target.value) }))}
-                                                                className="w-full px-3 py-2 border rounded-xl outline-none font-bold text-right text-sm bg-white focus:ring-2 focus:ring-indigo-600"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-
-                                        <div className="pt-6 border-t flex justify-between items-center">
-                                            <div className="text-slate-500 font-medium text-sm">
-                                                Total Structure Amount: <span className="font-black text-slate-900 text-lg">KES {Object.values(builderAmounts).reduce((sum, a) => sum + (a || 0), 0)?.toLocaleString()}</span>
-                                            </div>
-                                            <button 
-                                                onClick={handleSaveFeeStructure}
-                                                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg hover:scale-105 transition-all"
-                                            >
-                                                Save Structure Cohort
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                         )}
                     </div>
                 )}
@@ -3830,6 +3580,98 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        )}
+
+                        {settingsSubTab === 'fee_structure_builder' && (
+                            <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-8 text-left w-full">
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Cohort Fee Structure Builder</h3>
+                                    <p className="text-xs font-medium text-slate-400">Map specific courses, academic years, and terms/semesters to itemized votehead amounts to structure institutional billing structures.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Select Cohort Course</label>
+                                        <select 
+                                            value={builderCourseId}
+                                            onChange={e => setBuilderCourseId(e.target.value)}
+                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-350 text-sm"
+                                        >
+                                            <option value="">Choose Course</option>
+                                            {(props.courses || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Academic Year</label>
+                                        <select 
+                                            value={builderAYId}
+                                            onChange={e => setBuilderAYId(e.target.value)}
+                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-355 text-sm"
+                                        >
+                                            <option value="">Select Academic Year</option>
+                                            {(props.academicYears || []).map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Term / Semester</label>
+                                        <select 
+                                            value={builderTerm}
+                                            onChange={e => setBuilderTerm(e.target.value)}
+                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-355 text-sm"
+                                        >
+                                            <option value="">Select Semester</option>
+                                            {(props.semesters || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Grid of configured voteheads for amount assignment */}
+                                {builderCourseId && builderAYId && builderTerm && (
+                                    <div className="space-y-6 animate-in slide-in-from-bottom duration-300">
+                                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest pb-2 border-b">Configure amounts for this cohort</h4>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {(props.voteHeads || []).length === 0 ? (
+                                                <p className="col-span-2 text-center text-xs text-slate-400 p-4">No configured voteheads found. Setup voteheads in settings to assign values.</p>
+                                            ) : (
+                                                (props.voteHeads || []).map(vh => (
+                                                    <div key={vh.id} className="flex items-center gap-4 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/60">
+                                                        <div className="flex-1">
+                                                            <p className="text-sm font-bold text-slate-800 dark:text-white">{vh.name}</p>
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                                Priority Rank #{vh.priority}
+                                                                {(vh as any).isPercentage && <span className="ml-2 px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-650 dark:text-indigo-400 rounded text-[8px] font-black uppercase">{(vh as any).percentage}% split</span>}
+                                                            </p>
+                                                        </div>
+                                                        <div className="w-1/3">
+                                                            <input 
+                                                                type="number" 
+                                                                placeholder="KES 0.00"
+                                                                value={builderAmounts[vh.id] || ''}
+                                                                onChange={e => setBuilderAmounts(prev => ({ ...prev, [vh.id]: Number(e.target.value) }))}
+                                                                disabled={(vh as any).isPercentage}
+                                                                className="w-full px-3 py-2 border dark:border-slate-800 rounded-xl outline-none font-bold text-right text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-600 disabled:opacity-50"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+
+                                        <div className="pt-6 border-t border-slate-100 dark:border-slate-850 flex justify-between items-center">
+                                            <div className="text-slate-500 font-medium text-sm">
+                                                Total Structure Amount: <span className="font-black text-slate-900 dark:text-white text-lg">KES {Object.values(builderAmounts).reduce((sum, a) => sum + (a || 0), 0)?.toLocaleString()}</span>
+                                            </div>
+                                            <button 
+                                                onClick={handleSaveFeeStructure}
+                                                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg hover:scale-105 transition-all"
+                                            >
+                                                Save Structure Cohort
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
