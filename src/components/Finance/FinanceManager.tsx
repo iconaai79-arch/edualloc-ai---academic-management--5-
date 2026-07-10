@@ -35,6 +35,12 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import * as pdfService from '../../services/pdfService';
 import { BriefcaseIcon } from '../icons/BriefcaseIcon';
+import { HomeIcon } from '../icons/HomeIcon';
+import { TrendingUpIcon } from '../icons/TrendingUpIcon';
+import { FileTextIcon } from '../icons/FileTextIcon';
+import { ChartPieIcon } from '../icons/ChartPieIcon';
+import { PrinterIcon } from '../icons/PrinterIcon';
+import { DownloadIcon } from '../icons/DownloadIcon';
 const HRManager = React.lazy(() => import('../HR/HRManager').then(m => ({ default: m.HRManager })));
 
 interface FinanceManagerProps {
@@ -76,7 +82,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll'>('billing');
+    const [activeTab, setActiveTab] = useState<'home' | 'overview' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports'>('home');
+    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual'>('collection');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // State for settings sub-tabs
@@ -662,6 +669,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [studentFinanceData]);
 
     const tabs = [
+        { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'payroll', label: 'HR & Payroll', icon: BriefcaseIcon },
         { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
@@ -674,6 +682,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'requisitions', label: 'Requisitions & LPOs', icon: ClipboardListIcon },
         { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
+        { id: 'reports', label: 'Reports', icon: FileTextIcon },
     ] as const;
 
     // NG-CDF Bursary States
@@ -1659,6 +1668,209 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 {/* Dynamic View Engine */}
                 <div className="min-h-[600px] w-full">
+
+                {activeTab === 'home' && (() => {
+                    const totalBilled = mappedInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
+                    const totalCollected = mappedReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                    const totalExpenses = (props.expenses || []).reduce((s, e) => s + (e.amount || 0), 0);
+                    const outstanding = totalBilled - totalCollected;
+                    const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
+                    const netCashFlow = totalCollected - totalExpenses;
+                    const pendingInvoices = mappedInvoices.filter((i: any) => i.status === 'pending' || i.status === 'overdue').length;
+                    const recentReceipts = [...mappedReceipts].sort((a: any, b: any) => new Date(b.createdAt || b.date || 0).getTime() - new Date(a.createdAt || a.date || 0).getTime()).slice(0, 6);
+
+                    // Monthly collected breakdown (last 6 months)
+                    const monthlyData = Array.from({ length: 6 }, (_, i) => {
+                        const d = new Date(); d.setMonth(d.getMonth() - (5 - i));
+                        const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                        const collected = mappedReceipts.filter((r: any) => (r.createdAt || r.date || '').startsWith(prefix)).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                        const billed = mappedInvoices.filter((inv: any) => (inv.issueDate || inv.createdAt || '').startsWith(prefix)).reduce((s: number, inv: any) => s + (inv.totalAmount || 0), 0);
+                        return { label: d.toLocaleString('default', { month: 'short' }), collected, billed };
+                    });
+                    const maxBar = Math.max(...monthlyData.map(m => Math.max(m.collected, m.billed)), 1);
+
+                    // Grade/class breakdown
+                    const classBreakdown = Object.entries(groupedStudents).map(([cls, data]) => ({
+                        cls,
+                        count: data.length,
+                        invoiced: data.reduce((s, st) => s + st.totals.invoiced, 0),
+                        paid: data.reduce((s, st) => s + st.totals.paid, 0),
+                        balance: data.reduce((s, st) => s + st.totals.balance, 0),
+                    })).sort((a, b) => b.balance - a.balance);
+
+                    return (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* Welcome Banner */}
+                            <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-purple-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-500/30">
+                                <div className="absolute -top-12 -right-12 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
+                                <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl" />
+                                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                    <div>
+                                        <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Finance Command Centre</p>
+                                        <h2 className="text-3xl font-black tracking-tight">{props.institution.name}</h2>
+                                        <p className="text-indigo-200 text-sm font-medium mt-1">Live financial intelligence — {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-2">
+                                        <div className="text-right">
+                                            <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest">Collection Rate</p>
+                                            <p className="text-5xl font-black">{collectionRate.toFixed(1)}<span className="text-2xl text-indigo-200">%</span></p>
+                                        </div>
+                                        <div className="w-40 bg-white/20 rounded-full h-2">
+                                            <div className="h-2 rounded-full bg-emerald-400 transition-all duration-1000" style={{ width: `${Math.min(collectionRate, 100)}%` }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* KPI Cards Row */}
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+                                {[
+                                    { label: 'Total Billed', value: totalBilled, color: 'indigo', icon: '📋', sub: `${mappedInvoices.length} invoices` },
+                                    { label: 'Collected', value: totalCollected, color: 'emerald', icon: '✅', sub: `${mappedReceipts.length} receipts` },
+                                    { label: 'Outstanding', value: outstanding, color: 'rose', icon: '⚠️', sub: `${pendingInvoices} pending` },
+                                    { label: 'Net Cash Flow', value: netCashFlow, color: netCashFlow >= 0 ? 'teal' : 'orange', icon: netCashFlow >= 0 ? '📈' : '📉', sub: `After KSh ${totalExpenses.toLocaleString()} expenses` },
+                                ].map((kpi, i) => (
+                                    <div key={i} className={`bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}>
+                                        <div className="flex justify-between items-start mb-4">
+                                            <span className="text-2xl">{kpi.icon}</span>
+                                            <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-widest bg-${kpi.color}-50 text-${kpi.color}-600`}>{kpi.color === 'emerald' || kpi.color === 'teal' ? '▲' : '▼'}</span>
+                                        </div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{kpi.label}</p>
+                                        <p className="text-xl font-black text-slate-900 dark:text-white">KSh {kpi.value.toLocaleString()}</p>
+                                        <p className="text-[10px] font-medium text-slate-400 mt-2">{kpi.sub}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Chart + Class Breakdown Row */}
+                            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                                {/* Monthly Bar Chart */}
+                                <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div>
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">6-Month Revenue Trend</h4>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Billed vs Collected</p>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
+                                            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" />Billed</span>
+                                            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-400 inline-block" />Collected</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-end gap-3 h-44">
+                                        {monthlyData.map((m, i) => (
+                                            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                                                <div className="w-full flex items-end justify-center gap-1" style={{ height: '140px' }}>
+                                                    <div className="flex-1 bg-indigo-100 dark:bg-indigo-900/40 rounded-t-lg transition-all duration-700 hover:bg-indigo-200" style={{ height: `${(m.billed / maxBar) * 100}%`, minHeight: m.billed > 0 ? '4px' : '0' }} title={`Billed: KSh ${m.billed.toLocaleString()}`} />
+                                                    <div className="flex-1 bg-emerald-400 rounded-t-lg transition-all duration-700 hover:bg-emerald-500" style={{ height: `${(m.collected / maxBar) * 100}%`, minHeight: m.collected > 0 ? '4px' : '0' }} title={`Collected: KSh ${m.collected.toLocaleString()}`} />
+                                                </div>
+                                                <span className="text-[10px] font-black text-slate-400">{m.label}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Top Classes by Outstanding */}
+                                <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Outstanding by Class</h4>
+                                    <p className="text-[10px] text-slate-400 font-medium mb-6">Sorted highest balance first</p>
+                                    <div className="space-y-4">
+                                        {classBreakdown.length === 0 ? (
+                                            <p className="text-xs text-slate-400 font-medium text-center py-6">No class data available</p>
+                                        ) : classBreakdown.slice(0, 5).map((c, i) => {
+                                            const pct = c.invoiced > 0 ? (c.paid / c.invoiced) * 100 : 0;
+                                            return (
+                                                <div key={i} className="space-y-1">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{c.cls}</span>
+                                                        <span className="text-[10px] font-black text-rose-600">KSh {c.balance.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
+                                                        <div className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${pct}%` }} />
+                                                    </div>
+                                                    <p className="text-[9px] text-slate-400 font-medium">{pct.toFixed(0)}% collected · {c.count} students</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Recent Receipts + Quick Links */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Recent Receipts */}
+                                <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Receipts</h4>
+                                        <button onClick={() => setActiveTab('receipts')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">View All →</button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {recentReceipts.length === 0 ? (
+                                            <p className="text-xs text-slate-400 font-medium text-center py-6">No receipts yet</p>
+                                        ) : recentReceipts.map((r: any, i: number) => (
+                                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                                                        <span className="text-xs">✓</span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[11px] font-black text-slate-800 dark:text-white">{r.studentName || r.payerName || 'Student'}</p>
+                                                        <p className="text-[10px] text-slate-400 font-medium">{r.receiptNumber || r.id?.slice(-8)}</p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-sm font-black text-emerald-600">KSh {(r.amountPaid || 0).toLocaleString()}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Quick Navigation */}
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Quick Access</h4>
+                                    <div className="space-y-3">
+                                        {[
+                                            { label: 'Students & Invoices', tab: 'billing', emoji: '🎓', color: 'bg-indigo-50 text-indigo-700' },
+                                            { label: 'Fee Balances', tab: 'balances', emoji: '⚖️', color: 'bg-rose-50 text-rose-700' },
+                                            { label: 'Receipts', tab: 'receipts', emoji: '🧾', color: 'bg-emerald-50 text-emerald-700' },
+                                            { label: 'Billing Wizard', tab: 'wizard', emoji: '⚡', color: 'bg-amber-50 text-amber-700' },
+                                            { label: 'Expense Governance', tab: 'expenses', emoji: '💸', color: 'bg-orange-50 text-orange-700' },
+                                            { label: 'HR & Payroll', tab: 'payroll', emoji: '👔', color: 'bg-teal-50 text-teal-700' },
+                                        ].map((link, i) => (
+                                            <button key={i} onClick={() => setActiveTab(link.tab as any)} className={`w-full flex items-center gap-3 p-3 rounded-2xl ${link.color} hover:scale-[1.02] transition-all duration-200 text-left`}>
+                                                <span className="text-lg">{link.emoji}</span>
+                                                <span className="text-[11px] font-black uppercase tracking-tight">{link.label}</span>
+                                                <span className="ml-auto text-xs opacity-50">→</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Financial Health Scoreboard */}
+                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Financial Health Indicators</h4>
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {[
+                                        { label: 'Collection Rate', value: collectionRate, suffix: '%', good: collectionRate >= 80, bar: true },
+                                        { label: 'Avg. per Student', value: props.students.length > 0 ? Math.round(totalCollected / props.students.length) : 0, suffix: ' KSh', good: true, bar: false },
+                                        { label: 'Total Students', value: props.students.length, suffix: '', good: true, bar: false },
+                                        { label: 'Expense Ratio', value: totalCollected > 0 ? Math.round((totalExpenses / totalCollected) * 100) : 0, suffix: '%', good: totalCollected > 0 && (totalExpenses / totalCollected) < 0.5, bar: true },
+                                    ].map((metric, i) => (
+                                        <div key={i} className="space-y-3">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{metric.label}</p>
+                                            <p className={`text-2xl font-black ${metric.good ? 'text-emerald-600' : 'text-rose-600'}`}>{metric.value.toLocaleString()}{metric.suffix}</p>
+                                            {metric.bar && (
+                                                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                                                    <div className={`h-2 rounded-full transition-all duration-700 ${metric.good ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${Math.min(metric.value as number, 100)}%` }} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
+
                 {activeTab === 'overview' && (
                     <RevenueWarRoom 
                         invoices={mappedInvoices}
@@ -4786,8 +4998,251 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
                     </div>
                 )}
+
+                {activeTab === 'reports' && (() => {
+                    const totalBilled = mappedInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
+                    const totalCollected = mappedReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                    const totalExpenses = (props.expenses || []).reduce((s, e) => s + (e.amount || 0), 0);
+                    const outstanding = totalBilled - totalCollected;
+                    const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
+
+                    const reportSubTabs = [
+                        { id: 'collection', label: 'Fee Collection', icon: '📥' },
+                        { id: 'outstanding', label: 'Outstanding Balances', icon: '⚠️' },
+                        { id: 'ledger', label: 'Receipts Ledger', icon: '🧾' },
+                        { id: 'expenses', label: 'Expense Summary', icon: '💸' },
+                        { id: 'payroll_summary', label: 'Payroll Summary', icon: '👔' },
+                        { id: 'annual', label: 'Annual Report', icon: '📊' },
+                    ];
+
+                    return (
+                        <div className="space-y-6 animate-in fade-in duration-300">
+                            {/* Horizontal sub-menu */}
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                {reportSubTabs.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setReportsSubTab(tab.id as any)}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
+                                            reportsSubTab === tab.id
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                        }`}
+                                    >
+                                        <span>{tab.icon}</span>
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Fee Collection Report */}
+                            {reportsSubTab === 'collection' && (
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div>
+                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Collection Report</h3>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">All payments received across all invoices</p>
+                                        </div>
+                                        <span className="text-2xl font-black text-emerald-600">{collectionRate.toFixed(1)}%</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4 mb-6">
+                                        {[{label:'Total Billed', val: totalBilled, cls:'bg-indigo-50 text-indigo-600'},{label:'Collected', val: totalCollected, cls:'bg-emerald-50 text-emerald-600'},{label:'Outstanding', val: outstanding, cls:'bg-rose-50 text-rose-600'}].map((s,i)=>(
+                                            <div key={i} className={`${s.cls} rounded-2xl p-5`}>
+                                                <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">{s.label}</p>
+                                                <p className="text-xl font-black">KSh {s.val.toLocaleString()}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs">
+                                            <thead><tr className="border-b border-slate-100 dark:border-slate-800">
+                                                {['Student','Invoice #','Amount','Paid','Balance','Status'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
+                                            </tr></thead>
+                                            <tbody>
+                                                {mappedInvoices.slice(0,50).map((inv: any, i: number) => {
+                                                    const student = props.students.find((s: any) => s.id === inv.studentId);
+                                                    const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                                    const bal = (inv.totalAmount || 0) - paid;
+                                                    return (
+                                                        <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                            <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{student?.name || inv.studentId || '—'}</td>
+                                                            <td className="py-3 px-4 text-slate-500">{inv.invoiceNumber || inv.id?.slice(-8)}</td>
+                                                            <td className="py-3 px-4 font-black text-slate-700">KSh {(inv.totalAmount||0).toLocaleString()}</td>
+                                                            <td className="py-3 px-4 font-black text-emerald-600">KSh {paid.toLocaleString()}</td>
+                                                            <td className="py-3 px-4 font-black text-rose-600">KSh {bal.toLocaleString()}</td>
+                                                            <td className="py-3 px-4"><span className={`text-[10px] font-black px-2 py-1 rounded-full ${bal <= 0 ? 'bg-emerald-50 text-emerald-700' : inv.status === 'overdue' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{bal <= 0 ? 'Cleared' : inv.status === 'overdue' ? 'Overdue' : 'Pending'}</span></td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Outstanding Balances */}
+                            {reportsSubTab === 'outstanding' && (
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Outstanding Balances</h3>
+                                    <p className="text-[10px] text-slate-400 font-medium mb-6">Students with unpaid or partial fees</p>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs">
+                                            <thead><tr className="border-b border-slate-100 dark:border-slate-800">
+                                                {['Student','Adm No.','Class','Total Invoiced','Paid','Balance'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
+                                            </tr></thead>
+                                            <tbody>
+                                                {studentFinanceData.filter((s: any) => s.totals.balance > 0).sort((a: any,b: any)=>b.totals.balance-a.totals.balance).map((s: any,i: number)=>(
+                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{s.name}</td>
+                                                        <td className="py-3 px-4 text-slate-500">{s.admissionNumber}</td>
+                                                        <td className="py-3 px-4 text-slate-500">{s.gradeLevel || '—'}</td>
+                                                        <td className="py-3 px-4 font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</td>
+                                                        <td className="py-3 px-4 font-black text-emerald-600">KSh {s.totals.paid.toLocaleString()}</td>
+                                                        <td className="py-3 px-4 font-black text-rose-600">KSh {s.totals.balance.toLocaleString()}</td>
+                                                    </tr>
+                                                ))}
+                                                {studentFinanceData.filter((s: any)=>s.totals.balance>0).length === 0 && (
+                                                    <tr><td colSpan={6} className="py-8 text-center text-slate-400 font-medium">🎉 No outstanding balances — all fees cleared!</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Receipts Ledger */}
+                            {reportsSubTab === 'ledger' && (
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Receipts Ledger</h3>
+                                    <p className="text-[10px] text-slate-400 font-medium mb-6">All payment receipts — {mappedReceipts.length} total</p>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs">
+                                            <thead><tr className="border-b border-slate-100 dark:border-slate-800">
+                                                {['Receipt #','Student','Date','Amount','Payment Mode','Invoice'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
+                                            </tr></thead>
+                                            <tbody>
+                                                {[...mappedReceipts].sort((a:any,b:any)=>new Date(b.createdAt||b.date||0).getTime()-new Date(a.createdAt||a.date||0).getTime()).slice(0,100).map((r:any, i:number)=>(
+                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                        <td className="py-3 px-4 font-black text-indigo-600">{r.receiptNumber||r.id?.slice(-8)}</td>
+                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{r.studentName||r.payerName||'—'}</td>
+                                                        <td className="py-3 px-4 text-slate-500">{r.createdAt?.split('T')[0]||r.date||'—'}</td>
+                                                        <td className="py-3 px-4 font-black text-emerald-600">KSh {(r.amountPaid||0).toLocaleString()}</td>
+                                                        <td className="py-3 px-4"><span className="text-[10px] font-black px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-full">{r.paymentMethod||r.method||'—'}</span></td>
+                                                        <td className="py-3 px-4 text-slate-500">{r.invoiceId?.slice(-8)||'—'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Expense Summary */}
+                            {reportsSubTab === 'expenses' && (
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Expense Summary</h3>
+                                    <p className="text-[10px] text-slate-400 font-medium mb-6">Total expenditure: KSh {totalExpenses.toLocaleString()}</p>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs">
+                                            <thead><tr className="border-b border-slate-100 dark:border-slate-800">
+                                                {['Description','Category','Date','Amount','Recorded By'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
+                                            </tr></thead>
+                                            <tbody>
+                                                {[...(props.expenses||[])].sort((a,b)=>new Date(b.date||0).getTime()-new Date(a.date||0).getTime()).map((e,i)=>(
+                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{e.description||'—'}</td>
+                                                        <td className="py-3 px-4"><span className="text-[10px] font-black px-2 py-1 bg-amber-50 text-amber-700 rounded-full">{e.category||'General'}</span></td>
+                                                        <td className="py-3 px-4 text-slate-500">{e.date?.split('T')[0]||'—'}</td>
+                                                        <td className="py-3 px-4 font-black text-amber-700">KSh {(e.amount||0).toLocaleString()}</td>
+                                                        <td className="py-3 px-4 text-slate-500">{(e as any).recordedBy||(e as any).createdBy||'—'}</td>
+                                                    </tr>
+                                                ))}
+                                                {(props.expenses||[]).length===0&&(<tr><td colSpan={5} className="py-8 text-center text-slate-400 font-medium">No expenses recorded</td></tr>)}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Payroll Summary */}
+                            {reportsSubTab === 'payroll_summary' && (
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Payroll Summary</h3>
+                                    <p className="text-[10px] text-slate-400 font-medium mb-6">{(props.payrollRecords||[]).length} payroll records</p>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs">
+                                            <thead><tr className="border-b border-slate-100 dark:border-slate-800">
+                                                {['Employee','Period','Gross Pay','PAYE','NSSF','NHIF/SHIF','Net Pay'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
+                                            </tr></thead>
+                                            <tbody>
+                                                {(props.payrollRecords||[]).map((p:any,i:number)=>(
+                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{p.employeeName||p.staffName||'—'}</td>
+                                                        <td className="py-3 px-4 text-slate-500">{p.period||p.payPeriod||'—'}</td>
+                                                        <td className="py-3 px-4 font-black text-slate-700">KSh {(p.grossPay||p.gross||0).toLocaleString()}</td>
+                                                        <td className="py-3 px-4 text-rose-600">KSh {(p.paye||p.tax||0).toLocaleString()}</td>
+                                                        <td className="py-3 px-4 text-amber-700">KSh {(p.nssf||0).toLocaleString()}</td>
+                                                        <td className="py-3 px-4 text-amber-700">KSh {(p.nhif||p.shif||0).toLocaleString()}</td>
+                                                        <td className="py-3 px-4 font-black text-emerald-600">KSh {(p.netPay||p.net||0).toLocaleString()}</td>
+                                                    </tr>
+                                                ))}
+                                                {(props.payrollRecords||[]).length===0&&(<tr><td colSpan={7} className="py-8 text-center text-slate-400 font-medium">No payroll records found</td></tr>)}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Annual Report */}
+                            {reportsSubTab === 'annual' && (
+                                <div className="space-y-6">
+                                    <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-[2.5rem] p-8 text-white">
+                                        <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Annual Financial Report</p>
+                                        <h3 className="text-2xl font-black tracking-tight mb-1">{props.institution.name}</h3>
+                                        <p className="text-slate-400 text-sm">Financial Year {new Date().getFullYear()}</p>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                                            {[
+                                                {label:'Total Revenue', val: totalCollected, cls:'text-emerald-400'},
+                                                {label:'Total Billed', val: totalBilled, cls:'text-indigo-300'},
+                                                {label:'Outstanding', val: outstanding, cls:'text-rose-400'},
+                                                {label:'Total Expenses', val: totalExpenses, cls:'text-amber-400'},
+                                            ].map((m,i)=>(
+                                                <div key={i} className="bg-white/10 rounded-2xl p-4">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{m.label}</p>
+                                                    <p className={`text-lg font-black ${m.cls}`}>KSh {m.val.toLocaleString()}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Income Statement</h4>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Total Fees Collected</span><span className="text-xs font-black text-emerald-600">+ KSh {totalCollected.toLocaleString()}</span></div>
+                                                <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Total Expenses</span><span className="text-xs font-black text-rose-600">- KSh {totalExpenses.toLocaleString()}</span></div>
+                                                <div className="flex justify-between border-t pt-3"><span className="text-xs font-black text-slate-900 dark:text-white">Net Surplus / (Deficit)</span><span className={`text-xs font-black ${totalCollected-totalExpenses>=0?'text-emerald-600':'text-rose-600'}`}>KSh {(totalCollected-totalExpenses).toLocaleString()}</span></div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Key Metrics</h4>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Collection Rate</span><span className={`text-xs font-black ${collectionRate>=80?'text-emerald-600':'text-rose-600'}`}>{collectionRate.toFixed(1)}%</span></div>
+                                                <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Total Students</span><span className="text-xs font-black text-indigo-600">{props.students.length}</span></div>
+                                                <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Avg Fee / Student</span><span className="text-xs font-black text-slate-700">KSh {props.students.length>0?Math.round(totalCollected/props.students.length).toLocaleString():0}</span></div>
+                                                <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Total Invoices</span><span className="text-xs font-black text-slate-700">{mappedInvoices.length}</span></div>
+                                                <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Total Receipts</span><span className="text-xs font-black text-slate-700">{mappedReceipts.length}</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
                 </div>
             </div>
         </div>
     );
 };
+
