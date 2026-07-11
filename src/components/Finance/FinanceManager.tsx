@@ -84,6 +84,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Dynamic Tabs based on Institution Type
     const [activeTab, setActiveTab] = useState<'home' | 'overview' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports'>('home');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
+    const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // State for settings sub-tabs
@@ -5018,23 +5019,59 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                     return (
                         <div className="space-y-6 animate-in fade-in duration-300">
-                            {/* Horizontal sub-menu */}
-                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
-                                {reportSubTabs.map(tab => (
+                            {/* Horizontal menu — switches to Outstanding sub-menu when on outstanding tab */}
+                            {reportsSubTab !== 'outstanding' ? (
+                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                    {reportSubTabs.map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setReportsSubTab(tab.id as any)}
+                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
+                                                reportsSubTab === tab.id
+                                                    ? 'bg-indigo-600 text-white shadow-md'
+                                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            <span>{tab.icon}</span>
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                /* Outstanding Balances sub-menu */
+                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-indigo-100 dark:border-indigo-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                    {/* Back button */}
                                     <button
-                                        key={tab.id}
-                                        onClick={() => setReportsSubTab(tab.id as any)}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
-                                            reportsSubTab === tab.id
-                                                ? 'bg-indigo-600 text-white shadow-md'
-                                                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                        }`}
+                                        onClick={() => setReportsSubTab('collection')}
+                                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all mr-1 border border-indigo-200 dark:border-indigo-800"
                                     >
-                                        <span>{tab.icon}</span>
-                                        {tab.label}
+                                        ← Back
                                     </button>
-                                ))}
-                            </div>
+                                    <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
+                                    {[
+                                        { id: 'balance_slip', label: 'Fee Balance Slip', icon: '🪪' },
+                                        { id: 'all_balances', label: 'All Balances', icon: '📋' },
+                                        { id: 'student_summary', label: 'Student Summary', icon: '👤' },
+                                        { id: 'class_summary', label: 'Class Summary', icon: '🏫' },
+                                        { id: 'term_summary', label: 'Term Summary', icon: '📅' },
+                                        { id: 'voteheads_summary', label: 'Voteheads Summary', icon: '🗳️' },
+                                        { id: 'votehead_distribution', label: 'Votehead Distribution', icon: '📊' },
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setOutstandingSubTab(tab.id as any)}
+                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
+                                                outstandingSubTab === tab.id
+                                                    ? 'bg-rose-600 text-white shadow-md'
+                                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            <span>{tab.icon}</span>
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* Fee Collection Report */}
                             {reportsSubTab === 'collection' && (
@@ -5081,35 +5118,383 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             )}
 
-                            {/* Outstanding Balances */}
-                            {reportsSubTab === 'outstanding' && (
-                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Outstanding Balances</h3>
-                                    <p className="text-[10px] text-slate-400 font-medium mb-6">Students with unpaid or partial fees</p>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-xs">
-                                            <thead><tr className="border-b border-slate-100 dark:border-slate-800">
-                                                {['Student','Adm No.','Class','Total Invoiced','Paid','Balance'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
-                                            </tr></thead>
-                                            <tbody>
-                                                {studentFinanceData.filter((s: any) => s.totals.balance > 0).sort((a: any,b: any)=>b.totals.balance-a.totals.balance).map((s: any,i: number)=>(
-                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{s.name}</td>
-                                                        <td className="py-3 px-4 text-slate-500">{s.admissionNumber}</td>
-                                                        <td className="py-3 px-4 text-slate-500">{s.gradeLevel || '—'}</td>
-                                                        <td className="py-3 px-4 font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</td>
-                                                        <td className="py-3 px-4 font-black text-emerald-600">KSh {s.totals.paid.toLocaleString()}</td>
-                                                        <td className="py-3 px-4 font-black text-rose-600">KSh {s.totals.balance.toLocaleString()}</td>
-                                                    </tr>
-                                                ))}
-                                                {studentFinanceData.filter((s: any)=>s.totals.balance>0).length === 0 && (
-                                                    <tr><td colSpan={6} className="py-8 text-center text-slate-400 font-medium">🎉 No outstanding balances — all fees cleared!</td></tr>
+                            {/* Outstanding Balances — 7 Sub-Tabs */}
+                            {reportsSubTab === 'outstanding' && (() => {
+                                const [slipSearch, setSlipSearch] = React.useState('');
+                                const [slipStudentId, setSlipStudentId] = React.useState('');
+                                const [balFilter, setBalFilter] = React.useState('');
+                                const [balClass, setBalClass] = React.useState('');
+
+                                // Derive all voteheads across all invoices
+                                const allVoteHeads: string[] = Array.from(new Set(
+                                    mappedInvoices.flatMap((inv: any) =>
+                                        (inv.voteHeads || inv.items || []).map((v: any) => v.name || v.voteHeadName || v.description || 'General')
+                                    )
+                                ));
+
+                                // Per-student votehead breakdown
+                                const studentVoteData = studentFinanceData.map((s: any) => {
+                                    const invs = mappedInvoices.filter((i: any) => i.studentId === s.id);
+                                    const rcpts = mappedReceipts.filter((r: any) => invs.some((i: any) => i.id === r.invoiceId) || r.studentId === s.id);
+                                    const totalPaid = rcpts.reduce((acc: number, r: any) => acc + (r.amountPaid || 0), 0);
+                                    const voteMap: Record<string, { invoiced: number; paid: number }> = {};
+                                    invs.forEach((inv: any) => {
+                                        (inv.voteHeads || inv.items || []).forEach((v: any) => {
+                                            const key = v.name || v.voteHeadName || v.description || 'General';
+                                            if (!voteMap[key]) voteMap[key] = { invoiced: 0, paid: 0 };
+                                            voteMap[key].invoiced += v.amount || 0;
+                                        });
+                                    });
+                                    // Distribute payments proportionally
+                                    const totalInv = Object.values(voteMap).reduce((a, v) => a + v.invoiced, 0);
+                                    if (totalInv > 0) {
+                                        Object.keys(voteMap).forEach(k => {
+                                            voteMap[k].paid = Math.min(voteMap[k].invoiced, (voteMap[k].invoiced / totalInv) * totalPaid);
+                                        });
+                                    }
+                                    return { ...s, voteMap };
+                                });
+
+                                // Classes list
+                                const classes = Array.from(new Set(props.students.map((s: any) => s.gradeLevel || 'Unclassified'))).sort();
+
+                                // Terms
+                                const terms = Array.from(new Set(
+                                    mappedInvoices.map((i: any) => i.termName || i.term || 'General')
+                                )).sort();
+
+                                // Slip student
+                                const slipStudent = props.students.find((s: any) => s.id === slipStudentId);
+                                const slipData = slipStudent ? studentFinanceData.find((s: any) => s.id === slipStudentId) : null;
+                                const slipStudents = props.students.filter((s: any) =>
+                                    s.name?.toLowerCase().includes(slipSearch.toLowerCase()) ||
+                                    (s.admissionNumber || '').toLowerCase().includes(slipSearch.toLowerCase())
+                                ).slice(0, 30);
+
+                                const TH = (label: string) => <th className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[10px] border-b border-slate-100 dark:border-slate-800 whitespace-nowrap">{label}</th>;
+                                const TD = ({ children, cls = '' }: any) => <td className={`py-2.5 px-3 text-xs ${cls}`}>{children}</td>;
+
+                                return (
+                                    <div className="space-y-4 animate-in fade-in duration-200">
+
+                                        {/* 1. Fee Balance Slip */}
+                                        {outstandingSubTab === 'balance_slip' && (
+                                            <div className="space-y-4">
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Generate Fee Balance Slip</h3>
+                                                    <div className="flex flex-col md:flex-row gap-4">
+                                                        <input type="text" placeholder="Search student..." value={slipSearch} onChange={e => setSlipSearch(e.target.value)} className="flex-1 pl-4 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold text-slate-900 dark:text-white" />
+                                                        <select value={slipStudentId} onChange={e => setSlipStudentId(e.target.value)} className="flex-1 py-2.5 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-sm font-bold text-slate-900 dark:text-white">
+                                                            <option value="">— Select Student —</option>
+                                                            {slipStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{s.gradeLevel ? ` · ${s.gradeLevel}` : ''}</option>))}
+                                                        </select>
+                                                        {slipStudentId && <button onClick={() => window.print()} className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print Slip</button>}
+                                                    </div>
+                                                </div>
+
+                                                {/* A5 Balance Slip */}
+                                                {slipStudent && slipData && (
+                                                    <div className="mx-auto bg-white dark:bg-slate-900 rounded-[2rem] border-2 border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden" style={{ maxWidth: '560px' }}>
+                                                        {/* Slip Header */}
+                                                        <div className="bg-gradient-to-r from-rose-700 to-rose-500 p-6 text-white text-center">
+                                                            <p className="text-rose-200 text-[9px] font-black uppercase tracking-[0.4em] mb-0.5">Fee Balance Slip</p>
+                                                            <h3 className="text-xl font-black">{props.institution.name}</h3>
+                                                            <p className="text-rose-200 text-[10px] mt-0.5">{new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                                        </div>
+                                                        {/* Student Details */}
+                                                        <div className="p-6 border-b border-dashed border-slate-200 dark:border-slate-700">
+                                                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Student Name</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{slipStudent.name}</p></div>
+                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Adm Number</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).admissionNumber || '—'}</p></div>
+                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Class</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).gradeLevel || '—'}</p></div>
+                                                                <div><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Stream</p><p className="font-black text-slate-900 dark:text-white mt-0.5">{(slipStudent as any).stream || '—'}</p></div>
+                                                            </div>
+                                                        </div>
+                                                        {/* Balance Summary */}
+                                                        <div className="p-6 space-y-2">
+                                                            <div className="flex justify-between text-xs"><span className="font-black text-slate-500 uppercase tracking-widest text-[10px]">Total Invoiced</span><span className="font-black text-slate-800 dark:text-white">KSh {(slipData as any).totals.invoiced.toLocaleString()}</span></div>
+                                                            <div className="flex justify-between text-xs"><span className="font-black text-slate-500 uppercase tracking-widest text-[10px]">Amount Paid</span><span className="font-black text-emerald-600">KSh {(slipData as any).totals.paid.toLocaleString()}</span></div>
+                                                            <div className="flex justify-between text-xs border-t pt-2 mt-2"><span className="font-black text-slate-500 uppercase tracking-widest text-[10px]">Balance Due</span><span className={`font-black text-lg ${(slipData as any).totals.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs((slipData as any).totals.balance).toLocaleString()}</span></div>
+                                                        </div>
+                                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 text-center">
+                                                            <p className="text-[9px] text-slate-400 font-medium">This slip is computer generated. Please visit the Finance Office for queries.</p>
+                                                        </div>
+                                                    </div>
                                                 )}
-                                            </tbody>
-                                        </table>
+                                            </div>
+                                        )}
+
+                                        {/* 2. All Balances */}
+                                        {outstandingSubTab === 'all_balances' && (
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+                                                    <div>
+                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">All Outstanding Balances</h3>
+                                                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">{studentFinanceData.filter((s: any) => s.totals.balance > 0).length} students with balances</p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <input type="text" placeholder="Filter name/adm..." value={balFilter} onChange={e => setBalFilter(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
+                                                        <select value={balClass} onChange={e => setBalClass(e.target.value)} className="px-3 py-2 bg-slate-50 dark:bg-slate-950 border-none rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
+                                                            <option value="">All Classes</option>
+                                                            {classes.map((c: any) => <option key={c} value={c}>{c}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left">
+                                                        <thead><tr>{['#', 'Student', 'Adm No.', 'Class', 'Invoiced', 'Paid', 'Balance'].map(h => TH(h))}</tr></thead>
+                                                        <tbody>
+                                                            {studentFinanceData
+                                                                .filter((s: any) => s.totals.balance > 0)
+                                                                .filter((s: any) => !balFilter || s.name?.toLowerCase().includes(balFilter.toLowerCase()) || (s.admissionNumber || '').toLowerCase().includes(balFilter.toLowerCase()))
+                                                                .filter((s: any) => !balClass || s.gradeLevel === balClass)
+                                                                .sort((a: any, b: any) => b.totals.balance - a.totals.balance)
+                                                                .map((s: any, i: number) => (
+                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                        <TD cls="text-slate-400 font-bold">{i + 1}</TD>
+                                                                        <TD cls="font-bold text-slate-800 dark:text-white">{s.name}</TD>
+                                                                        <TD cls="text-slate-500">{s.admissionNumber}</TD>
+                                                                        <TD cls="text-slate-500">{s.gradeLevel || '—'}</TD>
+                                                                        <TD cls="font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600">KSh {s.totals.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600">KSh {s.totals.balance.toLocaleString()}</TD>
+                                                                    </tr>
+                                                                ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 3. Student Summary — invoiced/paid/balance per votehead */}
+                                        {outstandingSubTab === 'student_summary' && (
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Student Summary by Votehead</h3>
+                                                <p className="text-[10px] text-slate-400 font-medium mb-4">Amount invoiced and received per votehead per student</p>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left">
+                                                        <thead><tr>
+                                                            {TH('Student')}
+                                                            {TH('Adm No.')}
+                                                            {TH('Class')}
+                                                            {allVoteHeads.map(v => TH(v))}
+                                                            {TH('Total Inv.')}
+                                                            {TH('Total Paid')}
+                                                            {TH('Balance')}
+                                                        </tr></thead>
+                                                        <tbody>
+                                                            {studentVoteData.filter((s: any) => s.totals.balance > 0).map((s: any, i: number) => (
+                                                                <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                    <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">{s.name}</TD>
+                                                                    <TD cls="text-slate-500">{s.admissionNumber}</TD>
+                                                                    <TD cls="text-slate-500">{s.gradeLevel || '—'}</TD>
+                                                                    {allVoteHeads.map(v => (
+                                                                        <TD key={v} cls="text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                                                            {s.voteMap[v] ? (
+                                                                                <div>
+                                                                                    <div className="font-black text-slate-700">{s.voteMap[v].invoiced.toLocaleString()}</div>
+                                                                                    <div className="text-emerald-600">{Math.round(s.voteMap[v].paid).toLocaleString()}</div>
+                                                                                    <div className="text-rose-500 text-[10px]">{Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid).toLocaleString()}</div>
+                                                                                </div>
+                                                                            ) : <span className="text-slate-300">—</span>}
+                                                                        </TD>
+                                                                    ))}
+                                                                    <TD cls="font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</TD>
+                                                                    <TD cls="font-black text-emerald-600">KSh {s.totals.paid.toLocaleString()}</TD>
+                                                                    <TD cls="font-black text-rose-600">KSh {s.totals.balance.toLocaleString()}</TD>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <p className="text-[9px] text-slate-400 mt-2 font-medium">Each votehead cell shows: Invoiced / Paid / Balance. Paid amounts are distributed proportionally.</p>
+                                            </div>
+                                        )}
+
+                                        {/* 4. Class Summary */}
+                                        {outstandingSubTab === 'class_summary' && (() => {
+                                            const classSummary = classes.map((cls: string) => {
+                                                const students = studentFinanceData.filter((s: any) => (s.gradeLevel || 'Unclassified') === cls);
+                                                return {
+                                                    cls,
+                                                    count: students.length,
+                                                    invoiced: students.reduce((a: number, s: any) => a + s.totals.invoiced, 0),
+                                                    paid: students.reduce((a: number, s: any) => a + s.totals.paid, 0),
+                                                    balance: students.reduce((a: number, s: any) => a + s.totals.balance, 0),
+                                                };
+                                            }).filter(r => r.invoiced > 0);
+                                            const totals = classSummary.reduce((a: any, r) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Class Summary</h3>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left">
+                                                            <thead><tr>{['Class', 'Students', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
+                                                            <tbody>
+                                                                {classSummary.map((r, i) => (
+                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                        <TD cls="font-black text-slate-800 dark:text-white">{r.cls}</TD>
+                                                                        <TD cls="text-slate-500 font-bold">{r.count}</TD>
+                                                                        <TD cls="font-black text-slate-700">KSh {r.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600">KSh {r.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600">KSh {r.balance.toLocaleString()}</TD>
+                                                                        <TD cls="">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${r.invoiced > 0 ? Math.min(100, (r.paid / r.invoiced) * 100) : 0}%` }} /></div>
+                                                                                <span className="text-[10px] font-black text-slate-600">{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
+                                                                            </div>
+                                                                        </TD>
+                                                                    </tr>
+                                                                ))}
+                                                                <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
+                                                                    <TD cls="text-slate-900 dark:text-white text-[10px] uppercase tracking-widest">TOTAL</TD>
+                                                                    <TD cls="text-slate-900 dark:text-white">{classSummary.reduce((a, r) => a + r.count, 0)}</TD>
+                                                                    <TD cls="text-slate-900 dark:text-white">KSh {totals.invoiced.toLocaleString()}</TD>
+                                                                    <TD cls="text-emerald-600">KSh {totals.paid.toLocaleString()}</TD>
+                                                                    <TD cls="text-rose-600">KSh {totals.balance.toLocaleString()}</TD>
+                                                                    <TD cls="text-slate-700">{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* 5. Term Summary Balances */}
+                                        {outstandingSubTab === 'term_summary' && (() => {
+                                            const termSummary = terms.map((term: string) => {
+                                                const invs = mappedInvoices.filter((i: any) => (i.termName || i.term || 'General') === term);
+                                                const invoiced = invs.reduce((a: number, i: any) => a + (i.totalAmount || 0), 0);
+                                                const invIds = new Set(invs.map((i: any) => i.id));
+                                                const paid = mappedReceipts.filter((r: any) => invIds.has(r.invoiceId)).reduce((a: number, r: any) => a + (r.amountPaid || 0), 0);
+                                                return { term, invoiced, paid, balance: invoiced - paid, count: invs.length };
+                                            }).filter(r => r.invoiced > 0);
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Term Summary Balances</h3>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left">
+                                                            <thead><tr>{['Term', 'Invoices', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
+                                                            <tbody>
+                                                                {termSummary.map((r, i) => (
+                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                        <TD cls="font-black text-slate-800 dark:text-white">{r.term}</TD>
+                                                                        <TD cls="text-slate-500 font-bold">{r.count}</TD>
+                                                                        <TD cls="font-black text-slate-700">KSh {r.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600">KSh {r.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600">KSh {r.balance.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-slate-600">{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : 0}%</TD>
+                                                                    </tr>
+                                                                ))}
+                                                                {termSummary.length === 0 && (<tr><td colSpan={6} className="py-8 text-center text-slate-400 text-xs font-medium">No term data found</td></tr>)}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* 6. Voteheads Summary */}
+                                        {outstandingSubTab === 'voteheads_summary' && (() => {
+                                            const vhSummary = allVoteHeads.map(vh => {
+                                                let invoiced = 0, paid = 0;
+                                                mappedInvoices.forEach((inv: any) => {
+                                                    const invPaid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((a: number, r: any) => a + (r.amountPaid || 0), 0);
+                                                    const totalInv = inv.totalAmount || 0;
+                                                    (inv.voteHeads || inv.items || []).forEach((v: any) => {
+                                                        const vName = v.name || v.voteHeadName || v.description || 'General';
+                                                        if (vName === vh) {
+                                                            invoiced += v.amount || 0;
+                                                            paid += totalInv > 0 ? ((v.amount || 0) / totalInv) * invPaid : 0;
+                                                        }
+                                                    });
+                                                });
+                                                return { vh, invoiced, paid: Math.round(paid), balance: Math.round(invoiced - paid) };
+                                            }).filter(r => r.invoiced > 0).sort((a, b) => b.balance - a.balance);
+                                            const totals = vhSummary.reduce((a, r) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Voteheads Summary</h3>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left">
+                                                            <thead><tr>{['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
+                                                            <tbody>
+                                                                {vhSummary.map((r, i) => (
+                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                        <TD cls="font-black text-slate-800 dark:text-white">{r.vh}</TD>
+                                                                        <TD cls="font-black text-slate-700">KSh {r.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600">KSh {r.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600">KSh {r.balance.toLocaleString()}</TD>
+                                                                        <TD cls="">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${r.invoiced > 0 ? Math.min(100, (r.paid / r.invoiced) * 100) : 0}%` }} /></div>
+                                                                                <span className="text-[10px] font-black">{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
+                                                                            </div>
+                                                                        </TD>
+                                                                    </tr>
+                                                                ))}
+                                                                <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
+                                                                    <TD cls="text-slate-900 dark:text-white text-[10px] uppercase tracking-widest">TOTAL</TD>
+                                                                    <TD cls="text-slate-900 dark:text-white">KSh {totals.invoiced.toLocaleString()}</TD>
+                                                                    <TD cls="text-emerald-600">KSh {totals.paid.toLocaleString()}</TD>
+                                                                    <TD cls="text-rose-600">KSh {totals.balance.toLocaleString()}</TD>
+                                                                    <TD cls="text-slate-600">{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* 7. Votehead Distribution — pivot table */}
+                                        {outstandingSubTab === 'votehead_distribution' && (
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Votehead Distribution</h3>
+                                                <p className="text-[10px] text-slate-400 font-medium mb-4">Outstanding balance per student per votehead (Dr = still owed)</p>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left">
+                                                        <thead><tr>
+                                                            {TH('#')}
+                                                            {TH('Student')}
+                                                            {TH('Class')}
+                                                            {allVoteHeads.map(v => TH(v))}
+                                                            {TH('Total Balance')}
+                                                        </tr></thead>
+                                                        <tbody>
+                                                            {studentVoteData
+                                                                .filter((s: any) => s.totals.balance > 0)
+                                                                .sort((a: any, b: any) => b.totals.balance - a.totals.balance)
+                                                                .map((s: any, i: number) => (
+                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                        <TD cls="text-slate-400 font-bold">{i + 1}</TD>
+                                                                        <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">{s.name}</TD>
+                                                                        <TD cls="text-slate-500 whitespace-nowrap">{s.gradeLevel || '—'}</TD>
+                                                                        {allVoteHeads.map(v => {
+                                                                            const vb = s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0;
+                                                                            return <TD key={v} cls={`whitespace-nowrap font-bold ${vb > 0 ? 'text-rose-600' : vb < 0 ? 'text-emerald-600' : 'text-slate-300'}`}>{vb !== 0 ? `KSh ${Math.abs(vb).toLocaleString()}` : '—'}</TD>;
+                                                                        })}
+                                                                        <TD cls="font-black text-rose-700">KSh {s.totals.balance.toLocaleString()}</TD>
+                                                                    </tr>
+                                                                ))}
+                                                            {/* Column totals */}
+                                                            <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-rose-50 dark:bg-rose-900/10 font-black">
+                                                                <TD cls="" /><TD cls="text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</TD><TD cls="" />
+                                                                {allVoteHeads.map(v => {
+                                                                    const total = studentVoteData.filter((s: any) => s.totals.balance > 0).reduce((a: number, s: any) => a + (s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0), 0);
+                                                                    return <TD key={v} cls="text-rose-700 whitespace-nowrap">{total > 0 ? `KSh ${total.toLocaleString()}` : '—'}</TD>;
+                                                                })}
+                                                                <TD cls="text-rose-700">KSh {studentVoteData.filter((s: any) => s.totals.balance > 0).reduce((a: number, s: any) => a + s.totals.balance, 0).toLocaleString()}</TD>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* Receipts Ledger */}
                             {reportsSubTab === 'ledger' && (
