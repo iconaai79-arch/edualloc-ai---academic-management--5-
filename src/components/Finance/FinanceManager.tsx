@@ -87,6 +87,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+    // Reports sub-tab states
+    const [stmtStudentId, setStmtStudentId] = useState('');
+    const [stmtSearch, setStmtSearch] = useState('');
+    const [slipSearch, setSlipSearch] = useState('');
+    const [slipStudentId, setSlipStudentId] = useState('');
+    const [balFilter, setBalFilter] = useState('');
+    const [balClass, setBalClass] = useState('');
+
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
 
@@ -5120,11 +5128,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                             {/* Outstanding Balances — 7 Sub-Tabs */}
                             {reportsSubTab === 'outstanding' && (() => {
-                                const [slipSearch, setSlipSearch] = React.useState('');
-                                const [slipStudentId, setSlipStudentId] = React.useState('');
-                                const [balFilter, setBalFilter] = React.useState('');
-                                const [balClass, setBalClass] = React.useState('');
-
                                 // Derive all voteheads across all invoices
                                 const allVoteHeads: string[] = Array.from(new Set(
                                     mappedInvoices.flatMap((inv: any) =>
@@ -5625,9 +5628,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                             {/* Student Statement */}
                             {reportsSubTab === 'student_statement' && (() => {
-                                const [stmtStudentId, setStmtStudentId] = React.useState('');
-                                const [stmtSearch, setStmtSearch] = React.useState('');
-
                                 const filteredStudents = props.students.filter((s: any) =>
                                     s.name?.toLowerCase().includes(stmtSearch.toLowerCase()) ||
                                     (s.admissionNumber || '').toLowerCase().includes(stmtSearch.toLowerCase())
