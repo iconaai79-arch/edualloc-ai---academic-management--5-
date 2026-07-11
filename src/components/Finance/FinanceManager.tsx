@@ -94,7 +94,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [slipStudentId, setSlipStudentId] = useState('');
     const [balFilter, setBalFilter] = useState('');
     const [balClass, setBalClass] = useState('');
-    const [ledgerSubTab, setLedgerSubTab] = useState<'collection_summary' | 'cash_book' | 'fee_register'>('collection_summary');
+    const [ledgerSubTab, setLedgerSubTab] = useState<'collection_summary' | 'cash_book' | 'fee_register' | 'cash_flow'>('collection_summary');
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
@@ -5076,6 +5076,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         { id: 'collection_summary', label: 'Collection Summary', icon: '📥' },
                                         { id: 'cash_book', label: 'Cash Book', icon: '📖' },
                                         { id: 'fee_register', label: 'Fee Register', icon: '📓' },
+                                        { id: 'cash_flow', label: 'Cash Flow', icon: '🌊' },
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
@@ -5818,6 +5819,110 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                             </div>
                                         )}
+
+                                        {/* 4. Cash Flow Statement */}
+                                        {ledgerSubTab === 'cash_flow' && (() => {
+                                            // Categorize cash inflows & outflows
+                                            const totalInflows = mappedReceipts.reduce((sum: number, r: any) => sum + (r.amountPaid || 0), 0);
+                                            
+                                            let operatingOutflow = 0;
+                                            let investingOutflow = 0;
+                                            let financingOutflow = 0;
+
+                                            const operatingDetails: Array<{ desc: string; amount: number; date: string }> = [];
+                                            const investingDetails: Array<{ desc: string; amount: number; date: string }> = [];
+                                            const financingDetails: Array<{ desc: string; amount: number; date: string }> = [];
+
+                                            (props.expenses || []).forEach((e: any) => {
+                                                const category = (e.category || '').toLowerCase();
+                                                const desc = (e.description || '').toLowerCase();
+                                                const amount = e.amount || 0;
+                                                const date = e.date?.split('T')[0] || '—';
+
+                                                const isInvesting = category.includes('asset') || category.includes('equipment') || category.includes('computer') || category.includes('construction') || category.includes('building') || category.includes('land') || category.includes('furniture') || desc.includes('asset') || desc.includes('equipment') || desc.includes('purchase');
+                                                const isFinancing = category.includes('loan') || category.includes('bank') || category.includes('capital') || category.includes('interest') || category.includes('dividend');
+
+                                                if (isInvesting) {
+                                                    investingOutflow += amount;
+                                                    investingDetails.push({ desc: e.description, amount, date });
+                                                } else if (isFinancing) {
+                                                    financingOutflow += amount;
+                                                    financingDetails.push({ desc: e.description, amount, date });
+                                                } else {
+                                                    operatingOutflow += amount;
+                                                    operatingDetails.push({ desc: e.description, amount, date });
+                                                }
+                                            });
+
+                                            const netOperating = totalInflows - operatingOutflow;
+                                            const netInvesting = -investingOutflow;
+                                            const netFinancing = -financingOutflow;
+                                            const netCashChange = netOperating + netInvesting + netFinancing;
+
+                                            const SectionTitle = ({ title }: { title: string }) => (
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">{title}</h4>
+                                            );
+
+                                            const Row = ({ label, val, isBold = false, isSubtotal = false }: { label: string; val: number; isBold?: boolean; isSubtotal?: boolean }) => (
+                                                <div className={`flex justify-between py-2 text-xs ${isBold ? 'font-black text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'} ${isSubtotal ? 'border-t border-slate-200 dark:border-slate-700 mt-1 pt-2' : ''}`}>
+                                                    <span>{label}</span>
+                                                    <span className={val < 0 ? 'text-rose-600 font-bold' : val > 0 && isSubtotal ? 'text-emerald-600 font-bold' : ''}>
+                                                        {val < 0 ? `(KSh ${Math.abs(val).toLocaleString()})` : `KSh ${val.toLocaleString()}`}
+                                                    </span>
+                                                </div>
+                                            );
+
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Statement of Cash Flows</h3>
+                                                            <p className="text-[10px] text-slate-400 font-medium">Summarized cash inflows and outflows categorized by Operating, Investing, and Financing activities</p>
+                                                        </div>
+                                                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print Statement</button>
+                                                    </div>
+
+                                                    <div className="max-w-2xl mx-auto space-y-8 bg-slate-50/50 dark:bg-slate-950/40 p-8 rounded-[2rem] border border-slate-100/80 dark:border-slate-800/30">
+                                                        {/* Operating Activities */}
+                                                        <div>
+                                                            <SectionTitle title="1. Cash Flows from Operating Activities" />
+                                                            <Row label="Cash Inflow: Fee Collections" val={totalInflows} />
+                                                            <Row label="Cash Outflow: Operating Expenses" val={-operatingOutflow} />
+                                                            <Row label="Net Cash from Operating Activities" val={netOperating} isBold isSubtotal />
+                                                        </div>
+
+                                                        {/* Investing Activities */}
+                                                        <div>
+                                                            <SectionTitle title="2. Cash Flows from Investing Activities" />
+                                                            <Row label="Cash Outflow: Asset Purchases & Capital Capex" val={-investingOutflow} />
+                                                            <Row label="Net Cash used in Investing Activities" val={netInvesting} isBold isSubtotal />
+                                                        </div>
+
+                                                        {/* Financing Activities */}
+                                                        <div>
+                                                            <SectionTitle title="3. Cash Flows from Financing Activities" />
+                                                            <Row label="Cash Outflow: Finance Costs & Loans Repaid" val={-financingOutflow} />
+                                                            <Row label="Net Cash used in Financing Activities" val={netFinancing} isBold isSubtotal />
+                                                        </div>
+
+                                                        {/* Summary block */}
+                                                        <div className="border-t-2 border-dashed border-slate-200 dark:border-slate-700 pt-6 space-y-2">
+                                                            <div className="flex justify-between font-black text-sm text-slate-950 dark:text-white">
+                                                                <span>Net Increase / (Decrease) in Cash</span>
+                                                                <span className={netCashChange < 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                                                                    {netCashChange < 0 ? `(KSh ${Math.abs(netCashChange).toLocaleString()})` : `KSh ${netCashChange.toLocaleString()}`}
+                                                                </span>
+                                                            </div>
+                                                            <Row label="Cash at Beginning of Period" val={0} />
+                                                            <div className="flex justify-between font-black text-base text-indigo-600 border-t border-indigo-100 dark:border-indigo-900/40 pt-3 mt-3">
+                                                                <span>Cash at End of Period</span>
+                                                                <span>KSh {netCashChange.toLocaleString()}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
 
                                     </div>
                                 );
