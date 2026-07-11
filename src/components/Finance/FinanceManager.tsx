@@ -5128,10 +5128,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                             {/* Outstanding Balances — 7 Sub-Tabs */}
                             {reportsSubTab === 'outstanding' && (() => {
+                                const getInvoiceItems = (inv: any): any[] => {
+                                    let items = inv.voteHeads || inv.items;
+                                    if (!items) return [];
+                                    if (typeof items === 'string') {
+                                        try { return JSON.parse(items) || []; } catch (e) { return []; }
+                                    }
+                                    return Array.isArray(items) ? items : [];
+                                };
+
                                 // Derive all voteheads across all invoices
                                 const allVoteHeads: string[] = Array.from(new Set(
                                     mappedInvoices.flatMap((inv: any) =>
-                                        (inv.voteHeads || inv.items || []).map((v: any) => v.name || v.voteHeadName || v.description || 'General')
+                                        getInvoiceItems(inv).map((v: any) => v.name || v.voteHeadName || v.description || 'General')
                                     )
                                 ));
 
@@ -5142,7 +5151,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     const totalPaid = rcpts.reduce((acc: number, r: any) => acc + (r.amountPaid || 0), 0);
                                     const voteMap: Record<string, { invoiced: number; paid: number }> = {};
                                     invs.forEach((inv: any) => {
-                                        (inv.voteHeads || inv.items || []).forEach((v: any) => {
+                                        getInvoiceItems(inv).forEach((v: any) => {
                                             const key = v.name || v.voteHeadName || v.description || 'General';
                                             if (!voteMap[key]) voteMap[key] = { invoiced: 0, paid: 0 };
                                             voteMap[key].invoiced += v.amount || 0;
@@ -5405,7 +5414,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 mappedInvoices.forEach((inv: any) => {
                                                     const invPaid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((a: number, r: any) => a + (r.amountPaid || 0), 0);
                                                     const totalInv = inv.totalAmount || 0;
-                                                    (inv.voteHeads || inv.items || []).forEach((v: any) => {
+                                                    getInvoiceItems(inv).forEach((v: any) => {
                                                         const vName = v.name || v.voteHeadName || v.description || 'General';
                                                         if (vName === vh) {
                                                             invoiced += v.amount || 0;
