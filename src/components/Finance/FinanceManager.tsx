@@ -98,6 +98,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [showOpPreview, setShowOpPreview] = useState(false);
     const [showInvPreview, setShowInvPreview] = useState(false);
     const [showFinPreview, setShowFinPreview] = useState(false);
+    const [cbPeriod, setCbPeriod] = useState<'all' | 'this_month' | 'last_month' | 'custom'>('all');
+    const [cbStartDate, setCbStartDate] = useState('');
+    const [cbEndDate, setCbEndDate] = useState('');
+    const [cbViewType, setCbViewType] = useState<'unified' | 'receipts' | 'payments'>('unified');
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
@@ -5604,9 +5608,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 });
 
                                 // 2. Cash Book calculation
-                                type CashBookEntry = { date: string; particulars: string; ref: string; debit: number; credit: number; balance: number };
-                                const cashBookEntries: CashBookEntry[] = [];
-                                
                                 const allCashEntries = [
                                     ...mappedReceipts.map((r: any) => ({
                                         date: r.paymentDate || r.createdAt || '',
@@ -5614,6 +5615,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         ref: r.receiptNumber || r.id?.slice(-8),
                                         debit: r.amountPaid || 0,
                                         credit: 0,
+                                        method: r.paymentMethod || r.method || 'Cash'
                                     })),
                                     ...(props.expenses || []).map((e: any) => ({
                                         date: e.date || '',
@@ -5621,21 +5623,117 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         ref: e.id?.slice(-8) || 'EXP',
                                         debit: 0,
                                         credit: e.amount || 0,
+                                        method: 'Expense'
                                     }))
                                 ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-                                let currentBal = 0;
-                                const cashBook = allCashEntries.map(entry => {
-                                    currentBal += entry.debit - entry.credit;
+                                // Calculate bf balance before start of period
+                                let bfBalance = 0;
+                                allCashEntries.forEach(entry => {
+                                    if (!entry.date) return;
+                                    const entryDate = new Date(entry.date);
+                                    const now = new Date();
+                                    let isPrior = false;
+                                    if (cbPeriod === 'this_month') {
+                                        const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                                        isPrior = entryDate < startOfThisMonth;
+                                    } else if (cbPeriod === 'last_month') {
+                                        const startOfLastMonth = now.getMonth() === 0 
+                                            ? new Date(now.getFullYear() - 1, 11, 1) 
+                                            : new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                                        isPrior = entryDate < startOfLastMonth;
+                                    } else if (cbPeriod === 'custom') {
+                                        const start = cbStartDate ? new Date(cbStartDate) : null;
+                                        if (start) {
+                                            isPrior = entryDate < start;
+                                        }
+                                    }
+                                    if (isPrior) {
+                                        bfBalance += entry.debit - entry.credit;
+                                    }
+                                });
+
+                                // Filter entries within chosen period
+                                const filteredCashEntries = allCashEntries.filter(entry => {
+                                    if (!entry.date) return true;
+                                    const entryDate = new Date(entry.date);
+                                    const now = new Date();
+                                    if (cbPeriod === 'this_month') {
+                                        return entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear();
+                                    } else if (cbPeriod === 'last_month') {
+                                        const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+                                        const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                                        return entryDate.getMonth() === lastMonth && entryDate.getFullYear() === year;
+                                    } else if (cbPeriod === 'custom') {
+                                        const start = cbStartDate ? new Date(cbStartDate) : null;
+                                        const end = cbEndDate ? new Date(cbEndDate) : null;
+                                        if (start && entryDate < start) return false;
+                                        if (end && entryDate > end) return false;
+                                    }
+                                    return true;
+                                });
+
+                                // Compute itemized cash book list (latest first)
+                                let currentItemBal = bfBalance;
+                                const itemizedCashBook = filteredCashEntries.map(entry => {
+                                    currentItemBal += entry.debit - entry.credit;
                                     return {
                                         date: entry.date.split('T')[0] || '—',
                                         particulars: entry.particulars,
                                         ref: entry.ref,
                                         debit: entry.debit,
                                         credit: entry.credit,
-                                        balance: currentBal,
+                                        method: entry.method,
+                                        balance: currentItemBal,
                                     };
-                                }).reverse(); // Display latest first
+                                }).reverse();
+
+                                // Group daily details for the Daily Cash Book
+                                const dailyGroups: Record<string, { date: string; debit: number; credit: number; receiptsList: any[]; expensesList: any[] }> = {};
+                                filteredCashEntries.forEach(entry => {
+                                    const dateStr = entry.date.split('T')[0] || '—';
+                                    if (!dailyGroups[dateStr]) {
+                                        dailyGroups[dateStr] = { date: dateStr, debit: 0, credit: 0, receiptsList: [], expensesList: [] };
+                                    }
+                                    const group = dailyGroups[dateStr];
+                                    group.debit += entry.debit;
+                                    group.credit += entry.credit;
+                                    if (entry.debit > 0) group.receiptsList.push(entry);
+                                    if (entry.credit > 0) group.expensesList.push(entry);
+                                });
+
+                                // Calculate daily running balances
+                                const sortedDays = Object.values(dailyGroups).sort((a, b) => a.date.localeCompare(b.date));
+                                let dailyRunning = bfBalance;
+                                const dailyCashBook = sortedDays.map(day => {
+                                    const bf = dailyRunning;
+                                    dailyRunning += day.debit - day.credit;
+                                    const cf = dailyRunning;
+
+                                    // Receipt numbers min/max range
+                                    const rcptNums = day.receiptsList.map(r => r.ref).filter(Boolean);
+                                    const minRcpt = rcptNums.length > 0 ? rcptNums.reduce((min, cur) => cur < min ? cur : min) : '—';
+                                    const maxRcpt = rcptNums.length > 0 ? rcptNums.reduce((max, cur) => cur > max ? cur : max) : '—';
+
+                                    // Payment methods breakdown
+                                    const methods: Record<string, number> = {};
+                                    day.receiptsList.forEach(r => {
+                                        const m = r.method || 'Cash';
+                                        methods[m] = (methods[m] || 0) + r.debit;
+                                    });
+                                    const methodSummary = Object.entries(methods)
+                                        .map(([m, val]) => `${m}: KSh ${val.toLocaleString()}`)
+                                        .join(' · ');
+
+                                    return {
+                                        ...day,
+                                        bf,
+                                        cf,
+                                        minRcpt,
+                                        maxRcpt,
+                                        methodSummary
+                                    };
+                                }).reverse();
 
                                 // 3. Fee Register calculation
                                 const feeRegister = props.students.map((s: any) => {
@@ -5735,44 +5833,170 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         {/* 2. Cash Book */}
                                         {ledgerSubTab === 'cash_book' && (
-                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-4">
-                                                <div>
-                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Cash Book Ledger</h3>
-                                                    <p className="text-[10px] text-slate-400 font-medium">Double entry book recording all inflows (Fee Collections) and outflows (Expenses)</p>
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
+                                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                                    <div>
+                                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Cash Book Ledger</h3>
+                                                        <p className="text-[10px] text-slate-400 font-medium">Double entry journal grouped by day with live Balance Brought Forward (bf)</p>
+                                                    </div>
+                                                    
+                                                    {/* Print Button */}
+                                                    <button onClick={() => window.print()} className="print:hidden flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print Cash Book</button>
                                                 </div>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-left">
-                                                        <thead>
-                                                            <tr>
-                                                                {TH('Date')}
-                                                                {TH('Particulars')}
-                                                                {TH('Reference')}
-                                                                {TH('Inflow (Dr)')}
-                                                                {TH('Outflow (Cr)')}
-                                                                {TH('Net Balance')}
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {cashBook.map((entry, i) => (
-                                                                <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                    <TD cls="text-slate-500 font-medium">{entry.date}</TD>
-                                                                    <TD cls="font-bold text-slate-800 dark:text-white">{entry.particulars}</TD>
-                                                                    <TD cls="font-black text-indigo-600">{entry.ref}</TD>
-                                                                    <TD cls="font-black text-emerald-600">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</TD>
-                                                                    <TD cls="font-black text-rose-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</TD>
-                                                                    <TD cls={`font-black ${entry.balance >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-600'}`}>
-                                                                        KSh {entry.balance.toLocaleString()}
-                                                                    </TD>
-                                                                </tr>
-                                                            ))}
-                                                            {cashBook.length === 0 && (
+
+                                                {/* Filters block */}
+                                                <div className="print:hidden bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 flex flex-col md:flex-row gap-4 items-end">
+                                                    <div className="flex-1 space-y-2">
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Reporting Period</label>
+                                                        <select value={cbPeriod} onChange={e => setCbPeriod(e.target.value as any)} className="w-full py-2.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
+                                                            <option value="all">All Time</option>
+                                                            <option value="this_month">This Month</option>
+                                                            <option value="last_month">Last Month</option>
+                                                            <option value="custom">Custom Date Range</option>
+                                                        </select>
+                                                    </div>
+
+                                                    {cbPeriod === 'custom' && (
+                                                        <>
+                                                            <div className="w-full md:w-44 space-y-2">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Start Date</label>
+                                                                <input type="date" value={cbStartDate} onChange={e => setCbStartDate(e.target.value)} className="w-full py-2.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
+                                                            </div>
+                                                            <div className="w-full md:w-44 space-y-2">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">End Date</label>
+                                                                <input type="date" value={cbEndDate} onChange={e => setCbEndDate(e.target.value)} className="w-full py-2.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    <div className="flex-1 space-y-2">
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ledger View</label>
+                                                        <select value={cbViewType} onChange={e => setCbViewType(e.target.value as any)} className="w-full py-2.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
+                                                            <option value="unified">Unified Daily Summary</option>
+                                                            <option value="receipts">Receipts Cash Book (Debit Journal)</option>
+                                                            <option value="payments">Payments Cash Book (Credit Journal)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Unified view */}
+                                                {cbViewType === 'unified' && (
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left">
+                                                            <thead>
                                                                 <tr>
-                                                                    <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No Cash Book transactions found.</td>
+                                                                    {TH('Date')}
+                                                                    {TH('Balance B/F')}
+                                                                    {TH('Receipts Range & Modes')}
+                                                                    {TH('Inflow (Dr)')}
+                                                                    {TH('Outflow (Cr)')}
+                                                                    {TH('Balance C/F')}
                                                                 </tr>
-                                                            )}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
+                                                            </thead>
+                                                            <tbody>
+                                                                {dailyCashBook.map((day, idx) => (
+                                                                    <tr key={idx} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                        <TD cls="font-bold text-slate-900 dark:text-white">{day.date}</TD>
+                                                                        <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
+                                                                        <TD cls="text-[10px] text-slate-600 dark:text-slate-400">
+                                                                            {day.debit > 0 ? (
+                                                                                <div>
+                                                                                    <span className="font-bold text-indigo-600">Range: {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}</span>
+                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">{day.methodSummary}</p>
+                                                                                </div>
+                                                                            ) : '—'}
+                                                                        </TD>
+                                                                        <TD cls="font-black text-emerald-600">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : '—'}</TD>
+                                                                        <TD cls="font-black text-rose-600">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : '—'}</TD>
+                                                                        <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                    </tr>
+                                                                ))}
+                                                                {dailyCashBook.length === 0 && (
+                                                                    <tr>
+                                                                        <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No transactions recorded for this period.</td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+
+                                                {/* Receipts Debit Journal View */}
+                                                {cbViewType === 'receipts' && (
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left">
+                                                            <thead>
+                                                                <tr>
+                                                                    {TH('Date')}
+                                                                    {TH('Balance B/F')}
+                                                                    {TH('Receipts Range')}
+                                                                    {TH('Payment Modes Summary')}
+                                                                    {TH('Total Inflow (Dr)')}
+                                                                    {TH('Balance C/F')}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {dailyCashBook.filter(d => d.debit > 0).map((day, idx) => (
+                                                                    <tr key={idx} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                        <TD cls="font-bold text-slate-900 dark:text-white">{day.date}</TD>
+                                                                        <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
+                                                                        <TD cls="font-bold text-indigo-600">
+                                                                            {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}
+                                                                        </TD>
+                                                                        <TD cls="text-[10px] text-slate-500">{day.methodSummary || '—'}</TD>
+                                                                        <TD cls="font-black text-emerald-600">KSh {day.debit.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                    </tr>
+                                                                ))}
+                                                                {dailyCashBook.filter(d => d.debit > 0).length === 0 && (
+                                                                    <tr>
+                                                                        <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No receipts recorded for this period.</td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+
+                                                {/* Payments Credit Journal View */}
+                                                {cbViewType === 'payments' && (
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left">
+                                                            <thead>
+                                                                <tr>
+                                                                    {TH('Date')}
+                                                                    {TH('Balance B/F')}
+                                                                    {TH('Expense / Payment Details')}
+                                                                    {TH('Total Outflow (Cr)')}
+                                                                    {TH('Balance C/F')}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {dailyCashBook.filter(d => d.credit > 0).map((day, idx) => (
+                                                                    <tr key={idx} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                        <TD cls="font-bold text-slate-900 dark:text-white">{day.date}</TD>
+                                                                        <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
+                                                                        <TD cls="text-[10px] text-slate-600 dark:text-slate-400 space-y-1">
+                                                                            {day.expensesList.map((exp, eIdx) => (
+                                                                                <div key={eIdx} className="flex justify-between border-b border-slate-50 dark:border-slate-800/30 pb-0.5 max-w-md">
+                                                                                    <span>{exp.particulars} ({exp.ref})</span>
+                                                                                    <span className="font-bold">KSh {exp.credit.toLocaleString()}</span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </TD>
+                                                                        <TD cls="font-black text-rose-600">KSh {day.credit.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                    </tr>
+                                                                ))}
+                                                                {dailyCashBook.filter(d => d.credit > 0).length === 0 && (
+                                                                    <tr>
+                                                                        <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">No expenses recorded for this period.</td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
