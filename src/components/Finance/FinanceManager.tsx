@@ -83,7 +83,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     
     // Dynamic Tabs based on Institution Type
     const [activeTab, setActiveTab] = useState<'home' | 'overview' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports'>('home');
-    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual'>('collection');
+    const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     // State for settings sub-tabs
@@ -5013,6 +5013,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         { id: 'expenses', label: 'Expense Summary', icon: '💸' },
                         { id: 'payroll_summary', label: 'Payroll Summary', icon: '👔' },
                         { id: 'annual', label: 'Annual Report', icon: '📊' },
+                        { id: 'student_statement', label: 'Student Statement', icon: '🎓' },
                     ];
 
                     return (
@@ -5236,6 +5237,132 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Student Statement */}
+                            {reportsSubTab === 'student_statement' && (() => {
+                                const [stmtStudentId, setStmtStudentId] = React.useState('');
+                                const [stmtSearch, setStmtSearch] = React.useState('');
+
+                                const filteredStudents = props.students.filter((s: any) =>
+                                    s.name?.toLowerCase().includes(stmtSearch.toLowerCase()) ||
+                                    (s.admissionNumber || '').toLowerCase().includes(stmtSearch.toLowerCase())
+                                ).slice(0, 30);
+
+                                const selectedStudent = props.students.find((s: any) => s.id === stmtStudentId);
+                                const studentInvoices = mappedInvoices.filter((i: any) => i.studentId === stmtStudentId);
+                                const studentReceipts = mappedReceipts.filter((r: any) =>
+                                    r.studentId === stmtStudentId ||
+                                    studentInvoices.some((i: any) => i.id === r.invoiceId)
+                                );
+
+                                const totalInvoiced = studentInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
+                                const totalPaid = studentReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                const balance = totalInvoiced - totalPaid;
+
+                                const allEntries = [
+                                    ...studentInvoices.map((i: any) => ({ date: i.issueDate || i.createdAt || '', eType: 'invoice' as const, data: i })),
+                                    ...studentReceipts.map((r: any) => ({ date: r.createdAt || r.date || '', eType: 'payment' as const, data: r })),
+                                ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
+
+                                let running = 0;
+                                const ledger = allEntries.map(entry => {
+                                    if (entry.eType === 'invoice') {
+                                        running += entry.data.totalAmount || 0;
+                                        return { date: (entry.date || '').split('T')[0] || '—', description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: running, eType: 'invoice' as const };
+                                    } else {
+                                        running -= entry.data.amountPaid || 0;
+                                        return { date: (entry.date || '').split('T')[0] || '—', description: `Payment Rcpt ${entry.data.receiptNumber || entry.data.id?.slice(-8)} · ${entry.data.paymentMethod || entry.data.method || 'Cash'}`, debit: 0, credit: entry.data.amountPaid || 0, balance: running, eType: 'payment' as const };
+                                    }
+                                });
+
+                                return (
+                                    <div className="space-y-6">
+                                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Student Account Statement</h3>
+                                            <p className="text-[10px] text-slate-400 font-medium mb-6">Search and select a student to generate their full financial statement</p>
+                                            <div className="flex flex-col md:flex-row gap-4">
+                                                <div className="relative flex-1">
+                                                    <span className="absolute left-4 top-3 text-slate-400">🔍</span>
+                                                    <input type="text" placeholder="Filter by name or admission number..." value={stmtSearch} onChange={e => setStmtSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white" />
+                                                </div>
+                                                <select value={stmtStudentId} onChange={e => setStmtStudentId(e.target.value)} className="flex-1 py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white">
+                                                    <option value="">— Select Student —</option>
+                                                    {filteredStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{s.gradeLevel ? ` · ${s.gradeLevel}` : ''}</option>))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {selectedStudent && (
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden">
+                                                <div className="bg-gradient-to-r from-indigo-700 to-purple-700 p-8 text-white">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Official Account Statement</p>
+                                                            <h3 className="text-2xl font-black">{props.institution.name}</h3>
+                                                            <p className="text-indigo-200 text-xs mt-1">Generated: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                                        </div>
+                                                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print</button>
+                                                    </div>
+                                                    <div className="mt-6 pt-6 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Student</p><p className="font-black text-sm mt-0.5">{selectedStudent.name}</p></div>
+                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).admissionNumber || '—'}</p></div>
+                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).gradeLevel || '—'}</p></div>
+                                                        <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}</p></div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-3 border-b border-slate-100 dark:border-slate-800">
+                                                    {[{label:'Total Charged', val: totalInvoiced, color:'text-slate-700 dark:text-slate-200'},{label:'Total Paid', val: totalPaid, color:'text-emerald-600'},{label:'Balance Due', val: balance, color: balance > 0 ? 'text-rose-600' : 'text-emerald-600'}].map((s,i)=>(
+                                                        <div key={i} className={`p-6 ${i<2?'border-r border-slate-100 dark:border-slate-800':''}`}>
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+                                                            <p className={`text-xl font-black ${s.color}`}>KSh {Math.abs(s.val).toLocaleString()}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <div className="p-8">
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Transaction Ledger</h4>
+                                                    {ledger.length === 0 ? (
+                                                        <p className="text-xs text-slate-400 text-center py-8 font-medium">No transactions found for this student.</p>
+                                                    ) : (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left text-xs">
+                                                                <thead>
+                                                                    <tr className="border-b-2 border-slate-200 dark:border-slate-700">
+                                                                        {['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'].map(h=>(<th key={h} className="py-3 px-3 font-black text-slate-500 uppercase tracking-widest text-[10px]">{h}</th>))}
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {ledger.map((entry, i) => (
+                                                                        <tr key={i} className={`border-b border-slate-50 dark:border-slate-800/50 ${entry.eType === 'payment' ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
+                                                                            <td className="py-3 px-3 text-slate-500 whitespace-nowrap">{entry.date}</td>
+                                                                            <td className="py-3 px-3 font-medium text-slate-800 dark:text-slate-200">{entry.description}</td>
+                                                                            <td className="py-3 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
+                                                                            <td className="py-3 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
+                                                                            <td className={`py-3 px-3 font-black whitespace-nowrap ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[10px] opacity-70">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
+                                                                        </tr>
+                                                                    ))}
+                                                                    <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
+                                                                        <td className="py-3 px-3" /><td className="py-3 px-3 text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</td>
+                                                                        <td className="py-3 px-3 text-slate-900 dark:text-white">KSh {totalInvoiced.toLocaleString()}</td>
+                                                                        <td className="py-3 px-3 text-emerald-600">KSh {totalPaid.toLocaleString()}</td>
+                                                                        <td className={`py-3 px-3 ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(balance).toLocaleString()} <span className="text-[10px] opacity-70">{balance > 0 ? 'Dr' : 'Cr'}</span></td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                    <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
+                                                        <p className="text-[10px] text-slate-400 font-medium">This is a computer-generated statement and does not require a signature.</p>
+                                                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">{props.institution.name} · {new Date().toISOString().split('T')[0]}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
                         </div>
                     );
                 })()}
