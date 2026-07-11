@@ -95,6 +95,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [balFilter, setBalFilter] = useState('');
     const [balClass, setBalClass] = useState('');
     const [ledgerSubTab, setLedgerSubTab] = useState<'collection_summary' | 'cash_book' | 'fee_register' | 'cash_flow'>('collection_summary');
+    const [showOpPreview, setShowOpPreview] = useState(false);
+    const [showInvPreview, setShowInvPreview] = useState(false);
+    const [showFinPreview, setShowFinPreview] = useState(false);
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
@@ -5885,24 +5888,98 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <div className="max-w-2xl mx-auto space-y-8 bg-slate-50/50 dark:bg-slate-950/40 p-8 rounded-[2rem] border border-slate-100/80 dark:border-slate-800/30">
                                                         {/* Operating Activities */}
                                                         <div>
-                                                            <SectionTitle title="1. Cash Flows from Operating Activities" />
+                                                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">
+                                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">1. Cash Flows from Operating Activities</h4>
+                                                                <button onClick={() => setShowOpPreview(!showOpPreview)} className="print:hidden text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-800 transition-colors">
+                                                                    {showOpPreview ? 'Hide Details' : 'Preview Details'}
+                                                                </button>
+                                                            </div>
                                                             <Row label="Cash Inflow: Fee Collections" val={totalInflows} />
                                                             <Row label="Cash Outflow: Operating Expenses" val={-operatingOutflow} />
                                                             <Row label="Net Cash from Operating Activities" val={netOperating} isBold isSubtotal />
+
+                                                            {showOpPreview && (
+                                                                <div className="print:hidden mt-4 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                                                                    <div>
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Collections breakdown ({mappedReceipts.length} items)</p>
+                                                                        <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                                                                            {mappedReceipts.map((r: any, idx: number) => (
+                                                                                <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                    <span>{r.createdAt?.split('T')[0] || r.paymentDate?.split('T')[0] || '—'} · {r.studentName || 'Student'} ({r.receiptNumber || r.id?.slice(-8)})</span>
+                                                                                    <span className="font-bold text-emerald-600">KSh {r.amountPaid.toLocaleString()}</span>
+                                                                                </div>
+                                                                            ))}
+                                                                            {mappedReceipts.length === 0 && <p className="text-[10px] text-slate-400">No collections found.</p>}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Operating Expenses breakdown ({operatingDetails.length} items)</p>
+                                                                        <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                                                                            {operatingDetails.map((o, idx) => (
+                                                                                <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                    <span>{o.date} · {o.desc}</span>
+                                                                                    <span className="font-bold text-rose-600">KSh {o.amount.toLocaleString()}</span>
+                                                                                </div>
+                                                                            ))}
+                                                                            {operatingDetails.length === 0 && <p className="text-[10px] text-slate-400">No operating expenses found.</p>}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         {/* Investing Activities */}
                                                         <div>
-                                                            <SectionTitle title="2. Cash Flows from Investing Activities" />
+                                                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">
+                                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Cash Flows from Investing Activities</h4>
+                                                                <button onClick={() => setShowInvPreview(!showInvPreview)} className="print:hidden text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-800 transition-colors">
+                                                                    {showInvPreview ? 'Hide Details' : 'Preview Details'}
+                                                                </button>
+                                                            </div>
                                                             <Row label="Cash Outflow: Asset Purchases & Capital Capex" val={-investingOutflow} />
                                                             <Row label="Net Cash used in Investing Activities" val={netInvesting} isBold isSubtotal />
+
+                                                            {showInvPreview && (
+                                                                <div className="print:hidden mt-4 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Investing Expenses breakdown ({investingDetails.length} items)</p>
+                                                                    <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                                                                        {investingDetails.map((inv, idx) => (
+                                                                            <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                <span>{inv.date} · {inv.desc}</span>
+                                                                                <span className="font-bold text-rose-600">KSh {inv.amount.toLocaleString()}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                        {investingDetails.length === 0 && <p className="text-[10px] text-slate-400">No investing activities found.</p>}
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         {/* Financing Activities */}
                                                         <div>
-                                                            <SectionTitle title="3. Cash Flows from Financing Activities" />
+                                                            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">
+                                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">3. Cash Flows from Financing Activities</h4>
+                                                                <button onClick={() => setShowFinPreview(!showFinPreview)} className="print:hidden text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-800 transition-colors">
+                                                                    {showFinPreview ? 'Hide Details' : 'Preview Details'}
+                                                                </button>
+                                                            </div>
                                                             <Row label="Cash Outflow: Finance Costs & Loans Repaid" val={-financingOutflow} />
                                                             <Row label="Net Cash used in Financing Activities" val={netFinancing} isBold isSubtotal />
+
+                                                            {showFinPreview && (
+                                                                <div className="print:hidden mt-4 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Financing Expenses breakdown ({financingDetails.length} items)</p>
+                                                                    <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                                                                        {financingDetails.map((fin, idx) => (
+                                                                            <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                <span>{fin.date} · {fin.desc}</span>
+                                                                                <span className="font-bold text-rose-600">KSh {fin.amount.toLocaleString()}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                        {financingDetails.length === 0 && <p className="text-[10px] text-slate-400">No financing activities found.</p>}
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         {/* Summary block */}
