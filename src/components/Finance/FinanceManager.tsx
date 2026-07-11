@@ -94,6 +94,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [slipStudentId, setSlipStudentId] = useState('');
     const [balFilter, setBalFilter] = useState('');
     const [balClass, setBalClass] = useState('');
+    const [ledgerSubTab, setLedgerSubTab] = useState<'collection_summary' | 'cash_book' | 'fee_register'>('collection_summary');
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
@@ -5027,28 +5028,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                     return (
                         <div className="space-y-6 animate-in fade-in duration-300">
-                            {/* Horizontal menu — switches to Outstanding sub-menu when on outstanding tab */}
-                            {reportsSubTab !== 'outstanding' ? (
-                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
-                                    {reportSubTabs.map(tab => (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setReportsSubTab(tab.id as any)}
-                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
-                                                reportsSubTab === tab.id
-                                                    ? 'bg-indigo-600 text-white shadow-md'
-                                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                            }`}
-                                        >
-                                            <span>{tab.icon}</span>
-                                            {tab.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
+                            {/* Horizontal menu — switches to sub-menus when on outstanding or ledger tabs */}
+                            {reportsSubTab === 'outstanding' ? (
                                 /* Outstanding Balances sub-menu */
                                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-indigo-100 dark:border-indigo-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
-                                    {/* Back button */}
                                     <button
                                         onClick={() => setReportsSubTab('collection')}
                                         className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all mr-1 border border-indigo-200 dark:border-indigo-800"
@@ -5071,6 +5054,53 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
                                                 outstandingSubTab === tab.id
                                                     ? 'bg-rose-600 text-white shadow-md'
+                                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            <span>{tab.icon}</span>
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : reportsSubTab === 'ledger' ? (
+                                /* Receipts Ledger sub-menu */
+                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-emerald-100 dark:border-emerald-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                    <button
+                                        onClick={() => setReportsSubTab('collection')}
+                                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all mr-1 border border-emerald-200 dark:border-emerald-800"
+                                    >
+                                        ← Back
+                                    </button>
+                                    <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
+                                    {[
+                                        { id: 'collection_summary', label: 'Collection Summary', icon: '📥' },
+                                        { id: 'cash_book', label: 'Cash Book', icon: '📖' },
+                                        { id: 'fee_register', label: 'Fee Register', icon: '📓' },
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setLedgerSubTab(tab.id as any)}
+                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
+                                                ledgerSubTab === tab.id
+                                                    ? 'bg-emerald-600 text-white shadow-md'
+                                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            <span>{tab.icon}</span>
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                /* Normal Reports menu */
+                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                                    {reportSubTabs.map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setReportsSubTab(tab.id as any)}
+                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
+                                                reportsSubTab === tab.id
+                                                    ? 'bg-indigo-600 text-white shadow-md'
                                                     : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
                                             }`}
                                         >
@@ -5508,32 +5538,290 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 );
                             })()}
 
-                            {/* Receipts Ledger */}
-                            {reportsSubTab === 'ledger' && (
-                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Receipts Ledger</h3>
-                                    <p className="text-[10px] text-slate-400 font-medium mb-6">All payment receipts — {mappedReceipts.length} total</p>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-xs">
-                                            <thead><tr className="border-b border-slate-100 dark:border-slate-800">
-                                                {['Receipt #','Student','Date','Amount','Payment Mode','Invoice'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
-                                            </tr></thead>
-                                            <tbody>
-                                                {[...mappedReceipts].sort((a:any,b:any)=>new Date(b.createdAt||b.date||0).getTime()-new Date(a.createdAt||a.date||0).getTime()).slice(0,100).map((r:any, i:number)=>(
-                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                        <td className="py-3 px-4 font-black text-indigo-600">{r.receiptNumber||r.id?.slice(-8)}</td>
-                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{r.studentName||r.payerName||'—'}</td>
-                                                        <td className="py-3 px-4 text-slate-500">{r.createdAt?.split('T')[0]||r.date||'—'}</td>
-                                                        <td className="py-3 px-4 font-black text-emerald-600">KSh {(r.amountPaid||0).toLocaleString()}</td>
-                                                        <td className="py-3 px-4"><span className="text-[10px] font-black px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-full">{r.paymentMethod||r.method||'—'}</span></td>
-                                                        <td className="py-3 px-4 text-slate-500">{r.invoiceId?.slice(-8)||'—'}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+
+                            {/* Receipts Ledger — 3 Sub-Tabs */}
+                            {reportsSubTab === 'ledger' && (() => {
+                                const getInvoiceItems = (inv: any): any[] => {
+                                    let items = inv.voteHeads || inv.items;
+                                    if (!items) return [];
+                                    if (typeof items === 'string') {
+                                        try { return JSON.parse(items) || []; } catch (e) { return []; }
+                                    }
+                                    return Array.isArray(items) ? items : [];
+                                };
+
+                                // 1. Daily Collection Summary calculation
+                                const collectionsByDate: Record<string, { date: string; minRcpt: string; maxRcpt: string; voteMap: Record<string, number>; total: number }> = {};
+                                const allVoteHeads: string[] = Array.from(new Set(
+                                    mappedInvoices.flatMap((inv: any) =>
+                                        getInvoiceItems(inv).map((v: any) => v.name || v.voteHeadName || v.description || 'General')
+                                    )
+                                ));
+
+                                mappedReceipts.forEach((rcpt: any) => {
+                                    const dateStr = (rcpt.paymentDate || rcpt.createdAt || '').split('T')[0] || '—';
+                                    if (!collectionsByDate[dateStr]) {
+                                        collectionsByDate[dateStr] = { date: dateStr, minRcpt: '', maxRcpt: '', voteMap: {}, total: 0 };
+                                    }
+                                    const day = collectionsByDate[dateStr];
+                                    const rNum = rcpt.receiptNumber || rcpt.id?.slice(-8);
+
+                                    // Track receipt number ranges
+                                    if (!day.minRcpt || rNum < day.minRcpt) day.minRcpt = rNum;
+                                    if (!day.maxRcpt || rNum > day.maxRcpt) day.maxRcpt = rNum;
+
+                                    day.total += rcpt.amountPaid || 0;
+
+                                    // Distribute amount paid to voteheads
+                                    const inv = mappedInvoices.find((i: any) => i.id === rcpt.invoiceId);
+                                    if (inv) {
+                                        const items = getInvoiceItems(inv);
+                                        const totalInv = items.reduce((s, it) => s + (it.amount || 0), 0);
+                                        if (totalInv > 0) {
+                                            items.forEach((it: any) => {
+                                                const key = it.name || it.voteHeadName || it.description || 'General';
+                                                day.voteMap[key] = (day.voteMap[key] || 0) + ((it.amount || 0) / totalInv) * (rcpt.amountPaid || 0);
+                                            });
+                                        } else {
+                                            day.voteMap['General'] = (day.voteMap['General'] || 0) + (rcpt.amountPaid || 0);
+                                        }
+                                    } else {
+                                        day.voteMap['General'] = (day.voteMap['General'] || 0) + (rcpt.amountPaid || 0);
+                                    }
+                                });
+
+                                const collectionList = Object.values(collectionsByDate).sort((a, b) => b.date.localeCompare(a.date));
+
+                                // Payment method summaries for Daily Collection
+                                const paymentMethodSummary: Record<string, number> = {};
+                                mappedReceipts.forEach((r: any) => {
+                                    const method = r.paymentMethod || r.method || 'Cash';
+                                    paymentMethodSummary[method] = (paymentMethodSummary[method] || 0) + (r.amountPaid || 0);
+                                });
+
+                                // 2. Cash Book calculation
+                                type CashBookEntry = { date: string; particulars: string; ref: string; debit: number; credit: number; balance: number };
+                                const cashBookEntries: CashBookEntry[] = [];
+                                
+                                const allCashEntries = [
+                                    ...mappedReceipts.map((r: any) => ({
+                                        date: r.paymentDate || r.createdAt || '',
+                                        particulars: `Fee Collection — ${r.studentName || r.payerName || 'Student'}`,
+                                        ref: r.receiptNumber || r.id?.slice(-8),
+                                        debit: r.amountPaid || 0,
+                                        credit: 0,
+                                    })),
+                                    ...(props.expenses || []).map((e: any) => ({
+                                        date: e.date || '',
+                                        particulars: `Expense — ${e.description || 'General Expenditure'} (${e.category || 'General'})`,
+                                        ref: e.id?.slice(-8) || 'EXP',
+                                        debit: 0,
+                                        credit: e.amount || 0,
+                                    }))
+                                ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                                let currentBal = 0;
+                                const cashBook = allCashEntries.map(entry => {
+                                    currentBal += entry.debit - entry.credit;
+                                    return {
+                                        date: entry.date.split('T')[0] || '—',
+                                        particulars: entry.particulars,
+                                        ref: entry.ref,
+                                        debit: entry.debit,
+                                        credit: entry.credit,
+                                        balance: currentBal,
+                                    };
+                                }).reverse(); // Display latest first
+
+                                // 3. Fee Register calculation
+                                const feeRegister = props.students.map((s: any) => {
+                                    const sRcpts = mappedReceipts.filter((r: any) => r.studentId === s.id);
+                                    const totalPaid = sRcpts.reduce((acc, r) => acc + (r.amountPaid || 0), 0);
+                                    const voteMap: Record<string, number> = {};
+
+                                    sRcpts.forEach((rcpt: any) => {
+                                        const inv = mappedInvoices.find((i: any) => i.id === rcpt.invoiceId);
+                                        if (inv) {
+                                            const items = getInvoiceItems(inv);
+                                            const totalInv = items.reduce((sum, it) => sum + (it.amount || 0), 0);
+                                            if (totalInv > 0) {
+                                                items.forEach((it: any) => {
+                                                    const key = it.name || it.voteHeadName || it.description || 'General';
+                                                    voteMap[key] = (voteMap[key] || 0) + ((it.amount || 0) / totalInv) * (rcpt.amountPaid || 0);
+                                                });
+                                            } else {
+                                                voteMap['General'] = (voteMap['General'] || 0) + (rcpt.amountPaid || 0);
+                                            }
+                                        } else {
+                                            voteMap['General'] = (voteMap['General'] || 0) + (rcpt.amountPaid || 0);
+                                        }
+                                    });
+
+                                    return { ...s, voteMap, totalPaid };
+                                }).filter(s => s.totalPaid > 0);
+
+                                const TH = (label: string) => <th className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[10px] border-b border-slate-100 dark:border-slate-800 whitespace-nowrap">{label}</th>;
+                                const TD = ({ children, cls = '' }: any) => <td className={`py-2.5 px-3 text-xs ${cls}`}>{children}</td>;
+
+                                return (
+                                    <div className="space-y-6 animate-in fade-in duration-200">
+                                        
+                                        {/* 1. Collection Tab */}
+                                        {ledgerSubTab === 'collection_summary' && (
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Daily Fee Collection Summary</h3>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Daily summary of collections broken down by date and voteheads</p>
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left">
+                                                        <thead>
+                                                            <tr>
+                                                                {TH('Date')}
+                                                                {TH('Receipt Range')}
+                                                                {allVoteHeads.map(vh => TH(vh))}
+                                                                {TH('General')}
+                                                                {TH('Total Collected')}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {collectionList.map((day, i) => (
+                                                                <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                    <TD cls="font-bold text-slate-900 dark:text-white">{day.date}</TD>
+                                                                    <TD cls="text-slate-500 font-bold">
+                                                                        {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} · ${day.maxRcpt}`}
+                                                                    </TD>
+                                                                    {allVoteHeads.map(vh => (
+                                                                        <TD key={vh} cls="font-medium text-slate-700 dark:text-slate-300">
+                                                                            {day.voteMap[vh] > 0 ? `KSh ${Math.round(day.voteMap[vh]).toLocaleString()}` : '—'}
+                                                                        </TD>
+                                                                    ))}
+                                                                    <TD cls="font-medium text-slate-700 dark:text-slate-300">
+                                                                        {day.voteMap['General'] > 0 ? `KSh ${Math.round(day.voteMap['General']).toLocaleString()}` : '—'}
+                                                                    </TD>
+                                                                    <TD cls="font-black text-emerald-600">KSh {day.total.toLocaleString()}</TD>
+                                                                </tr>
+                                                            ))}
+                                                            {collectionList.length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan={allVoteHeads.length + 4} className="py-8 text-center text-slate-400 font-medium">No collections recorded.</td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                {/* Bottom Payment Method Summary */}
+                                                <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60">
+                                                    <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider mb-4">Payment Method Aggregated Totals</h4>
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                        {Object.entries(paymentMethodSummary).map(([method, total]) => (
+                                                            <div key={method} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{method}</p>
+                                                                <p className="text-lg font-black text-emerald-600 mt-1">KSh {total.toLocaleString()}</p>
+                                                            </div>
+                                                        ))}
+                                                        {Object.keys(paymentMethodSummary).length === 0 && (
+                                                            <p className="text-xs text-slate-400 col-span-4 text-center font-medium">No payment methods to summarize.</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 2. Cash Book */}
+                                        {ledgerSubTab === 'cash_book' && (
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-4">
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Cash Book Ledger</h3>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Double entry book recording all inflows (Fee Collections) and outflows (Expenses)</p>
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left">
+                                                        <thead>
+                                                            <tr>
+                                                                {TH('Date')}
+                                                                {TH('Particulars')}
+                                                                {TH('Reference')}
+                                                                {TH('Inflow (Dr)')}
+                                                                {TH('Outflow (Cr)')}
+                                                                {TH('Net Balance')}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {cashBook.map((entry, i) => (
+                                                                <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                    <TD cls="text-slate-500 font-medium">{entry.date}</TD>
+                                                                    <TD cls="font-bold text-slate-800 dark:text-white">{entry.particulars}</TD>
+                                                                    <TD cls="font-black text-indigo-600">{entry.ref}</TD>
+                                                                    <TD cls="font-black text-emerald-600">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</TD>
+                                                                    <TD cls="font-black text-rose-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</TD>
+                                                                    <TD cls={`font-black ${entry.balance >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-600'}`}>
+                                                                        KSh {entry.balance.toLocaleString()}
+                                                                    </TD>
+                                                                </tr>
+                                                            ))}
+                                                            {cashBook.length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No Cash Book transactions found.</td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 3. Fee Register */}
+                                        {ledgerSubTab === 'fee_register' && (
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-4">
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Fee Register</h3>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Historical breakdown of fees paid per student across all voteheads</p>
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left">
+                                                        <thead>
+                                                            <tr>
+                                                                {TH('Student')}
+                                                                {TH('Adm No.')}
+                                                                {TH('Class')}
+                                                                {allVoteHeads.map(vh => TH(vh))}
+                                                                {TH('General')}
+                                                                {TH('Total Paid')}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {feeRegister.map((s, i) => (
+                                                                <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                    <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">{s.name}</TD>
+                                                                    <TD cls="text-slate-500">{s.admissionNumber}</TD>
+                                                                    <TD cls="text-slate-500 whitespace-nowrap">{s.gradeLevel || '—'}</TD>
+                                                                    {allVoteHeads.map(vh => (
+                                                                        <TD key={vh} cls="font-black text-slate-700 dark:text-slate-300">
+                                                                            {s.voteMap[vh] > 0 ? `KSh ${Math.round(s.voteMap[vh]).toLocaleString()}` : '—'}
+                                                                        </TD>
+                                                                    ))}
+                                                                    <TD cls="font-black text-slate-700 dark:text-slate-300">
+                                                                        {s.voteMap['General'] > 0 ? `KSh ${Math.round(s.voteMap['General']).toLocaleString()}` : '—'}
+                                                                    </TD>
+                                                                    <TD cls="font-black text-emerald-600">KSh {s.totalPaid.toLocaleString()}</TD>
+                                                                </tr>
+                                                            ))}
+                                                            {feeRegister.length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan={allVoteHeads.length + 5} className="py-8 text-center text-slate-400 font-medium">No fee payments registered.</td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* Expense Summary */}
                             {reportsSubTab === 'expenses' && (
