@@ -6160,7 +6160,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             {/* Context Specific Fields */}
                             <div className="border-t border-slate-100 dark:border-slate-800/80 pt-5">
                                 <h4 className="text-xs font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider mb-3">
-                                    {context === 'driving_school' ? 'Driving School Curriculum Details' : 'Academic Placement Details'}
+                                    {context === 'driving_school' ? 'Driving School Curriculum Details' : isPrimaryOrSecondary ? 'Grade & Class Placement' : 'Academic Placement Details'}
                                 </h4>
                                 
                                 {context === 'driving_school' ? (
@@ -6228,9 +6228,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div className={`grid grid-cols-1 gap-4 ${isPrimaryOrSecondary ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Grade Level</label>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+                                                {isPrimaryOrSecondary ? 'Grade' : 'Course'}
+                                            </label>
                                             <select
                                                 value={formData.metadata.gradeLevel}
                                                 onChange={e => setFormData({ 
@@ -6239,7 +6241,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 })}
                                                 className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                             >
-                                                <option value="" disabled>Select Grade</option>
+                                                <option value="" disabled>{isPrimaryOrSecondary ? 'Select Grade' : 'Select Course'}</option>
                                                 {cohortsList.map(grade => (
                                                     <option key={grade} value={grade}>{grade}</option>
                                                 ))}
@@ -6261,6 +6263,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 ))}
                                             </select>
                                         </div>
+                                        {!isPrimaryOrSecondary && (
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Department</label>
+                                            <select
+                                                value={formData.metadata.boardingStatus || 'day_scholar'}
+                                                onChange={e => setFormData({ 
+                                                    ...formData, 
+                                                    metadata: { ...formData.metadata, boardingStatus: e.target.value } 
+                                                })}
+                                                className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                            >
+                                                <option value="day_scholar">Day Scholar</option>
+                                                <option value="boarder">Boarder</option>
+                                            </select>
+                                        </div>
+                                        )}
                                         <div>
                                             <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Residence Status</label>
                                             <select
