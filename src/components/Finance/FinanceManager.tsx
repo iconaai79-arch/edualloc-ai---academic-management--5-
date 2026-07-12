@@ -2041,16 +2041,33 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
                                     <div>
-                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Receipt Ledger</h3>
-                                        <p className="text-xs text-slate-500 font-semibold mt-0.5">Manage fees received from Cash, Bank Feed, or Bursary allocations.</p>
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                            {receiptsMainTab === 'student_fees' ? 'Student Receipts Ledger' : 'Other Income Ledger'}
+                                        </h3>
+                                        <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                                            {receiptsMainTab === 'student_fees' 
+                                                ? 'Manage fees received from Cash, Bank Feed, or Bursary allocations.' 
+                                                : 'Track and receive other school income such as bus hiring, donations, and other income sources.'
+                                            }
+                                        </p>
                                     </div>
-                                    <button
-                                        onClick={() => setShowPostModal(true)}
-                                        className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg"
-                                    >
-                                        <PlusIcon className="w-4 h-4" />
-                                        Post Receipt
-                                    </button>
+                                    {receiptsMainTab === 'student_fees' ? (
+                                        <button
+                                            onClick={() => setShowPostModal(true)}
+                                            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg"
+                                        >
+                                            <PlusIcon className="w-4 h-4" />
+                                            Post Receipt
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => setShowOtherIncomeModal(true)}
+                                            className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg"
+                                        >
+                                            <PlusIcon className="w-4 h-4" />
+                                            Receive Other Income
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="flex flex-col md:flex-row gap-4">
@@ -2058,7 +2075,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                                         <input
                                             type="text"
-                                            placeholder="Search by student name or receipt number..."
+                                            placeholder={receiptsMainTab === 'student_fees' 
+                                                ? "Search by student name or receipt number..."
+                                                : "Search other income categories, description or receipt number..."
+                                            }
                                             value={searchReceiptQuery}
                                             onChange={(e) => setSearchReceiptQuery(e.target.value)}
                                             className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-900 dark:text-white"
@@ -2073,15 +2093,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <option value="Cash">Cash (Manual)</option>
                                         <option value="M-Pesa">M-Pesa</option>
                                         <option value="Bank Transfer">Bank Feed</option>
-                                        <option value="Bursary">Bursary</option>
+                                        {receiptsMainTab === 'student_fees' && <option value="Bursary">Bursary</option>}
                                     </select>
                                 </div>                                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
                                     <table className="w-full border-collapse">
                                         <thead>
                                             <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/60">
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Grade</th>
+                                                {receiptsMainTab === 'student_fees' ? (
+                                                    <>
+                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
+                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Grade</th>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Description / Memo</th>
+                                                        <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Received From</th>
+                                                    </>
+                                                )}
                                                 <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
                                                 <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Reference</th>
                                                 <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Receipt #</th>
@@ -2092,21 +2122,58 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
                                             {paginatedReceipts.map(rec => {
-                                                const student = props.students.find(s => s.id === rec.studentId);
+                                                const student = rec.studentId ? props.students.find(s => s.id === rec.studentId) : null;
                                                 const admNum = student?.admissionNumber || student?.admission_number || '—';
                                                 const studentName = student?.name || 'Unknown Student';
                                                 const gradeName = student ? studentClassGroup(student) : '—';
+
+                                                // Parse other income string formatting "Category - Description (From Payer)"
+                                                let category = 'Other Income';
+                                                let description = rec.paidFor || '';
+                                                let payer = '—';
+                                                if (!rec.studentId && rec.paidFor) {
+                                                    const fromIdx = rec.paidFor.lastIndexOf(' (From ');
+                                                    if (fromIdx >= 0) {
+                                                        payer = rec.paidFor.substring(fromIdx + 7, rec.paidFor.length - 1);
+                                                        const mainPart = rec.paidFor.substring(0, fromIdx);
+                                                        const hypIdx = mainPart.indexOf(' - ');
+                                                        if (hypIdx >= 0) {
+                                                            category = mainPart.substring(0, hypIdx);
+                                                            description = mainPart.substring(hypIdx + 3);
+                                                        } else {
+                                                            category = mainPart;
+                                                            description = '—';
+                                                        }
+                                                    }
+                                                }
+
                                                 return (
                                                     <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
-                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
-                                                            {admNum}
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <span className="text-xs font-bold text-slate-900 dark:text-white">{studentName}</span>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-500">
-                                                            {gradeName}
-                                                        </td>
+                                                        {receiptsMainTab === 'student_fees' ? (
+                                                            <>
+                                                                <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
+                                                                    {admNum}
+                                                                </td>
+                                                                <td className="px-6 py-4">
+                                                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{studentName}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-xs font-semibold text-slate-500">
+                                                                    {gradeName}
+                                                                </td>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <td className="px-6 py-4 text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                                                    {category}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-xs font-semibold text-slate-650 dark:text-slate-400">
+                                                                    {description}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">
+                                                                    {payer}
+                                                                </td>
+                                                            </>
+                                                        )}
                                                         <td className="px-6 py-4 text-right">
                                                             <span className="text-xs font-black text-slate-900 dark:text-white">KES {rec.amountPaid?.toLocaleString()}</span>
                                                         </td>
@@ -2236,6 +2303,127 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
                     </div>
                 )}
+
+                {/* Receive Other Income Modal */}
+                {showOtherIncomeModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left animate-in zoom-in-95 duration-200">
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Receive Other Income</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Record miscellaneous school revenue such as bus hiring or canteen sales</p>
+                                </div>
+                                <button 
+                                    onClick={() => setShowOtherIncomeModal(false)}
+                                    className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    <XIcon className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Income Category *</label>
+                                        <select
+                                            value={otherIncomeCategory}
+                                            onChange={(e) => setOtherIncomeCategory(e.target.value)}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                        >
+                                            <option value="Bus Hiring">Bus Hiring</option>
+                                            <option value="Canteen Sales">Canteen Sales</option>
+                                            <option value="Grants & Donations">Grants & Donations</option>
+                                            <option value="Tender Fees">Tender Fees</option>
+                                            <option value="Asset Disposal">Asset Disposal</option>
+                                            <option value="Other Income">Other Income</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Received From (Payer) *</label>
+                                        <input
+                                            type="text"
+                                            value={otherIncomePayer}
+                                            onChange={(e) => setOtherIncomePayer(e.target.value)}
+                                            placeholder="e.g. John Doe / Organization Name"
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Method *</label>
+                                        <select
+                                            value={otherIncomeMethod}
+                                            onChange={(e) => setOtherIncomeMethod(e.target.value)}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                        >
+                                            <option value="Cash">Cash (Manual)</option>
+                                            <option value="Bank Transfer">Bank Feed / Transfer</option>
+                                            <option value="M-Pesa">M-Pesa</option>
+                                            <option value="Cheque">Cheque</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount Received (KES) *</label>
+                                        <input
+                                            type="number"
+                                            value={otherIncomeAmount || ''}
+                                            onChange={(e) => setOtherIncomeAmount(Number(e.target.value))}
+                                            placeholder="Enter amount received"
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Date</label>
+                                        <input
+                                            type="date"
+                                            value={otherIncomeDate}
+                                            onChange={(e) => setOtherIncomeDate(e.target.value)}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Transaction Ref / Slip Code</label>
+                                        <input
+                                            type="text"
+                                            value={otherIncomeReference}
+                                            onChange={(e) => setOtherIncomeReference(e.target.value)}
+                                            placeholder="Reference code or receipt #"
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description / Memo</label>
+                                    <input
+                                        type="text"
+                                        value={otherIncomeDescription}
+                                        onChange={(e) => setOtherIncomeDescription(e.target.value)}
+                                        placeholder="Add any extra comments or descriptions..."
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={handlePostOtherIncome}
+                                    disabled={isSavingOtherIncome || !otherIncomePayer || otherIncomeAmount <= 0}
+                                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98]"
+                                >
+                                    {isSavingOtherIncome ? 'Saving Income...' : 'Confirm and Post Other Income'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
 
                 {activeTab === 'wizard' && (
                     <AutomatedBilling 
