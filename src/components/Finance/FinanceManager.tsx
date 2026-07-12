@@ -40,6 +40,7 @@ import { TrendingUpIcon } from '../icons/TrendingUpIcon';
 import { FileTextIcon } from '../icons/FileTextIcon';
 import { ChartPieIcon } from '../icons/ChartPieIcon';
 import { PrinterIcon } from '../icons/PrinterIcon';
+import { ArrowsRightLeftIcon } from '../icons/ArrowsRightLeftIcon';
 import { DownloadIcon } from '../icons/DownloadIcon';
 const HRManager = React.lazy(() => import('../HR/HRManager').then(m => ({ default: m.HRManager })));
 
@@ -385,6 +386,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             console.error(e);
         } finally {
             setIsLoadingGrants(false);
+        }
+    };
+
+    const fetchBankTransfers = async () => {
+        setIsLoadingBankTransfers(true);
+        try {
+            const data = await apiService.fetchModuleRecords<any>('inter_bank_transfers', props.institution.id).catch(() => []);
+            setBankTransfersList(data || []);
+        } catch (err) {
+            console.error("Failed to load bank transfers:", err);
+        } finally {
+            setIsLoadingBankTransfers(false);
+        }
+    };
+
+    const fetchVoteTransfers = async () => {
+        setIsLoadingVoteTransfers(true);
+        try {
+            const data = await apiService.fetchModuleRecords<any>('inter_vote_transfers', props.institution.id).catch(() => []);
+            setVoteTransfersList(data || []);
+        } catch (err) {
+            console.error("Failed to load vote transfers:", err);
+        } finally {
+            setIsLoadingVoteTransfers(false);
         }
     };
 
@@ -776,6 +801,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'bursaries', label: 'Govt & NG-CDF Bursaries', icon: ScaleIcon },
         { id: 'goods_in_lieu', label: 'Goods in Lieu', icon: DocumentTextIcon },
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
+        { id: 'transfers', label: 'Inter-Account Transfers', icon: ArrowsRightLeftIcon },
         { id: 'requisitions', label: 'Requisitions & LPOs', icon: ClipboardListIcon },
         { id: 'payroll', label: 'HR & Payroll', icon: BriefcaseIcon },
         { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
@@ -933,6 +959,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [otherIncomeReference, setOtherIncomeReference] = useState('');
     const [otherIncomeDescription, setOtherIncomeDescription] = useState('');
     const [isSavingOtherIncome, setIsSavingOtherIncome] = useState(false);
+
+    // Inter-Account Transfers states
+    const [transfersSubTab, setTransfersSubTab] = useState<'bank' | 'vote'>('bank');
+    const [bankTransferSourceId, setBankTransferSourceId] = useState('');
+    const [bankTransferDestId, setBankTransferDestId] = useState('');
+    const [bankTransferAmount, setBankTransferAmount] = useState<number>(0);
+    const [bankTransferDate, setBankTransferDate] = useState(new Date().toISOString().split('T')[0]);
+    const [bankTransferRef, setBankTransferRef] = useState('');
+    const [bankTransferNotes, setBankTransferNotes] = useState('');
+    const [isSavingBankTransfer, setIsSavingBankTransfer] = useState(false);
+    const [bankTransfersList, setBankTransfersList] = useState<any[]>([]);
+    const [isLoadingBankTransfers, setIsLoadingBankTransfers] = useState(false);
+
+    const [voteTransferSourceId, setVoteTransferSourceId] = useState('');
+    const [voteTransferDestId, setVoteTransferDestId] = useState('');
+    const [voteTransferAmount, setVoteTransferAmount] = useState<number>(0);
+    const [voteTransferDate, setVoteTransferDate] = useState(new Date().toISOString().split('T')[0]);
+    const [voteTransferRef, setVoteTransferRef] = useState('');
+    const [voteTransferNotes, setVoteTransferNotes] = useState('');
+    const [isSavingVoteTransfer, setIsSavingVoteTransfer] = useState(false);
+    const [voteTransfersList, setVoteTransfersList] = useState<any[]>([]);
+    const [isLoadingVoteTransfers, setIsLoadingVoteTransfers] = useState(false);
 
     // Expense Recording states
     const [expCategory, setExpCategory] = useState('Salaries');
@@ -1151,6 +1199,118 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to post receipt: " + (e.message || e));
         } finally {
             setIsSavingManualPay(false);
+        }
+    };
+
+    const handlePostBankTransfer = async () => {
+        if (!bankTransferSourceId || !bankTransferDestId || bankTransferAmount <= 0) {
+            alert("Please select source and destination bank accounts, and a valid amount.");
+            return;
+        }
+        if (bankTransferSourceId === bankTransferDestId) {
+            alert("Source and destination bank accounts cannot be the same.");
+            return;
+        }
+        setIsSavingBankTransfer(true);
+        try {
+            const payload = {
+                id: `bt_${Date.now()}`,
+                institutionId: props.institution.id,
+                sourceBankAccountId: bankTransferSourceId,
+                destinationBankAccountId: bankTransferDestId,
+                amount: Number(bankTransferAmount),
+                transferDate: bankTransferDate || new Date().toISOString().split('T')[0],
+                referenceNumber: bankTransferRef || '',
+                notes: bankTransferNotes || ''
+            };
+            await apiService.saveModuleRecord('inter_bank_transfers', payload);
+            alert("Inter-bank transfer posted successfully!");
+            
+            setBankTransferSourceId('');
+            setBankTransferDestId('');
+            setBankTransferAmount(0);
+            setBankTransferRef('');
+            setBankTransferNotes('');
+
+            fetchBankTransfers();
+            fetchBankAccounts();
+        } catch (e: any) {
+            alert("Failed to post bank transfer: " + (e.message || e));
+        } finally {
+            setIsSavingBankTransfer(false);
+        }
+    };
+
+    const handlePostVoteTransfer = async () => {
+        if (!voteTransferSourceId || !voteTransferDestId || voteTransferAmount <= 0) {
+            alert("Please select source and destination vote heads, and a valid amount.");
+            return;
+        }
+        if (voteTransferSourceId === voteTransferDestId) {
+            alert("Source and destination vote heads cannot be the same.");
+            return;
+        }
+        
+        const sourceVH = (props.voteHeads || []).find(vh => vh.id === voteTransferSourceId);
+        const destVH = (props.voteHeads || []).find(vh => vh.id === voteTransferDestId);
+
+        if (!sourceVH || !destVH) {
+            alert("Could not locate the selected vote heads.");
+            return;
+        }
+
+        const currentSourceBudget = Number(sourceVH.allocatedAmount || sourceVH.allocated_amount || 0);
+        if (currentSourceBudget < voteTransferAmount) {
+            alert(`Insufficient budget in source vote head "${sourceVH.name}". Current budget is KES ${currentSourceBudget.toLocaleString()}.`);
+            return;
+        }
+
+        setIsSavingVoteTransfer(true);
+        try {
+            const payload = {
+                id: `vt_${Date.now()}`,
+                institutionId: props.institution.id,
+                sourceVoteHeadId: voteTransferSourceId,
+                destinationVoteHeadId: voteTransferDestId,
+                amount: Number(voteTransferAmount),
+                transferDate: voteTransferDate || new Date().toISOString().split('T')[0],
+                referenceNumber: voteTransferRef || '',
+                notes: voteTransferNotes || ''
+            };
+            await apiService.saveModuleRecord('inter_vote_transfers', payload);
+
+            const updatedSource = {
+                ...sourceVH,
+                allocatedAmount: currentSourceBudget - Number(voteTransferAmount),
+                allocated_amount: currentSourceBudget - Number(voteTransferAmount),
+                institutionId: props.institution.id
+            };
+            const updatedDest = {
+                ...destVH,
+                allocatedAmount: Number(destVH.allocatedAmount || destVH.allocated_amount || 0) + Number(voteTransferAmount),
+                allocated_amount: Number(destVH.allocatedAmount || destVH.allocated_amount || 0) + Number(voteTransferAmount),
+                institutionId: props.institution.id
+            };
+
+            await apiService.saveModuleRecord('vote_heads', updatedSource);
+            await apiService.saveModuleRecord('vote_heads', updatedDest);
+
+            alert("Inter-vote budget transfer completed successfully!");
+
+            setVoteTransferSourceId('');
+            setVoteTransferDestId('');
+            setVoteTransferAmount(0);
+            setVoteTransferRef('');
+            setVoteTransferNotes('');
+
+            fetchVoteTransfers();
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+        } catch (e: any) {
+            alert("Failed to complete vote transfer: " + (e.message || e));
+        } finally {
+            setIsSavingVoteTransfer(false);
         }
     };
 
@@ -1451,11 +1611,57 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             .then(res => setBursaryRecords(res || []))
             .catch(err => console.error("Failed to load ng_cdf_bursaries:", err));
         
-        // Self-heal: ensure bank account integration columns exist on the database table
+        // Self-heal: ensure bank account integration columns and transfers tables exist on the database table
         apiService.runMigration(`
             ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS integration_service TEXT DEFAULT 'None';
             ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS integration_status TEXT DEFAULT 'Not Configured';
-        `).catch(err => console.warn("Self-healing school_bank_accounts schema failed:", err))
+
+            CREATE TABLE IF NOT EXISTS public.inter_bank_transfers (
+                id TEXT PRIMARY KEY,
+                institution_id TEXT NOT NULL,
+                source_bank_account_id TEXT NOT NULL,
+                destination_bank_account_id TEXT NOT NULL,
+                amount DECIMAL(15, 2) NOT NULL,
+                transfer_date DATE NOT NULL,
+                reference_number TEXT,
+                notes TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS public.inter_vote_transfers (
+                id TEXT PRIMARY KEY,
+                institution_id TEXT NOT NULL,
+                source_vote_head_id TEXT NOT NULL,
+                destination_vote_head_id TEXT NOT NULL,
+                amount DECIMAL(15, 2) NOT NULL,
+                transfer_date DATE NOT NULL,
+                reference_number TEXT,
+                notes TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+
+            ALTER TABLE public.inter_bank_transfers ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE public.inter_vote_transfers ENABLE ROW LEVEL SECURITY;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_policies WHERE tablename = 'inter_bank_transfers' AND policyname = 'Enable all access for authenticated users'
+                ) THEN
+                    CREATE POLICY "Enable all access for authenticated users" ON public.inter_bank_transfers FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'anon');
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_policies WHERE tablename = 'inter_vote_transfers' AND policyname = 'Enable all access for authenticated users'
+                ) THEN
+                    CREATE POLICY "Enable all access for authenticated users" ON public.inter_vote_transfers FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'anon');
+                END IF;
+            END
+            $$;
+
+            GRANT ALL ON public.inter_bank_transfers TO anon, authenticated, service_role;
+            GRANT ALL ON public.inter_vote_transfers TO anon, authenticated, service_role;
+        `).catch(err => console.warn("Self-healing school_bank_accounts/transfers schema failed:", err))
           .finally(() => {
               fetchBankAccounts();
           });
@@ -1471,6 +1677,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
         }
     }, [activeTab, settingsSubTab, props.institution.id]);
+
+    useEffect(() => {
+        if (activeTab === 'transfers') {
+            fetchBankTransfers();
+            fetchVoteTransfers();
+            fetchBankAccounts();
+        }
+    }, [activeTab, props.institution.id]);
 
 
     // Translate DS structures to standard Dashboard Invoice models dynamically
@@ -3726,6 +3940,329 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'transfers' && (
+                    <div className="space-y-8 animate-in fade-in duration-200">
+                        <div className="flex gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                            <button
+                                onClick={() => setTransfersSubTab('bank')}
+                                className={`px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${
+                                    transfersSubTab === 'bank'
+                                        ? 'bg-slate-900 text-white dark:bg-indigo-650'
+                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                💵 Inter-Bank Transfers
+                            </button>
+                            <button
+                                onClick={() => setTransfersSubTab('vote')}
+                                className={`px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all ${
+                                    transfersSubTab === 'vote'
+                                        ? 'bg-slate-900 text-white dark:bg-indigo-650'
+                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                📊 Inter-Vote Transfers
+                            </button>
+                        </div>
+
+                        {transfersSubTab === 'bank' ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-150 dark:border-slate-800/60 shadow-sm space-y-6 text-left">
+                                    <div>
+                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Transfer Funds</h3>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Move funds between registered bank accounts</p>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Source Account *</label>
+                                            <select
+                                                value={bankTransferSourceId}
+                                                onChange={e => setBankTransferSourceId(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                            >
+                                                <option value="">-- Choose Source --</option>
+                                                {bankAccounts.map(ba => (
+                                                    <option key={ba.id} value={ba.id}>
+                                                        {ba.bankName} - {ba.accountNumber} ({ba.accountName})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Destination Account *</label>
+                                            <select
+                                                value={bankTransferDestId}
+                                                onChange={e => setBankTransferDestId(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                            >
+                                                <option value="">-- Choose Destination --</option>
+                                                {bankAccounts.map(ba => (
+                                                    <option key={ba.id} value={ba.id}>
+                                                        {ba.bankName} - {ba.accountNumber} ({ba.accountName})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Amount (KES) *</label>
+                                            <input
+                                                type="number"
+                                                placeholder="Enter amount"
+                                                value={bankTransferAmount || ''}
+                                                onChange={e => setBankTransferAmount(Number(e.target.value))}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Transfer Date *</label>
+                                            <input
+                                                type="date"
+                                                value={bankTransferDate}
+                                                onChange={e => setBankTransferDate(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Ref Number / Slip Code</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. TXN-100234"
+                                                value={bankTransferRef}
+                                                onChange={e => setBankTransferRef(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Notes</label>
+                                            <textarea
+                                                placeholder="Add transfer notes..."
+                                                value={bankTransferNotes}
+                                                onChange={e => setBankTransferNotes(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs h-20 resize-none"
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={handlePostBankTransfer}
+                                            disabled={isSavingBankTransfer || !bankTransferSourceId || !bankTransferDestId || bankTransferAmount <= 0}
+                                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-colors shadow-md mt-2"
+                                        >
+                                            {isSavingBankTransfer ? 'Processing...' : 'Complete Transfer'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-150 dark:border-slate-800/60 shadow-sm space-y-6 text-left">
+                                    <div>
+                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Transfer History</h3>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Logs of past inter-bank transfers</p>
+                                    </div>
+
+                                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                                        <table className="w-full text-xs font-semibold text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                                                    <th className="p-4">Date</th>
+                                                    <th className="p-4">Source Account</th>
+                                                    <th className="p-4">Destination Account</th>
+                                                    <th className="p-4">Reference</th>
+                                                    <th className="p-4 text-right">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                {isLoadingBankTransfers ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="p-8 text-center text-slate-400 italic">Loading transfers...</td>
+                                                    </tr>
+                                                ) : bankTransfersList.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="p-8 text-center text-slate-400 italic">No inter-bank transfers logged.</td>
+                                                    </tr>
+                                                ) : (
+                                                    bankTransfersList.map(bt => {
+                                                        const srcAcc = bankAccounts.find(ba => ba.id === bt.sourceBankAccountId);
+                                                        const destAcc = bankAccounts.find(ba => ba.id === bt.destinationBankAccountId);
+                                                        return (
+                                                            <tr key={bt.id} className="hover:bg-slate-55/40 dark:hover:bg-slate-950/20">
+                                                                <td className="p-4 font-bold text-slate-700 dark:text-slate-350">{bt.transferDate}</td>
+                                                                <td className="p-4">
+                                                                    <div className="font-bold text-slate-900 dark:text-white">{srcAcc?.bankName || 'Unknown'}</div>
+                                                                    <div className="text-[8px] font-black text-slate-400 tracking-wider">{srcAcc?.accountNumber}</div>
+                                                                </td>
+                                                                <td className="p-4">
+                                                                    <div className="font-bold text-slate-900 dark:text-white">{destAcc?.bankName || 'Unknown'}</div>
+                                                                    <div className="text-[8px] font-black text-slate-400 tracking-wider">{destAcc?.accountNumber}</div>
+                                                                </td>
+                                                                <td className="p-4 font-mono text-[10px] text-slate-500">{bt.referenceNumber || '—'}</td>
+                                                                <td className="p-4 text-right font-black text-indigo-650 dark:text-indigo-400">KES {Number(bt.amount).toLocaleString()}</td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-150 dark:border-slate-800/60 shadow-sm space-y-6 text-left">
+                                    <div>
+                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Transfer Budget</h3>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Move allocated budget between vote heads</p>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Source Vote Head *</label>
+                                            <select
+                                                value={voteTransferSourceId}
+                                                onChange={e => setVoteTransferSourceId(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                            >
+                                                <option value="">-- Choose Source --</option>
+                                                {(props.voteHeads || []).map(vh => {
+                                                    const budget = Number(vh.allocatedAmount || vh.allocated_amount || 0);
+                                                    return (
+                                                        <option key={vh.id} value={vh.id}>
+                                                            {vh.name} (Available: KES {budget.toLocaleString()})
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Destination Vote Head *</label>
+                                            <select
+                                                value={voteTransferDestId}
+                                                onChange={e => setVoteTransferDestId(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                            >
+                                                <option value="">-- Choose Destination --</option>
+                                                {(props.voteHeads || []).map(vh => {
+                                                    const budget = Number(vh.allocatedAmount || vh.allocated_amount || 0);
+                                                    return (
+                                                        <option key={vh.id} value={vh.id}>
+                                                            {vh.name} (Current: KES {budget.toLocaleString()})
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Amount (KES) *</label>
+                                            <input
+                                                type="number"
+                                                placeholder="Enter amount to transfer"
+                                                value={voteTransferAmount || ''}
+                                                onChange={e => setVoteTransferAmount(Number(e.target.value))}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Transfer Date *</label>
+                                            <input
+                                                type="date"
+                                                value={voteTransferDate}
+                                                onChange={e => setVoteTransferDate(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Ref Number / Board Resolution Code</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. MIN-12/2026"
+                                                value={voteTransferRef}
+                                                onChange={e => setVoteTransferRef(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Notes</label>
+                                            <textarea
+                                                placeholder="Add budget transfer rationale..."
+                                                value={voteTransferNotes}
+                                                onChange={e => setVoteTransferNotes(e.target.value)}
+                                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs h-20 resize-none"
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={handlePostVoteTransfer}
+                                            disabled={isSavingVoteTransfer || !voteTransferSourceId || !voteTransferDestId || voteTransferAmount <= 0}
+                                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-colors shadow-md mt-2"
+                                        >
+                                            {isSavingVoteTransfer ? 'Processing...' : 'Complete Budget Transfer'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-150 dark:border-slate-800/60 shadow-sm space-y-6 text-left">
+                                    <div>
+                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Transfer History</h3>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Logs of past inter-votehead budget transfers</p>
+                                    </div>
+
+                                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                                        <table className="w-full text-xs font-semibold text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                                                    <th className="p-4">Date</th>
+                                                    <th className="p-4">Source Vote Head</th>
+                                                    <th className="p-4">Destination Vote Head</th>
+                                                    <th className="p-4">Reference</th>
+                                                    <th className="p-4 text-right">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                {isLoadingVoteTransfers ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="p-8 text-center text-slate-400 italic">Loading transfers...</td>
+                                                    </tr>
+                                                ) : voteTransfersList.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="p-8 text-center text-slate-400 italic">No inter-vote transfers logged.</td>
+                                                    </tr>
+                                                ) : (
+                                                    voteTransfersList.map(vt => {
+                                                        const srcVH = (props.voteHeads || []).find(vh => vh.id === vt.sourceVoteHeadId);
+                                                        const destVH = (props.voteHeads || []).find(vh => vh.id === vt.destinationVoteHeadId);
+                                                        return (
+                                                            <tr key={vt.id} className="hover:bg-slate-55/40 dark:hover:bg-slate-950/20">
+                                                                <td className="p-4 font-bold text-slate-700 dark:text-slate-350">{vt.transferDate}</td>
+                                                                <td className="p-4 font-bold text-slate-900 dark:text-white">
+                                                                    {srcVH?.name || 'Unknown Vote Head'}
+                                                                </td>
+                                                                <td className="p-4 font-bold text-slate-900 dark:text-white">
+                                                                    {destVH?.name || 'Unknown Vote Head'}
+                                                                </td>
+                                                                <td className="p-4 font-mono text-[10px] text-slate-500">{vt.referenceNumber || '—'}</td>
+                                                                <td className="p-4 text-right font-black text-indigo-650 dark:text-indigo-400">KES {Number(vt.amount).toLocaleString()}</td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
