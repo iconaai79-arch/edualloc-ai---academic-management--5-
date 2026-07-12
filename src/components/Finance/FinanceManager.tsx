@@ -94,7 +94,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [slipStudentId, setSlipStudentId] = useState('');
     const [balFilter, setBalFilter] = useState('');
     const [balClass, setBalClass] = useState('');
-    const [ledgerSubTab, setLedgerSubTab] = useState<'collection_summary' | 'cash_book' | 'fee_register' | 'cash_flow'>('collection_summary');
+    const [ledgerSubTab, setLedgerSubTab] = useState<'collection_summary' | 'cash_book' | 'fee_register' | 'cash_flow' | 'fee_installment'>('collection_summary');
     const [showOpPreview, setShowOpPreview] = useState(false);
     const [showInvPreview, setShowInvPreview] = useState(false);
     const [showFinPreview, setShowFinPreview] = useState(false);
@@ -104,6 +104,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [cbViewType, setCbViewType] = useState<'unified' | 'receipts' | 'payments'>('unified');
     const [expandedCbDates, setExpandedCbDates] = useState<string[]>([]);
     const [feeRegClass, setFeeRegClass] = useState<string>('');
+    const [installmentClass, setInstallmentClass] = useState<string>('All');
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
@@ -5086,6 +5087,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         { id: 'cash_book', label: 'Cash Book', icon: '📖' },
                                         { id: 'fee_register', label: 'Fee Register', icon: '📓' },
                                         { id: 'cash_flow', label: 'Cash Flow', icon: '🌊' },
+                                        { id: 'fee_installment', label: 'Fee Installment', icon: '💰' },
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
@@ -6449,6 +6451,166 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <span>KSh {netCashChange.toLocaleString()}</span>
                                                             </div>
                                                         </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* 5. Fees Installments */}
+                                        {ledgerSubTab === 'fee_installment' && (() => {
+                                            const installmentClasses = Array.from(new Set(props.students.map((s: any) => s.gradeLevel || s.class || 'Unclassified'))).filter(Boolean).sort() as string[];
+
+                                            const filteredStudents = props.students.filter((s: any) => {
+                                                if (!installmentClass || installmentClass === 'All') return true;
+                                                const sClass = s.gradeLevel || s.class || 'Unclassified';
+                                                return sClass.toLowerCase() === installmentClass.toLowerCase();
+                                            });
+
+                                            const classEnrollment = filteredStudents.length;
+
+                                            // Map students to their installments
+                                            const studentInstallments = filteredStudents.map((s: any) => {
+                                                const sRcpts = mappedReceipts
+                                                    .filter((r: any) => r.studentId === s.id)
+                                                    .sort((a: any, b: any) => {
+                                                        const dA = new Date(a.paymentDate || a.createdAt || 0).getTime();
+                                                        const dB = new Date(b.paymentDate || b.createdAt || 0).getTime();
+                                                        return dA - dB;
+                                                    });
+
+                                                const sInvs = mappedInvoices.filter((i: any) => i.studentId === s.id);
+                                                const bf = s.metadata?.openingBalance || 0;
+                                                const totalInvoiced = sInvs.reduce((acc: number, inv: any) => {
+                                                    const items = getInvoiceItems(inv);
+                                                    return acc + items.reduce((sSum, item) => sSum + (item.amount || 0), 0);
+                                                }, 0);
+                                                const expectedFees = bf + totalInvoiced;
+
+                                                // Extract first 12 installments
+                                                const installments: number[] = Array(12).fill(0);
+                                                sRcpts.forEach((r: any, idx: number) => {
+                                                    if (idx < 12) {
+                                                        installments[idx] = r.amountPaid || 0;
+                                                    }
+                                                });
+
+                                                const totals = sRcpts.reduce((sum: number, r: any) => sum + (r.amountPaid || 0), 0);
+                                                const balance = expectedFees - totals;
+                                                const pctPaid = expectedFees !== 0 ? Math.round((totals / expectedFees) * 100) : 0;
+
+                                                return {
+                                                    id: s.id,
+                                                    name: s.name,
+                                                    admissionNumber: s.admissionNumber || s.admNo || '',
+                                                    expectedFees,
+                                                    installments,
+                                                    totals,
+                                                    balance,
+                                                    pctPaid
+                                                };
+                                            });
+
+                                            // Aggregated sums
+                                            const totalExpectedSum = studentInstallments.reduce((sum, item) => sum + item.expectedFees, 0);
+                                            const totalInstSums = Array(12).fill(0);
+                                            for (let col = 0; col < 12; col++) {
+                                                totalInstSums[col] = studentInstallments.reduce((sum, item) => sum + item.installments[col], 0);
+                                            }
+                                            const totalPaidSum = studentInstallments.reduce((sum, item) => sum + item.totals, 0);
+                                            const totalBalSum = studentInstallments.reduce((sum, item) => sum + item.balance, 0);
+                                            const avgPctPaid = totalExpectedSum !== 0 ? Math.round((totalPaidSum / totalExpectedSum) * 100) : 0;
+
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
+                                                    <div className="flex flex-col items-center text-center space-y-2">
+                                                        <h2 className="text-xl font-black text-blue-600 dark:text-blue-500 uppercase tracking-wide">Fees Installments</h2>
+                                                        <div className="flex flex-col sm:flex-row items-center gap-6 text-sm font-bold text-slate-800 dark:text-slate-200">
+                                                            <div className="flex items-center gap-2">
+                                                                <span>Class:</span>
+                                                                <select 
+                                                                    value={installmentClass} 
+                                                                    onChange={e => setInstallmentClass(e.target.value)} 
+                                                                    className="py-1 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                >
+                                                                    <option value="All">All Classes</option>
+                                                                    {installmentClasses.map(cls => (
+                                                                        <option key={cls} value={cls}>{cls}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span>Class Enrollment:</span>
+                                                                <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 py-0.5 px-2.5 rounded-full text-xs font-black">{classEnrollment}</span>
+                                                            </div>
+                                                            <button onClick={() => window.print()} className="print:hidden px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">🖨️ Print</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left border-collapse border border-slate-100 dark:border-slate-800/40">
+                                                            <thead>
+                                                                <tr className="bg-slate-50 dark:bg-slate-950/50">
+                                                                    <th rowSpan={2} className="py-2.5 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 whitespace-nowrap">Adm. No</th>
+                                                                    <th rowSpan={2} className="py-2.5 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 whitespace-nowrap">Names</th>
+                                                                    <th rowSpan={2} className="py-2.5 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 text-right whitespace-nowrap">Expected Fees</th>
+                                                                    <th colSpan={12} className="py-1.5 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 text-center">All Installments Since the Beginning of the Year</th>
+                                                                    <th rowSpan={2} className="py-2.5 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 text-right whitespace-nowrap">Totals</th>
+                                                                    <th rowSpan={2} className="py-2.5 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 text-right whitespace-nowrap">Balance</th>
+                                                                    <th rowSpan={2} className="py-2.5 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 text-center whitespace-nowrap">% Paid</th>
+                                                                </tr>
+                                                                <tr className="bg-slate-50 dark:bg-slate-950/50">
+                                                                    {Array.from({ length: 12 }).map((_, colIdx) => (
+                                                                        <th key={colIdx} className="py-1.5 px-1.5 font-black text-slate-400 text-[8px] uppercase border border-slate-100 dark:border-slate-800/60 text-center">{colIdx + 1}</th>
+                                                                    ))}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {studentInstallments.map((s, i) => (
+                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-[11px]">
+                                                                        <td className="py-2 px-3 text-slate-500 border border-slate-50 dark:border-slate-800/40">{s.admissionNumber}</td>
+                                                                        <td className="py-2 px-3 font-bold text-slate-800 dark:text-white border border-slate-50 dark:border-slate-800/40 whitespace-nowrap">{s.name}</td>
+                                                                        <td className="py-2 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
+                                                                            {s.expectedFees !== 0 ? `KSh ${s.expectedFees.toLocaleString()}` : '0.00'}
+                                                                        </td>
+                                                                        {s.installments.map((val, colIdx) => (
+                                                                            <td key={colIdx} className="py-2 px-1.5 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right">
+                                                                                {val > 0 ? `KSh ${val.toLocaleString()}` : '—'}
+                                                                            </td>
+                                                                        ))}
+                                                                        <td className="py-2 px-3 font-bold text-slate-900 dark:text-white border border-slate-50 dark:border-slate-800/40 text-right">
+                                                                            {s.totals > 0 ? `KSh ${s.totals.toLocaleString()}` : '0.00'}
+                                                                        </td>
+                                                                        <td className={`py-2 px-3 font-bold border border-slate-50 dark:border-slate-800/40 text-right ${s.balance < 0 ? 'text-emerald-600' : s.balance > 0 ? 'text-rose-600' : 'text-slate-900 dark:text-white'}`}>
+                                                                            {s.balance !== 0 ? `KSh ${s.balance.toLocaleString()}` : '0.00'}
+                                                                        </td>
+                                                                        <td className="py-2 px-3 font-black border border-slate-50 dark:border-slate-800/40 text-center text-slate-700 dark:text-slate-300">
+                                                                            {s.pctPaid}%
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+
+                                                                {studentInstallments.length > 0 && (
+                                                                    <tr className="bg-slate-50 dark:bg-slate-950 font-black text-[11px] text-slate-900 dark:text-white border-t-2 border-slate-200 dark:border-slate-800">
+                                                                        <td colSpan={2} className="py-2.5 px-3 text-right uppercase tracking-wider">TOTAL SUMMARY:</td>
+                                                                        <td className="py-2.5 px-3 text-right">KSh {totalExpectedSum.toLocaleString()}</td>
+                                                                        {totalInstSums.map((val, colIdx) => (
+                                                                            <td key={colIdx} className="py-2.5 px-1.5 text-right">
+                                                                                {val > 0 ? `KSh ${val.toLocaleString()}` : '0.00'}
+                                                                            </td>
+                                                                        ))}
+                                                                        <td className="py-2.5 px-3 text-right">KSh {totalPaidSum.toLocaleString()}</td>
+                                                                        <td className="py-2.5 px-3 text-right">KSh {totalBalSum.toLocaleString()}</td>
+                                                                        <td className="py-2.5 px-3 text-center">{avgPctPaid}%</td>
+                                                                    </tr>
+                                                                )}
+
+                                                                {studentInstallments.length === 0 && (
+                                                                    <tr>
+                                                                        <td colSpan={18} className="py-8 text-center text-slate-400 font-medium border border-slate-50 dark:border-slate-800/40">No records found.</td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
                                                     </div>
                                                 </div>
                                             );
