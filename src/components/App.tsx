@@ -4301,7 +4301,29 @@ CREATE TRIGGER trg_allocate_tenant_sms_bonus
             await loadData(false, true);
         },
         onAddAcademicYear: async (data: any) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); },
+        onUpdateAcademicYear: async (id: string, data: any) => {
+            const existing = academicYears.find(ay => ay.id === id);
+            if (existing) {
+                await apiService.saveModuleRecord('academic_years', { ...existing, ...data });
+                loadData();
+            }
+        },
+        onDeleteAcademicYear: async (id: string) => {
+            await apiService.deleteModuleRecord('academic_years', id);
+            loadData();
+        },
         onAddSemester: async (data: any) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); },
+        onUpdateSemester: async (id: string, data: any) => {
+            const existing = semesters.find(sem => sem.id === id);
+            if (existing) {
+                await apiService.saveModuleRecord('semesters', { ...existing, ...data });
+                loadData();
+            }
+        },
+        onDeleteSemester: async (id: string) => {
+            await apiService.deleteModuleRecord('semesters', id);
+            loadData();
+        },
         onAddDepartment: handleAddDepartment,
         onUpdateDepartment: handleUpdateDepartment,
         onDeleteDepartment: handleDeleteDepartment,

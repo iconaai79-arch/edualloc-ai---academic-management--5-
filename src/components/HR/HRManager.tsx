@@ -29,6 +29,8 @@ interface HRManagerProps {
     onDeleteUser?: (id: string) => Promise<void>;
     letterheadConfig?: LetterheadConfig;
     footerImageUrl?: string | null;
+    activeTab?: 'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics';
+    setActiveTab?: (tab: 'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics') => void;
 }
 
 export const HRManager: React.FC<HRManagerProps> = ({
@@ -43,7 +45,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
     onEditUser,
     onDeleteUser,
     letterheadConfig,
-    footerImageUrl
+    footerImageUrl,
+    activeTab: propActiveTab,
+    setActiveTab: propSetActiveTab
 }) => {
     const staff = (rawStaff || []).filter(member => {
         if (!member || !member.role) return false;
@@ -51,7 +55,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
         return r !== 'student' && r !== 'parent' && r !== 'visitor';
     });
 
-    const [activeTab, setActiveTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
+    const [localActiveTab, setLocalActiveTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
+    const activeTab = propActiveTab || localActiveTab;
+    const setActiveTab = propSetActiveTab || setLocalActiveTab;
 
     
     // Onboarding Form States
@@ -179,28 +185,30 @@ export const HRManager: React.FC<HRManagerProps> = ({
     return (
         <div className="space-y-8">
             {/* Elite Navigation Bar */}
-            <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                <div className="flex gap-2 flex-wrap">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
-                                activeTab === tab.id 
-                                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
-                                : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
-                            }`}
-                        >
-                            <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
-                            <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>
-                        </button>
-                    ))}
+            {!propActiveTab && (
+                <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex gap-2 flex-wrap">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
+                                    activeTab === tab.id 
+                                    ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
+                                    : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                                }`}
+                            >
+                                <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
+                                <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                    <div className="hidden md:block px-6 border-l border-slate-100 dark:border-slate-700">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Human Capital</p>
+                        <p className="text-sm font-black text-slate-900 dark:text-white">{staff.length} Active Personnel</p>
+                    </div>
                 </div>
-                <div className="hidden md:block px-6 border-l border-slate-100 dark:border-slate-700">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Human Capital</p>
-                    <p className="text-sm font-black text-slate-900 dark:text-white">{staff.length} Active Personnel</p>
-                </div>
-            </div>
+            )}
 
             {/* Dynamic View Engine */}
             <div>

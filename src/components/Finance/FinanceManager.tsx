@@ -27,7 +27,7 @@ import { RetailRequisitions } from '../retail/RetailRequisitions';
 import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { AnnualReportWizard } from './AnnualReportWizard';
-import { isEduInstitution } from '../../utils/roleUtils';
+import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import { StudentEnrollmentManager } from '../common/StudentEnrollmentManager';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
@@ -41,7 +41,10 @@ import { FileTextIcon } from '../icons/FileTextIcon';
 import { ChartPieIcon } from '../icons/ChartPieIcon';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowsRightLeftIcon } from '../icons/ArrowsRightLeftIcon';
+import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { DownloadIcon } from '../icons/DownloadIcon';
+import { BuildingLibraryIcon } from '../icons/BuildingLibraryIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
 const HRManager = React.lazy(() => import('../HR/HRManager').then(m => ({ default: m.HRManager })));
 
 interface FinanceManagerProps {
@@ -83,7 +86,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'home' | 'overview' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'overview' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>('home');
+    const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -256,12 +260,36 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [newAyName, setNewAyName] = useState('');
     const [newAyStartDate, setNewAyStartDate] = useState('');
     const [newAyEndDate, setNewAyEndDate] = useState('');
+    
+    // Search & Filter states for Academic Year
+    const [aySearchQuery, setAySearchQuery] = useState('');
+    // Editing states for Academic Year
+    const [editingAyId, setEditingAyId] = useState<string | null>(null);
+    const [editingAyName, setEditingAyName] = useState('');
+    const [editingAyStartDate, setEditingAyStartDate] = useState('');
+    const [editingAyEndDate, setEditingAyEndDate] = useState('');
 
     // Creation states for Semester/Term
     const [isCreatingTerm, setIsCreatingTerm] = useState(false);
+    const [newTermAyId, setNewTermAyId] = useState('');
     const [newTermName, setNewTermName] = useState('');
     const [newTermStartDate, setNewTermStartDate] = useState('');
     const [newTermEndDate, setNewTermEndDate] = useState('');
+
+    useEffect(() => {
+        if (localAcademicYears.length > 0 && !newTermAyId) {
+            setNewTermAyId(localAcademicYears[0].id);
+        }
+    }, [localAcademicYears, newTermAyId]);
+
+    // Search & Filter states for Semester/Term
+    const [termSearchQuery, setTermSearchQuery] = useState('');
+    const [termAyFilter, setTermAyFilter] = useState('');
+    // Editing states for Semester/Term
+    const [editingTermId, setEditingTermId] = useState<string | null>(null);
+    const [editingTermName, setEditingTermName] = useState('');
+    const [editingTermStartDate, setEditingTermStartDate] = useState('');
+    const [editingTermEndDate, setEditingTermEndDate] = useState('');
 
     // Financial Year states
     const [financialYears, setFinancialYears] = useState([
@@ -798,7 +826,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
         { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
-        { id: 'bursaries', label: 'Govt & NG-CDF Bursaries', icon: ScaleIcon },
+        { id: 'gok_capitation', label: 'GoK Capitation', icon: BuildingLibraryIcon },
+        { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
         { id: 'goods_in_lieu', label: 'Goods in Lieu', icon: DocumentTextIcon },
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
         { id: 'transfers', label: 'Inter-Account Transfers', icon: ArrowsRightLeftIcon },
@@ -807,6 +836,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
         { id: 'settings', label: 'Settings', icon: Cog8ToothIcon },
         { id: 'reports', label: 'Reports', icon: FileTextIcon },
+    ] as const;
+
+    const hrSubTabs = [
+        { id: 'roster', label: 'Staff Roster', icon: UserGroupIcon },
+        { id: 'payroll', label: 'Payroll', icon: BriefcaseIcon },
+        { id: 'leave', label: 'Leave', icon: ClipboardListIcon },
+        { id: 'attendance', label: 'Attendance', icon: CheckBadgeIcon },
+        { id: 'reports', label: 'Reports', icon: FileTextIcon },
+        { id: 'analytics', label: 'Analytics', icon: ChartPieIcon },
     ] as const;
 
     // NG-CDF Bursary States
@@ -821,6 +859,89 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isSavingBursary, setIsSavingBursary] = useState(false);
     const [bursarySubTab, setBursarySubTab] = useState<'post_cheque' | 'initiate_app'>('post_cheque');
     const [bursaryBankAccountId, setBursaryBankAccountId] = useState('');
+
+    // GoK Capitation States
+    const [gokEnrolment, setGokEnrolment] = useState('');
+    const [gokDisbursementRate, setGokDisbursementRate] = useState('1420');  // FPE primary rate (KES)
+    const [gokSneCount, setGokSneCount] = useState('');
+    const [gokSneRate, setGokSneRate] = useState('6720');  // SNE top-up rate
+    const [gokTranche, setGokTranche] = useState<'term_1' | 'term_2' | 'term_3'>('term_1');
+    const [gokReference, setGokReference] = useState('');
+    const [gokBankAccountId, setGokBankAccountId] = useState('');
+    const [gokNotes, setGokNotes] = useState('');
+    const [gokCapLogs, setGokCapLogs] = useState<any[]>([]);
+    const [isLoadingGokLogs, setIsLoadingGokLogs] = useState(false);
+    const [isSavingGokCap, setIsSavingGokCap] = useState(false);
+
+    const GOK_TRANCHE_PCTS: Record<string, number> = { term_1: 50, term_2: 30, term_3: 20 };
+
+    const gokTotalFull = (() => {
+        const e = Number(gokEnrolment) || 0;
+        const r = Number(gokDisbursementRate) || 0;
+        const sne = Number(gokSneCount) || 0;
+        const sneR = Number(gokSneRate) || 0;
+        return e * r + sne * sneR;
+    })();
+    const gokTranchePct = GOK_TRANCHE_PCTS[gokTranche] || 0;
+    const gokTotalReceived = (gokTotalFull * gokTranchePct) / 100;
+    // MoE distribution: 100% of capitation split — SIMBA 50%, GPA 50%
+    const gokSimbaAmount = gokTotalReceived * 0.50;
+    const gokGpaAmount   = gokTotalReceived * 0.50;
+
+    const fetchGokCapLogs = async () => {
+        setIsLoadingGokLogs(true);
+        try {
+            const data = await apiService.fetchModuleRecords<any>('gok_capitation_logs', props.institution.id).catch(() => []);
+            setGokCapLogs(data || []);
+        } catch(e) {
+            console.error('Failed to fetch GoK capitation logs:', e);
+        } finally {
+            setIsLoadingGokLogs(false);
+        }
+    };
+
+    const handlePostGokCapitation = async () => {
+        if (!gokEnrolment || Number(gokEnrolment) <= 0) { alert('Enrolment count is required and must be > 0.'); return; }
+        if (!gokDisbursementRate || Number(gokDisbursementRate) <= 0) { alert('Disbursement rate is required.'); return; }
+        if (!gokBankAccountId) { alert('Please select a receiving bank account.'); return; }
+
+        setIsSavingGokCap(true);
+        try {
+            const rec = {
+                id: `gok_cap_${Date.now()}`,
+                institutionId: props.institution.id,
+                enrolmentCount: Number(gokEnrolment),
+                disbursementRate: Number(gokDisbursementRate),
+                sneCount: Number(gokSneCount) || 0,
+                sneRate: Number(gokSneRate) || 0,
+                trancheName: gokTranche,
+                tranchePercentage: gokTranchePct,
+                referenceNumber: gokReference,
+                bankAccountId: gokBankAccountId,
+                totalReceived: gokTotalReceived,
+                simbaAmount: gokSimbaAmount,
+                gpaAmount: gokGpaAmount,
+                notes: gokNotes,
+                createdAt: new Date().toISOString(),
+            };
+            await apiService.saveModuleRecord('gok_capitation_logs', rec);
+
+            alert(`GoK Capitation posted!\nTotal: KES ${gokTotalReceived.toLocaleString()}\nSIMBA: KES ${gokSimbaAmount.toLocaleString()}\nGPA: KES ${gokGpaAmount.toLocaleString()}`);
+            await fetchGokCapLogs();
+
+            // Reset form
+            setGokEnrolment('');
+            setGokSneCount('');
+            setGokReference('');
+            setGokBankAccountId('');
+            setGokNotes('');
+        } catch(err: any) {
+            console.error('Failed to post GoK capitation:', err);
+            alert('Failed to post GoK capitation: ' + (err.message || err));
+        } finally {
+            setIsSavingGokCap(false);
+        }
+    };
 
     const [goodsProposals, setGoodsProposals] = useState<any[]>([]);
     const [isLoadingGoodsProposals, setIsLoadingGoodsProposals] = useState(false);
@@ -840,6 +961,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     useEffect(() => {
         if (activeTab === 'goods_in_lieu') {
             fetchGoodsProposals();
+        }
+        if (activeTab === 'gok_capitation') {
+            fetchGokCapLogs();
         }
     }, [activeTab]);
 
@@ -1611,7 +1735,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             .then(res => setBursaryRecords(res || []))
             .catch(err => console.error("Failed to load ng_cdf_bursaries:", err));
         
-        // Self-heal: ensure bank account integration columns and transfers tables exist on the database table
+        // Self-heal: ensure bank account integration columns, transfers tables and GoK Capitation log tables exist on the database
         apiService.runMigration(`
             ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS integration_service TEXT DEFAULT 'None';
             ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS integration_status TEXT DEFAULT 'Not Configured';
@@ -1640,8 +1764,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
 
+            CREATE TABLE IF NOT EXISTS public.gok_capitation_logs (
+                id TEXT PRIMARY KEY,
+                institution_id TEXT NOT NULL,
+                enrolment_count INTEGER NOT NULL,
+                disbursement_rate DECIMAL(15, 2) NOT NULL,
+                sne_count INTEGER DEFAULT 0,
+                sne_rate DECIMAL(15, 2) DEFAULT 0.00,
+                tranche_name TEXT NOT NULL,
+                tranche_percentage DECIMAL(5, 2) NOT NULL,
+                reference_number TEXT,
+                bank_account_id TEXT,
+                total_received DECIMAL(15, 2) NOT NULL,
+                simba_amount DECIMAL(15, 2) NOT NULL,
+                gpa_amount DECIMAL(15, 2) NOT NULL,
+                notes TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+
             ALTER TABLE public.inter_bank_transfers ENABLE ROW LEVEL SECURITY;
             ALTER TABLE public.inter_vote_transfers ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE public.gok_capitation_logs ENABLE ROW LEVEL SECURITY;
 
             DO $$
             BEGIN
@@ -1656,12 +1799,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 ) THEN
                     CREATE POLICY "Enable all access for authenticated users" ON public.inter_vote_transfers FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'anon');
                 END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_policies WHERE tablename = 'gok_capitation_logs' AND policyname = 'Enable all access for authenticated users'
+                ) THEN
+                    CREATE POLICY "Enable all access for authenticated users" ON public.gok_capitation_logs FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'anon');
+                END IF;
             END
             $$;
 
             GRANT ALL ON public.inter_bank_transfers TO anon, authenticated, service_role;
             GRANT ALL ON public.inter_vote_transfers TO anon, authenticated, service_role;
-        `).catch(err => console.warn("Self-healing school_bank_accounts/transfers schema failed:", err))
+            GRANT ALL ON public.gok_capitation_logs TO anon, authenticated, service_role;
+        `).catch(err => console.warn("Self-healing school_bank_accounts/transfers/capitation schema failed:", err))
           .finally(() => {
               fetchBankAccounts();
           });
@@ -2290,7 +2440,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 </div>
 
                 <nav className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
-                    {tabs.filter(item => isDrivingSchool ? (item.id !== 'wizard') : (item.id !== 'billing' && item.id !== 'bursaries')).map(item => (
+                    {tabs.filter(item => {
+                        const isSchool = isSchoolInstitution(props.institution);
+                        if (item.id === 'gok_capitation') return isSchool;
+                        if (item.id === 'bursaries') return isSchool;
+                        if (item.id === 'wizard') return isSchool;
+                        if (item.id === 'goods_in_lieu') return isSchool;
+                        if (item.id === 'billing') return isDrivingSchool;
+                        return true;
+                    }).map(item => (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id as any)}
@@ -2368,30 +2526,40 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <span className="text-[11px] font-black uppercase tracking-widest">{sub.label}</span>
                                     </button>
                                 ))
-                            ) : (
-                                tabs.filter(item => item.id === 'billing' || item.id === 'bursaries').map(tab => (
+                            ) : activeTab === 'payroll' ? (
+                                hrSubTabs.map(sub => (
                                     <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id as any)}
+                                        key={sub.id}
+                                        onClick={() => setHrSubTab(sub.id as any)}
                                         className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap ${
-                                            activeTab === tab.id 
-                                            ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105' 
+                                            hrSubTab === sub.id
+                                            ? 'bg-teal-600 text-white shadow-xl shadow-teal-100 dark:shadow-none scale-105'
                                             : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600'
                                         }`}
                                     >
-                                        <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
-                                        <span className="text-[11px] font-black uppercase tracking-widest">{tab.label}</span>
+                                        <sub.icon className={`w-4 h-4 ${hrSubTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
+                                        <span className="text-[11px] font-black uppercase tracking-widest">{sub.label}</span>
                                     </button>
                                 ))
+                            ) : (
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                                        {activeTab === 'payroll' ? 'Human Capital Module' : 
+                                         activeTab === 'gok_capitation' ? 'GoK Capitation Module' :
+                                         activeTab === 'transfers' ? 'Transfers Module' :
+                                         'Finance Module'}
+                                    </span>
+                                </div>
                             )}
                         </div>
                         <div className="hidden md:flex items-center gap-4 px-6 border-l border-slate-100 dark:border-slate-800">
                             <div className="text-right">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    {activeTab === 'settings' ? 'Configuration' : 'Fiscal Status'}
+                                    {activeTab === 'settings' ? 'Configuration' : activeTab === 'payroll' ? 'Human Capital' : 'Fiscal Status'}
                                 </p>
                                 <p className="text-sm font-black text-slate-900 dark:text-white">
-                                    {activeTab === 'settings' ? 'Settings Mode' : 'Education Mode'}
+                                    {activeTab === 'settings' ? 'Settings Mode' : activeTab === 'payroll' ? 'HR & Payroll' : 'Education Mode'}
                                 </p>
                             </div>
                         </div>
@@ -3358,6 +3526,275 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     />
                 )}
 
+                {activeTab === 'gok_capitation' && (() => {
+                    const trancheLabels: Record<string, string> = { term_1: 'Term 1 (50%)', term_2: 'Term 2 (30%)', term_3: 'Term 3 (20%)' };
+                    const trancheColors: Record<string, string> = { term_1: 'from-emerald-500 to-teal-600', term_2: 'from-blue-500 to-indigo-600', term_3: 'from-violet-500 to-purple-600' };
+                    return (
+                        <div className="space-y-6 animate-in fade-in duration-300">
+                            {/* Header Banner */}
+                            <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-emerald-500/30">
+                                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.12),_transparent_60%)]" />
+                                <div className="absolute -right-12 -top-12 w-48 h-48 rounded-full bg-white/5 blur-xl" />
+                                <div className="relative flex items-start justify-between gap-6">
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center">
+                                                <BuildingLibraryIcon className="w-5 h-5 text-white" />
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Government of Kenya</span>
+                                        </div>
+                                        <h2 className="text-2xl font-black tracking-tight mb-1">Free Primary Education</h2>
+                                        <p className="text-sm text-emerald-100">Capitation Grant Disbursement & Allocation Tracker</p>
+                                        <p className="text-[10px] text-emerald-200/70 mt-2 uppercase tracking-wider">Per MoE FPE Operational Manual — June 2020</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <p className="text-[10px] font-black text-emerald-200 uppercase tracking-widest">Full Year Capitation</p>
+                                        <p className="text-3xl font-black tabular-nums">KES {gokTotalFull.toLocaleString()}</p>
+                                        <p className="text-[10px] text-emerald-200 mt-1">{trancheLabels[gokTranche]} → <span className="text-white font-black">KES {gokTotalReceived.toLocaleString()}</span></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+                                {/* Left: Input Form */}
+                                <div className="xl:col-span-3 space-y-5">
+                                    {/* Enrolment & Rates */}
+                                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-5">Enrolment & Rate Configuration</h3>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Learner Enrolment</label>
+                                                <input
+                                                    type="number" min="0"
+                                                    value={gokEnrolment}
+                                                    onChange={e => setGokEnrolment(e.target.value)}
+                                                    placeholder="e.g. 450"
+                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Rate / Learner (KES)</label>
+                                                <input
+                                                    type="number" min="0"
+                                                    value={gokDisbursementRate}
+                                                    onChange={e => setGokDisbursementRate(e.target.value)}
+                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                                />
+                                                <p className="text-[9px] text-slate-400 mt-1">Primary: 1,420 | JSS: 15,000 | SNE: 6,720</p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">SNE Learners (Optional)</label>
+                                                <input
+                                                    type="number" min="0"
+                                                    value={gokSneCount}
+                                                    onChange={e => setGokSneCount(e.target.value)}
+                                                    placeholder="0"
+                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">SNE Rate / Learner (KES)</label>
+                                                <input
+                                                    type="number" min="0"
+                                                    value={gokSneRate}
+                                                    onChange={e => setGokSneRate(e.target.value)}
+                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Tranche & Receipt Details */}
+                                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-5">Disbursement Tranche</h3>
+                                        <div className="flex gap-3 mb-5">
+                                            {(['term_1', 'term_2', 'term_3'] as const).map(t => (
+                                                <button
+                                                    key={t}
+                                                    onClick={() => setGokTranche(t)}
+                                                    className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 ${
+                                                        gokTranche === t
+                                                        ? `bg-gradient-to-br ${trancheColors[t]} text-white shadow-lg scale-105`
+                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'
+                                                    }`}
+                                                >
+                                                    {trancheLabels[t]}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">MoE Reference / Ref No.</label>
+                                                <input
+                                                    type="text"
+                                                    value={gokReference}
+                                                    onChange={e => setGokReference(e.target.value)}
+                                                    placeholder="e.g. MOE/FPE/2024/T1/..."
+                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Receiving Bank Account</label>
+                                                <select
+                                                    value={gokBankAccountId}
+                                                    onChange={e => setGokBankAccountId(e.target.value)}
+                                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                                >
+                                                    <option value="">-- Select Account --</option>
+                                                    {bankAccounts.map((acc: any) => (
+                                                        <option key={acc.id} value={acc.id}>
+                                                            {acc.bankName} — {acc.accountName} ({acc.accountNumber})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4">
+                                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Notes</label>
+                                            <textarea
+                                                value={gokNotes}
+                                                onChange={e => setGokNotes(e.target.value)}
+                                                rows={2}
+                                                placeholder="Optional remarks..."
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={handlePostGokCapitation}
+                                            disabled={isSavingGokCap}
+                                            className="mt-5 w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[11px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/30 transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2"
+                                        >
+                                            {isSavingGokCap ? (
+                                                <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Processing…</>
+                                            ) : (
+                                                <><BuildingLibraryIcon className="w-4 h-4" />Post Capitation Disbursement</>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Right: Distribution Preview */}
+                                <div className="xl:col-span-2 space-y-5">
+                                    {/* Tranche Calculator */}
+                                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-5">Live Disbursement Calculator</h3>
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
+                                                <span className="text-xs text-slate-500 font-semibold">Annual Entitlement</span>
+                                                <span className="text-sm font-black text-slate-900 dark:text-white tabular-nums">KES {gokTotalFull.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
+                                                <span className="text-xs text-slate-500 font-semibold">Tranche ({gokTranchePct}%)</span>
+                                                <span className={`text-sm font-black tabular-nums bg-gradient-to-r ${trancheColors[gokTranche]} bg-clip-text text-transparent`}>KES {gokTotalReceived.toLocaleString()}</span>
+                                            </div>
+                                            <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-emerald-50 dark:from-slate-800 dark:to-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30">
+                                                <p className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-3">MoE Budget Allocation</p>
+                                                <div className="space-y-2.5">
+                                                    {[
+                                                        { label: 'SIMBA (Instructional Materials)', pct: 50, amount: gokSimbaAmount, color: 'bg-emerald-500' },
+                                                        { label: 'GPA (General Purpose)', pct: 50, amount: gokGpaAmount, color: 'bg-teal-500' },
+                                                    ].map(item => (
+                                                        <div key={item.label}>
+                                                            <div className="flex justify-between text-[10px] mb-1">
+                                                                <span className="text-slate-600 dark:text-slate-400 font-semibold">{item.label}</span>
+                                                                <span className="font-black text-slate-800 dark:text-slate-200">KES {item.amount.toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                                                <div className={`h-full ${item.color} rounded-full`} style={{ width: `${item.pct}%` }} />
+                                                            </div>
+                                                            <p className="text-[9px] text-slate-400 mt-0.5">{item.pct}% of tranche</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* MoE Regulation Card */}
+                                    <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[2rem] p-6 text-white shadow-xl">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">MoE FPE Manual — June 2020</p>
+                                        <div className="space-y-3 text-[11px]">
+                                            <div className="flex gap-3 items-start">
+                                                <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5">T1</div>
+                                                <span className="text-slate-300">Term 1 — <strong className="text-white">50%</strong> of annual allocation</span>
+                                            </div>
+                                            <div className="flex gap-3 items-start">
+                                                <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5">T2</div>
+                                                <span className="text-slate-300">Term 2 — <strong className="text-white">30%</strong> of annual allocation</span>
+                                            </div>
+                                            <div className="flex gap-3 items-start">
+                                                <div className="w-6 h-6 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5">T3</div>
+                                                <span className="text-slate-300">Term 3 — <strong className="text-white">20%</strong> of annual allocation</span>
+                                            </div>
+                                            <div className="border-t border-slate-700 pt-3 mt-3">
+                                                <p className="text-slate-400 text-[10px]">Funds must be utilised within the financial year and are subject to audit by KNEC & MoE inspectors.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Capitation History */}
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden">
+                                <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                                    <div>
+                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Capitation Ledger</h3>
+                                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{gokCapLogs.length} disbursement(s) recorded</p>
+                                    </div>
+                                    <button onClick={fetchGokCapLogs} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
+                                        <ArrowPathIcon className="w-4 h-4 text-slate-400" />
+                                    </button>
+                                </div>
+                                {isLoadingGokLogs ? (
+                                    <div className="flex items-center justify-center py-12">
+                                        <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                ) : gokCapLogs.length === 0 ? (
+                                    <div className="text-center py-16 text-slate-400">
+                                        <BuildingLibraryIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                        <p className="text-sm font-semibold">No capitation records yet.</p>
+                                        <p className="text-xs mt-1">Post your first disbursement using the form above.</p>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="bg-slate-50 dark:bg-slate-800/50">
+                                                    {['Date', 'Tranche', 'Enrolment', 'Rate', 'Total Received', 'SIMBA', 'GPA', 'Reference'].map(h => (
+                                                        <th key={h} className="px-4 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {gokCapLogs.sort((a, b) => new Date(b.createdAt || b.created_at || 0).getTime() - new Date(a.createdAt || a.created_at || 0).getTime()).map((log: any) => (
+                                                    <tr key={log.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{new Date(log.createdAt || log.created_at).toLocaleDateString('en-KE')}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                                log.trancheName === 'term_1' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                                                log.trancheName === 'term_2' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                                'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
+                                                            }`}>
+                                                                {log.trancheName?.replace('_', ' ')} ({log.tranchePercentage}%)
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-slate-900 dark:text-white font-semibold">{Number(log.enrolmentCount).toLocaleString()}</td>
+                                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">KES {Number(log.disbursementRate).toLocaleString()}</td>
+                                                        <td className="px-4 py-3 font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap">KES {Number(log.totalReceived).toLocaleString()}</td>
+                                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">KES {Number(log.simbaAmount).toLocaleString()}</td>
+                                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">KES {Number(log.gpaAmount).toLocaleString()}</td>
+                                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{log.referenceNumber || '—'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
+
                 {activeTab === 'billing' && !isDrivingSchool && (
                     <div className="space-y-6">
                         {/* Sub-tabs for Students */}
@@ -3528,35 +3965,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'payroll' && (
-                    <div className="space-y-6 animate-in fade-in duration-300">
-                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
-                            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
-                                <div className="w-12 h-12 rounded-2xl bg-teal-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
-                                    <BriefcaseIcon className="w-6 h-6 text-white" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">HR &amp; Payroll</h3>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Staff management, payroll runs &amp; leave tracking</p>
-                                </div>
+                    <div className="animate-in fade-in duration-300">
+                        <React.Suspense fallback={
+                            <div className="h-64 flex items-center justify-center">
+                                <div className="w-8 h-8 animate-spin border-4 border-teal-500 border-t-transparent rounded-full" />
                             </div>
-                            <React.Suspense fallback={
-                                <div className="h-64 flex items-center justify-center">
-                                    <div className="w-8 h-8 animate-spin border-4 border-teal-500 border-t-transparent rounded-full" />
-                                </div>
-                            }>
-                                <HRManager
-                                    currentUser={props.currentUser}
-                                    staff={(props.users || []).filter((u: any) => u.role?.toLowerCase().trim() !== 'student')}
-                                    payrollRecords={props.payrollRecords || []}
-                                    leaveRequests={props.leaveRequests || []}
-                                    institution={props.institution}
-                                    onProcessPayroll={props.onProcessPayroll || (async () => {})}
-                                    onUpdateLeaveStatus={props.onUpdateLeaveStatus || (async () => {})}
-                                    onEditUser={props.onEditUser || (async () => {})}
-                                    onDeleteUser={props.onDeleteUser || (async () => {})}
-                                />
-                            </React.Suspense>
-                        </div>
+                        }>
+                            <HRManager
+                                currentUser={props.currentUser}
+                                staff={(props.users || []).filter((u: any) => u.role?.toLowerCase().trim() !== 'student')}
+                                payrollRecords={props.payrollRecords || []}
+                                leaveRequests={props.leaveRequests || []}
+                                institution={props.institution}
+                                onProcessPayroll={props.onProcessPayroll || (async () => {})}
+                                onUpdateLeaveStatus={props.onUpdateLeaveStatus || (async () => {})}
+                                onEditUser={props.onEditUser || (async () => {})}
+                                onDeleteUser={props.onDeleteUser || (async () => {})}
+                                activeTab={hrSubTab}
+                                setActiveTab={setHrSubTab}
+                            />
+                        </React.Suspense>
                     </div>
                 )}
 
@@ -4989,24 +5417,162 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     )}
 
+                                    {/* Search Input for Academic Years */}
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search academic years..." 
+                                            value={aySearchQuery}
+                                            onChange={e => setAySearchQuery(e.target.value)}
+                                            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                        />
+                                    </div>
+
                                     <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 no-scrollbar">
-                                        {localAcademicYears.map((ay, idx) => (
-                                            <div key={ay.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-955 rounded-2xl border border-slate-100 dark:border-slate-900">
-                                                <div>
-                                                    <p className="text-sm font-black text-slate-900 dark:text-white">{ay.name}</p>
-                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                                                        {ay.startDate && ay.endDate ? `Duration: ${ay.startDate} to ${ay.endDate}` : 'Year Preset'}
-                                                    </p>
-                                                </div>
-                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                                    idx === 0 
-                                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20' 
-                                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                                                }`}>
-                                                    {idx === 0 ? 'Current Active' : 'Inactive'}
-                                                </span>
-                                            </div>
-                                        ))}
+                                        {localAcademicYears
+                                            .filter(ay => ay.name.toLowerCase().includes(aySearchQuery.toLowerCase()))
+                                            .map((ay, idx) => {
+                                                const isEditing = editingAyId === ay.id;
+                                                return (
+                                                    <div key={ay.id} className="p-4 bg-slate-50 dark:bg-slate-955 rounded-2xl border border-slate-100 dark:border-slate-900 space-y-3">
+                                                        {isEditing ? (
+                                                            <div className="space-y-3 text-left">
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[9px] font-black uppercase text-slate-400">Name</label>
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={editingAyName} 
+                                                                        onChange={e => setEditingAyName(e.target.value)} 
+                                                                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                                    />
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    <div className="space-y-1">
+                                                                        <label className="text-[9px] font-black uppercase text-slate-400">Start Date</label>
+                                                                        <input 
+                                                                            type="date" 
+                                                                            value={editingAyStartDate} 
+                                                                            onChange={e => setEditingAyStartDate(e.target.value)} 
+                                                                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <label className="text-[9px] font-black uppercase text-slate-400">End Date</label>
+                                                                        <input 
+                                                                            type="date" 
+                                                                            value={editingAyEndDate} 
+                                                                            onChange={e => setEditingAyEndDate(e.target.value)} 
+                                                                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex justify-end gap-2">
+                                                                    <button 
+                                                                        onClick={() => setEditingAyId(null)} 
+                                                                        className="px-3 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            if (!editingAyName.trim() || !editingAyStartDate || !editingAyEndDate) {
+                                                                                return alert("Please fill in all fields!");
+                                                                            }
+                                                                            const updatedAy = { ...ay, name: editingAyName, startDate: editingAyStartDate, endDate: editingAyEndDate };
+                                                                            try {
+                                                                                await apiService.saveModuleRecord('academic_years', updatedAy);
+                                                                                setLocalAcademicYears(prev => prev.map(item => item.id === ay.id ? updatedAy : item));
+                                                                                setEditingAyId(null);
+                                                                                alert("Academic Year details updated!");
+                                                                                if (props.onRefreshData) await props.onRefreshData();
+                                                                            } catch (e: any) {
+                                                                                alert("Failed to update: " + (e.message || e));
+                                                                            }
+                                                                        }} 
+                                                                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                                    >
+                                                                        Save
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex justify-between items-center">
+                                                                <div>
+                                                                    <p className="text-sm font-black text-slate-900 dark:text-white">{ay.name}</p>
+                                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                                                                        {ay.startDate && ay.endDate ? `Duration: ${ay.startDate} to ${ay.endDate}` : 'Year Preset'}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    {ay.status !== 'active' && (
+                                                                        <button 
+                                                                            onClick={async () => {
+                                                                                try {
+                                                                                    const activeYears = localAcademicYears.filter(y => y.status === 'active' && y.id !== ay.id);
+                                                                                    for (const activeAy of activeYears) {
+                                                                                        await apiService.saveModuleRecord('academic_years', { ...activeAy, status: 'inactive' as const });
+                                                                                    }
+                                                                                    const updatedAy = { ...ay, status: 'active' as const };
+                                                                                    await apiService.saveModuleRecord('academic_years', updatedAy);
+                                                                                    setLocalAcademicYears(prev => prev.map(item => {
+                                                                                        if (item.id === ay.id) return updatedAy;
+                                                                                        if (item.status === 'active') return { ...item, status: 'inactive' as const };
+                                                                                        return item;
+                                                                                    }));
+                                                                                    alert(`Academic Year ${ay.name} is now active!`);
+                                                                                    if (props.onRefreshData) await props.onRefreshData();
+                                                                                } catch (err: any) {
+                                                                                    alert("Failed to activate: " + (err.message || err));
+                                                                                }
+                                                                            }}
+                                                                            className="px-2.5 py-1 text-slate-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors border border-transparent hover:border-green-200"
+                                                                        >
+                                                                            Activate
+                                                                        </button>
+                                                                    )}
+                                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                                        ay.status === 'active' 
+                                                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-250 dark:border-emerald-500/20' 
+                                                                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-750'
+                                                                    }`}>
+                                                                        {ay.status === 'active' ? 'Active' : 'Inactive'}
+                                                                    </span>
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            setEditingAyId(ay.id);
+                                                                            setEditingAyName(ay.name);
+                                                                            setEditingAyStartDate(ay.startDate || '');
+                                                                            setEditingAyEndDate(ay.endDate || '');
+                                                                        }}
+                                                                        className="p-1.5 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg transition-colors"
+                                                                        title="Edit Details"
+                                                                    >
+                                                                        <PencilIcon className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            if (confirm(`Are you sure you want to permanently delete Academic Year "${ay.name}"?`)) {
+                                                                                try {
+                                                                                    await apiService.deleteModuleRecord('academic_years', ay.id);
+                                                                                    setLocalAcademicYears(prev => prev.filter(item => item.id !== ay.id));
+                                                                                    alert("Academic Year deleted successfully!");
+                                                                                    if (props.onRefreshData) await props.onRefreshData();
+                                                                                } catch (err: any) {
+                                                                                    alert("Failed to delete: " + (err.message || err));
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="p-1.5 bg-slate-100 hover:bg-red-50 dark:bg-slate-800 dark:hover:bg-red-950 text-slate-500 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors"
+                                                                        title="Delete Year"
+                                                                    >
+                                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                     </div>
                                 </div>
 
@@ -5015,7 +5581,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                                         <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Terms / Semesters</h3>
                                         <button 
-                                            onClick={() => setIsCreatingTerm(!isCreatingTerm)}
+                                            onClick={() => {
+                                                if (localAcademicYears.length > 0 && !newTermAyId) {
+                                                    setNewTermAyId(localAcademicYears[0].id);
+                                                }
+                                                setIsCreatingTerm(!isCreatingTerm);
+                                            }}
                                             className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                         >
                                             {isCreatingTerm ? 'Cancel' : 'Add Term'}
@@ -5026,6 +5597,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <div className="p-5 bg-slate-50 dark:bg-slate-955 rounded-3xl border border-slate-100 dark:border-slate-800/60 space-y-4 animate-in slide-in-from-top duration-200">
                                             <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">➕ Register Term / Semester</h4>
                                             <div className="space-y-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Academic Year</label>
+                                                    <select
+                                                        value={newTermAyId}
+                                                        onChange={e => setNewTermAyId(e.target.value)}
+                                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                    >
+                                                        <option value="">Select Academic Year</option>
+                                                        {localAcademicYears.map(ay => (
+                                                            <option key={ay.id} value={ay.id}>{ay.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                                 <div className="space-y-1">
                                                     <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Term / Semester Name</label>
                                                     <input 
@@ -5061,9 +5645,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         if (!newTermName.trim() || !newTermStartDate || !newTermEndDate) {
                                                             return alert("Please fill in all fields!");
                                                         }
-                                                        const targetAyId = localAcademicYears[0]?.id || '';
+                                                        const targetAyId = newTermAyId || localAcademicYears[0]?.id || '';
                                                         if (!targetAyId) {
-                                                            return alert("Please register an Academic Year first!");
+                                                            return alert("Please register and select an Academic Year first!");
                                                         }
                                                         const newSem = { 
                                                             id: `term_${Date.now()}`, 
@@ -5071,7 +5655,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             academicYearId: targetAyId, 
                                                             institutionId: props.institution.id, 
                                                             startDate: newTermStartDate, 
-                                                            endDate: newTermEndDate 
+                                                            endDate: newTermEndDate,
+                                                            status: 'inactive' as const
                                                         };
                                                         try {
                                                             await apiService.saveModuleRecord('semesters', newSem);
@@ -5097,18 +5682,175 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     )}
 
+                                    {/* Search & Academic Year filters for Semesters */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="relative">
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search terms..." 
+                                                value={termSearchQuery}
+                                                onChange={e => setTermSearchQuery(e.target.value)}
+                                                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                            />
+                                        </div>
+                                        <div>
+                                            <select
+                                                value={termAyFilter}
+                                                onChange={e => setTermAyFilter(e.target.value)}
+                                                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                            >
+                                                <option value="">All Academic Years</option>
+                                                {localAcademicYears.map(ay => (
+                                                    <option key={ay.id} value={ay.id}>{ay.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
                                     <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 no-scrollbar">
-                                        {localSemesters.map(sem => (
-                                            <div key={sem.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-955 rounded-2xl border border-slate-100 dark:border-slate-900">
-                                                <div>
-                                                    <p className="text-sm font-black text-slate-900 dark:text-white">Term {sem.name}</p>
-                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Duration: {sem.startDate || '—'} to {sem.endDate || '—'}</p>
-                                                </div>
-                                                <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-750 dark:text-indigo-400 rounded-full text-[9px] font-black uppercase tracking-wider border border-indigo-100 dark:border-indigo-550/20">
-                                                    Configured
-                                                </span>
-                                            </div>
-                                        ))}
+                                        {localSemesters
+                                            .filter(sem => {
+                                                const matchesSearch = sem.name.toLowerCase().includes(termSearchQuery.toLowerCase());
+                                                const matchesAy = termAyFilter ? sem.academicYearId === termAyFilter : true;
+                                                return matchesSearch && matchesAy;
+                                            })
+                                            .map(sem => {
+                                                const isEditing = editingTermId === sem.id;
+                                                const ay = localAcademicYears.find(y => y.id === sem.academicYearId);
+                                                const ayName = ay ? ay.name : 'Unknown Year';
+                                                return (
+                                                    <div key={sem.id} className="p-4 bg-slate-50 dark:bg-slate-955 rounded-2xl border border-slate-100 dark:border-slate-900 space-y-3">
+                                                        {isEditing ? (
+                                                            <div className="space-y-3 text-left">
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[9px] font-black uppercase text-slate-400">Name</label>
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={editingTermName} 
+                                                                        onChange={e => setEditingTermName(e.target.value)} 
+                                                                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                                    />
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    <div className="space-y-1">
+                                                                        <label className="text-[9px] font-black uppercase text-slate-400">Start Date</label>
+                                                                        <input 
+                                                                            type="date" 
+                                                                            value={editingTermStartDate} 
+                                                                            onChange={e => setEditingTermStartDate(e.target.value)} 
+                                                                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <label className="text-[9px] font-black uppercase text-slate-400">End Date</label>
+                                                                        <input 
+                                                                            type="date" 
+                                                                            value={editingTermEndDate} 
+                                                                            onChange={e => setEditingTermEndDate(e.target.value)} 
+                                                                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none font-bold text-slate-900 dark:text-white text-xs"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex justify-end gap-2">
+                                                                    <button 
+                                                                        onClick={() => setEditingTermId(null)} 
+                                                                        className="px-3 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            if (!editingTermName.trim() || !editingTermStartDate || !editingTermEndDate) {
+                                                                                return alert("Please fill in all fields!");
+                                                                            }
+                                                                            const updatedSem = { ...sem, name: editingTermName, startDate: editingTermStartDate, endDate: editingTermEndDate };
+                                                                            try {
+                                                                                await apiService.saveModuleRecord('semesters', updatedSem);
+                                                                                setLocalSemesters(prev => prev.map(item => item.id === sem.id ? updatedSem : item));
+                                                                                setEditingTermId(null);
+                                                                                alert("Term/Semester details updated!");
+                                                                                if (props.onRefreshData) await props.onRefreshData();
+                                                                            } catch (e: any) {
+                                                                                alert("Failed to update: " + (e.message || e));
+                                                                            }
+                                                                        }} 
+                                                                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                                                    >
+                                                                        Save
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex justify-between items-center">
+                                                                <div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{sem.name}</p>
+                                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold border border-slate-200 dark:border-slate-700">{ayName}</span>
+                                                                    </div>
+                                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Duration: {sem.startDate || '—'} to {sem.endDate || '—'}</p>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    {sem.status !== 'active' && (
+                                                                        <button 
+                                                                            onClick={async () => {
+                                                                                try {
+                                                                                    const updatedSem = { ...sem, status: 'active' as const };
+                                                                                    await apiService.saveModuleRecord('semesters', updatedSem);
+                                                                                    setLocalSemesters(prev => prev.map(item => item.id === sem.id ? updatedSem : item));
+                                                                                    alert(`Term/Semester ${sem.name} is now active!`);
+                                                                                    if (props.onRefreshData) await props.onRefreshData();
+                                                                                } catch (err: any) {
+                                                                                    alert("Failed to activate: " + (err.message || err));
+                                                                                }
+                                                                            }}
+                                                                            className="px-2.5 py-1 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors border border-transparent hover:border-indigo-200"
+                                                                        >
+                                                                            Activate
+                                                                        </button>
+                                                                    )}
+                                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                                        sem.status === 'active' 
+                                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-550/20' 
+                                                                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                                                                    }`}>
+                                                                        {sem.status === 'active' ? 'Active' : 'Inactive'}
+                                                                    </span>
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            setEditingTermId(sem.id);
+                                                                            setEditingTermName(sem.name);
+                                                                            setEditingTermStartDate(sem.startDate || '');
+                                                                            setEditingTermEndDate(sem.endDate || '');
+                                                                        }}
+                                                                        className="p-1.5 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg transition-colors"
+                                                                        title="Edit Details"
+                                                                    >
+                                                                        <PencilIcon className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            if (confirm(`Are you sure you want to permanently delete Term/Semester "${sem.name}"?`)) {
+                                                                                try {
+                                                                                    await apiService.deleteModuleRecord('semesters', sem.id);
+                                                                                    setLocalSemesters(prev => prev.filter(item => item.id !== sem.id));
+                                                                                    alert("Term/Semester deleted successfully!");
+                                                                                    if (props.onRefreshData) await props.onRefreshData();
+                                                                                } catch (err: any) {
+                                                                                    alert("Failed to delete: " + (err.message || err));
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="p-1.5 bg-slate-100 hover:bg-red-50 dark:bg-slate-800 dark:hover:bg-red-950 text-slate-500 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors"
+                                                                        title="Delete Term"
+                                                                    >
+                                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                     </div>
                                 </div>
                             </div>
