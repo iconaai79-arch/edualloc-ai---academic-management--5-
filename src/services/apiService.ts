@@ -2104,6 +2104,7 @@ export const apiService = {
         institutionId: string;
         paidForLabel?: string;
         targetInvoiceId?: string;
+        bankAccountId?: string;
     }) {
         const amountPaidNum = Number(params.amount);
         const instId = params.institutionId;
@@ -2277,6 +2278,8 @@ export const apiService = {
             invoice_id: primaryInvoiceId || '',
             studentId: params.studentId,
             student_id: params.studentId,
+            bankAccountId: params.bankAccountId || '',
+            bank_account_id: params.bankAccountId || '',
             allocations: JSON.stringify(allocations)
         };
 

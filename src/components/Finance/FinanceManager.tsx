@@ -788,6 +788,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [bursaryRecords, setBursaryRecords] = useState<NGCdfBursary[]>([]);
     const [isSavingBursary, setIsSavingBursary] = useState(false);
     const [bursarySubTab, setBursarySubTab] = useState<'post_cheque' | 'initiate_app'>('post_cheque');
+    const [bursaryBankAccountId, setBursaryBankAccountId] = useState('');
 
     const [goodsProposals, setGoodsProposals] = useState<any[]>([]);
     const [isLoadingGoodsProposals, setIsLoadingGoodsProposals] = useState(false);
@@ -893,6 +894,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [manualPayMethod, setManualPayMethod] = useState('Cash');
     const [manualPayReference, setManualPayReference] = useState('');
     const [isSavingManualPay, setIsSavingManualPay] = useState(false);
+    const [manualPayBankAccountId, setManualPayBankAccountId] = useState('');
 
     // Reconcile form states
     const [reconcileStudentId, setReconcileStudentId] = useState('');
@@ -914,6 +916,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isSavingBulkBursary, setIsSavingBulkBursary] = useState(false);
     const [bulkBursaryDisbursements, setBulkBursaryDisbursements] = useState<any[]>([]);
     const [bulkBursarySuccess, setBulkBursarySuccess] = useState('');
+    const [bulkBursaryBankAccountId, setBulkBursaryBankAccountId] = useState('');
     const [showOtherIncomeModal, setShowOtherIncomeModal] = useState(false);
     const [otherIncomeCategory, setOtherIncomeCategory] = useState('Bus Hiring');
     const [otherIncomePayer, setOtherIncomePayer] = useState('');
@@ -1013,7 +1016,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 reference: manualPayReference || '',
                 paymentDate: manualPayDate || new Date().toISOString().split('T')[0],
                 institutionId: props.institution.id,
-                targetInvoiceId: manualPayInvoiceId || undefined
+                targetInvoiceId: manualPayInvoiceId || undefined,
+                bankAccountId: manualPayBankAccountId || undefined
             });
 
             if (props.onRefreshData) {
@@ -1026,6 +1030,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setManualPayInvoiceId('');
             setManualPayAmount(0);
             setManualPayReference('');
+            setManualPayBankAccountId('');
             setShowPostModal(false);
         } catch (e: any) {
             alert("Failed to post receipt: " + (e.message || e));
@@ -1330,6 +1335,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         apiService.fetchModuleRecords<any>('ng_cdf_bursaries', instId)
             .then(res => setBursaryRecords(res || []))
             .catch(err => console.error("Failed to load ng_cdf_bursaries:", err));
+        fetchBankAccounts();
     }, [props.institution.id]);
 
     useEffect(() => {
@@ -1713,6 +1719,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     paidFor: `Bursary from ${bulkBursaryDonor}`,
                     notes: bulkBursaryNotes,
                     bursaryBatchId: batchId,
+                    bankAccountId: bulkBursaryBankAccountId || '',
+                    bank_account_id: bulkBursaryBankAccountId || '',
                     createdAt: dateStr,
                 };
                 await apiService.saveModuleRecord('receipts', receipt);
@@ -1729,6 +1737,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 allocatedAmount: allocTotal,
                 allocations: bulkBursaryAllocations,
                 notes: bulkBursaryNotes,
+                bankAccountId: bulkBursaryBankAccountId || '',
+                bank_account_id: bulkBursaryBankAccountId || '',
                 postedBy: props.currentUser?.name || 'Finance Officer',
                 createdAt: dateStr,
             };
@@ -1744,6 +1754,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setBulkBursaryTotalAmount(0);
             setBulkBursaryAllocations([]);
             setBulkBursaryNotes('');
+            setBulkBursaryBankAccountId('');
             setBulkBursarySuccess(`✓ Bursary cheque disbursed to ${bulkBursaryAllocations.length} student(s). Individual receipts posted.`);
             setTimeout(() => setBulkBursarySuccess(''), 6000);
         } catch (e) {
@@ -1783,6 +1794,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 relatedTransactionId: bursaryChequeNumber,
                 paymentDate: new Date().toISOString().split('T')[0],
                 paidFor: `NG-CDF Bursary allocation (${bursaryConstituency})`,
+                bankAccountId: bursaryBankAccountId || '',
+                bank_account_id: bursaryBankAccountId || '',
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('receipts', receipt);
@@ -1800,6 +1813,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 purpose: 'Academic Tuition Bursary',
                 status: 'disbursed' as const,
                 chequeNumber: bursaryChequeNumber,
+                bankAccountId: bursaryBankAccountId || '',
+                bank_account_id: bursaryBankAccountId || '',
                 appliedAt: new Date().toISOString(),
                 vettedAt: new Date().toISOString(),
                 vettedBy: props.currentUser.name || 'Finance Officer',
@@ -1825,6 +1840,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setBursaryAmount('');
             setBursaryChequeNumber('');
             setBursaryNotes('');
+            setBursaryBankAccountId('');
 
             alert("Bursary cheque posted and allocated to student ledger successfully!");
         } catch (e) {
@@ -2837,6 +2853,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     </div>
                                     <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Destination Bank Account</label>
+                                        <select
+                                            value={bulkBursaryBankAccountId}
+                                            onChange={e => setBulkBursaryBankAccountId(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all cursor-pointer"
+                                        >
+                                            <option value="">-- Select Bank Account (Optional) --</option>
+                                            {bankAccounts.map(ba => (
+                                                <option key={ba.id} value={ba.id}>
+                                                    {ba.bankName} - {ba.accountNumber} ({ba.accountName})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Remarks / Notes</label>
                                         <textarea rows={2} placeholder="e.g. FY 2025/2026 NG-CDF Bursary Allocation" value={bulkBursaryNotes} onChange={e => setBulkBursaryNotes(e.target.value)}
                                             className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all resize-none" />
@@ -3711,6 +3742,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 onChange={e => setBursaryAmount(e.target.value)}
                                                 className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm"
                                             />
+                                        </div>
+
+                                        {/* Bank Account */}
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Destination Bank Account</label>
+                                            <select 
+                                                value={bursaryBankAccountId}
+                                                onChange={e => setBursaryBankAccountId(e.target.value)}
+                                                className="w-full px-5 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-slate-700 text-sm cursor-pointer"
+                                            >
+                                                <option value="">-- Select Bank Account (Optional) --</option>
+                                                {bankAccounts.map(ba => (
+                                                    <option key={ba.id} value={ba.id}>
+                                                        {ba.bankName} - {ba.accountNumber} ({ba.accountName})
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
 
                                         {/* Notes */}
@@ -5740,7 +5788,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <select
                                             value={manualPayMethod}
                                             onChange={(e) => setManualPayMethod(e.target.value)}
-                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
                                         >
                                             <option value="Cash">Cash (Manual)</option>
                                             <option value="Bank Transfer">Bank Feed / Transfer</option>
@@ -5757,9 +5805,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             value={manualPayAmount || ''}
                                             onChange={(e) => setManualPayAmount(Number(e.target.value))}
                                             placeholder="Enter amount paid"
-                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
                                         />
                                     </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Destination Bank Account</label>
+                                    <select
+                                        value={manualPayBankAccountId}
+                                        onChange={(e) => setManualPayBankAccountId(e.target.value)}
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                    >
+                                        <option value="">-- Select Bank Account (Optional) --</option>
+                                        {bankAccounts.map(ba => (
+                                            <option key={ba.id} value={ba.id}>
+                                                {ba.bankName} - {ba.accountNumber} ({ba.accountName})
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
