@@ -5837,28 +5837,32 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     />
                                 </div>
+                                {!isPrimaryOrSecondary && (
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Phone Number</label>
                                     <input 
                                         type="tel" 
-                                        required={!isPrimaryOrSecondary} 
-                                        placeholder={isPrimaryOrSecondary ? "Optional" : "+254..."}
+                                        required
+                                        placeholder="+254..."
                                         value={formData.phoneNumber}
                                         onChange={e => setFormData({ ...formData, phoneNumber: e.target.value })}
                                         className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     />
                                 </div>
+                                )}
+                                {!isPrimaryOrSecondary && (
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Email Address</label>
                                     <input 
                                         type="email" 
-                                        required={!isPrimaryOrSecondary} 
-                                        placeholder={isPrimaryOrSecondary ? "Optional" : "name@example.com"}
+                                        required
+                                        placeholder="name@example.com"
                                         value={formData.email}
                                         onChange={e => setFormData({ ...formData, email: e.target.value })}
                                         className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     />
                                 </div>
+                                )}
                                 <div>
                                     <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Admission Number</label>
                                     <input 
