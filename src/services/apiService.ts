@@ -2231,7 +2231,27 @@ export const apiService = {
         const paidForText = params.paidForLabel || paidForParts.join(', ');
 
         const receiptId = `RCT_${Date.now()}_${Math.random().toString(36).substring(2,6)}`;
-        const receiptNumber = `RCT-${Date.now().toString().slice(-6)}`;
+        let receiptNumber = `RCT-${Date.now().toString().slice(-6)}`;
+
+        try {
+            const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+            const receiptConfig = numberingConfigs.find((c: any) => c.documentType === 'receipt' || c.document_type === 'receipt');
+            if (receiptConfig) {
+                const nextNum = Number(receiptConfig.nextNumber || receiptConfig.next_number || 1001);
+                const prefix = receiptConfig.prefix || 'REC-';
+                receiptNumber = `${prefix}${nextNum}`;
+                
+                await apiService.updateModuleRecord('finance_numbering_configs', receiptConfig.id, {
+                    ...receiptConfig,
+                    nextNumber: nextNum + 1,
+                    next_number: nextNum + 1,
+                    updatedAt: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
+            }
+        } catch (numErr) {
+            console.error("[apiService] Failed to generate custom receipt number:", numErr);
+        }
 
         // Save the single grouped receipt
         // Link to targetInvoiceId if provided, or the first invoice paid, or null if it's purely prepayment

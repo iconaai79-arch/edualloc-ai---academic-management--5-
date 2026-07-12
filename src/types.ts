@@ -136,6 +136,16 @@ export interface Expense {
     referenceNumber?: string;
 }
 
+export interface FinanceNumberingConfig {
+    id: string;
+    institutionId: string;
+    documentType: 'invoice' | 'receipt' | 'payment_voucher' | 'credit_note' | 'debit_note' | 'goods_in_lieu';
+    prefix: string;
+    nextNumber: number;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 export interface FinancialGoal {
     id: string;
     institutionId: string;

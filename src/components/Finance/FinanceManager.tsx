@@ -108,7 +108,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [expandedInstallmentStudentIds, setExpandedInstallmentStudentIds] = useState<string[]>([]);
 
     // State for settings sub-tabs
-    const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
+    const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding' | 'numbering'>('opening_balance');
 
     // State for audit sub-tabs
     const [auditSubTab, setAuditSubTab] = useState<'audit_dashboard' | 'annual_report'>('audit_dashboard');
@@ -121,7 +121,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 { id: 'accounts_grants', label: 'Bank Accounts', icon: ScaleIcon },
                 { id: 'fee_structure_builder', label: 'Fee Structures', icon: CreditCardIcon },
                 { id: 'user_permissions', label: 'User Permissions', icon: ShieldCheckIcon },
-                { id: 'branding', label: 'Branding', icon: PhotoIcon }
+                { id: 'branding', label: 'Branding', icon: PhotoIcon },
+                { id: 'numbering', label: 'Document Numbering', icon: DocumentTextIcon }
             ] as const;
         }
         return [
@@ -131,7 +132,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             { id: 'accounts_grants', label: 'Voteheads, Banks & Grants', icon: ScaleIcon },
             { id: 'fee_structure_builder', label: 'Fee Structure Builder', icon: CreditCardIcon },
             { id: 'user_permissions', label: 'User Permissions', icon: ShieldCheckIcon },
-            { id: 'branding', label: 'Branding', icon: PhotoIcon }
+            { id: 'branding', label: 'Branding', icon: PhotoIcon },
+            { id: 'numbering', label: 'Document Numbering', icon: DocumentTextIcon }
         ] as const;
     }, [isDrivingSchool]);
 
@@ -165,6 +167,75 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         receiptPrefix: 'REC-',
         footerNotes: 'Thank you for your continued partnership. For inquiries contact accounts.'
     });
+
+    // Document Numbering Configuration state & defaults
+    const DOCUMENT_TYPES = useMemo(() => [
+        { type: 'invoice', label: 'Invoice Numbering', defaultPrefix: 'INV-', defaultNextNumber: 1001 },
+        { type: 'receipt', label: 'Receipt Numbering', defaultPrefix: 'REC-', defaultNextNumber: 1001 },
+        { type: 'payment_voucher', label: 'Payment Voucher (Expense)', defaultPrefix: 'PV-', defaultNextNumber: 1001 },
+        { type: 'credit_note', label: 'Credit Note', defaultPrefix: 'CN-', defaultNextNumber: 1001 },
+        { type: 'debit_note', label: 'Debit Note', defaultPrefix: 'DN-', defaultNextNumber: 1001 },
+        { type: 'goods_in_lieu', label: 'Goods In Lieu Proposal', defaultPrefix: 'GIL-', defaultNextNumber: 1001 },
+    ], []);
+
+    const [numberingConfigs, setNumberingConfigs] = useState<any[]>([]);
+    const [loadingNumbering, setLoadingNumbering] = useState(false);
+    const [editingPrefixes, setEditingPrefixes] = useState<Record<string, string>>({});
+    const [editingNumbers, setEditingNumbers] = useState<Record<string, number>>({});
+
+    const fetchNumberingConfigs = async () => {
+        setLoadingNumbering(true);
+        try {
+            const instId = props.institution.id;
+            const res = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+            setNumberingConfigs(res || []);
+        } catch (err) {
+            console.error("Failed to load document numbering configs:", err);
+        } finally {
+            setLoadingNumbering(false);
+        }
+    };
+
+    const handleSaveNumberingConfig = async (docType: string, prefix: string, nextNumber: number) => {
+        try {
+            const instId = props.institution.id;
+            const existing = numberingConfigs.find(c => c.documentType === docType || c.document_type === docType);
+            const payload = {
+                id: existing?.id || `num_cfg_${docType}_${Date.now()}`,
+                institutionId: instId,
+                institution_id: instId,
+                documentType: docType,
+                document_type: docType,
+                prefix: prefix,
+                nextNumber: Number(nextNumber),
+                next_number: Number(nextNumber),
+                updatedAt: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            if (existing?.id) {
+                await apiService.updateModuleRecord('finance_numbering_configs', existing.id, payload);
+            } else {
+                await apiService.saveModuleRecord('finance_numbering_configs', payload);
+            }
+            alert(`${docType.replace('_', ' ').toUpperCase()} numbering config saved successfully!`);
+            fetchNumberingConfigs();
+        } catch (e: any) {
+            alert("Failed to save numbering config: " + (e.message || e));
+        }
+    };
+
+    useEffect(() => {
+        const prefixes: Record<string, string> = {};
+        const numbers: Record<string, number> = {};
+        DOCUMENT_TYPES.forEach(item => {
+            const cfg = numberingConfigs.find(c => c.documentType === item.type || c.document_type === item.type);
+            prefixes[item.type] = cfg?.prefix ?? item.defaultPrefix;
+            numbers[item.type] = cfg?.nextNumber ?? cfg?.next_number ?? item.defaultNextNumber;
+        });
+        setEditingPrefixes(prefixes);
+        setEditingNumbers(numbers);
+    }, [numberingConfigs, DOCUMENT_TYPES]);
 
     // Local Academic Calendar States
     const [localAcademicYears, setLocalAcademicYears] = useState(() => props.academicYears || []);
@@ -828,6 +899,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [reconcileInvoiceId, setReconcileInvoiceId] = useState('');
     const [isReconciling, setIsReconciling] = useState(false);
 
+    // Other Income states
+    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income'>('student_fees');
+    const [showOtherIncomeModal, setShowOtherIncomeModal] = useState(false);
+    const [otherIncomeCategory, setOtherIncomeCategory] = useState('Bus Hiring');
+    const [otherIncomePayer, setOtherIncomePayer] = useState('');
+    const [otherIncomeMethod, setOtherIncomeMethod] = useState('Cash');
+    const [otherIncomeAmount, setOtherIncomeAmount] = useState<number>(0);
+    const [otherIncomeDate, setOtherIncomeDate] = useState(new Date().toISOString().split('T')[0]);
+    const [otherIncomeReference, setOtherIncomeReference] = useState('');
+    const [otherIncomeDescription, setOtherIncomeDescription] = useState('');
+    const [isSavingOtherIncome, setIsSavingOtherIncome] = useState(false);
+
+    // Expense Recording states
+    const [expCategory, setExpCategory] = useState('Salaries');
+    const [expAmount, setExpAmount] = useState<number>(0);
+    const [expDescription, setExpDescription] = useState('');
+    const [isSavingExpense, setIsSavingExpense] = useState(false);
+
     const studentPendingInvoices = useMemo(() => {
         const selectedId = showPostModal ? manualPayStudentId : reconcileStudentId;
         if (!selectedId) return [];
@@ -837,11 +926,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const filteredReceipts = useMemo(() => {
         const query = searchReceiptQuery.toLowerCase();
         return (props.receipts || []).filter(rec => {
-            const student = props.students.find(s => s.id === rec.studentId);
-            const matchesQuery = 
-                (rec.receiptNumber || '').toLowerCase().includes(query) ||
-                (student?.name || '').toLowerCase().includes(query) ||
-                (rec.relatedTransactionId || '').toLowerCase().includes(query);
+            // Determine if the receipt belongs to the current tab
+            const isStudentFee = !!rec.studentId;
+            if (receiptsMainTab === 'student_fees' && !isStudentFee) return false;
+            if (receiptsMainTab === 'other_income' && isStudentFee) return false;
+
+            const student = rec.studentId ? props.students.find(s => s.id === rec.studentId) : null;
+            
+            // Standard matches
+            const matchesReceiptNumber = (rec.receiptNumber || '').toLowerCase().includes(query);
+            const matchesRef = (rec.relatedTransactionId || '').toLowerCase().includes(query);
+            
+            let matchesQuery = matchesReceiptNumber || matchesRef;
+
+            if (receiptsMainTab === 'student_fees') {
+                const matchesStudentName = (student?.name || '').toLowerCase().includes(query);
+                matchesQuery = matchesQuery || matchesStudentName;
+            } else {
+                const matchesPaidFor = (rec.paidFor || '').toLowerCase().includes(query);
+                matchesQuery = matchesQuery || matchesPaidFor;
+            }
             
             const matchesSource = 
                 receiptSourceFilter === 'All' ||
@@ -849,7 +953,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             return matchesQuery && matchesSource;
         });
-    }, [props.receipts, searchReceiptQuery, receiptSourceFilter, props.students]);
+    }, [props.receipts, searchReceiptQuery, receiptSourceFilter, props.students, receiptsMainTab]);
 
     const [receiptCurrentPage, setReceiptCurrentPage] = useState(1);
 
@@ -914,6 +1018,123 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to post receipt: " + (e.message || e));
         } finally {
             setIsSavingManualPay(false);
+        }
+    };
+
+    const handlePostOtherIncome = async () => {
+        if (!otherIncomePayer || otherIncomeAmount <= 0) {
+            alert("Please enter a valid payer and amount.");
+            return;
+        }
+        setIsSavingOtherIncome(true);
+        try {
+            const instId = props.institution.id;
+            let receiptNumber = `REC-INC-${Date.now()}`;
+            try {
+                const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+                const receiptConfig = configs.find(c => c.documentType === 'receipt' || c.document_type === 'receipt');
+                if (receiptConfig) {
+                    const nextNum = Number(receiptConfig.nextNumber || receiptConfig.next_number || 1001);
+                    const prefix = receiptConfig.prefix || 'REC-';
+                    receiptNumber = `${prefix}${nextNum}`;
+                    
+                    await apiService.updateModuleRecord('finance_numbering_configs', receiptConfig.id, {
+                        ...receiptConfig,
+                        nextNumber: nextNum + 1,
+                        next_number: nextNum + 1,
+                        updatedAt: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to generate custom receipt number for other income:", err);
+            }
+
+            const formattedPaidFor = `${otherIncomeCategory} - ${otherIncomeDescription || 'Miscellaneous Income'} (From ${otherIncomePayer})`;
+            
+            await apiService.saveModuleRecord('receipts', {
+                amountPaid: Number(otherIncomeAmount),
+                paymentMethod: otherIncomeMethod,
+                relatedTransactionId: otherIncomeReference || '',
+                paymentDate: otherIncomeDate || new Date().toISOString().split('T')[0],
+                institutionId: instId,
+                paidFor: formattedPaidFor,
+                receiptNumber: receiptNumber
+            });
+
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+
+            alert("Other income received and recorded successfully!");
+
+            setOtherIncomePayer('');
+            setOtherIncomeAmount(0);
+            setOtherIncomeReference('');
+            setOtherIncomeDescription('');
+            setOtherIncomeCategory('Bus Hiring');
+            setShowOtherIncomeModal(false);
+        } catch (e: any) {
+            alert("Failed to post other income: " + (e.message || e));
+        } finally {
+            setIsSavingOtherIncome(false);
+        }
+    };
+
+    const handleAddExpense = async () => {
+        if (expAmount <= 0 || !expDescription) {
+            alert("Please enter a valid amount and description.");
+            return;
+        }
+        setIsSavingExpense(true);
+        try {
+            const instId = props.institution.id;
+            let referenceNumber = `PV-${Date.now().toString().slice(-6)}`;
+
+            // Look up payment voucher config
+            try {
+                const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+                const pvConfig = configs.find(c => c.documentType === 'payment_voucher' || c.document_type === 'payment_voucher');
+                if (pvConfig) {
+                    const nextNum = Number(pvConfig.nextNumber || pvConfig.next_number || 1001);
+                    const prefix = pvConfig.prefix || 'PV-';
+                    referenceNumber = `${prefix}${nextNum}`;
+
+                    // Increment
+                    await apiService.updateModuleRecord('finance_numbering_configs', pvConfig.id, {
+                        ...pvConfig,
+                        nextNumber: nextNum + 1,
+                        next_number: nextNum + 1,
+                        updatedAt: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to generate payment voucher number:", err);
+            }
+
+            await props.onAddExpense({
+                id: `exp_${Date.now()}`,
+                institutionId: instId,
+                category: expCategory,
+                amount: Number(expAmount),
+                description: expDescription,
+                date: new Date().toISOString().split('T')[0],
+                referenceNumber: referenceNumber,
+                status: 'paid'
+            });
+
+            alert(`Expense recorded successfully with Payment Voucher Reference: ${referenceNumber}`);
+            setExpAmount(0);
+            setExpDescription('');
+            
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+        } catch (e: any) {
+            alert("Failed to save expense: " + (e.message || e));
+        } finally {
+            setIsSavingExpense(false);
         }
     };
 
@@ -1099,9 +1320,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [props.institution.id]);
 
     useEffect(() => {
-        if (activeTab === 'settings' && settingsSubTab === 'accounts_grants') {
-            fetchBankAccounts();
-            fetchSchoolGrants();
+        if (activeTab === 'settings') {
+            if (settingsSubTab === 'accounts_grants') {
+                fetchBankAccounts();
+                fetchSchoolGrants();
+            } else if (settingsSubTab === 'numbering') {
+                fetchNumberingConfigs();
+            }
         }
     }, [activeTab, settingsSubTab, props.institution.id]);
 
@@ -1268,9 +1493,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             return;
         }
         try {
+            const instId = props.institution.id;
+            let invoiceNumber = `DS-INV-${Date.now().toString().slice(-6)}`;
+            try {
+                const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+                const invConfig = configs.find(c => c.documentType === 'invoice' || c.document_type === 'invoice');
+                if (invConfig) {
+                    const nextNum = Number(invConfig.nextNumber || invConfig.next_number || 1001);
+                    const prefix = invConfig.prefix || 'INV-';
+                    invoiceNumber = `${prefix}${nextNum}`;
+                    
+                    await apiService.updateModuleRecord('finance_numbering_configs', invConfig.id, {
+                        ...invConfig,
+                        nextNumber: nextNum + 1,
+                        next_number: nextNum + 1,
+                        updatedAt: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to generate custom invoice number:", err);
+            }
+            
             const student = props.students.find(s => s.id === dsFormStudentId);
             const studentName = student ? student.name : 'Unknown Student';
-            const invoiceNumber = `DS-INV-${Date.now().toString().slice(-6)}`;
             
             const newInvoice = {
                 id: `ds_inv_${Date.now()}`,
@@ -1298,7 +1544,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             await apiService.saveModuleRecord('ds_invoices', newInvoice);
 
             // Reload Local DS state
-            const instId = props.institution.id;
             const updated = await apiService.fetchModuleRecords<any>('ds_invoices', instId).catch(() => []);
             setDsInvoices(updated);
 
@@ -2952,22 +3197,47 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="space-y-4">
                                     <div className="space-y-1">
                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Category</label>
-                                        <select className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none">
+                                        <select
+                                            value={expCategory}
+                                            onChange={(e) => setExpCategory(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
+                                        >
                                             <option>Salaries</option>
                                             <option>Utilities</option>
                                             <option>Maintenance</option>
                                             <option>Supplies</option>
+                                            <option>Marketing</option>
+                                            <option>Taxes</option>
+                                            <option>Other</option>
                                         </select>
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Amount (KES)</label>
-                                        <input type="number" placeholder="0.00" className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none" />
+                                        <input
+                                            type="number"
+                                            placeholder="0.00"
+                                            value={expAmount || ''}
+                                            onChange={(e) => setExpAmount(Number(e.target.value) || 0)}
+                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
+                                        />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Description</label>
-                                        <textarea placeholder="Purpose of expenditure..." rows={3} className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none resize-none" />
+                                        <textarea
+                                            placeholder="Purpose of expenditure..."
+                                            rows={3}
+                                            value={expDescription}
+                                            onChange={(e) => setExpDescription(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none resize-none"
+                                        />
                                     </div>
-                                    <button onClick={() => alert("Expense recorded in session.")} className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg">Submit Record</button>
+                                    <button
+                                        onClick={handleAddExpense}
+                                        disabled={isSavingExpense}
+                                        className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg disabled:opacity-50"
+                                    >
+                                        {isSavingExpense ? 'Saving...' : 'Submit Record'}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -3379,10 +3649,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     if (!confirm("Are you sure you want to approve this delivery and issue a fee receipt for KES " + p.totalValue.toLocaleString() + "?")) return;
                                                                     try {
                                                                         // 1. Save Finance Receipt
+                                                                        const instId = props.institution.id;
+                                                                        let receiptNumber = `REC-GOODS-${Date.now().toString().slice(-6)}`;
+                                                                        try {
+                                                                            const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+                                                                            const receiptConfig = configs.find(c => c.documentType === 'receipt' || c.document_type === 'receipt');
+                                                                            if (receiptConfig) {
+                                                                                const nextNum = Number(receiptConfig.nextNumber || receiptConfig.next_number || 1001);
+                                                                                const prefix = receiptConfig.prefix || 'REC-';
+                                                                                receiptNumber = `${prefix}${nextNum}`;
+                                                                                
+                                                                                await apiService.updateModuleRecord('finance_numbering_configs', receiptConfig.id, {
+                                                                                    ...receiptConfig,
+                                                                                    nextNumber: nextNum + 1,
+                                                                                    next_number: nextNum + 1,
+                                                                                    updatedAt: new Date().toISOString(),
+                                                                                    updated_at: new Date().toISOString()
+                                                                                });
+                                                                            }
+                                                                        } catch (err) {
+                                                                            console.error("Failed to generate custom receipt number for Goods in Lieu:", err);
+                                                                        }
+
                                                                         const receipt = {
                                                                             id: `rcpt_goods_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-                                                                            receipt_number: `REC-GOODS-${Date.now().toString().slice(-6)}`,
-                                                                            institution_id: props.institution.id,
+                                                                            receipt_number: receiptNumber,
+                                                                            institution_id: instId,
                                                                             payment_date: new Date().toISOString().split('T')[0],
                                                                             amount_paid: Number(p.totalValue),
                                                                             paid_for: `Payment via supply of ${p.quantity} ${p.unit} of ${p.itemName}`,
@@ -4063,6 +4355,71 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         Save Branding presets
                                     </button>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Subtab content: Document Numbering */}
+                        {settingsSubTab === 'numbering' && (
+                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm text-left max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight border-b pb-4">Document Numbering & Sequences</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Configure custom prefixes and starting serial sequences for financial documents</p>
+                                </div>
+                                
+                                {loadingNumbering ? (
+                                    <div className="py-12 text-center text-xs font-semibold text-slate-400 uppercase tracking-widest">
+                                        Loading configurations...
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6 divide-y divide-slate-100 dark:divide-slate-800">
+                                        {DOCUMENT_TYPES.map((item) => {
+                                            const prefix = editingPrefixes[item.type] ?? item.defaultPrefix;
+                                            const nextNum = editingNumbers[item.type] ?? item.defaultNextNumber;
+                                            const previewVal = `${prefix}${nextNum}`;
+
+                                            return (
+                                                <div key={item.type} className="pt-6 first:pt-0 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                                                    <div className="md:col-span-1">
+                                                        <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">{item.label}</h4>
+                                                        <span className="text-[9px] font-bold text-slate-400 block mt-0.5 font-mono">Type: {item.type}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-3 md:col-span-2">
+                                                        <div className="space-y-1">
+                                                            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Prefix</label>
+                                                            <input
+                                                                type="text"
+                                                                value={prefix}
+                                                                onChange={(e) => setEditingPrefixes(prev => ({ ...prev, [item.type]: e.target.value }))}
+                                                                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Next Number</label>
+                                                            <input
+                                                                type="number"
+                                                                value={nextNum}
+                                                                onChange={(e) => setEditingNumbers(prev => ({ ...prev, [item.type]: Number(e.target.value) || 1 }))}
+                                                                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-between md:col-span-1 gap-2 pt-4 md:pt-0">
+                                                        <div className="text-left">
+                                                            <span className="text-[8px] font-black text-slate-450 uppercase tracking-widest block">Preview Next</span>
+                                                            <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 font-mono">{previewVal}</span>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleSaveNumberingConfig(item.type, prefix, nextNum)}
+                                                            className="px-4 py-2.5 bg-slate-900 hover:bg-indigo-600 text-white dark:bg-slate-800 dark:hover:bg-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )}
 

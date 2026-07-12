@@ -147,7 +147,23 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             await new Promise(r => setTimeout(r, 200));
         }
 
-        const prefix = (companyDetails?.globalInvoicePrefix || 'INV-').trim();
+        const instId = institution.id;
+        let invoicePrefix = (companyDetails?.globalInvoicePrefix || 'INV-').trim();
+        let nextInvoiceNumber = 1001;
+        let configRecord: any = null;
+
+        try {
+            const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+            configRecord = configs.find((c: any) => c.documentType === 'invoice' || c.document_type === 'invoice');
+            if (configRecord) {
+                invoicePrefix = configRecord.prefix || 'INV-';
+                nextInvoiceNumber = Number(configRecord.nextNumber || configRecord.next_number || 1001);
+            }
+        } catch (err) {
+            console.error("Failed to load invoice numbering config for automated billing:", err);
+        }
+
+        let currentNum = nextInvoiceNumber;
         const mockInvoices = billingStudents.map(s => {
             const boarder = isStudentBoarder(s);
             const studentFeeStructures = activeFeeStructures.filter(f => {
@@ -162,9 +178,13 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 return true;
             });
             const totalAmount = studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
+            
+            const invoiceNumber = `${invoicePrefix}${currentNum}`;
+            currentNum += 1;
+
             return {
                 id: `inv_auto_${Date.now()}_${s.id}`,
-                invoiceNumber: `${prefix}${Date.now().toString().slice(-6)}-${s.id.slice(-4)}`,
+                invoiceNumber: invoiceNumber,
                 studentId: s.id,
                 totalAmount: totalAmount,
                 status: 'pending' as const,
@@ -180,6 +200,21 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 institutionId: institution.id
             };
         });
+
+        // Save back updated config
+        if (configRecord) {
+            try {
+                await apiService.updateModuleRecord('finance_numbering_configs', configRecord.id, {
+                    ...configRecord,
+                    nextNumber: currentNum,
+                    next_number: currentNum,
+                    updatedAt: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                });
+            } catch (err) {
+                console.error("Failed to update numbering config after billing:", err);
+            }
+        }
 
         await onGenerateInvoices(mockInvoices);
         setStep('done');
