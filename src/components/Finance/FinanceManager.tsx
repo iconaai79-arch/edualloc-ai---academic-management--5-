@@ -2392,7 +2392,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
-                {activeTab === 'receipts' && (
+                {activeTab === 'receipts' && receiptsMainTab !== 'bursaries' && (
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 text-left animate-in fade-in duration-300">
                         {/* Left & Middle columns: Receipts list */}
                         <div className="lg:col-span-3 space-y-6">
