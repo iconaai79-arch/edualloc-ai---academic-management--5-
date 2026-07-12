@@ -900,7 +900,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isReconciling, setIsReconciling] = useState(false);
 
     // Other Income states
-    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income'>('student_fees');
+    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bursaries'>('student_fees');
+
+    // Bulk Bursary Disbursement states
+    const [bulkBursaryDonor, setBulkBursaryDonor] = useState('');
+    const [bulkBursaryCheque, setBulkBursar​yCheque] = useState('');
+    const [bulkBursaryBank, setBulkBursaryBank] = useState('');
+    const [bulkBursaryDate, setBulkBursaryDate] = useState(new Date().toISOString().split('T')[0]);
+    const [bulkBursaryTotalAmount, setBulkBursaryTotalAmount] = useState<number>(0);
+    const [bulkBursaryNotes, setBulkBursaryNotes] = useState('');
+    const [bulkBursaryAllocations, setBulkBursaryAllocations] = useState<{ studentId: string; studentName: string; admNo: string; amount: number }[]>([]);
+    const [bulkBursaryStudentSearch, setBulkBursaryStudentSearch] = useState('');
+    const [isSavingBulkBursary, setIsSavingBulkBursary] = useState(false);
+    const [bulkBursaryDisbursements, setBulkBursaryDisbursements] = useState<any[]>([]);
+    const [bulkBursarySuccess, setBulkBursarySuccess] = useState('');
     const [showOtherIncomeModal, setShowOtherIncomeModal] = useState(false);
     const [otherIncomeCategory, setOtherIncomeCategory] = useState('Bus Hiring');
     const [otherIncomePayer, setOtherIncomePayer] = useState('');
@@ -1660,6 +1673,87 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         );
     }, [bursaryStudentSearch, bursaryStudentId, props.students]);
 
+    // Load bulk bursary disbursements on mount
+    useEffect(() => {
+        const instId = props.institution?.id;
+        if (!instId) return;
+        apiService.fetchModuleRecords<any>('bursary_disbursements', instId)
+            .then(res => setBulkBursaryDisbursements(res || []))
+            .catch(() => {});
+    }, [props.institution?.id]);
+
+    // Handle bulk bursary cheque disbursement
+    const handleBulkBursaryDisburse = async () => {
+        if (!bulkBursaryDonor.trim() || !bulkBursar​yCheque.trim() || bulkBursaryTotalAmount <= 0 || bulkBursaryAllocations.length === 0) {
+            alert('Please fill in donor name, cheque number, total amount, and add at least one student.');
+            return;
+        }
+        const allocTotal = bulkBursaryAllocations.reduce((s, a) => s + a.amount, 0);
+        if (allocTotal > bulkBursaryTotalAmount) {
+            alert(`Allocated total (${allocTotal.toLocaleString()}) exceeds cheque amount (${bulkBursaryTotalAmount.toLocaleString()}). Please review allocations.`);
+            return;
+        }
+        setIsSavingBulkBursary(true);
+        try {
+            const instId = props.institution.id;
+            const batchId = `bursary_batch_${Date.now()}`;
+            const dateStr = new Date().toISOString();
+            // 1. Post individual receipts for each student
+            for (const alloc of bulkBursaryAllocations) {
+                if (!alloc.studentId || alloc.amount <= 0) continue;
+                const receipt = {
+                    id: `rcpt_bursary_${Date.now()}_${alloc.studentId.slice(-4)}`,
+                    receiptNumber: `BUR-${Date.now().toString().slice(-6)}-${alloc.admNo || alloc.studentId.slice(-3)}`,
+                    institutionId: instId,
+                    studentId: alloc.studentId,
+                    amountPaid: alloc.amount,
+                    paymentMethod: 'Cheque',
+                    relatedTransactionId: bulkBursar​yCheque,
+                    paymentDate: bulkBursaryDate,
+                    paidFor: `Bursary from ${bulkBursaryDonor}`,
+                    notes: bulkBursaryNotes,
+                    bursaryBatchId: batchId,
+                    createdAt: dateStr,
+                };
+                await apiService.saveModuleRecord('receipts', receipt);
+            }
+            // 2. Save the disbursement batch record (donor acknowledgement data)
+            const disbursement = {
+                id: batchId,
+                institutionId: instId,
+                donorName: bulkBursaryDonor,
+                chequeNumber: bulkBursar​yCheque,
+                bankName: bulkBursaryBank,
+                chequeDate: bulkBursaryDate,
+                totalAmount: bulkBursaryTotalAmount,
+                allocatedAmount: allocTotal,
+                allocations: bulkBursaryAllocations,
+                notes: bulkBursaryNotes,
+                postedBy: props.currentUser?.name || 'Finance Officer',
+                createdAt: dateStr,
+            };
+            await apiService.saveModuleRecord('bursary_disbursements', disbursement);
+            // 3. Refresh
+            if (props.onRefreshData) await props.onRefreshData();
+            const updated = await apiService.fetchModuleRecords<any>('bursary_disbursements', instId).catch(() => []);
+            setBulkBursaryDisbursements(updated);
+            // 4. Reset form
+            setBulkBursaryDonor('');
+            setBulkBursar​yCheque('');
+            setBulkBursaryBank('');
+            setBulkBursaryTotalAmount(0);
+            setBulkBursaryAllocations([]);
+            setBulkBursaryNotes('');
+            setBulkBursarySuccess(`✓ Bursary cheque disbursed to ${bulkBursaryAllocations.length} student(s). Individual receipts posted.`);
+            setTimeout(() => setBulkBursarySuccess(''), 6000);
+        } catch (e) {
+            console.error('Bulk bursary failed:', e);
+            alert('Failed to post bursary disbursement. Please try again.');
+        } finally {
+            setIsSavingBulkBursary(false);
+        }
+    };
+
     // Record NG-CDF Bursary and clear student ledger
     const handlePostBursaryCheque = async () => {
         if (!bursaryStudentId || !bursaryConstituency || !bursaryAmount || !bursaryChequeNumber) {
@@ -1905,6 +1999,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             ) : activeTab === 'receipts' ? (
                                 [
                                     { id: 'student_fees', label: 'Student Fees', icon: CreditCardIcon },
+                                    { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon },
                                     { id: 'other_income', label: 'Other Income', icon: BanknotesIcon },
                                 ].map(sub => (
                                     <button
@@ -2687,6 +2782,200 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
+                {/* Bursaries Disbursement Panel — within receipts tab */}
+                {activeTab === 'receipts' && receiptsMainTab === 'bursaries' && (() => {
+                    const allocTotal = bulkBursaryAllocations.reduce((s, a) => s + (a.amount || 0), 0);
+                    const remaining = bulkBursaryTotalAmount - allocTotal;
+                    const bulkFilteredStudents = !bulkBursaryStudentSearch ? [] : props.students.filter(s =>
+                        (s.name?.toLowerCase().includes(bulkBursaryStudentSearch.toLowerCase()) ||
+                        (s.admissionNumber || s.admission_number || '').toLowerCase().includes(bulkBursaryStudentSearch.toLowerCase())) &&
+                        !bulkBursaryAllocations.some(a => a.studentId === s.id)
+                    );
+                    return (
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 animate-in fade-in duration-300">
+                        {/* LEFT: Disbursement Form */}
+                        <div className="lg:col-span-2 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-5">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Bursary Cheque Disbursement</h3>
+                                    <p className="text-xs text-slate-400 font-semibold mt-0.5">Post one cheque from a donor or government and distribute it among multiple students. Each student gets an individual receipt.</p>
+                                </div>
+
+                                {bulkBursarySuccess && (
+                                    <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 text-xs font-black uppercase tracking-wider">{bulkBursarySuccess}</div>
+                                )}
+
+                                {/* Donor Info */}
+                                <div className="space-y-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Donor / Organisation Name *</label>
+                                        <input type="text" placeholder="e.g. Kigumo NG-CDF, Ministry of Education" value={bulkBursaryDonor} onChange={e => setBulkBursaryDonor(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Cheque / EFT Ref *</label>
+                                            <input type="text" placeholder="CHQ-123456" value={bulkBursar​yCheque} onChange={e => setBulkBursar​yCheque(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Bank / Issuer</label>
+                                            <input type="text" placeholder="e.g. KCB, Equity" value={bulkBursaryBank} onChange={e => setBulkBursaryBank(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Cheque Date *</label>
+                                            <input type="date" value={bulkBursaryDate} onChange={e => setBulkBursaryDate(e.target.value)}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Total Cheque Amount (KES) *</label>
+                                            <input type="number" min="0" placeholder="0" value={bulkBursaryTotalAmount || ''} onChange={e => setBulkBursaryTotalAmount(Number(e.target.value))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Remarks / Notes</label>
+                                        <textarea rows={2} placeholder="e.g. FY 2025/2026 NG-CDF Bursary Allocation" value={bulkBursaryNotes} onChange={e => setBulkBursaryNotes(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all resize-none" />
+                                    </div>
+                                </div>
+
+                                {/* Balance indicator */}
+                                {bulkBursaryTotalAmount > 0 && (
+                                    <div className={`flex justify-between items-center p-4 rounded-2xl border text-xs font-black uppercase tracking-wider ${remaining < 0 ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-red-600' : remaining === 0 ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-700 text-emerald-600' : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-700 text-amber-600'}`}>
+                                        <span>Allocated: KES {allocTotal.toLocaleString()}</span>
+                                        <span>{remaining < 0 ? '⚠ Over-allocated by ' : remaining === 0 ? '✓ Fully allocated' : 'Remaining: '}{remaining !== 0 ? `KES ${Math.abs(remaining).toLocaleString()}` : ''}</span>
+                                    </div>
+                                )}
+
+                                {/* Add student search */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Add Student Beneficiary</label>
+                                    <div className="relative">
+                                        <input type="text" placeholder="Search student by name or admission no..." value={bulkBursaryStudentSearch} onChange={e => setBulkBursaryStudentSearch(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all" />
+                                        {bulkFilteredStudents.length > 0 && (
+                                            <div className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                                {bulkFilteredStudents.slice(0, 8).map(s => (
+                                                    <button key={s.id} type="button" onClick={() => {
+                                                        setBulkBursaryAllocations(prev => [...prev, { studentId: s.id, studentName: s.name, admNo: s.admissionNumber || s.admission_number || '', amount: 0 }]);
+                                                        setBulkBursaryStudentSearch('');
+                                                    }} className="w-full p-3 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-xs font-bold text-slate-700 dark:text-slate-200 flex justify-between items-center">
+                                                        <span>{s.name}</span>
+                                                        <span className="text-[9px] text-slate-400 uppercase tracking-wider">{s.admissionNumber || s.admission_number || '—'}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Allocation rows */}
+                                {bulkBursaryAllocations.length > 0 && (
+                                    <div className="space-y-2">
+                                        {bulkBursaryAllocations.map((alloc, idx) => (
+                                            <div key={alloc.studentId} className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800 rounded-2xl">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-xs font-black text-slate-800 dark:text-white truncate">{alloc.studentName}</div>
+                                                    <div className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{alloc.admNo || 'No Adm'}</div>
+                                                </div>
+                                                <input type="number" min="0" placeholder="Amount" value={alloc.amount || ''}
+                                                    onChange={e => {
+                                                        const updated = [...bulkBursaryAllocations];
+                                                        updated[idx] = { ...updated[idx], amount: Number(e.target.value) };
+                                                        setBulkBursaryAllocations(updated);
+                                                    }}
+                                                    className="w-28 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black text-slate-800 dark:text-white text-right outline-none focus:border-indigo-500 transition-all" />
+                                                <button type="button" onClick={() => setBulkBursaryAllocations(prev => prev.filter((_, i) => i !== idx))}
+                                                    className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors">
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <button onClick={handleBulkBursaryDisburse} disabled={isSavingBulkBursary || bulkBursaryAllocations.length === 0 || !bulkBursaryDonor || !bulkBursar​yCheque}
+                                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50">
+                                    {isSavingBulkBursary ? 'Processing...' : `Disburse & Post ${bulkBursaryAllocations.length} Receipt${bulkBursaryAllocations.length !== 1 ? 's' : ''} →`}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* RIGHT: History + Donor Acknowledgements */}
+                        <div className="lg:col-span-3 space-y-6">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                <div className="flex items-start justify-between mb-5">
+                                    <div>
+                                        <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Disbursement History</h3>
+                                        <p className="text-xs text-slate-400 font-semibold mt-0.5">Past bursary cheques distributed to students</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Disbursed</div>
+                                        <div className="text-lg font-black text-indigo-600">KES {bulkBursaryDisbursements.reduce((s, d) => s + (d.allocatedAmount || 0), 0).toLocaleString()}</div>
+                                    </div>
+                                </div>
+
+                                {bulkBursaryDisbursements.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                                        <ScaleIcon className="w-12 h-12 text-slate-200 dark:text-slate-700 mb-3" />
+                                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No bursary disbursements yet</p>
+                                        <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Post a donor cheque on the left to get started.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {[...bulkBursaryDisbursements].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(d => (
+                                            <div key={d.id} className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                                                {/* Batch header */}
+                                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-950/30">
+                                                    <div>
+                                                        <div className="text-xs font-black text-slate-800 dark:text-white">{d.donorName}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Cheque: {d.chequeNumber} {d.bankName ? `· ${d.bankName}` : ''} · {d.chequeDate}</div>
+                                                        {d.notes && <div className="text-[10px] text-slate-400 mt-0.5 italic">{d.notes}</div>}
+                                                    </div>
+                                                    <div className="flex items-center gap-3 shrink-0">
+                                                        <div className="text-right">
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Disbursed</div>
+                                                            <div className="text-sm font-black text-emerald-600">KES {(d.allocatedAmount || 0).toLocaleString()}</div>
+                                                        </div>
+                                                        <button onClick={async () => {
+                                                            const inst = props.institution;
+                                                            const lines = (d.allocations || []).map((a: any) => `  • ${a.studentName} (${a.admNo || '—'}): KES ${(a.amount || 0).toLocaleString()}`).join('\n');
+                                                            const content = `BURSARY DONOR ACKNOWLEDGEMENT\n${'='.repeat(50)}\nInstitution: ${inst.name}\nDate: ${new Date().toLocaleDateString()}\n\nDear ${d.donorName},\n\nWe gratefully acknowledge receipt of a bursary cheque (Ref: ${d.chequeNumber}${d.bankName ? ', ' + d.bankName : ''}) dated ${d.chequeDate} for a total of KES ${(d.totalAmount || 0).toLocaleString()}.\n\nThe funds have been distributed as follows:\n${lines}\n\nTotal Allocated: KES ${(d.allocatedAmount || 0).toLocaleString()}\n${d.notes ? 'Notes: ' + d.notes + '\n' : ''}\nThank you for your generous support of our students.\n\nSigned: ${d.postedBy || ''}\n${inst.name}\nDate: ${new Date().toLocaleDateString()}`;
+                                                            const blob = new Blob([content], { type: 'text/plain' });
+                                                            const url = URL.createObjectURL(blob);
+                                                            const a = document.createElement('a');
+                                                            a.href = url; a.download = `Bursary_Acknowledgement_${d.donorName.replace(/\s+/g, '_')}.txt`;
+                                                            a.click(); URL.revokeObjectURL(url);
+                                                        }} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-indigo-100 transition-colors">
+                                                            <DownloadIcon className="w-3.5 h-3.5" /> Acknowledgement
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                {/* Student rows */}
+                                                <div className="divide-y divide-slate-50 dark:divide-slate-800">
+                                                    {(d.allocations || []).map((a: any, i: number) => (
+                                                        <div key={i} className="flex items-center justify-between px-4 py-2.5">
+                                                            <div>
+                                                                <div className="text-xs font-black text-slate-700 dark:text-slate-200">{a.studentName}</div>
+                                                                <div className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{a.admNo || '—'}</div>
+                                                            </div>
+                                                            <div className="text-xs font-black text-slate-800 dark:text-white">KES {(a.amount || 0).toLocaleString()}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    );
+                })()}
 
                 {activeTab === 'wizard' && (
                     <AutomatedBilling 
