@@ -904,7 +904,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Bulk Bursary Disbursement states
     const [bulkBursaryDonor, setBulkBursaryDonor] = useState('');
-    const [bulkBursaryCheque, setBulkBursar​yCheque] = useState('');
+    const [bulkBursaryCheque, setBulkBursaryCheque] = useState('');
     const [bulkBursaryBank, setBulkBursaryBank] = useState('');
     const [bulkBursaryDate, setBulkBursaryDate] = useState(new Date().toISOString().split('T')[0]);
     const [bulkBursaryTotalAmount, setBulkBursaryTotalAmount] = useState<number>(0);
@@ -1684,7 +1684,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Handle bulk bursary cheque disbursement
     const handleBulkBursaryDisburse = async () => {
-        if (!bulkBursaryDonor.trim() || !bulkBursar​yCheque.trim() || bulkBursaryTotalAmount <= 0 || bulkBursaryAllocations.length === 0) {
+        if (!bulkBursaryDonor.trim() || !bulkBursaryCheque.trim() || bulkBursaryTotalAmount <= 0 || bulkBursaryAllocations.length === 0) {
             alert('Please fill in donor name, cheque number, total amount, and add at least one student.');
             return;
         }
@@ -1708,7 +1708,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     studentId: alloc.studentId,
                     amountPaid: alloc.amount,
                     paymentMethod: 'Cheque',
-                    relatedTransactionId: bulkBursar​yCheque,
+                    relatedTransactionId: bulkBursaryCheque,
                     paymentDate: bulkBursaryDate,
                     paidFor: `Bursary from ${bulkBursaryDonor}`,
                     notes: bulkBursaryNotes,
@@ -1722,7 +1722,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 id: batchId,
                 institutionId: instId,
                 donorName: bulkBursaryDonor,
-                chequeNumber: bulkBursar​yCheque,
+                chequeNumber: bulkBursaryCheque,
                 bankName: bulkBursaryBank,
                 chequeDate: bulkBursaryDate,
                 totalAmount: bulkBursaryTotalAmount,
@@ -1739,7 +1739,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setBulkBursaryDisbursements(updated);
             // 4. Reset form
             setBulkBursaryDonor('');
-            setBulkBursar​yCheque('');
+            setBulkBursaryCheque('');
             setBulkBursaryBank('');
             setBulkBursaryTotalAmount(0);
             setBulkBursaryAllocations([]);
@@ -2815,7 +2815,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Cheque / EFT Ref *</label>
-                                            <input type="text" placeholder="CHQ-123456" value={bulkBursar​yCheque} onChange={e => setBulkBursar​yCheque(e.target.value)}
+                                            <input type="text" placeholder="CHQ-123456" value={bulkBursaryCheque} onChange={e => setBulkBursaryCheque(e.target.value)}
                                                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 dark:text-white text-xs transition-all" />
                                         </div>
                                         <div className="space-y-1">
@@ -2898,7 +2898,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                 )}
 
-                                <button onClick={handleBulkBursaryDisburse} disabled={isSavingBulkBursary || bulkBursaryAllocations.length === 0 || !bulkBursaryDonor || !bulkBursar​yCheque}
+                                <button onClick={handleBulkBursaryDisburse} disabled={isSavingBulkBursary || bulkBursaryAllocations.length === 0 || !bulkBursaryDonor || !bulkBursaryCheque}
                                     className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50">
                                     {isSavingBulkBursary ? 'Processing...' : `Disburse & Post ${bulkBursaryAllocations.length} Receipt${bulkBursaryAllocations.length !== 1 ? 's' : ''} →`}
                                 </button>
