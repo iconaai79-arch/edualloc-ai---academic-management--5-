@@ -102,6 +102,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [cbStartDate, setCbStartDate] = useState('');
     const [cbEndDate, setCbEndDate] = useState('');
     const [cbViewType, setCbViewType] = useState<'unified' | 'receipts' | 'payments'>('unified');
+    const [expandedCbDates, setExpandedCbDates] = useState<string[]>([]);
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
@@ -5894,23 +5895,68 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {dailyCashBook.map((day, idx) => (
-                                                                    <tr key={idx} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls="font-bold text-slate-900 dark:text-white">{day.date}</TD>
-                                                                        <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
-                                                                        <TD cls="text-[10px] text-slate-600 dark:text-slate-400">
-                                                                            {day.debit > 0 ? (
-                                                                                <div>
-                                                                                    <span className="font-bold text-indigo-600">Range: {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}</span>
-                                                                                    <p className="text-[9px] text-slate-400 mt-0.5">{day.methodSummary}</p>
-                                                                                </div>
-                                                                            ) : '—'}
-                                                                        </TD>
-                                                                        <TD cls="font-black text-emerald-600">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : '—'}</TD>
-                                                                        <TD cls="font-black text-rose-600">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : '—'}</TD>
-                                                                        <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
-                                                                    </tr>
-                                                                ))}
+                                                                {dailyCashBook.map((day, idx) => {
+                                                                    const isExpanded = expandedCbDates.includes(day.date);
+                                                                    return (
+                                                                        <React.Fragment key={idx}>
+                                                                            <tr 
+                                                                                onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
+                                                                                className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
+                                                                            >
+                                                                                <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                    {day.date}
+                                                                                </TD>
+                                                                                <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
+                                                                                <TD cls="text-[10px] text-slate-600 dark:text-slate-400">
+                                                                                    {day.debit > 0 ? (
+                                                                                        <div>
+                                                                                            <span className="font-bold text-indigo-600">Range: {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}</span>
+                                                                                            <p className="text-[9px] text-slate-400 mt-0.5">{day.methodSummary}</p>
+                                                                                        </div>
+                                                                                    ) : '—'}
+                                                                                </TD>
+                                                                                <TD cls="font-black text-emerald-600">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : '—'}</TD>
+                                                                                <TD cls="font-black text-rose-600">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : '—'}</TD>
+                                                                                <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                            </tr>
+                                                                            {isExpanded && (
+                                                                                <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
+                                                                                    <td colSpan={6} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                                                                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
+                                                                                            {day.debit > 0 && (
+                                                                                                <div>
+                                                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Inflows (Receipts)</p>
+                                                                                                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                                                                                        {day.receiptsList.map((r: any, rIdx: number) => (
+                                                                                                            <div key={rIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                                                <span>{r.particulars} ({r.ref}) · <span className="font-bold text-slate-500">{r.method}</span></span>
+                                                                                                                <span className="font-bold text-emerald-600">KSh {r.debit.toLocaleString()}</span>
+                                                                                                            </div>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                            {day.credit > 0 && (
+                                                                                                <div>
+                                                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Outflows (Expenses)</p>
+                                                                                                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                                                                                        {day.expensesList.map((e: any, eIdx: number) => (
+                                                                                                            <div key={eIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                                                <span>{e.particulars} ({e.ref})</span>
+                                                                                                                <span className="font-bold text-rose-600">KSh {e.credit.toLocaleString()}</span>
+                                                                                                            </div>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            )}
+                                                                        </React.Fragment>
+                                                                    );
+                                                                })}
                                                                 {dailyCashBook.length === 0 && (
                                                                     <tr>
                                                                         <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No transactions recorded for this period.</td>
@@ -5936,18 +5982,46 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {dailyCashBook.filter(d => d.debit > 0).map((day, idx) => (
-                                                                    <tr key={idx} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls="font-bold text-slate-900 dark:text-white">{day.date}</TD>
-                                                                        <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
-                                                                        <TD cls="font-bold text-indigo-600">
-                                                                            {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}
-                                                                        </TD>
-                                                                        <TD cls="text-[10px] text-slate-500">{day.methodSummary || '—'}</TD>
-                                                                        <TD cls="font-black text-emerald-600">KSh {day.debit.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
-                                                                    </tr>
-                                                                ))}
+                                                                {dailyCashBook.filter(d => d.debit > 0).map((day, idx) => {
+                                                                    const isExpanded = expandedCbDates.includes(day.date);
+                                                                    return (
+                                                                        <React.Fragment key={idx}>
+                                                                            <tr 
+                                                                                onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
+                                                                                className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
+                                                                            >
+                                                                                <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                    {day.date}
+                                                                                </TD>
+                                                                                <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
+                                                                                <TD cls="font-bold text-indigo-600">
+                                                                                    {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}
+                                                                                </TD>
+                                                                                <TD cls="text-[10px] text-slate-500">{day.methodSummary || '—'}</TD>
+                                                                                <TD cls="font-black text-emerald-600">KSh {day.debit.toLocaleString()}</TD>
+                                                                                <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                            </tr>
+                                                                            {isExpanded && (
+                                                                                <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
+                                                                                    <td colSpan={6} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                                                                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
+                                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Inflows (Receipts)</p>
+                                                                                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                                                                                {day.receiptsList.map((r: any, rIdx: number) => (
+                                                                                                    <div key={rIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                                        <span>{r.particulars} ({r.ref}) · <span className="font-bold text-slate-500">{r.method}</span></span>
+                                                                                                        <span className="font-bold text-emerald-600">KSh {r.debit.toLocaleString()}</span>
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            )}
+                                                                        </React.Fragment>
+                                                                    );
+                                                                })}
                                                                 {dailyCashBook.filter(d => d.debit > 0).length === 0 && (
                                                                     <tr>
                                                                         <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No receipts recorded for this period.</td>
@@ -5966,28 +6040,51 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <tr>
                                                                     {TH('Date')}
                                                                     {TH('Balance B/F')}
-                                                                    {TH('Expense / Payment Details')}
+                                                                    {TH('Payments / Expense Breakdown')}
                                                                     {TH('Total Outflow (Cr)')}
                                                                     {TH('Balance C/F')}
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {dailyCashBook.filter(d => d.credit > 0).map((day, idx) => (
-                                                                    <tr key={idx} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls="font-bold text-slate-900 dark:text-white">{day.date}</TD>
-                                                                        <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
-                                                                        <TD cls="text-[10px] text-slate-600 dark:text-slate-400 space-y-1">
-                                                                            {day.expensesList.map((exp, eIdx) => (
-                                                                                <div key={eIdx} className="flex justify-between border-b border-slate-50 dark:border-slate-800/30 pb-0.5 max-w-md">
-                                                                                    <span>{exp.particulars} ({exp.ref})</span>
-                                                                                    <span className="font-bold">KSh {exp.credit.toLocaleString()}</span>
-                                                                                </div>
-                                                                            ))}
-                                                                        </TD>
-                                                                        <TD cls="font-black text-rose-600">KSh {day.credit.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
-                                                                    </tr>
-                                                                ))}
+                                                                {dailyCashBook.filter(d => d.credit > 0).map((day, idx) => {
+                                                                    const isExpanded = expandedCbDates.includes(day.date);
+                                                                    return (
+                                                                        <React.Fragment key={idx}>
+                                                                            <tr 
+                                                                                onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
+                                                                                className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
+                                                                            >
+                                                                                <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                    {day.date}
+                                                                                </TD>
+                                                                                <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
+                                                                                <TD cls="text-[10px] text-slate-600 dark:text-slate-400">
+                                                                                    <span className="font-semibold text-rose-600">{day.expensesList.length} expenses recorded</span>
+                                                                                </TD>
+                                                                                <TD cls="font-black text-rose-600">KSh {day.credit.toLocaleString()}</TD>
+                                                                                <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                            </tr>
+                                                                            {isExpanded && (
+                                                                                <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
+                                                                                    <td colSpan={5} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                                                                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
+                                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Outflows (Expenses)</p>
+                                                                                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                                                                                {day.expensesList.map((e: any, eIdx: number) => (
+                                                                                                    <div key={eIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                                        <span>{e.particulars} ({e.ref})</span>
+                                                                                                        <span className="font-bold text-rose-600">KSh {e.credit.toLocaleString()}</span>
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            )}
+                                                                        </React.Fragment>
+                                                                    );
+                                                                })}
                                                                 {dailyCashBook.filter(d => d.credit > 0).length === 0 && (
                                                                     <tr>
                                                                         <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">No expenses recorded for this period.</td>
