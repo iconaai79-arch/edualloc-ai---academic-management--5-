@@ -1885,8 +1885,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             {/* Main Content Area */}
             <div className="flex-1 w-full space-y-8 min-w-0">
                 {!isDrivingSchool && (
-                    <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm shrink-0 gap-4 overflow-hidden">
-                        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar max-w-[70vw] md:max-w-full">
+                    <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm shrink-0 gap-4">
+                        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto custom-scrollbar-horizontal max-w-[70vw] md:max-w-full pb-1">
                             {activeTab === 'settings' ? (
                                 settingsSubTabs.map(sub => (
                                     <button
