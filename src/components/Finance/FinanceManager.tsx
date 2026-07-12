@@ -1450,7 +1450,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         apiService.fetchModuleRecords<any>('ng_cdf_bursaries', instId)
             .then(res => setBursaryRecords(res || []))
             .catch(err => console.error("Failed to load ng_cdf_bursaries:", err));
-        fetchBankAccounts();
+        
+        // Self-heal: ensure bank account integration columns exist on the database table
+        apiService.runMigration(`
+            ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS integration_service TEXT DEFAULT 'None';
+            ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS integration_status TEXT DEFAULT 'Not Configured';
+        `).catch(err => console.warn("Self-healing school_bank_accounts schema failed:", err))
+          .finally(() => {
+              fetchBankAccounts();
+          });
     }, [props.institution.id]);
 
     useEffect(() => {
