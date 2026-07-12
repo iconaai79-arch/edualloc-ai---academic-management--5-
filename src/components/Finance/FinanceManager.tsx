@@ -3773,7 +3773,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'settings' && (
-                    <div className="space-y-8 animate-in fade-in duration-300 text-left">
+                    <div className="space-y-8 animate-in fade-in duration-300 text-left overflow-y-auto max-h-[calc(100vh-180px)] pr-2 custom-scrollbar">
                         {/* Clean Page Title Header */}
                         <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
