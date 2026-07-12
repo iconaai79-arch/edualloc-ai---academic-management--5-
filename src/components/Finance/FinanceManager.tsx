@@ -888,6 +888,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // Post payment form states
     const [manualPayStudentId, setManualPayStudentId] = useState('');
+    const [manualPayStudentSearch, setManualPayStudentSearch] = useState('');
     const [manualPayInvoiceId, setManualPayInvoiceId] = useState('');
     const [manualPayAmount, setManualPayAmount] = useState<number>(0);
     const [manualPayDate, setManualPayDate] = useState('');
@@ -938,6 +939,113 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         if (!selectedId) return [];
         return props.invoices.filter(inv => inv.studentId === selectedId && inv.status !== 'paid');
     }, [props.invoices, manualPayStudentId, reconcileStudentId, showPostModal]);
+
+    const manualFilteredStudents = useMemo(() => {
+        if (!manualPayStudentSearch || manualPayStudentId) return [];
+        return props.students.filter(s =>
+            s.name?.toLowerCase().includes(manualPayStudentSearch.toLowerCase()) ||
+            (s.admissionNumber || s.admission_number || '').toLowerCase().includes(manualPayStudentSearch.toLowerCase())
+        );
+    }, [manualPayStudentSearch, manualPayStudentId, props.students]);
+
+    const previewAllocations = useMemo(() => {
+        if (!manualPayStudentId || manualPayAmount <= 0) return [];
+        
+        const amountPaidNum = Number(manualPayAmount);
+        
+        const studentInvoices = props.invoices.filter((inv: any) => 
+            inv.studentId === manualPayStudentId && 
+            inv.status !== 'cancelled' && 
+            inv.status !== 'quote'
+        );
+        
+        const invoicePaidAmounts: Record<string, number> = {};
+        (props.receipts || []).forEach((rec: any) => {
+            const invId = rec.invoiceId || rec.invoice_id;
+            if (invId) {
+                invoicePaidAmounts[invId] = (invoicePaidAmounts[invId] || 0) + Number(rec.amountPaid || 0);
+            }
+        });
+        
+        const unpaidInvoices = studentInvoices.filter((inv: any) => {
+            const paid = invoicePaidAmounts[inv.id] || 0;
+            return paid < inv.totalAmount;
+        });
+        
+        const sortedInvoices = [...unpaidInvoices].sort((a: any, b: any) => {
+            if (manualPayInvoiceId) {
+                if (a.id === manualPayInvoiceId) return -1;
+                if (b.id === manualPayInvoiceId) return 1;
+            }
+            const dateA = new Date(a.issueDate || a.issue_date || 0).getTime();
+            const dateB = new Date(b.issueDate || b.issue_date || 0).getTime();
+            return dateA - dateB;
+        });
+        
+        let remainingAmount = amountPaidNum;
+        const allocations: Array<{
+            invoiceNumber: string;
+            description: string;
+            amount: number;
+        }> = [];
+        
+        for (const inv of sortedInvoices) {
+            if (remainingAmount <= 0) break;
+            
+            let items: any[] = [];
+            if (typeof inv.items === 'string') {
+                try { items = JSON.parse(inv.items); } catch(e) {}
+            } else if (Array.isArray(inv.items)) {
+                items = inv.items;
+            }
+            
+            const sortedItems = [...items].sort((a: any, b: any) => {
+                const prioA = a.priority !== undefined ? Number(a.priority) : 99;
+                const prioB = b.priority !== undefined ? Number(b.priority) : 99;
+                return prioA - prioB;
+            });
+            
+            for (const item of sortedItems) {
+                if (remainingAmount <= 0) break;
+                
+                const itemTotal = Number(item.amount || item.unitPrice || 0);
+                const itemPaid = Number(item.paid || 0);
+                const itemRemaining = Math.max(0, itemTotal - itemPaid);
+                
+                if (itemRemaining > 0) {
+                    const allocated = Math.min(remainingAmount, itemRemaining);
+                    remainingAmount -= allocated;
+                    
+                    allocations.push({
+                        invoiceNumber: inv.invoiceNumber || inv.invoice_number || 'INV',
+                        description: item.description,
+                        amount: allocated
+                    });
+                }
+            }
+        }
+        
+        if (remainingAmount > 0) {
+            allocations.push({
+                invoiceNumber: 'Prepayment',
+                description: 'Prepayment / Credit Balance',
+                amount: remainingAmount
+            });
+        }
+        
+        return allocations;
+    }, [manualPayStudentId, manualPayInvoiceId, manualPayAmount, props.invoices, props.receipts]);
+
+    useEffect(() => {
+        if (!showPostModal) {
+            setManualPayStudentSearch('');
+            setManualPayStudentId('');
+            setManualPayInvoiceId('');
+            setManualPayAmount(0);
+            setManualPayReference('');
+            setManualPayBankAccountId('');
+        }
+    }, [showPostModal]);
 
     const filteredReceipts = useMemo(() => {
         const query = searchReceiptQuery.toLowerCase();
@@ -1027,6 +1135,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert(`Receipt ${receiptNumber} generated and payment allocated successfully!`);
 
             setManualPayStudentId('');
+            setManualPayStudentSearch('');
             setManualPayInvoiceId('');
             setManualPayAmount(0);
             setManualPayReference('');
@@ -5738,21 +5847,43 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
 
                             <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Student *</label>
-                                    <select
-                                        value={manualPayStudentId}
-                                        onChange={(e) => {
-                                            setManualPayStudentId(e.target.value);
-                                            setManualPayInvoiceId('');
+                                <div className="space-y-1 relative">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Search Student *</label>
+                                    <input 
+                                        type="text"
+                                        placeholder="Type student name or admission number..."
+                                        value={manualPayStudentSearch}
+                                        onChange={e => {
+                                            setManualPayStudentSearch(e.target.value);
+                                            if (manualPayStudentId) {
+                                                setManualPayStudentId('');
+                                                setManualPayInvoiceId('');
+                                            }
                                         }}
-                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
-                                    >
-                                        <option value="">-- Choose Student --</option>
-                                        {props.students.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name} ({s.admissionNumber || s.admission_number || 'No Adm'})</option>
-                                        ))}
-                                    </select>
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                                    />
+                                    {manualPayStudentSearch && !manualPayStudentId && (
+                                        <div className="absolute z-30 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                            {manualFilteredStudents.length === 0 ? (
+                                                <div className="p-4 text-xs text-slate-400 font-medium">No students matched.</div>
+                                            ) : (
+                                                manualFilteredStudents.map(student => (
+                                                    <button
+                                                        key={student.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setManualPayStudentId(student.id);
+                                                            setManualPayStudentSearch(`${student.name} (${student.admissionNumber || student.admission_number || 'No Adm'})`);
+                                                        }}
+                                                        className="w-full p-4 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-xs font-bold text-slate-700 dark:text-slate-200 flex flex-col"
+                                                    >
+                                                        <span>{student.name}</span>
+                                                        <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.admissionNumber || student.admission_number || '—'}</span>
+                                                    </button>
+                                                ))
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {manualPayStudentId && (
@@ -5848,6 +5979,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         />
                                     </div>
                                 </div>
+
+                                {manualPayStudentId && manualPayAmount > 0 && (
+                                    <div className="space-y-2 p-5 bg-slate-50 dark:bg-slate-950/30 rounded-2xl border border-slate-100 dark:border-slate-800/80 animate-in fade-in duration-200">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Preview Votes Distribution</p>
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                            {previewAllocations.length === 0 ? (
+                                                <p className="text-xs font-semibold text-slate-400 p-2">No active allocations generated. Pure prepayment/credit balance.</p>
+                                            ) : (
+                                                previewAllocations.map((alloc, idx) => (
+                                                    <div key={idx} className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-800/40 text-xs font-bold shadow-sm">
+                                                        <div className="min-w-0 text-left">
+                                                            <div className="text-slate-850 dark:text-slate-200 truncate">{alloc.description}</div>
+                                                            <div className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider">{alloc.invoiceNumber}</div>
+                                                        </div>
+                                                        <span className="text-indigo-650 dark:text-indigo-400 shrink-0 font-extrabold ml-2">KES {alloc.amount.toLocaleString()}</span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <button
                                     onClick={handlePostManualPayment}
