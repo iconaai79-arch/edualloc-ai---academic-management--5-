@@ -345,6 +345,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [newAccountNumber, setNewAccountNumber] = useState('');
     const [newBranchName, setNewBranchName] = useState('');
     const [newCurrency, setNewCurrency] = useState('KES');
+    const [newIntegrationService, setNewIntegrationService] = useState('None');
+    const [newIntegrationStatus, setNewIntegrationStatus] = useState('Not Configured');
     const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null);
 
     const [schoolGrants, setSchoolGrants] = useState<any[]>([]);
@@ -397,6 +399,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 branchName: accountData.branchName || '',
                 currency: accountData.currency || 'KES',
                 status: accountData.status || 'Active',
+                integrationService: accountData.integrationService || 'None',
+                integrationStatus: accountData.integrationStatus || 'Not Configured',
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('school_bank_accounts', payload);
@@ -408,6 +412,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setNewAccountNumber('');
             setNewBranchName('');
             setNewCurrency('KES');
+            setNewIntegrationService('None');
+            setNewIntegrationStatus('Not Configured');
             setEditingBankAccountId(null);
         } catch (err: any) {
             console.error('Failed to save bank account:', err);
@@ -5107,6 +5113,48 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         />
                                                     </div>
                                                 </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Link Integration</label>
+                                                        <select
+                                                            value={newIntegrationService}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                setNewIntegrationService(val);
+                                                                if (val === 'None') {
+                                                                    setNewIntegrationStatus('Not Configured');
+                                                                } else if (newIntegrationStatus === 'Not Configured') {
+                                                                    setNewIntegrationStatus('Connected');
+                                                                }
+                                                            }}
+                                                            className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
+                                                        >
+                                                            <option value="None">None (Manual)</option>
+                                                            <option value="M-Pesa API">M-Pesa API</option>
+                                                            <option value="Equity API Feed">Equity API Feed</option>
+                                                            <option value="KCB Direct Feed">KCB Direct Feed</option>
+                                                            <option value="Co-op Webhook">Co-op Webhook</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Integration Status</label>
+                                                        <select
+                                                            value={newIntegrationStatus}
+                                                            onChange={e => setNewIntegrationStatus(e.target.value)}
+                                                            disabled={newIntegrationService === 'None'}
+                                                            className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-slate-900 dark:text-white text-xs cursor-pointer disabled:opacity-50"
+                                                        >
+                                                            {newIntegrationService === 'None' ? (
+                                                                <option value="Not Configured">Not Configured</option>
+                                                            ) : (
+                                                                <>
+                                                                    <option value="Connected">🟢 Connected</option>
+                                                                    <option value="Disconnected">🔴 Disconnected</option>
+                                                                </>
+                                                            )}
+                                                        </select>
+                                                    </div>
+                                                </div>
                                                 <div className="flex gap-2 pt-2">
                                                     {editingBankAccountId ? (
                                                         <>
@@ -5118,13 +5166,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setNewAccountNumber('');
                                                                     setNewBranchName('');
                                                                     setNewCurrency('KES');
+                                                                    setNewIntegrationService('None');
+                                                                    setNewIntegrationStatus('Not Configured');
                                                                 }}
                                                                 className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300"
                                                             >
                                                                 Cancel
                                                             </button>
                                                             <button 
-                                                                onClick={() => handleSaveBankAccount({ id: editingBankAccountId, bankName: newBankName, accountName: newAccountName, accountNumber: newAccountNumber, branchName: newBranchName, currency: newCurrency })}
+                                                                onClick={() => handleSaveBankAccount({ id: editingBankAccountId, bankName: newBankName, accountName: newAccountName, accountNumber: newAccountNumber, branchName: newBranchName, currency: newCurrency, integrationService: newIntegrationService, integrationStatus: newIntegrationStatus })}
                                                                 className="flex-1 py-2.5 bg-indigo-650 text-white rounded-xl text-[10px] font-black uppercase tracking-wider"
                                                             >
                                                                 Save
@@ -5132,7 +5182,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </>
                                                     ) : (
                                                         <button 
-                                                            onClick={() => handleSaveBankAccount({ bankName: newBankName, accountName: newAccountName, accountNumber: newAccountNumber, branchName: newBranchName, currency: newCurrency })}
+                                                            onClick={() => handleSaveBankAccount({ bankName: newBankName, accountName: newAccountName, accountNumber: newAccountNumber, branchName: newBranchName, currency: newCurrency, integrationService: newIntegrationService, integrationStatus: newIntegrationStatus })}
                                                             className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
                                                         >
                                                             Register Account
@@ -5147,9 +5197,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             {bankAccounts.map(ba => (
                                                 <div key={ba.id} className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/60 rounded-2xl flex justify-between items-center">
                                                     <div>
-                                                        <p className="text-xs font-bold text-slate-800 dark:text-white">{ba.bankName}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-xs font-bold text-slate-800 dark:text-white">{ba.bankName}</p>
+                                                            {ba.integrationService && ba.integrationService !== 'None' && (
+                                                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${ba.integrationStatus === 'Connected' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-450 border border-emerald-250 dark:border-emerald-800/65' : 'bg-rose-50 text-rose-600 dark:bg-rose-955 dark:text-rose-400 border border-rose-200 dark:border-rose-900'}`}>
+                                                                    {ba.integrationStatus === 'Connected' ? '🟢 Connected' : '🔴 Disconnected'}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <p className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 tracking-wider mt-0.5">{ba.accountNumber}</p>
-                                                        <p className="text-[9px] text-slate-400 font-semibold">{ba.accountName} {ba.branchName && `(${ba.branchName} Branch)`}</p>
+                                                        <p className="text-[9px] text-slate-400 font-semibold">
+                                                            {ba.accountName} {ba.branchName && `(${ba.branchName} Branch)`}
+                                                            {ba.integrationService && ba.integrationService !== 'None' && (
+                                                                <span className="text-slate-450 dark:text-slate-500 font-bold ml-1.5">
+                                                                    — Linked: {ba.integrationService}
+                                                                </span>
+                                                            )}
+                                                        </p>
                                                     </div>
                                                     <div className="flex gap-2">
                                                         <button 
@@ -5160,6 +5224,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 setNewAccountNumber(ba.accountNumber);
                                                                 setNewBranchName(ba.branchName || '');
                                                                 setNewCurrency(ba.currency || 'KES');
+                                                                setNewIntegrationService(ba.integrationService || 'None');
+                                                                setNewIntegrationStatus(ba.integrationStatus || 'Not Configured');
                                                             }}
                                                             className="p-1 bg-slate-100 hover:bg-indigo-55/60 dark:bg-slate-800 dark:hover:bg-indigo-500/20 text-slate-500 hover:text-indigo-600 rounded"
                                                         >
