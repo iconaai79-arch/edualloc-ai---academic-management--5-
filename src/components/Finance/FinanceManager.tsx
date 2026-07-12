@@ -103,6 +103,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [cbEndDate, setCbEndDate] = useState('');
     const [cbViewType, setCbViewType] = useState<'unified' | 'receipts' | 'payments'>('unified');
     const [expandedCbDates, setExpandedCbDates] = useState<string[]>([]);
+    const [feeRegClass, setFeeRegClass] = useState<string>('');
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding'>('opening_balance');
@@ -5737,31 +5738,86 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 }).reverse();
 
                                 // 3. Fee Register calculation
-                                const feeRegister = props.students.map((s: any) => {
+                                const getTermIndex = (dateStr: string) => {
+                                    if (!dateStr) return 0;
+                                    const d = new Date(dateStr);
+                                    if (isNaN(d.getTime())) return 0;
+                                    
+                                    const matchedSemIndex = (props.semesters || []).findIndex((sem: any) => {
+                                        if (!sem.startDate || !sem.endDate) return false;
+                                        const start = new Date(sem.startDate);
+                                        const end = new Date(sem.endDate);
+                                        return d >= start && d <= end;
+                                    });
+                                    if (matchedSemIndex !== -1) {
+                                        return Math.min(matchedSemIndex, 2);
+                                    }
+
+                                    const month = d.getMonth() + 1;
+                                    if (month >= 1 && month <= 4) return 0;
+                                    if (month >= 5 && month <= 8) return 1;
+                                    return 2;
+                                };
+
+                                const filteredFeeRegStudents = props.students.filter((s: any) => {
+                                    if (!feeRegClass || feeRegClass === 'All') return true;
+                                    const sClass = s.gradeLevel || s.class || 'Unclassified';
+                                    return sClass.toLowerCase() === feeRegClass.toLowerCase();
+                                });
+
+                                const feeRegister = filteredFeeRegStudents.map((s: any) => {
                                     const sRcpts = mappedReceipts.filter((r: any) => r.studentId === s.id);
-                                    const totalPaid = sRcpts.reduce((acc, r) => acc + (r.amountPaid || 0), 0);
-                                    const voteMap: Record<string, number> = {};
+                                    const sInvs = mappedInvoices.filter((i: any) => i.studentId === s.id);
+
+                                    const bf = s.metadata?.openingBalance || 0;
+                                    const totalInvoiced = sInvs.reduce((acc: number, inv: any) => {
+                                        const items = getInvoiceItems(inv);
+                                        return acc + items.reduce((sSum, item) => sSum + (item.amount || 0), 0);
+                                    }, 0);
+
+                                    let t1Amount = 0, t1Count = 0;
+                                    let t2Amount = 0, t2Count = 0;
+                                    let t3Amount = 0, t3Count = 0;
 
                                     sRcpts.forEach((rcpt: any) => {
-                                        const inv = mappedInvoices.find((i: any) => i.id === rcpt.invoiceId);
-                                        if (inv) {
-                                            const items = getInvoiceItems(inv);
-                                            const totalInv = items.reduce((sum, it) => sum + (it.amount || 0), 0);
-                                            if (totalInv > 0) {
-                                                items.forEach((it: any) => {
-                                                    const key = it.name || it.voteHeadName || it.description || 'General';
-                                                    voteMap[key] = (voteMap[key] || 0) + ((it.amount || 0) / totalInv) * (rcpt.amountPaid || 0);
-                                                });
-                                            } else {
-                                                voteMap['General'] = (voteMap['General'] || 0) + (rcpt.amountPaid || 0);
-                                            }
+                                        const rDate = rcpt.paymentDate || rcpt.createdAt || '';
+                                        const tIdx = getTermIndex(rDate);
+                                        const amt = rcpt.amountPaid || 0;
+
+                                        if (tIdx === 0) {
+                                            t1Amount += amt;
+                                            t1Count++;
+                                        } else if (tIdx === 1) {
+                                            t2Amount += amt;
+                                            t2Count++;
                                         } else {
-                                            voteMap['General'] = (voteMap['General'] || 0) + (rcpt.amountPaid || 0);
+                                            t3Amount += amt;
+                                            t3Count++;
                                         }
                                     });
 
-                                    return { ...s, voteMap, totalPaid };
-                                }).filter(s => s.totalPaid > 0);
+                                    const totalPaid = t1Amount + t2Amount + t3Amount;
+                                    const netBalance = (bf + totalInvoiced) - totalPaid;
+                                    const prepaid = netBalance < 0 ? Math.abs(netBalance) : 0;
+                                    const arrears = netBalance > 0 ? netBalance : 0;
+
+                                    return {
+                                        id: s.id,
+                                        name: s.name,
+                                        admissionNumber: s.admissionNumber || s.admNo || '',
+                                        class: s.gradeLevel || s.class || 'Unclassified',
+                                        bf,
+                                        t1Count,
+                                        t1Amount,
+                                        t2Count,
+                                        t2Amount,
+                                        t3Count,
+                                        t3Amount,
+                                        totalPaid,
+                                        prepaid,
+                                        arrears
+                                    };
+                                });
 
                                 const TH = (label: string) => <th className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[10px] border-b border-slate-100 dark:border-slate-800 whitespace-nowrap">{label}</th>;
                                 const TD = ({ children, cls = '' }: any) => <td className={`py-2.5 px-3 text-xs ${cls}`}>{children}</td>;
@@ -6098,51 +6154,127 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         )}
 
                                         {/* 3. Fee Register */}
-                                        {ledgerSubTab === 'fee_register' && (
-                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-4">
-                                                <div>
-                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Fee Register</h3>
-                                                    <p className="text-[10px] text-slate-400 font-medium">Historical breakdown of fees paid per student across all voteheads</p>
-                                                </div>
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-left">
-                                                        <thead>
-                                                            <tr>
-                                                                {TH('Student')}
-                                                                {TH('Adm No.')}
-                                                                {TH('Class')}
-                                                                {allVoteHeads.map(vh => TH(vh))}
-                                                                {TH('General')}
-                                                                {TH('Total Paid')}
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {feeRegister.map((s, i) => (
-                                                                <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                    <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">{s.name}</TD>
-                                                                    <TD cls="text-slate-500">{s.admissionNumber}</TD>
-                                                                    <TD cls="text-slate-500 whitespace-nowrap">{s.gradeLevel || '—'}</TD>
-                                                                    {allVoteHeads.map(vh => (
-                                                                        <TD key={vh} cls="font-black text-slate-700 dark:text-slate-300">
-                                                                            {s.voteMap[vh] > 0 ? `KSh ${Math.round(s.voteMap[vh]).toLocaleString()}` : '—'}
-                                                                        </TD>
+                                        {ledgerSubTab === 'fee_register' && (() => {
+                                            const feeRegClasses = Array.from(new Set(props.students.map((s: any) => s.gradeLevel || s.class || 'Unclassified'))).filter(Boolean).sort() as string[];
+                                            
+                                            const totalBfSum = feeRegister.reduce((s, it) => s + it.bf, 0);
+                                            const totalT1Sum = feeRegister.reduce((s, it) => s + it.t1Amount, 0);
+                                            const totalT2Sum = feeRegister.reduce((s, it) => s + it.t2Amount, 0);
+                                            const totalT3Sum = feeRegister.reduce((s, it) => s + it.t3Amount, 0);
+                                            const totalPaidSum = feeRegister.reduce((s, it) => s + it.totalPaid, 0);
+                                            const totalPrepaidSum = feeRegister.reduce((s, it) => s + it.prepaid, 0);
+                                            const totalArrearsSum = feeRegister.reduce((s, it) => s + it.arrears, 0);
+
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
+                                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                                        <div>
+                                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Register Summary</h3>
+                                                            <p className="text-[10px] text-slate-400 font-medium">Term-by-term installment details, pre-payments, and outstanding arrears</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-4 w-full md:w-auto">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">FORM:</span>
+                                                                <select 
+                                                                    value={feeRegClass} 
+                                                                    onChange={e => setFeeRegClass(e.target.value)} 
+                                                                    className="py-1.5 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                >
+                                                                    <option value="All">All Classes</option>
+                                                                    {feeRegClasses.map(cls => (
+                                                                        <option key={cls} value={cls}>{cls}</option>
                                                                     ))}
-                                                                    <TD cls="font-black text-slate-700 dark:text-slate-300">
-                                                                        {s.voteMap['General'] > 0 ? `KSh ${Math.round(s.voteMap['General']).toLocaleString()}` : '—'}
-                                                                    </TD>
-                                                                    <TD cls="font-black text-emerald-600">KSh {s.totalPaid.toLocaleString()}</TD>
+                                                                </select>
+                                                            </div>
+                                                            <button onClick={() => window.print()} className="print:hidden flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">🖨️ Print</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left border-collapse border border-slate-100 dark:border-slate-800/40">
+                                                            <thead>
+                                                                <tr className="bg-slate-50 dark:bg-slate-950/50">
+                                                                    <th rowSpan={2} className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 whitespace-nowrap">Name</th>
+                                                                    <th rowSpan={2} className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 whitespace-nowrap">Adm.No</th>
+                                                                    <th rowSpan={2} className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 whitespace-nowrap text-right">Amount Bf.</th>
+                                                                    <th colSpan={2} className="py-2 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 text-center">1st TERM INSTALLMENTS</th>
+                                                                    <th colSpan={2} className="py-2 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 text-center">2nd TERM INSTALLMENTS</th>
+                                                                    <th colSpan={2} className="py-2 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 text-center">3rd TERM INSTALLMENTS</th>
+                                                                    <th rowSpan={2} className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 whitespace-nowrap text-right">TOTAL</th>
+                                                                    <th rowSpan={2} className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 whitespace-nowrap text-right">PREPAID</th>
+                                                                    <th rowSpan={2} className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[9px] border border-slate-100 dark:border-slate-800/60 whitespace-nowrap text-right">ARREARS</th>
                                                                 </tr>
-                                                            ))}
-                                                            {feeRegister.length === 0 && (
-                                                                <tr>
-                                                                    <td colSpan={allVoteHeads.length + 5} className="py-8 text-center text-slate-400 font-medium">No fee payments registered.</td>
+                                                                <tr className="bg-slate-50 dark:bg-slate-950/50">
+                                                                    <th className="py-2 px-2 font-bold text-slate-400 text-[8px] uppercase border border-slate-100 dark:border-slate-800/60 text-center">No. Of. Inst.</th>
+                                                                    <th className="py-2 px-2 font-bold text-slate-400 text-[8px] uppercase border border-slate-100 dark:border-slate-800/60 text-right">Term 1 Amount</th>
+                                                                    <th className="py-2 px-2 font-bold text-slate-400 text-[8px] uppercase border border-slate-100 dark:border-slate-800/60 text-center">No. Of. Inst.</th>
+                                                                    <th className="py-2 px-2 font-bold text-slate-400 text-[8px] uppercase border border-slate-100 dark:border-slate-800/60 text-right">Term 2 Amount</th>
+                                                                    <th className="py-2 px-2 font-bold text-slate-400 text-[8px] uppercase border border-slate-100 dark:border-slate-800/60 text-center">No. Of. Inst.</th>
+                                                                    <th className="py-2 px-2 font-bold text-slate-400 text-[8px] uppercase border border-slate-100 dark:border-slate-800/60 text-right">Term 3 Amount</th>
                                                                 </tr>
-                                                            )}
-                                                        </tbody>
-                                                    </table>
+                                                            </thead>
+                                                            <tbody>
+                                                                {feeRegister.map((s, i) => (
+                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-[11px]">
+                                                                        <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-white border border-slate-50 dark:border-slate-800/40 whitespace-nowrap">{s.name}</td>
+                                                                        <td className="py-2.5 px-3 text-slate-500 border border-slate-50 dark:border-slate-800/40">{s.admissionNumber}</td>
+                                                                        <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
+                                                                            {s.bf > 0 ? `KSh ${s.bf.toLocaleString()}` : '0.00'}
+                                                                        </td>
+                                                                        <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 border border-slate-50 dark:border-slate-800/40 text-center font-bold">
+                                                                            {s.t1Count > 0 ? s.t1Count : '—'}
+                                                                        </td>
+                                                                        <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
+                                                                            {s.t1Amount > 0 ? `KSh ${s.t1Amount.toLocaleString()}` : '0.00'}
+                                                                        </td>
+                                                                        <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 border border-slate-50 dark:border-slate-800/40 text-center font-bold">
+                                                                            {s.t2Count > 0 ? s.t2Count : '—'}
+                                                                        </td>
+                                                                        <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
+                                                                            {s.t2Amount > 0 ? `KSh ${s.t2Amount.toLocaleString()}` : '0.00'}
+                                                                        </td>
+                                                                        <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 border border-slate-50 dark:border-slate-800/40 text-center font-bold">
+                                                                            {s.t3Count > 0 ? s.t3Count : '—'}
+                                                                        </td>
+                                                                        <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
+                                                                            {s.t3Amount > 0 ? `KSh ${s.t3Amount.toLocaleString()}` : '0.00'}
+                                                                        </td>
+                                                                        <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border border-slate-50 dark:border-slate-800/40 text-right">
+                                                                            KSh {s.totalPaid.toLocaleString()}
+                                                                        </td>
+                                                                        <td className="py-2.5 px-3 font-black text-emerald-600 border border-slate-50 dark:border-slate-800/40 text-right">
+                                                                            {s.prepaid > 0 ? `KSh ${s.prepaid.toLocaleString()}` : '0.00'}
+                                                                        </td>
+                                                                        <td className="py-2.5 px-3 font-black text-rose-600 border border-slate-50 dark:border-slate-800/40 text-right">
+                                                                            {s.arrears > 0 ? `KSh ${s.arrears.toLocaleString()}` : '0.00'}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+
+                                                                {feeRegister.length > 0 && (
+                                                                    <tr className="bg-slate-50 dark:bg-slate-950 font-black text-[11px] text-slate-900 dark:text-white border-t-2 border-slate-200 dark:border-slate-800">
+                                                                        <td colSpan={2} className="py-3 px-3 text-right uppercase tracking-wider">TOTAL SUMMARY:</td>
+                                                                        <td className="py-3 px-3 text-right">KSh {totalBfSum.toLocaleString()}</td>
+                                                                        <td colSpan={2} className="py-3 px-3 text-right">KSh {totalT1Sum.toLocaleString()}</td>
+                                                                        <td colSpan={2} className="py-3 px-3 text-right">KSh {totalT2Sum.toLocaleString()}</td>
+                                                                        <td colSpan={2} className="py-3 px-3 text-right">KSh {totalT3Sum.toLocaleString()}</td>
+                                                                        <td className="py-3 px-3 text-right">KSh {totalPaidSum.toLocaleString()}</td>
+                                                                        <td className="py-3 px-3 text-right text-emerald-600">KSh {totalPrepaidSum.toLocaleString()}</td>
+                                                                        <td className="py-3 px-3 text-right text-rose-600">KSh {totalArrearsSum.toLocaleString()}</td>
+                                                                    </tr>
+                                                                )}
+
+                                                                {feeRegister.length === 0 && (
+                                                                    <tr>
+                                                                        <td colSpan={12} className="py-8 text-center text-slate-400 font-medium border border-slate-50 dark:border-slate-800/40">No fee payments registered.</td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
 
                                         {/* 4. Cash Flow Statement */}
                                         {ledgerSubTab === 'cash_flow' && (() => {
