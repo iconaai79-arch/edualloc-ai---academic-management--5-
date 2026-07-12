@@ -1902,6 +1902,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <span className="text-[11px] font-black uppercase tracking-widest">{sub.label}</span>
                                     </button>
                                 ))
+                            ) : activeTab === 'receipts' ? (
+                                [
+                                    { id: 'student_fees', label: 'Student Fees', icon: CreditCardIcon },
+                                    { id: 'other_income', label: 'Other Income', icon: BanknotesIcon },
+                                ].map(sub => (
+                                    <button
+                                        key={sub.id}
+                                        onClick={() => setReceiptsMainTab(sub.id as any)}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap ${
+                                            receiptsMainTab === sub.id
+                                            ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105'
+                                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        <sub.icon className={`w-4 h-4 ${receiptsMainTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
+                                        <span className="text-[11px] font-black uppercase tracking-widest">{sub.label}</span>
+                                    </button>
+                                ))
                             ) : (
                                 tabs.filter(item => item.id === 'billing' || item.id === 'bursaries').map(tab => (
                                     <button
