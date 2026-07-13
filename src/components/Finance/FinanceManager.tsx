@@ -1194,6 +1194,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [expApprovedBy, setExpApprovedBy] = useState('');
     const [expPreparedBy, setExpPreparedBy] = useState(props.currentUser?.name || '');
     const [showVoucherPreviewModal, setShowVoucherPreviewModal] = useState(false);
+    const [showBankScheduleModal, setShowBankScheduleModal] = useState(false);
+    const [scheduleChequeNumber, setScheduleChequeNumber] = useState('');
+    const [scheduleSourceBankId, setScheduleSourceBankId] = useState('');
+    const [schedulePeriod, setSchedulePeriod] = useState('');
+    const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
+    const [scheduleStaffAccounts, setScheduleStaffAccounts] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (showBankScheduleModal && props.payrollRecords) {
+            const currentPeriod = schedulePeriod || (props.payrollRecords[0]?.period || '');
+            const currentRecords = props.payrollRecords.filter(r => r.period === currentPeriod || r.payPeriod === currentPeriod);
+            const mapped = currentRecords.map(r => {
+                const u = (props.users || []).find(user => user.id === r.staffId || user.name === r.staffName);
+                return {
+                    payrollId: r.id,
+                    staffId: r.staffId,
+                    staffName: r.staffName || u?.name || 'Unknown Staff',
+                    netPay: r.netPay || r.netSalary || 0,
+                    bankName: u?.metadata?.bankName || 'Equity Bank',
+                    bankBranch: u?.metadata?.bankBranch || 'Main Branch',
+                    accountNumber: u?.metadata?.bankAccountNumber || '1234567890'
+                };
+            });
+            setScheduleStaffAccounts(mapped);
+        }
+    }, [showBankScheduleModal, schedulePeriod, props.payrollRecords, props.users]);
 
     const approvalOfficers = useMemo(() => {
         return (props.users || []).filter(u => u.role !== 'student' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead');
@@ -8171,6 +8197,202 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
+                {/* Salary Bank Disbursement Advice Modal */}
+                {showBankScheduleModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left animate-in zoom-in-95 duration-200">
+                            
+                            {/* Modal Header */}
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Salary Bank Payment Schedule</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Generate bank advice letter detailing payments to each staff account</p>
+                                </div>
+                                <button 
+                                    onClick={() => setShowBankScheduleModal(false)}
+                                    className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    <XIcon className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            {/* Modal Body / Inputs */}
+                            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto bg-slate-50 dark:bg-slate-950">
+                                
+                                {/* Parameter Fields */}
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    
+                                    {/* Period Select */}
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Payroll Period *</label>
+                                        <select
+                                            value={schedulePeriod}
+                                            onChange={(e) => setSchedulePeriod(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        >
+                                            {Array.from(new Set((props.payrollRecords || []).map(r => r.period || r.payPeriod || ''))).map(p => (
+                                                <option key={p} value={p}>{p}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Source Account Select */}
+                                    <div className="space-y-1 md:col-span-2">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Debit Bank Account *</label>
+                                        <select
+                                            value={scheduleSourceBankId}
+                                            onChange={(e) => setScheduleSourceBankId(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        >
+                                            <option value="">-- Choose School Debit Account --</option>
+                                            {(bankAccounts || []).map(ba => (
+                                                <option key={ba.id} value={ba.id}>
+                                                    {ba.bankName || ba.bank_name} - {ba.accountName || ba.account_name} ({ba.accountNumber || ba.account_number})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Cheque # */}
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Cheque Number / Ref</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. CHQ-00123"
+                                            value={scheduleChequeNumber}
+                                            onChange={(e) => setScheduleChequeNumber(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        />
+                                    </div>
+
+                                </div>
+
+                                {/* Datepicker Row */}
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Date</label>
+                                        <input
+                                            type="date"
+                                            value={scheduleDate}
+                                            onChange={(e) => setScheduleDate(e.target.value)}
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-700 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Schedule Table */}
+                                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden text-xs bg-white dark:bg-slate-900">
+                                    <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-between items-center">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Disbursement Recipients List</span>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-black">
+                                            Total: KES {scheduleStaffAccounts.reduce((sum, item) => sum + (item.netPay || 0), 0).toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div className="overflow-x-auto max-h-[30vh]">
+                                        <table className="w-full text-left text-xs">
+                                            <thead>
+                                                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 text-[9px] text-slate-400 uppercase font-black tracking-wider">
+                                                    <th className="py-2.5 px-3">Staff Name</th>
+                                                    <th className="py-2.5 px-3">Bank Name</th>
+                                                    <th className="py-2.5 px-3">Branch Name</th>
+                                                    <th className="py-2.5 px-3">Account Number</th>
+                                                    <th className="py-2.5 px-3 text-right">Net Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {scheduleStaffAccounts.map((item, idx) => (
+                                                    <tr key={idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-950/30 transition-colors">
+                                                        <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-white">{item.staffName}</td>
+                                                        <td className="py-2.5 px-3">
+                                                            <input 
+                                                                type="text" 
+                                                                value={item.bankName}
+                                                                onChange={(e) => {
+                                                                    const updated = [...scheduleStaffAccounts];
+                                                                    updated[idx].bankName = e.target.value;
+                                                                    setScheduleStaffAccounts(updated);
+                                                                }}
+                                                                className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none text-[11px] font-bold text-slate-805 dark:text-white"
+                                                            />
+                                                        </td>
+                                                        <td className="py-2.5 px-3">
+                                                            <input 
+                                                                type="text" 
+                                                                value={item.bankBranch}
+                                                                onChange={(e) => {
+                                                                    const updated = [...scheduleStaffAccounts];
+                                                                    updated[idx].bankBranch = e.target.value;
+                                                                    setScheduleStaffAccounts(updated);
+                                                                }}
+                                                                className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none text-[11px] font-bold text-slate-805 dark:text-white"
+                                                            />
+                                                        </td>
+                                                        <td className="py-2.5 px-3">
+                                                            <input 
+                                                                type="text" 
+                                                                value={item.accountNumber}
+                                                                onChange={(e) => {
+                                                                    const updated = [...scheduleStaffAccounts];
+                                                                    updated[idx].accountNumber = e.target.value;
+                                                                    setScheduleStaffAccounts(updated);
+                                                                }}
+                                                                className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded outline-none text-[11px] font-bold text-slate-805 dark:text-white"
+                                                            />
+                                                        </td>
+                                                        <td className="py-2.5 px-3 font-black text-right text-emerald-600">
+                                                            KES {item.netPay.toLocaleString()}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {scheduleStaffAccounts.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
+                                                            No payroll records found for the selected period
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* Modal Actions */}
+                            <div className="p-8 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-950/20">
+                                <button
+                                    onClick={() => setShowBankScheduleModal(false)}
+                                    className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    disabled={!scheduleSourceBankId || scheduleStaffAccounts.length === 0}
+                                    onClick={() => {
+                                        const bankObj = (bankAccounts || []).find(ba => ba.id === scheduleSourceBankId);
+                                        pdfService.downloadBankAdvicePdf({
+                                            period: schedulePeriod,
+                                            chequeNumber: scheduleChequeNumber,
+                                            paymentDate: scheduleDate,
+                                            sourceBankAccount: bankObj,
+                                            staffDetails: scheduleStaffAccounts,
+                                            institution: props.institution,
+                                            companyDetails: props.companyDetails,
+                                            logoUrl: props.logoUrl,
+                                            letterheadUrl: props.letterheadUrl
+                                        });
+                                        setShowBankScheduleModal(false);
+                                    }}
+                                    className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md disabled:opacity-50"
+                                >
+                                    Download Bank Advice
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'reports' && (() => {
                     const totalBilled = mappedInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
                     const totalCollected = mappedReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
@@ -9911,8 +10133,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {/* Payroll Summary */}
                             {reportsSubTab === 'payroll_summary' && (
                                 <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Payroll Summary</h3>
-                                    <p className="text-[10px] text-slate-400 font-medium mb-6">{(props.payrollRecords||[]).length} payroll records</p>
+                                    <div className="flex justify-between items-center mb-6">
+                                        <div>
+                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Payroll Summary</h3>
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{(props.payrollRecords||[]).length} payroll records</p>
+                                        </div>
+                                        {(props.payrollRecords || []).length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const firstRec = (props.payrollRecords || [])[0];
+                                                    setSchedulePeriod(firstRec?.period || firstRec?.payPeriod || '');
+                                                    setShowBankScheduleModal(true);
+                                                }}
+                                                className="px-5 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-650 transition-all shadow-md flex items-center gap-1.5"
+                                            >
+                                                🏦 Export Bank Advice PDF
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left text-xs">
                                             <thead><tr className="border-b border-slate-100 dark:border-slate-800">

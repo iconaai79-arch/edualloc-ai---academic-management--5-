@@ -5683,6 +5683,195 @@ export const downloadExpenseVoucherPdf = async (
     link.download = `Voucher-${expense.referenceNumber || expense.id}.pdf`;
     document.body.appendChild(link);
     link.click();
+};
+
+
+export const generateBankAdvicePdf = async (
+    params: {
+        period: string;
+        chequeNumber: string;
+        paymentDate: string;
+        sourceBankAccount: any;
+        staffDetails: {
+            staffName: string;
+            bankName: string;
+            bankBranch: string;
+            accountNumber: string;
+            netPay: number;
+        }[];
+        institution: Institution;
+        companyDetails: CompanyDetails;
+        logoUrl: string | null;
+        letterheadUrl?: string | null;
+    }
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(params.logoUrl);
+    const headerImg = await loadImage(params.letterheadUrl || null);
+    const tableStartY = createPdfWithLetterhead(doc, 'SALARY DISBURSEMENT ADVICE', params.companyDetails, params.institution, logoImg, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    let yPos = tableStartY + 5;
+
+    // Date & Bank Manager Address
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Date: ${new Date(params.paymentDate).toLocaleDateString()}`, pageWidth - margin, yPos, { align: 'right' });
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text('TO:', margin, yPos);
+    yPos += 5;
+    doc.text('THE BRANCH MANAGER,', margin, yPos);
+    yPos += 5;
+    doc.text((params.sourceBankAccount?.bankName || 'THE BANK').toUpperCase(), margin, yPos);
+    if (params.sourceBankAccount?.branchName) {
+        yPos += 5;
+        doc.text(`${params.sourceBankAccount.branchName.toUpperCase()} BRANCH`, margin, yPos);
+    }
+    
+    yPos += 12;
+    
+    // Subject line
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    const subject = `RE: SALARY DISBURSEMENT ADVICE FOR THE MONTH OF ${params.period.toUpperCase()}`;
+    doc.text(subject, margin, yPos);
+    doc.line(margin, yPos + 1.5, margin + doc.getTextWidth(subject), yPos + 1.5);
+    
+    yPos += 10;
+    
+    // Body paragraph
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    const totalAmount = params.staffDetails.reduce((sum, item) => sum + (item.netPay || 0), 0);
+    
+    const bodyText = `We hereby authorize you to debit our account number ${params.sourceBankAccount?.accountNumber || '___________'} (${params.sourceBankAccount?.accountName || '___________'}) and disburse salaries for the month of ${params.period} amounting to KES ${totalAmount.toLocaleString()} (Kenya Shillings ${convertNumberToWords(totalAmount)}) to the individual employee bank accounts listed in the schedule below. Enclosed is our Cheque No: ${params.chequeNumber || '___________'} drawn on the same account for the total sum.`;
+    
+    const splitBody = doc.splitTextToSize(bodyText, pageWidth - (margin * 2));
+    doc.text(splitBody, margin, yPos);
+    
+    // Table Y start based on split body length
+    yPos += (splitBody.length * 5) + 6;
+    
+    // Table Headers
+    const headers = ['S/No', 'Employee Name', 'Bank Name', 'Branch', 'Account Number', 'Net Amount'];
+    const colWidths = [12, 50, 35, 30, 35, 20]; // total = 182
+    
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, yPos, pageWidth - (margin * 2), 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    
+    let currentX = margin;
+    headers.forEach((h, idx) => {
+        const align = idx === 5 ? 'right' : 'left';
+        const offset = idx === 5 ? colWidths[idx] - 2 : 2;
+        doc.text(h, currentX + offset, yPos + 5, { align });
+        currentX += colWidths[idx];
+    });
+    
+    yPos += 7;
+    
+    // Table Rows
+    doc.setFont('helvetica', 'normal');
+    params.staffDetails.forEach((row, i) => {
+        // Page break check
+        if (yPos > pageHeight - 40) {
+            doc.addPage();
+            yPos = 20;
+            // Draw table headers again
+            doc.setFillColor(240, 240, 240);
+            doc.rect(margin, yPos, pageWidth - (margin * 2), 7, 'F');
+            doc.setFont('helvetica', 'bold');
+            currentX = margin;
+            headers.forEach((h, idx) => {
+                const align = idx === 5 ? 'right' : 'left';
+                const offset = idx === 5 ? colWidths[idx] - 2 : 2;
+                doc.text(h, currentX + offset, yPos + 5, { align });
+                currentX += colWidths[idx];
+            });
+            yPos += 7;
+            doc.setFont('helvetica', 'normal');
+        }
+        
+        let rowX = margin;
+        // Alternating fill color
+        if (i % 2 === 1) {
+            doc.setFillColor(250, 250, 250);
+            doc.rect(margin, yPos, pageWidth - (margin * 2), 7, 'F');
+        }
+        
+        doc.text(String(i + 1), rowX + 2, yPos + 5);
+        rowX += colWidths[0];
+        doc.text(row.staffName, rowX + 2, yPos + 5);
+        rowX += colWidths[1];
+        doc.text(row.bankName, rowX + 2, yPos + 5);
+        rowX += colWidths[2];
+        doc.text(row.bankBranch, rowX + 2, yPos + 5);
+        rowX += colWidths[3];
+        doc.text(row.accountNumber, rowX + 2, yPos + 5);
+        rowX += colWidths[4];
+        doc.text(Number(row.netPay || 0).toLocaleString(), rowX + colWidths[5] - 2, yPos + 5, { align: 'right' });
+        
+        yPos += 7;
+    });
+    
+    // Totals Row
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin, yPos, pageWidth - (margin * 2), 8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL SALARY PAYMENTS', margin + 2, yPos + 6);
+    doc.text(`KES ${totalAmount.toLocaleString()}`, pageWidth - margin - 2, yPos + 6, { align: 'right' });
+    
+    yPos += 15;
+    
+    // Signatures
+    if (yPos > pageHeight - 35) {
+        doc.addPage();
+        yPos = 25;
+    }
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text(`For ${params.institution.name.toUpperCase()}`, margin, yPos);
+    
+    yPos += 15;
+    
+    // Two authorized signatory signature lines side by side
+    const sigWidth = 70;
+    const sigSpacing = 20;
+    
+    let sigX = margin;
+    doc.line(sigX, yPos, sigX + sigWidth, yPos);
+    doc.text('AUTHORIZED SIGNATORY 1', sigX, yPos + 4);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Designation: School Head / Principal', sigX, yPos + 8);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    sigX = sigX + sigWidth + sigSpacing;
+    doc.line(sigX, yPos, sigX + sigWidth, yPos);
+    doc.text('AUTHORIZED SIGNATORY 2', sigX, yPos + 4);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Designation: Board Treasurer / Director', sigX, yPos + 8);
+    
+    return doc.output('datauristring');
+};
+
+export const downloadBankAdvicePdf = async (
+    params: any
+): Promise<void> => {
+    const dataUri = await generateBankAdvicePdf(params);
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = `Bank-Advice-${params.period.replace(/\s+/g, '-')}.pdf`;
+    document.body.appendChild(link);
+    link.click();
     document.body.removeChild(link);
 };
 
