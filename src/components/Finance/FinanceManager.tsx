@@ -872,6 +872,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isLoadingGokLogs, setIsLoadingGokLogs] = useState(false);
     const [isSavingGokCap, setIsSavingGokCap] = useState(false);
 
+    // Installment / Carry Forward States
+    const [gokPaymentMode, setGokPaymentMode] = useState<'full' | 'installment'>('full');
+    const [gokCustomAmount, setGokCustomAmount] = useState('');
+    const [gokCustomPct, setGokCustomPct] = useState('');
+    const [gokInstallmentLabel, setGokInstallmentLabel] = useState('');
+
     const GOK_TRANCHE_PCTS: Record<string, number> = { term_1: 50, term_2: 30, term_3: 20 };
 
     const gokTotalFull = (() => {
@@ -881,11 +887,53 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const sneR = Number(gokSneRate) || 0;
         return e * r + sne * sneR;
     })();
-    const gokTranchePct = GOK_TRANCHE_PCTS[gokTranche] || 0;
-    const gokTotalReceived = (gokTotalFull * gokTranchePct) / 100;
-    // MoE distribution: 100% of capitation split — SIMBA 50%, GPA 50%
+
+    const gokTranchePct = gokPaymentMode === 'full' 
+        ? (GOK_TRANCHE_PCTS[gokTranche] || 0)
+        : (Number(gokCustomPct) || 0);
+
+    const gokTotalReceived = gokPaymentMode === 'full'
+        ? ((gokTotalFull * gokTranchePct) / 100)
+        : (Number(gokCustomAmount) || 0);
+
     const gokSimbaAmount = gokTotalReceived * 0.50;
     const gokGpaAmount   = gokTotalReceived * 0.50;
+
+    const handleCustomAmountChange = (amountStr: string) => {
+        setGokCustomAmount(amountStr);
+        const amount = Number(amountStr) || 0;
+        if (gokTotalFull > 0) {
+            const pct = (amount / gokTotalFull) * 100;
+            setGokCustomPct(Number(pct.toFixed(2)).toString());
+        } else {
+            setGokCustomPct('');
+        }
+    };
+
+    const handleCustomPctChange = (pctStr: string) => {
+        setGokCustomPct(pctStr);
+        const pct = Number(pctStr) || 0;
+        if (gokTotalFull > 0) {
+            const amount = (gokTotalFull * pct) / 100;
+            setGokCustomAmount(Number(amount.toFixed(2)).toString());
+        } else {
+            setGokCustomAmount('');
+        }
+    };
+
+    useEffect(() => {
+        if (gokPaymentMode === 'installment' && gokCustomPct) {
+            const pct = Number(gokCustomPct) || 0;
+            const amount = (gokTotalFull * pct) / 100;
+            setGokCustomAmount(Number(amount.toFixed(2)).toString());
+        }
+    }, [gokTotalFull, gokPaymentMode]);
+
+    useEffect(() => {
+        if (gokPaymentMode === 'installment' && !gokInstallmentLabel) {
+            setGokInstallmentLabel('Installment 1');
+        }
+    }, [gokPaymentMode, gokTranche]);
 
     const fetchGokCapLogs = async () => {
         setIsLoadingGokLogs(true);
@@ -903,9 +951,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         if (!gokEnrolment || Number(gokEnrolment) <= 0) { alert('Enrolment count is required and must be > 0.'); return; }
         if (!gokDisbursementRate || Number(gokDisbursementRate) <= 0) { alert('Disbursement rate is required.'); return; }
         if (!gokBankAccountId) { alert('Please select a receiving bank account.'); return; }
+        if (gokPaymentMode === 'installment' && (!gokCustomAmount || Number(gokCustomAmount) <= 0)) {
+            alert('Please enter a valid installment amount.');
+            return;
+        }
 
         setIsSavingGokCap(true);
         try {
+            const finalNotes = gokPaymentMode === 'installment'
+                ? `[Installment: ${gokInstallmentLabel || 'Partial Payment'}] ${gokNotes}`
+                : gokNotes;
+
             const rec = {
                 id: `gok_cap_${Date.now()}`,
                 institutionId: props.institution.id,
@@ -920,7 +976,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 totalReceived: gokTotalReceived,
                 simbaAmount: gokSimbaAmount,
                 gpaAmount: gokGpaAmount,
-                notes: gokNotes,
+                notes: finalNotes,
                 createdAt: new Date().toISOString(),
             };
             await apiService.saveModuleRecord('gok_capitation_logs', rec);
@@ -934,6 +990,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setGokReference('');
             setGokBankAccountId('');
             setGokNotes('');
+            setGokCustomAmount('');
+            setGokCustomPct('');
+            setGokInstallmentLabel('');
+            setGokPaymentMode('full');
         } catch(err: any) {
             console.error('Failed to post GoK capitation:', err);
             alert('Failed to post GoK capitation: ' + (err.message || err));
@@ -3606,6 +3666,71 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </button>
                                             ))}
                                         </div>
+
+                                        {/* Payment Mode Selector */}
+                                        <div className="mb-6 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/50">
+                                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Payment Mode</label>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setGokPaymentMode('full')}
+                                                    className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                                                        gokPaymentMode === 'full'
+                                                        ? 'bg-slate-900 dark:bg-slate-700 text-white shadow-sm'
+                                                        : 'bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    Full Tranche
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setGokPaymentMode('installment')}
+                                                    className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                                                        gokPaymentMode === 'installment'
+                                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                                        : 'bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    Installment / Partial
+                                                </button>
+                                            </div>
+
+                                            {gokPaymentMode === 'installment' && (
+                                                <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in slide-in-from-top-2 duration-200">
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Installment Label</label>
+                                                        <input
+                                                            type="text"
+                                                            value={gokInstallmentLabel}
+                                                            onChange={e => setGokInstallmentLabel(e.target.value)}
+                                                            placeholder="e.g. Installment 1"
+                                                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Amount (KES)</label>
+                                                        <input
+                                                            type="number" min="0"
+                                                            value={gokCustomAmount}
+                                                            onChange={e => handleCustomAmountChange(e.target.value)}
+                                                            placeholder="Amount received"
+                                                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tranche % (of Annual)</label>
+                                                        <input
+                                                            type="number" min="0" max="100" step="0.01"
+                                                            value={gokCustomPct}
+                                                            onChange={e => handleCustomPctChange(e.target.value)}
+                                                            placeholder="e.g. 25"
+                                                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">MoE Reference / Ref No.</label>
@@ -3744,7 +3869,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <table className="w-full text-xs">
                                             <thead>
                                                 <tr className="bg-slate-50 dark:bg-slate-800/50">
-                                                    {['Date', 'Tranche', 'Enrolment', 'Rate', 'Total Received', 'SIMBA', 'GPA', 'Reference'].map(h => (
+                                                    {['Date', 'Tranche', 'Enrolment', 'Rate', 'Total Received', 'SIMBA', 'GPA', 'Reference', 'Notes / Remarks'].map(h => (
                                                         <th key={h} className="px-4 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                                                     ))}
                                                 </tr>
@@ -3768,6 +3893,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">KES {Number(log.simbaAmount).toLocaleString()}</td>
                                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">KES {Number(log.gpaAmount).toLocaleString()}</td>
                                                         <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{log.referenceNumber || '—'}</td>
+                                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 max-w-[200px] truncate" title={log.notes}>{log.notes || '—'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
