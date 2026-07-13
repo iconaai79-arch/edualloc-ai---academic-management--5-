@@ -86,7 +86,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
     
     // Dynamic Tabs based on Institution Type
-    const [activeTab, setActiveTab] = useState<'home' | 'overview' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>('home');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
@@ -822,7 +822,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const tabs = [
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
-        { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
         { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
@@ -2771,21 +2770,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     );
                 })()}
 
-                {activeTab === 'overview' && (
-                    <RevenueWarRoom 
-                        invoices={mappedInvoices}
-                        receipts={mappedReceipts}
-                        expenses={props.expenses}
-                        goals={props.goals}
-                        students={props.students}
-                        institution={props.institution}
-                        receiptLimit={props.receiptLimit}
-                        setReceiptLimit={props.setReceiptLimit}
-                        transactionLimit={props.transactionLimit}
-                        setTransactionLimit={props.setTransactionLimit}
-                        transactions={props.transactions || []}
-                    />
-                )}
 
                 {activeTab === 'balances' && (
                     <div className="space-y-8 animate-in fade-in duration-300">
