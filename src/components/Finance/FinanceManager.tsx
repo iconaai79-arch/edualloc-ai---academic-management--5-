@@ -1018,6 +1018,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const [goodsProposals, setGoodsProposals] = useState<any[]>([]);
     const [isLoadingGoodsProposals, setIsLoadingGoodsProposals] = useState(false);
+    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bursaries' | 'payment_in_kind'>('student_fees');
 
     const fetchGoodsProposals = async () => {
         setIsLoadingGoodsProposals(true);
@@ -1132,7 +1133,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isReconciling, setIsReconciling] = useState(false);
 
     // Other Income states
-    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bursaries' | 'payment_in_kind'>('student_fees');
+
 
     // Bulk Bursary Disbursement states
     const [bulkBursaryDonor, setBulkBursaryDonor] = useState('');
