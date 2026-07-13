@@ -829,7 +829,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
         { id: 'gok_capitation', label: 'GoK Capitation', icon: BuildingLibraryIcon },
         { id: 'bursaries', label: 'NG-CDF Bursaries', icon: ScaleIcon },
-        { id: 'goods_in_lieu', label: 'Goods in Lieu', icon: DocumentTextIcon },
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
         { id: 'transfers', label: 'Inter-Account Transfers', icon: ArrowsRightLeftIcon },
         { id: 'requisitions', label: 'Requisitions & LPOs', icon: ClipboardListIcon },
@@ -1033,13 +1032,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     };
 
     useEffect(() => {
-        if (activeTab === 'goods_in_lieu') {
+        if (activeTab === 'goods_in_lieu' || (activeTab === 'receipts' && receiptsMainTab === 'payment_in_kind')) {
             fetchGoodsProposals();
         }
         if (activeTab === 'gok_capitation') {
             fetchGokCapLogs();
         }
-    }, [activeTab]);
+    }, [activeTab, receiptsMainTab]);
 
     const [retailStores, setRetailStores] = useState<any[]>([]);
     const [inventory, setInventory] = useState<any[]>([]);
@@ -1133,7 +1132,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isReconciling, setIsReconciling] = useState(false);
 
     // Other Income states
-    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bursaries'>('student_fees');
+    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bursaries' | 'payment_in_kind'>('student_fees');
 
     // Bulk Bursary Disbursement states
     const [bulkBursaryDonor, setBulkBursaryDonor] = useState('');
@@ -2519,7 +2518,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         if (item.id === 'gok_capitation') return isEdu;
                         if (item.id === 'bursaries') return isEdu;
                         if (item.id === 'wizard') return isEdu;
-                        if (item.id === 'goods_in_lieu') return isEdu;
                         if (item.id === 'billing') return isDrivingSchool;
                         return true;
                     }).map(item => (
@@ -2585,6 +2583,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 [
                                     { id: 'student_fees', label: 'Student Fees', icon: CreditCardIcon },
                                     { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon },
+                                    { id: 'payment_in_kind', label: 'Payment in Kind', icon: DocumentTextIcon },
                                     { id: 'other_income', label: 'Other Income', icon: BanknotesIcon },
                                 ].map(sub => (
                                     <button
@@ -3074,7 +3073,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
-                {activeTab === 'receipts' && receiptsMainTab !== 'bursaries' && (
+                {activeTab === 'receipts' && receiptsMainTab !== 'bursaries' && receiptsMainTab !== 'payment_in_kind' && (
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 text-left animate-in fade-in duration-300">
                         {/* Left & Middle columns: Receipts list */}
                         <div className="lg:col-span-3 space-y-6">
@@ -3673,6 +3672,132 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                     );
                 })()}
+
+                {activeTab === 'receipts' && receiptsMainTab === 'payment_in_kind' && (
+                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6 text-left animate-in fade-in duration-300">
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Payment in Kind Clearance Dashboard</h3>
+                            <p className="text-sm text-slate-500 mt-1">Review parent/student goods deliveries confirmed by the Storekeeper. Approve them to credit student ledgers and issue parent receipts.</p>
+                        </div>
+
+                        {isLoadingGoodsProposals ? (
+                            <div className="flex justify-center p-12">
+                                <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                        ) : goodsProposals.length === 0 ? (
+                            <p className="text-center text-xs text-slate-400 py-12 bg-slate-50 dark:bg-slate-800 rounded-2xl">No payment in kind proposals registered in the database.</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-slate-100 dark:border-slate-800">
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item Description</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Quantity</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Value</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {goodsProposals.map(p => {
+                                            const student = props.students.find((s: any) => s.id === p.studentId);
+                                            return (
+                                                <tr key={p.id} className="border-b border-slate-50 dark:border-slate-800/40 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                                    <td className="py-4 px-4">
+                                                        <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">{student?.name || 'Unknown Student'}</div>
+                                                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{student?.admissionNumber || 'No Adm'}</div>
+                                                    </td>
+                                                    <td className="py-4 px-4 text-xs font-bold text-slate-700 dark:text-slate-300">{p.itemName}</td>
+                                                    <td className="py-4 px-4 text-xs font-bold text-slate-600 dark:text-slate-400">{p.quantity} {p.unit}</td>
+                                                    <td className="py-4 px-4 text-xs font-black text-slate-900 dark:text-white">KSh {p.totalValue.toLocaleString()}</td>
+                                                    <td className="py-4 px-4">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                                            p.status === 'credited' 
+                                                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-450 border-emerald-200 dark:border-emerald-500/20' 
+                                                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-450 border-amber-200 dark:border-amber-500/20'
+                                                        }`}>
+                                                            {p.status === 'credited' ? 'Credited' : 'Pending Clearance'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-4 px-4 text-right">
+                                                        {p.status === 'pending' ? (
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (!confirm("Are you sure you want to approve this delivery and credit the student fees for KES " + p.totalValue.toLocaleString() + "?")) return;
+                                                                    try {
+                                                                        // 1. Save Finance Receipt
+                                                                        const instId = props.institution.id;
+                                                                        let receiptNumber = `REC-GOODS-${Date.now().toString().slice(-6)}`;
+                                                                        try {
+                                                                            const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+                                                                            const receiptConfig = configs.find(c => c.documentType === 'receipt' || c.document_type === 'receipt');
+                                                                            if (receiptConfig) {
+                                                                                const nextNum = Number(receiptConfig.nextNumber || receiptConfig.next_number || 1001);
+                                                                                const prefix = receiptConfig.prefix || 'REC-';
+                                                                                receiptNumber = `${prefix}${nextNum}`;
+                                                                                
+                                                                                await apiService.updateModuleRecord('finance_numbering_configs', receiptConfig.id, {
+                                                                                    ...receiptConfig,
+                                                                                    nextNumber: nextNum + 1,
+                                                                                    next_number: nextNum + 1,
+                                                                                    updatedAt: new Date().toISOString(),
+                                                                                    updated_at: new Date().toISOString()
+                                                                                });
+                                                                            }
+                                                                        } catch (err) {
+                                                                            console.error("Failed to generate custom receipt number for Goods in Lieu:", err);
+                                                                        }
+
+                                                                        const receipt = {
+                                                                            id: `rcpt_goods_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                                                                            receipt_number: receiptNumber,
+                                                                            institution_id: instId,
+                                                                            payment_date: new Date().toISOString().split('T')[0],
+                                                                            amount_paid: Number(p.totalValue),
+                                                                            paid_for: `Payment via supply of ${p.quantity} ${p.unit} of ${p.itemName}`,
+                                                                            payment_method: 'Goods In Lieu',
+                                                                            student_id: p.studentId
+                                                                        };
+                                                                        await apiService.saveModuleRecord('receipts', receipt);
+
+                                                                        // 2. Mark proposal as credited
+                                                                        const updatedProposal = {
+                                                                            ...p,
+                                                                            status: 'credited' as const,
+                                                                            updatedAt: new Date().toISOString()
+                                                                        };
+                                                                        await apiService.saveModuleRecord('fee_goods_proposals', updatedProposal);
+
+                                                                        alert("Delivery cleared successfully! Official receipt generated and parent credited.");
+                                                                        fetchGoodsProposals();
+                                                                        if (props.onRefreshData) {
+                                                                            await props.onRefreshData();
+                                                                        }
+                                                                    } catch (e) {
+                                                                        console.error("Failed to clear goods payment:", e);
+                                                                        alert("Failed to clear goods payment.");
+                                                                    }
+                                                                }}
+                                                                className="px-4 py-2 bg-indigo-605 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+                                                            >
+                                                                Approve & Issue Receipt
+                                                            </button>
+                                                        ) : p.status === 'credited' ? (
+                                                            <span className="text-[10px] text-slate-400 font-bold italic">Cleared & Receipt Issued</span>
+                                                        ) : (
+                                                            <span className="text-[10px] text-slate-400 font-bold">—</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {activeTab === 'wizard' && (
                     <AutomatedBilling 
@@ -5317,141 +5442,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
-                {activeTab === 'goods_in_lieu' && (
-                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-6 text-left animate-in fade-in duration-300">
-                        <div>
-                            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Goods Payment Clearance Dashboard</h3>
-                            <p className="text-sm text-slate-500 mt-1">Review parent/student goods deliveries confirmed by the Storekeeper. Approve them to credit student ledgers and issue parent receipts.</p>
-                        </div>
-
-                        {isLoadingGoodsProposals ? (
-                            <div className="flex justify-center p-12">
-                                <div className="w-10 h-10 border-4 border-indigo-650 border-t-transparent rounded-full animate-spin" />
-                            </div>
-                        ) : goodsProposals.length === 0 ? (
-                            <p className="text-center text-xs text-slate-400 py-12 bg-slate-50 rounded-2xl">No goods payment proposals registered in the database.</p>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="border-b text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                            <th className="py-4">Student</th>
-                                            <th className="py-4">Item Delivered</th>
-                                            <th className="py-4 text-right">Quantity</th>
-                                            <th className="py-4 text-right">Valuation (KES)</th>
-                                            <th className="py-4 text-center">Status</th>
-                                            <th className="py-4 text-center">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {goodsProposals.map((p: any) => {
-                                            const studentUser = allUsers.find(u => u.id === p.studentId);
-                                            const statusColors: Record<string, string> = {
-                                                pending: 'bg-amber-105 text-amber-800 border-amber-200',
-                                                approved: 'bg-indigo-150 text-indigo-800 border-indigo-200',
-                                                delivered: 'bg-sky-100 text-sky-850 border-sky-200',
-                                                credited: 'bg-emerald-100 text-emerald-850 border-emerald-200',
-                                                rejected: 'bg-rose-100 text-rose-855 border-rose-200'
-                                            };
-                                            return (
-                                                <tr key={p.id} className="border-b hover:bg-slate-50/50 transition-colors">
-                                                    <td className="py-4 font-bold text-xs text-slate-900">
-                                                        <p className="font-extrabold">{studentUser?.name || 'Unknown Student'}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold">{studentUser?.email || ''}</p>
-                                                    </td>
-                                                    <td className="py-4 text-xs font-medium text-slate-700">
-                                                        <p className="font-extrabold text-slate-900">{p.itemName}</p>
-                                                        {p.notes && <p className="text-[10px] text-slate-400 italic mt-0.5">"{p.notes}"</p>}
-                                                    </td>
-                                                    <td className="py-4 text-xs font-bold text-slate-750 text-right">
-                                                        {p.quantity} {p.unit}
-                                                    </td>
-                                                    <td className="py-4 text-xs font-black text-slate-800 text-right">
-                                                        KES {p.totalValue?.toLocaleString()}
-                                                    </td>
-                                                    <td className="py-4 text-center">
-                                                        <span className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border ${statusColors[p.status] || 'bg-slate-55'}`}>
-                                                            {p.status === 'delivered' ? 'delivered (pending clearance)' : p.status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-4 text-center">
-                                                        {p.status === 'delivered' ? (
-                                                            <button
-                                                                onClick={async () => {
-                                                                    if (!confirm("Are you sure you want to approve this delivery and issue a fee receipt for KES " + p.totalValue.toLocaleString() + "?")) return;
-                                                                    try {
-                                                                        // 1. Save Finance Receipt
-                                                                        const instId = props.institution.id;
-                                                                        let receiptNumber = `REC-GOODS-${Date.now().toString().slice(-6)}`;
-                                                                        try {
-                                                                            const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
-                                                                            const receiptConfig = configs.find(c => c.documentType === 'receipt' || c.document_type === 'receipt');
-                                                                            if (receiptConfig) {
-                                                                                const nextNum = Number(receiptConfig.nextNumber || receiptConfig.next_number || 1001);
-                                                                                const prefix = receiptConfig.prefix || 'REC-';
-                                                                                receiptNumber = `${prefix}${nextNum}`;
-                                                                                
-                                                                                await apiService.updateModuleRecord('finance_numbering_configs', receiptConfig.id, {
-                                                                                    ...receiptConfig,
-                                                                                    nextNumber: nextNum + 1,
-                                                                                    next_number: nextNum + 1,
-                                                                                    updatedAt: new Date().toISOString(),
-                                                                                    updated_at: new Date().toISOString()
-                                                                                });
-                                                                            }
-                                                                        } catch (err) {
-                                                                            console.error("Failed to generate custom receipt number for Goods in Lieu:", err);
-                                                                        }
-
-                                                                        const receipt = {
-                                                                            id: `rcpt_goods_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-                                                                            receipt_number: receiptNumber,
-                                                                            institution_id: instId,
-                                                                            payment_date: new Date().toISOString().split('T')[0],
-                                                                            amount_paid: Number(p.totalValue),
-                                                                            paid_for: `Payment via supply of ${p.quantity} ${p.unit} of ${p.itemName}`,
-                                                                            payment_method: 'Goods In Lieu',
-                                                                            student_id: p.studentId
-                                                                        };
-                                                                        await apiService.saveModuleRecord('receipts', receipt);
-
-                                                                        // 2. Mark proposal as credited
-                                                                        const updatedProposal = {
-                                                                            ...p,
-                                                                            status: 'credited' as const,
-                                                                            updatedAt: new Date().toISOString()
-                                                                        };
-                                                                        await apiService.saveModuleRecord('fee_goods_proposals', updatedProposal);
-
-                                                                        alert("Delivery cleared successfully! Official receipt generated and parent credited.");
-                                                                        fetchGoodsProposals();
-                                                                        if (props.onRefreshData) {
-                                                                            await props.onRefreshData();
-                                                                        }
-                                                                    } catch (e) {
-                                                                        console.error("Failed to clear goods payment:", e);
-                                                                        alert("Failed to clear goods payment.");
-                                                                    }
-                                                                }}
-                                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
-                                                            >
-                                                                Approve & Issue Receipt
-                                                            </button>
-                                                        ) : p.status === 'credited' ? (
-                                                            <span className="text-[10px] text-slate-400 font-bold italic">Cleared & Receipt Issued</span>
-                                                        ) : (
-                                                            <span className="text-[10px] text-slate-400 font-bold">—</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {activeTab === 'audit' && (
                     <div className="space-y-6 animate-in fade-in duration-300">
