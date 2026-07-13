@@ -124,7 +124,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules')) {
+            if (id.includes('node_modules') || id.includes('src/services/') || id.includes('src/utils/') || id.includes('src/lib/')) {
               return 'vendor';
             }
             if (id.includes('src/components/icons')) {
