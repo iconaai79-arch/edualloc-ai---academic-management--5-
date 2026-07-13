@@ -29,6 +29,7 @@ import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { AnnualReportWizard } from './AnnualReportWizard';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import { StudentEnrollmentManager } from '../common/StudentEnrollmentManager';
+import { CommunicationsManager } from '../CommunicationsManager';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -87,6 +88,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     
     // Dynamic Tabs based on Institution Type
     const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers'>('home');
+    const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution'>('all_balances');
@@ -2657,175 +2659,277 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         balance: data.reduce((s, st) => s + st.totals.balance, 0),
                     })).sort((a, b) => b.balance - a.balance);
 
-                    return (
-                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            {/* Welcome Banner */}
-                            <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-purple-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-500/30">
-                                <div className="absolute -top-12 -right-12 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
-                                <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl" />
-                                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                                    <div>
-                                        <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Finance Command Centre</p>
-                                        <h2 className="text-3xl font-black tracking-tight">{props.institution.name}</h2>
-                                        <p className="text-indigo-200 text-sm font-medium mt-1">Live financial intelligence — {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-2">
-                                        <div className="text-right">
-                                            <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest">Collection Rate</p>
-                                            <p className="text-5xl font-black">{collectionRate.toFixed(1)}<span className="text-2xl text-indigo-200">%</span></p>
-                                        </div>
-                                        <div className="w-40 bg-white/20 rounded-full h-2">
-                                            <div className="h-2 rounded-full bg-emerald-400 transition-all duration-1000" style={{ width: `${Math.min(collectionRate, 100)}%` }} />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                    const homeSubTabs = [
+                        { id: 'registry', label: 'Students Registry', icon: '🎓' },
+                        { id: 'communication', label: 'Communication Hub', icon: '💬' },
+                        { id: 'reports', label: 'Financial Reports', icon: '📊' },
+                        { id: 'dashboard', label: 'Financial Dashboard', icon: '💰' },
+                    ];
 
-                            {/* KPI Cards Row */}
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-                                {[
-                                    { label: 'Total Billed', value: totalBilled, color: 'indigo', icon: '📋', sub: `${mappedInvoices.length} invoices` },
-                                    { label: 'Collected', value: totalCollected, color: 'emerald', icon: '✅', sub: `${mappedReceipts.length} receipts` },
-                                    { label: 'Outstanding', value: outstanding, color: 'rose', icon: '⚠️', sub: `${pendingInvoices} pending` },
-                                    { label: 'Net Cash Flow', value: netCashFlow, color: netCashFlow >= 0 ? 'teal' : 'orange', icon: netCashFlow >= 0 ? '📈' : '📉', sub: `After KSh ${totalExpenses.toLocaleString()} expenses` },
-                                ].map((kpi, i) => (
-                                    <div key={i} className={`bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <span className="text-2xl">{kpi.icon}</span>
-                                            <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-widest bg-${kpi.color}-50 text-${kpi.color}-600`}>{kpi.color === 'emerald' || kpi.color === 'teal' ? '▲' : '▼'}</span>
-                                        </div>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{kpi.label}</p>
-                                        <p className="text-xl font-black text-slate-900 dark:text-white">KSh {kpi.value.toLocaleString()}</p>
-                                        <p className="text-[10px] font-medium text-slate-400 mt-2">{kpi.sub}</p>
-                                    </div>
+                    return (
+                        <div className="space-y-6">
+                            {/* Horizontal Sub-tabs menu */}
+                            <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
+                                {homeSubTabs.map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => setHomeSubTab(tab.id as any)}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
+                                            homeSubTab === tab.id
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                        }`}
+                                    >
+                                        <span>{tab.icon}</span>
+                                        {tab.label}
+                                    </button>
                                 ))}
                             </div>
 
-                            {/* Chart + Class Breakdown Row */}
-                            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                                {/* Monthly Bar Chart */}
-                                <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                    <div className="flex items-center justify-between mb-6">
-                                        <div>
-                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">6-Month Revenue Trend</h4>
-                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Billed vs Collected</p>
-                                        </div>
-                                        <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
-                                            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" />Billed</span>
-                                            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-400 inline-block" />Collected</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-end gap-3 h-44">
-                                        {monthlyData.map((m, i) => (
-                                            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                                                <div className="w-full flex items-end justify-center gap-1" style={{ height: '140px' }}>
-                                                    <div className="flex-1 bg-indigo-100 dark:bg-indigo-900/40 rounded-t-lg transition-all duration-700 hover:bg-indigo-200" style={{ height: `${(m.billed / maxBar) * 100}%`, minHeight: m.billed > 0 ? '4px' : '0' }} title={`Billed: KSh ${m.billed.toLocaleString()}`} />
-                                                    <div className="flex-1 bg-emerald-400 rounded-t-lg transition-all duration-700 hover:bg-emerald-500" style={{ height: `${(m.collected / maxBar) * 100}%`, minHeight: m.collected > 0 ? '4px' : '0' }} title={`Collected: KSh ${m.collected.toLocaleString()}`} />
-                                                </div>
-                                                <span className="text-[10px] font-black text-slate-400">{m.label}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+                            {/* View contents based on active sub-tab */}
+                            {homeSubTab === 'registry' && (
+                                <div className="animate-in fade-in duration-300">
+                                    <StudentEnrollmentManager
+                                        context="academic"
+                                        currentInstitution={props.institution}
+                                        activeTab="students"
+                                        companyDetails={props.companyDetails}
+                                        currentUser={props.currentUser}
+                                        onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
+                                    />
                                 </div>
+                            )}
 
-                                {/* Top Classes by Outstanding */}
-                                <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Outstanding by Class</h4>
-                                    <p className="text-[10px] text-slate-400 font-medium mb-6">Sorted highest balance first</p>
-                                    <div className="space-y-4">
-                                        {classBreakdown.length === 0 ? (
-                                            <p className="text-xs text-slate-400 font-medium text-center py-6">No class data available</p>
-                                        ) : classBreakdown.slice(0, 5).map((c, i) => {
-                                            const pct = c.invoiced > 0 ? (c.paid / c.invoiced) * 100 : 0;
-                                            return (
-                                                <div key={i} className="space-y-1">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{c.cls}</span>
-                                                        <span className="text-[10px] font-black text-rose-600">KSh {c.balance.toLocaleString()}</span>
-                                                    </div>
-                                                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
-                                                        <div className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${pct}%` }} />
-                                                    </div>
-                                                    <p className="text-[9px] text-slate-400 font-medium">{pct.toFixed(0)}% collected · {c.count} students</p>
-                                                </div>
+                            {homeSubTab === 'communication' && (
+                                <div className="animate-in fade-in duration-300">
+                                    <CommunicationsManager
+                                        users={props.users || []}
+                                        departments={[]}
+                                        courses={props.courses || []}
+                                        institutions={[props.institution]}
+                                        onSendSms={async (recipient, message, config, units, instId) => {
+                                            return apiService.sendSms(
+                                                Array.isArray(recipient) ? recipient.join(',') : recipient, 
+                                                message, 
+                                                config, 
+                                                units, 
+                                                instId
                                             );
-                                        })}
-                                    </div>
+                                        }}
+                                        currentUser={props.currentUser}
+                                        smsBalance={props.institution.smsBalance || 0}
+                                        currentInstitution={props.institution}
+                                        smsConfig={props.institution.smsConfig}
+                                        onRefreshData={props.onRefreshData}
+                                        companyDetails={props.companyDetails}
+                                        transactions={props.transactions || []}
+                                    />
                                 </div>
-                            </div>
+                            )}
 
-                            {/* Recent Receipts + Quick Links */}
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                {/* Recent Receipts */}
-                                <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Receipts</h4>
-                                        <button onClick={() => setActiveTab('receipts')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">View All →</button>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {recentReceipts.length === 0 ? (
-                                            <p className="text-xs text-slate-400 font-medium text-center py-6">No receipts yet</p>
-                                        ) : recentReceipts.map((r: any, i: number) => (
-                                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                                                        <span className="text-xs">✓</span>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[11px] font-black text-slate-800 dark:text-white">{r.studentName || r.payerName || 'Student'}</p>
-                                                        <p className="text-[10px] text-slate-400 font-medium">{r.receiptNumber || r.id?.slice(-8)}</p>
-                                                    </div>
-                                                </div>
-                                                <span className="text-sm font-black text-emerald-600">KSh {(r.amountPaid || 0).toLocaleString()}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Quick Navigation */}
-                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Quick Access</h4>
-                                    <div className="space-y-3">
+                            {homeSubTab === 'reports' && (
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 text-center space-y-6 animate-in fade-in duration-300">
+                                    <h4 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-tight">Financial Reports Dashboard</h4>
+                                    <p className="text-xs text-slate-500 max-w-md mx-auto">Select a report view below to open it in the official financial statement & ledger command center.</p>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-4xl mx-auto pt-4">
                                         {[
-                                            { label: 'Students & Invoices', tab: 'billing', emoji: '🎓', color: 'bg-indigo-50 text-indigo-700' },
-                                            { label: 'Fee Balances', tab: 'balances', emoji: '⚖️', color: 'bg-rose-50 text-rose-700' },
-                                            { label: 'Receipts', tab: 'receipts', emoji: '🧾', color: 'bg-emerald-50 text-emerald-700' },
-                                            { label: 'Billing Wizard', tab: 'wizard', emoji: '⚡', color: 'bg-amber-50 text-amber-700' },
-                                            { label: 'Expense Governance', tab: 'expenses', emoji: '💸', color: 'bg-orange-50 text-orange-700' },
-                                            { label: 'HR & Payroll', tab: 'payroll', emoji: '👔', color: 'bg-teal-50 text-teal-700' },
-                                        ].map((link, i) => (
-                                            <button key={i} onClick={() => setActiveTab(link.tab as any)} className={`w-full flex items-center gap-3 p-3 rounded-2xl ${link.color} hover:scale-[1.02] transition-all duration-200 text-left`}>
-                                                <span className="text-lg">{link.emoji}</span>
-                                                <span className="text-[11px] font-black uppercase tracking-tight">{link.label}</span>
-                                                <span className="ml-auto text-xs opacity-50">→</span>
+                                            { id: 'collection', label: 'Fee Collection', icon: '📥' },
+                                            { id: 'outstanding', label: 'Outstanding Balances', icon: '⚠️' },
+                                            { id: 'ledger', label: 'Receipts Ledger', icon: '🧾' },
+                                            { id: 'expenses', label: 'Expense Summary', icon: '💸' },
+                                            { id: 'payroll_summary', label: 'Payroll Summary', icon: '👔' },
+                                            { id: 'annual', label: 'Annual Report', icon: '📊' },
+                                            { id: 'student_statement', label: 'Student Statement', icon: '🎓' },
+                                        ].map(item => (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setReportsSubTab(item.id as any);
+                                                    setActiveTab('reports');
+                                                }}
+                                                className="flex flex-col items-center justify-center p-5 bg-slate-50 hover:bg-indigo-50 dark:bg-slate-850 dark:hover:bg-indigo-950/30 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 transition-all duration-200 group hover:-translate-y-0.5"
+                                            >
+                                                <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{item.icon}</span>
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-650 dark:text-slate-300 text-center">{item.label}</span>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
-                            {/* Financial Health Scoreboard */}
-                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Financial Health Indicators</h4>
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                                    {[
-                                        { label: 'Collection Rate', value: collectionRate, suffix: '%', good: collectionRate >= 80, bar: true },
-                                        { label: 'Avg. per Student', value: props.students.length > 0 ? Math.round(totalCollected / props.students.length) : 0, suffix: ' KSh', good: true, bar: false },
-                                        { label: 'Total Students', value: props.students.length, suffix: '', good: true, bar: false },
-                                        { label: 'Expense Ratio', value: totalCollected > 0 ? Math.round((totalExpenses / totalCollected) * 100) : 0, suffix: '%', good: totalCollected > 0 && (totalExpenses / totalCollected) < 0.5, bar: true },
-                                    ].map((metric, i) => (
-                                        <div key={i} className="space-y-3">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{metric.label}</p>
-                                            <p className={`text-2xl font-black ${metric.good ? 'text-emerald-600' : 'text-rose-600'}`}>{metric.value.toLocaleString()}{metric.suffix}</p>
-                                            {metric.bar && (
-                                                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
-                                                    <div className={`h-2 rounded-full transition-all duration-700 ${metric.good ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${Math.min(metric.value as number, 100)}%` }} />
+                            {homeSubTab === 'dashboard' && (
+                                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    {/* Welcome Banner */}
+                                    <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-purple-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-500/30">
+                                        <div className="absolute -top-12 -right-12 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
+                                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl" />
+                                        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                            <div>
+                                                <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Finance Command Centre</p>
+                                                <h2 className="text-3xl font-black tracking-tight">{props.institution.name}</h2>
+                                                <p className="text-indigo-200 text-sm font-medium mt-1">Live financial intelligence — {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-2">
+                                                <div className="text-right">
+                                                    <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest">Collection Rate</p>
+                                                    <p className="text-5xl font-black">{collectionRate.toFixed(1)}<span className="text-2xl text-indigo-200">%</span></p>
                                                 </div>
-                                            )}
+                                                <div className="w-40 bg-white/20 rounded-full h-2">
+                                                    <div className="h-2 rounded-full bg-emerald-400 transition-all duration-1000" style={{ width: `${Math.min(collectionRate, 100)}%` }} />
+                                                </div>
+                                            </div>
                                         </div>
-                                    ))}
+                                    </div>
+
+                                    {/* KPI Cards Row */}
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+                                        {[
+                                            { label: 'Total Billed', value: totalBilled, color: 'indigo', icon: '📋', sub: `${mappedInvoices.length} invoices` },
+                                            { label: 'Collected', value: totalCollected, color: 'emerald', icon: '✅', sub: `${mappedReceipts.length} receipts` },
+                                            { label: 'Outstanding', value: outstanding, color: 'rose', icon: '⚠️', sub: `${pendingInvoices} pending` },
+                                            { label: 'Net Cash Flow', value: netCashFlow, color: netCashFlow >= 0 ? 'teal' : 'orange', icon: netCashFlow >= 0 ? '📈' : '📉', sub: `After KSh ${totalExpenses.toLocaleString()} expenses` },
+                                        ].map((kpi, i) => (
+                                            <div key={i} className={`bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}>
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <span className="text-2xl">{kpi.icon}</span>
+                                                    <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-widest bg-${kpi.color}-50 text-${kpi.color}-600`}>{kpi.color === 'emerald' || kpi.color === 'teal' ? '▲' : '▼'}</span>
+                                                </div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{kpi.label}</p>
+                                                <p className="text-xl font-black text-slate-900 dark:text-white">KSh {kpi.value.toLocaleString()}</p>
+                                                <p className="text-[10px] font-medium text-slate-400 mt-2">{kpi.sub}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Chart + Class Breakdown Row */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                                        {/* Monthly Bar Chart */}
+                                        <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                            <div className="flex items-center justify-between mb-6">
+                                                <div>
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">6-Month Revenue Trend</h4>
+                                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">Billed vs Collected</p>
+                                                </div>
+                                                <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
+                                                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-500 inline-block" />Billed</span>
+                                                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-400 inline-block" />Collected</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-end gap-3 h-44">
+                                                {monthlyData.map((m, i) => (
+                                                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                                                        <div className="w-full flex items-end justify-center gap-1" style={{ height: '140px' }}>
+                                                            <div className="flex-1 bg-indigo-100 dark:bg-indigo-900/40 rounded-t-lg transition-all duration-700 hover:bg-indigo-200" style={{ height: `${(m.billed / maxBar) * 100}%`, minHeight: m.billed > 0 ? '4px' : '0' }} title={`Billed: KSh ${m.billed.toLocaleString()}`} />
+                                                            <div className="flex-1 bg-emerald-400 rounded-t-lg transition-all duration-700 hover:bg-emerald-500" style={{ height: `${(m.collected / maxBar) * 100}%`, minHeight: m.collected > 0 ? '4px' : '0' }} title={`Collected: KSh ${m.collected.toLocaleString()}`} />
+                                                        </div>
+                                                        <span className="text-[10px] font-black text-slate-400">{m.label}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Top Classes by Outstanding */}
+                                        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Outstanding by Class</h4>
+                                            <p className="text-[10px] text-slate-400 font-medium mb-6">Sorted highest balance first</p>
+                                            <div className="space-y-4">
+                                                {classBreakdown.length === 0 ? (
+                                                    <p className="text-xs text-slate-400 font-medium text-center py-6">No class data available</p>
+                                                ) : classBreakdown.slice(0, 5).map((c, i) => {
+                                                    const pct = c.invoiced > 0 ? (c.paid / c.invoiced) * 100 : 0;
+                                                    return (
+                                                        <div key={i} className="space-y-1">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{c.cls}</span>
+                                                                <span className="text-[10px] font-black text-rose-600">KSh {c.balance.toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
+                                                                <div className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${pct}%` }} />
+                                                            </div>
+                                                            <p className="text-[9px] text-slate-400 font-medium">{pct.toFixed(0)}% collected · {c.count} students</p>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Recent Receipts + Quick Links */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                        {/* Recent Receipts */}
+                                        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Receipts</h4>
+                                                <button onClick={() => setActiveTab('receipts')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">View All →</button>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {recentReceipts.length === 0 ? (
+                                                    <p className="text-xs text-slate-400 font-medium text-center py-6">No receipts yet</p>
+                                                ) : recentReceipts.map((r: any, i: number) => (
+                                                    <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                                                                <span className="text-xs">✓</span>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] font-black text-slate-800 dark:text-white">{r.studentName || r.payerName || 'Student'}</p>
+                                                                <p className="text-[10px] text-slate-400 font-medium">{r.receiptNumber || r.id?.slice(-8)}</p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-sm font-black text-emerald-600">KSh {(r.amountPaid || 0).toLocaleString()}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Quick Navigation */}
+                                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Quick Access</h4>
+                                            <div className="space-y-3">
+                                                {[
+                                                    { label: 'Students & Invoices', tab: 'billing', emoji: '🎓', color: 'bg-indigo-50 text-indigo-700' },
+                                                    { label: 'Fee Balances', tab: 'balances', emoji: '⚖️', color: 'bg-rose-50 text-rose-700' },
+                                                    { label: 'Receipts', tab: 'receipts', emoji: '🧾', color: 'bg-emerald-50 text-emerald-700' },
+                                                    { label: 'Billing Wizard', tab: 'wizard', emoji: '⚡', color: 'bg-amber-50 text-amber-700' },
+                                                    { label: 'Expense Governance', tab: 'expenses', emoji: '💸', color: 'bg-orange-50 text-orange-700' },
+                                                    { label: 'HR & Payroll', tab: 'payroll', emoji: '👔', color: 'bg-teal-50 text-teal-700' },
+                                                ].map((link, i) => (
+                                                    <button key={i} onClick={() => setActiveTab(link.tab as any)} className={`w-full flex items-center gap-3 p-3 rounded-2xl ${link.color} hover:scale-[1.02] transition-all duration-200 text-left`}>
+                                                        <span className="text-lg">{link.emoji}</span>
+                                                        <span className="text-[11px] font-black uppercase tracking-tight">{link.label}</span>
+                                                        <span className="ml-auto text-xs opacity-50">→</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Financial Health Scoreboard */}
+                                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Financial Health Indicators</h4>
+                                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                                            {[
+                                                { label: 'Collection Rate', value: collectionRate, suffix: '%', good: collectionRate >= 80, bar: true },
+                                                { label: 'Avg. per Student', value: props.students.length > 0 ? Math.round(totalCollected / props.students.length) : 0, suffix: ' KSh', good: true, bar: false },
+                                                { label: 'Total Students', value: props.students.length, suffix: '', good: true, bar: false },
+                                                { label: 'Expense Ratio', value: totalCollected > 0 ? Math.round((totalExpenses / totalCollected) * 100) : 0, suffix: '%', good: totalCollected > 0 && (totalExpenses / totalCollected) < 0.5, bar: true },
+                                            ].map((metric, i) => (
+                                                <div key={i} className="space-y-3">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{metric.label}</p>
+                                                    <p className={`text-2xl font-black ${metric.good ? 'text-emerald-600' : 'text-rose-600'}`}>{metric.value.toLocaleString()}{metric.suffix}</p>
+                                                    {metric.bar && (
+                                                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                                                            <div className={`h-2 rounded-full transition-all duration-700 ${metric.good ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${Math.min(metric.value as number, 100)}%` }} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     );
                 })()}
