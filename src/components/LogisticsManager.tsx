@@ -92,11 +92,26 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         ));
     };
     // ── TRANSPORT BILLING STATE ────────────────────────────────────────────────
-    const [routeFeeSetting, setRouteFeeSetting] = useState<RouteFeeSetting[]>([
-        { routeId: 'route_1', routeName: 'Route A – Kilimani & Hurlingham', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
-        { routeId: 'route_2', routeName: 'Route B – Langata & Karen',        termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
-        { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
-    ]);
+    const [routeFeeSetting, setRouteFeeSetting] = useState<RouteFeeSetting[]>(() => {
+        const saved = localStorage.getItem('eduai_transport_route_fee_settings');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            } catch (e) {
+                console.error('Error parsing route settings:', e);
+            }
+        }
+        return [
+            { routeId: 'route_1', routeName: 'Route A – Kilimani & Hurlingham', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
+            { routeId: 'route_2', routeName: 'Route B – Langata & Karen',        termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
+            { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
+        ];
+    });
+
+    React.useEffect(() => {
+        localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(routeFeeSetting));
+    }, [routeFeeSetting]);
 
     const [transportInvoices, setTransportInvoices] = useState<TransportFeeInvoice[]>(() => {
         const saved = localStorage.getItem('eduai_transport_fee_invoices');
@@ -198,7 +213,22 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     ]);
 
     // Student Commute Preferences: Maps student.id -> routeId & preference
-    const [studentCommutePrefs, setStudentCommutePrefs] = useState<Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }>>({});
+    const [studentCommutePrefs, setStudentCommutePrefs] = useState<Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }>>(() => {
+        const saved = localStorage.getItem('eduai_student_commute_prefs');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            } catch (e) {
+                console.error('Error parsing student commute preferences:', e);
+            }
+        }
+        return {};
+    });
+
+    React.useEffect(() => {
+        localStorage.setItem('eduai_student_commute_prefs', JSON.stringify(studentCommutePrefs));
+    }, [studentCommutePrefs]);
 
     // Route Registration Form Modal States
     const [isAddRouteModalOpen, setIsAddRouteModalOpen] = useState(false);
@@ -214,6 +244,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     // Automatically map existing students to demo routes to populate initial dashboard tables
     React.useEffect(() => {
         if (!isEduTransport) return;
+        const saved = localStorage.getItem('eduai_student_commute_prefs');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed && Object.keys(parsed).length > 0) {
+                    setStudentCommutePrefs(parsed);
+                    return;
+                }
+            } catch (e) {}
+        }
         const initialPrefs: typeof studentCommutePrefs = {};
         students.forEach((student, index) => {
             const routes = ['route_1', 'route_2', 'route_3'];

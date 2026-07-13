@@ -46,6 +46,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [selectedClass, setSelectedClass] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState('');
+    const [includeTransport, setIncludeTransport] = useState(false);
 
     // Boarding student registry status mapping
     const [bedAllocations, setBedAllocations] = useState<any[]>([]);
@@ -111,6 +112,30 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         });
     }, [feeStructures, selectedAY, selectedSem, selectedSemName]);
 
+    const routeFeeSettings = useMemo(() => {
+        const saved = localStorage.getItem('eduai_transport_route_fee_settings');
+        return saved ? JSON.parse(saved) : [
+            { routeId: 'route_1', routeName: 'Route A - Kilimani & Hurlingham', termFee: 8500, monthlyFee: 3000 },
+            { routeId: 'route_2', routeName: 'Route B - Langata & Karen', termFee: 12000, monthlyFee: 4200 },
+            { routeId: 'route_3', routeName: 'Route C - Westlands & Spring Valley', termFee: 6000, monthlyFee: 2200 },
+        ];
+    }, []);
+
+    const studentCommutePrefs = useMemo(() => {
+        const saved = localStorage.getItem('eduai_student_commute_prefs');
+        if (saved) return JSON.parse(saved);
+        const initialPrefs: Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }> = {};
+        students.forEach((student, index) => {
+            const routes = ['route_1', 'route_2', 'route_3'];
+            const prefs: ('round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none')[] = ['round_trip', 'one_way_pickup', 'one_way_drop'];
+            initialPrefs[student.id] = {
+                routeId: routes[index % routes.length],
+                preference: prefs[index % prefs.length]
+            };
+        });
+        return initialPrefs;
+    }, [students]);
+
     const totalProjectedRevenue = billingStudents.reduce((sum, s) => {
         const boarder = isStudentBoarder(s);
         const studentFeeStructures = activeFeeStructures.filter(f => {
@@ -126,7 +151,20 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
             return true;
         });
-        return sum + studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
+        let studentSum = studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
+        
+        if (includeTransport) {
+            const pref = studentCommutePrefs[s.id];
+            if (pref && pref.preference !== 'none') {
+                const route = routeFeeSettings.find(r => r.routeId === pref.routeId);
+                if (route) {
+                    const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
+                    studentSum += Math.round(route.termFee * multiplier);
+                }
+            }
+        }
+        
+        return sum + studentSum;
     }, 0);
 
     const isTargetValid = useMemo(() => {
@@ -177,8 +215,35 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
                 return true;
             });
-            const totalAmount = studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
+            const baseAmount = studentFeeStructures.reduce((acc, f) => acc + Number(f.amount || (f as any).allocatedAmount || 0), 0);
             
+            const invoiceItems = studentFeeStructures.map(f => ({
+                description: f.name,
+                quantity: 1,
+                unitPrice: Number(f.amount || (f as any).allocatedAmount || 0),
+                amount: Number(f.amount || (f as any).allocatedAmount || 0)
+            }));
+
+            let transportAmount = 0;
+            if (includeTransport) {
+                const pref = studentCommutePrefs[s.id];
+                if (pref && pref.preference !== 'none') {
+                    const route = routeFeeSettings.find(r => r.routeId === pref.routeId);
+                    if (route) {
+                        const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
+                        transportAmount = Math.round(route.termFee * multiplier);
+                        const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : 'One Way';
+                        invoiceItems.push({
+                            description: `Transport Fee: ${route.routeName} (${prefLabel})`,
+                            quantity: 1,
+                            unitPrice: transportAmount,
+                            amount: transportAmount
+                        });
+                    }
+                }
+            }
+
+            const totalAmount = baseAmount + transportAmount;
             const invoiceNumber = `${invoicePrefix}${currentNum}`;
             currentNum += 1;
 
@@ -191,12 +256,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 issueDate: new Date().toISOString().split('T')[0],
                 dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                items: studentFeeStructures.map(f => ({
-                    description: f.name,
-                    quantity: 1,
-                    unitPrice: Number(f.amount || (f as any).allocatedAmount || 0),
-                    amount: Number(f.amount || (f as any).allocatedAmount || 0)
-                })),
+                items: invoiceItems,
                 institutionId: institution.id
             };
         });
@@ -340,6 +400,35 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                         </div>
                     )}
 
+                    {/* Transport Billing Integration */}
+                    <div className="pt-6 border-t border-slate-100 text-left space-y-4">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Transport Integration</label>
+                        <button
+                            type="button"
+                            onClick={() => setIncludeTransport(!includeTransport)}
+                            className={`w-full p-6 rounded-[2rem] border-2 transition-all duration-300 flex items-center justify-between ${
+                                includeTransport
+                                ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-900 dark:text-emerald-300'
+                                : 'bg-slate-50 dark:bg-slate-950 border-transparent hover:bg-slate-100 text-slate-700 dark:text-slate-355'
+                            }`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${includeTransport ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124l-.32-5.12a1.902 1.902 0 0 0-1.802-1.786l-8.225-.045m10.345 8.075h-1.125M9 4.5h6m-6 0h1.125c.621 0 1.129.504 1.09 1.124l-.32 5.12a1.902 1.902 0 0 0-1.802 1.786L5.25 12.5M9 4.5h6" /></svg>
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-black uppercase tracking-tight">Include Route Transport Fees</p>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wide">
+                                        Automatically append corresponding route transport fees for active commuters
+                                    </p>
+                                </div>
+                            </div>
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${includeTransport ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300'}`}>
+                                {includeTransport && <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>}
+                            </div>
+                        </button>
+                    </div>
+
                     <div className="bg-amber-50/50 border border-amber-100 p-6 rounded-3xl space-y-3">
                         <div className="flex items-center gap-2 text-amber-700">
                             <ZapIcon className="w-5 h-5" />
@@ -390,6 +479,19 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                 </div>
                             ))
                         )}
+                        
+                        {/* Transport Preview Items */}
+                        {includeTransport && routeFeeSettings.map(r => (
+                            <div key={r.routeId} className="flex justify-between items-center p-4 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 text-left">
+                                <div>
+                                    <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">{r.routeName}</p>
+                                    <div className="flex flex-wrap gap-2 items-center mt-1">
+                                        <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded uppercase tracking-wider">Transport Fee</span>
+                                    </div>
+                                </div>
+                                <span className="text-sm font-black text-emerald-900 dark:text-emerald-300">KES {Number(r.termFee)?.toLocaleString()}</span>
+                            </div>
+                        ))}
                     </div>
 
                     <div className="pt-6 border-t border-slate-100 flex gap-4">
