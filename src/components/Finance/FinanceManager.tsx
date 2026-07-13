@@ -1193,6 +1193,78 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [expDate, setExpDate] = useState(new Date().toISOString().split('T')[0]);
     const [expApprovedBy, setExpApprovedBy] = useState('');
     const [expPreparedBy, setExpPreparedBy] = useState(props.currentUser?.name || '');
+    const [showVoucherPreviewModal, setShowVoucherPreviewModal] = useState(false);
+
+    const approvalOfficers = useMemo(() => {
+        return (props.users || []).filter(u => u.role !== 'student' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead');
+    }, [props.users]);
+
+    const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const [isSignatureDrawing, setIsSignatureDrawing] = useState(false);
+    const [isSignatureSigned, setIsSignatureSigned] = useState(false);
+    const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+
+    const startSignatureDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const canvas = signatureCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+
+        const rect = canvas.getBoundingClientRect();
+        let clientX = 'touches' in e ? (e as React.TouchEvent<HTMLCanvasElement>).touches[0].clientX : (e as React.MouseEvent<HTMLCanvasElement>).clientX;
+        let clientY = 'touches' in e ? (e as React.TouchEvent<HTMLCanvasElement>).touches[0].clientY : (e as React.MouseEvent<HTMLCanvasElement>).clientY;
+
+        const x = ((clientX - rect.left) / rect.width) * canvas.width;
+        const y = ((clientY - rect.top) / rect.height) * canvas.height;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        setIsSignatureDrawing(true);
+        e.preventDefault();
+    };
+
+    const drawSignature = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        if (!isSignatureDrawing) return;
+        const canvas = signatureCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        let clientX = 'touches' in e ? (e as React.TouchEvent<HTMLCanvasElement>).touches[0].clientX : (e as React.MouseEvent<HTMLCanvasElement>).clientX;
+        let clientY = 'touches' in e ? (e as React.TouchEvent<HTMLCanvasElement>).touches[0].clientY : (e as React.MouseEvent<HTMLCanvasElement>).clientY;
+
+        const x = ((clientX - rect.left) / rect.width) * canvas.width;
+        const y = ((clientY - rect.top) / rect.height) * canvas.height;
+
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        setIsSignatureSigned(true);
+        e.preventDefault();
+    };
+
+    const stopSignatureDrawing = () => {
+        if (!isSignatureDrawing) return;
+        setIsSignatureDrawing(false);
+        const canvas = signatureCanvasRef.current;
+        if (canvas) {
+            setSignatureDataUrl(canvas.toDataURL());
+        }
+    };
+
+    const clearSignatureCanvas = () => {
+        const canvas = signatureCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setIsSignatureSigned(false);
+        setSignatureDataUrl(null);
+    };
 
     const studentPendingInvoices = useMemo(() => {
         const selectedId = showPostModal ? manualPayStudentId : reconcileStudentId;
@@ -1613,6 +1685,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
 
             const methodToSave = expReference ? `${expPaymentMethod} (${expReference})` : expPaymentMethod;
+            const approverUser = approvalOfficers.find(u => u.id === expApprovedBy);
+            const approverName = approverUser ? approverUser.name : expApprovedBy || 'Admin';
 
             await props.onAddExpense({
                 id: `exp_${Date.now()}`,
@@ -1626,10 +1700,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 voteHeadId: expVoteHeadId || undefined,
                 bankAccountId: expBankAccountId || undefined,
                 payeeName: expPayee || undefined,
-                approvedBy: expApprovedBy || undefined,
+                approvedBy: approverName || undefined,
                 paymentMethod: methodToSave,
-                recordedBy: expPreparedBy || props.currentUser?.name || 'Accountant'
+                recordedBy: expPreparedBy || props.currentUser?.name || 'Accountant',
+                signatureData: signatureDataUrl || undefined
             });
+
+            // Trigger notification to the approving person
+            if (expApprovedBy) {
+                try {
+                    await apiService.createNotification(
+                        expApprovedBy,
+                        `New Payment Voucher pending approval: ${referenceNumber} for KSh ${expAmount.toLocaleString()} (${expDescription})`,
+                        'warning'
+                    );
+                } catch (notiErr) {
+                    console.error("Failed to send approval notification:", notiErr);
+                }
+            }
 
             alert(`Expense recorded successfully with Payment Voucher Reference: ${referenceNumber}`);
             setExpAmount(0);
@@ -1641,6 +1729,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setExpReference('');
             setExpDate(new Date().toISOString().split('T')[0]);
             setExpApprovedBy('');
+            clearSignatureCanvas();
             
             if (props.onRefreshData) {
                 await props.onRefreshData();
@@ -4791,13 +4880,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Approved By</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Admin name..."
+                                            <select
                                                 value={expApprovedBy}
                                                 onChange={(e) => setExpApprovedBy(e.target.value)}
-                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none"
-                                            />
+                                                className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                                            >
+                                                <option value="">-- Select Approver --</option>
+                                                {approvalOfficers.map(u => (
+                                                    <option key={u.id} value={u.id}>{u.name} ({u.role?.replace('_', ' ')})</option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
                                     <div className="space-y-1">
@@ -4810,13 +4902,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none resize-none"
                                         />
                                     </div>
-                                    <button
-                                        onClick={handleAddExpense}
-                                        disabled={isSavingExpense}
-                                        className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg disabled:opacity-50"
-                                    >
-                                        {isSavingExpense ? 'Saving...' : 'Submit Record'}
-                                    </button>
+                                    <div className="grid grid-cols-2 gap-3 pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowVoucherPreviewModal(true)}
+                                            disabled={expAmount <= 0 || !expDescription}
+                                            className="py-4 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-1 shadow-sm"
+                                        >
+                                            👁️ Preview Voucher
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleAddExpense}
+                                            disabled={isSavingExpense}
+                                            className="py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg disabled:opacity-50"
+                                        >
+                                            {isSavingExpense ? 'Saving...' : 'Submit Record'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4848,6 +4951,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             {exp.payeeName && (
                                                                 <span className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
                                                                     👤 To: {exp.payeeName}
+                                                                </span>
+                                                            )}
+                                                            {(exp.signatureData || (exp as any).signature_data) && (
+                                                                <span className="bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
+                                                                    ✍️ Signed
                                                                 </span>
                                                             )}
                                                         </p>
@@ -7876,6 +7984,189 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     {isReconciling ? 'Reconciling...' : 'Reconcile and Generate Receipt'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* On-screen Payment Voucher Preview Modal */}
+                {showVoucherPreviewModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left animate-in zoom-in-95 duration-200">
+                            
+                            {/* Modal Header */}
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Payment Voucher Preview</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Review the voucher details before posting to the ledger</p>
+                                </div>
+                                <button 
+                                    onClick={() => setShowVoucherPreviewModal(false)}
+                                    className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    <XIcon className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            {/* Voucher Document Canvas */}
+                            <div className="p-8 max-h-[60vh] overflow-y-auto bg-slate-50 dark:bg-slate-950">
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative space-y-6">
+                                    
+                                    {/* Double border design line */}
+                                    <div className="absolute inset-2 border border-dashed border-slate-200 dark:border-slate-850 pointer-events-none rounded-[1.2rem]" />
+                                    
+                                    {/* Paper Header */}
+                                    <div className="text-center pb-4 border-b border-slate-100 dark:border-slate-800">
+                                        <h4 className="text-md font-black text-slate-900 dark:text-white uppercase tracking-wider">{props.institution.name}</h4>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{props.companyDetails?.address || 'P.O. Box School'}</p>
+                                        <p className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em] mt-3">PAYMENT VOUCHER</p>
+                                    </div>
+
+                                    {/* Meta Row */}
+                                    <div className="flex justify-between items-center text-xs">
+                                        <div>
+                                            <p className="font-black text-slate-400 uppercase text-[9px] tracking-wider">PV Reference No</p>
+                                            <p className="font-bold text-slate-800 dark:text-white">[Draft/Generated on Post]</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-black text-slate-400 uppercase text-[9px] tracking-wider">Date</p>
+                                            <p className="font-bold text-slate-800 dark:text-white">{new Date(expDate || Date.now()).toLocaleDateString()}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Account Details Box */}
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2 text-xs font-semibold">
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400 uppercase text-[9px] tracking-wider">Source Bank Account:</span>
+                                            <span className="text-slate-800 dark:text-slate-250">
+                                                {(() => {
+                                                    const bank = (bankAccounts || []).find(b => b.id === expBankAccountId);
+                                                    return bank ? `${bank.bankName || bank.bank_name} - ${bank.accountName || bank.account_name} (${bank.accountNumber || bank.account_number})` : 'General Cash/Unspecified';
+                                                })()}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400 uppercase text-[9px] tracking-wider">Votehead Charged:</span>
+                                            <span className="text-slate-850 dark:text-slate-200">
+                                                {(() => {
+                                                    const vh = (props.voteHeads || []).find(v => v.id === expVoteHeadId);
+                                                    return vh ? vh.name : 'General Expense';
+                                                })()}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Payee Box */}
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2 text-xs font-semibold">
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400 uppercase text-[9px] tracking-wider">Payee / Recipient:</span>
+                                            <span className="text-slate-900 dark:text-white font-bold">{expPayee || 'N/A'}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400 uppercase text-[9px] tracking-wider">Payment Method:</span>
+                                            <span className="text-slate-900 dark:text-white font-bold">
+                                                {expPaymentMethod} {expReference ? `(Ref: ${expReference})` : ''}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Particulars Table */}
+                                    <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden text-xs">
+                                        <div className="grid grid-cols-3 bg-slate-50 dark:bg-slate-950 p-3 font-black text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+                                            <span className="col-span-2">Particulars of Expenditure / Being</span>
+                                            <span className="text-right">Amount</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 p-4 font-semibold text-slate-800 dark:text-slate-200">
+                                            <span className="col-span-2 text-slate-900 dark:text-white">
+                                                <p className="font-bold text-xs">{expDescription || 'No description provided.'}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Category: {expCategory}</p>
+                                            </span>
+                                            <span className="text-right font-black text-slate-900 dark:text-white">KES {Number(expAmount || 0).toLocaleString()}</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 bg-slate-50 dark:bg-slate-950 p-4 border-t border-slate-200 dark:border-slate-800 font-black">
+                                            <span className="col-span-2 text-slate-900 dark:text-white uppercase tracking-wider">Total</span>
+                                            <span className="text-right text-indigo-600 font-bold">KES {Number(expAmount || 0).toLocaleString()}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Amount in words */}
+                                    <div className="text-xs font-semibold italic text-slate-505">
+                                        Amount in Words: {pdfService.convertNumberToWords(expAmount || 0)}
+                                    </div>
+
+                                    {/* Signatures */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t border-slate-100 dark:border-slate-800 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                        <div className="space-y-4">
+                                            <div className="border-b border-slate-300 dark:border-slate-700 pb-1 text-slate-850 dark:text-slate-200 font-black">{expPreparedBy || props.currentUser?.name}</div>
+                                            <div>Prepared By</div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="border-b border-slate-300 dark:border-slate-700 pb-1 text-slate-850 dark:text-slate-200 font-black">—</div>
+                                            <div>Checked By</div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="border-b border-slate-300 dark:border-slate-700 pb-1 text-slate-850 dark:text-slate-200 font-black">
+                                                {approvalOfficers.find(u => u.id === expApprovedBy)?.name || 'Pending Approval'}
+                                            </div>
+                                            <div>Approved By</div>
+                                        </div>
+                                        <div className="space-y-2 col-span-1">
+                                            <div className="relative border border-dashed border-slate-350 dark:border-slate-750 bg-slate-50 dark:bg-slate-950/40 rounded-xl h-16 w-full flex items-center justify-center overflow-hidden">
+                                                <canvas
+                                                    ref={signatureCanvasRef}
+                                                    onMouseDown={startSignatureDrawing}
+                                                    onMouseMove={drawSignature}
+                                                    onMouseUp={stopSignatureDrawing}
+                                                    onMouseLeave={stopSignatureDrawing}
+                                                    onTouchStart={startSignatureDrawing}
+                                                    onTouchMove={drawSignature}
+                                                    onTouchEnd={stopSignatureDrawing}
+                                                    width={150}
+                                                    height={60}
+                                                    className="absolute inset-0 w-full h-full cursor-crosshair"
+                                                />
+                                                {!isSignatureSigned && (
+                                                    <span className="text-[7px] text-slate-400 font-bold uppercase tracking-wider pointer-events-none select-none">
+                                                        Sign / Draw here
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex justify-between items-center text-[8px]">
+                                                <span>Payee Signature</span>
+                                                {isSignatureSigned && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={clearSignatureCanvas}
+                                                        className="text-rose-500 hover:text-rose-600 font-bold uppercase transition-colors"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            {/* Modal Actions */}
+                            <div className="p-8 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-950/20">
+                                <button
+                                    onClick={() => setShowVoucherPreviewModal(false)}
+                                    className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                                >
+                                    Close Preview
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handleAddExpense();
+                                        setShowVoucherPreviewModal(false);
+                                    }}
+                                    className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md"
+                                >
+                                    Confirm & Post Record
+                                </button>
+                            </div>
+
                         </div>
                     </div>
                 )}

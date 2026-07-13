@@ -138,6 +138,7 @@ export interface Expense {
     bankAccountId?: string;
     payeeName?: string;
     approvedBy?: string;
+    signatureData?: string;
 }
 
 export interface FinanceNumberingConfig {

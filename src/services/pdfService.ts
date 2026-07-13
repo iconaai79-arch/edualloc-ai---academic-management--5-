@@ -5312,7 +5312,7 @@ export const generateConsolidatedPMReceiptPdfDataUri = async (
     return doc.output('datauristring');
 };
 
-const convertNumberToWords = (amount: number): string => {
+export const convertNumberToWords = (amount: number): string => {
     const singleDigits = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
     const teenDigits = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
     const doubleDigits = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
@@ -5647,6 +5647,13 @@ export const generateExpenseVoucherPdf = async (
     
     // Received by (Payee)
     currentX = currentX + sigWidth + sigSpacing;
+    if (expense.signatureData || (expense as any).signature_data) {
+        try {
+            doc.addImage(expense.signatureData || (expense as any).signature_data, 'PNG', currentX + 2, sigY - 12, sigWidth - 4, 11);
+        } catch (imgErr) {
+            console.error("Failed to add signature image to PDF:", imgErr);
+        }
+    }
     doc.line(currentX, sigY, currentX + sigWidth, sigY);
     doc.text('RECEIVED BY: PAYEE SIGN', currentX + 2, sigY + 4);
 
