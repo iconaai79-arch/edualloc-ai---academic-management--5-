@@ -124,16 +124,17 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules') || id.includes('src/services/') || id.includes('src/utils/') || id.includes('src/lib/')) {
+            const normalizedId = id.replace(/\\/g, '/').toLowerCase();
+            if (normalizedId.includes('node_modules') || normalizedId.includes('src/services') || normalizedId.includes('src/utils') || normalizedId.includes('src/lib')) {
               return 'vendor';
             }
-            if (id.includes('src/components/icons')) {
+            if (normalizedId.includes('src/components/icons')) {
               return 'ui-icons';
             }
-            if (id.includes('src/components/SuperAdminView')) {
+            if (normalizedId.includes('src/components/superadminview')) {
               return 'view-superadmin';
             }
-            if (id.includes('src/components/AdminView')) {
+            if (normalizedId.includes('src/components/adminview')) {
               return 'view-admin';
             }
           }
